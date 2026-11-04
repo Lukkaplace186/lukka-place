@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import ProjectCard from '@/components/projects/ProjectCard';
+import HomeSectionHeader, { HOME_SECTION } from '@/components/HomeSectionHeader';
 import { getRecentProjects } from '@/lib/developments';
 import { memo } from '@/lib/memo';
 import { getT } from '@/lib/i18n/server';
@@ -18,14 +18,9 @@ export default async function NewProjectsStrip() {
   if (!projects.length) return null;
   const t = await getT();
   return (
-    <section className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <p className="u-eyebrow text-blue-deep">{t('projects.home.eyebrow')}</p>
-          <h2 className="u-title-storefront text-ink">{t('projects.home.title')}</h2>
-        </div>
-        <Link href="/projets" className="shrink-0 text-sm font-semibold text-blue-deep hover:underline">{t('projects.home.all')}</Link>
-      </div>
+    // The homepage's shared section header and rhythm (2026-11-04 landing pass).
+    <section className={`bg-canvas ${HOME_SECTION}`}>
+      <HomeSectionHeader title={t('projects.home.title')} href="/projets" linkLabel={t('projects.home.all')} />
       <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
         {projects.map((project) => (
           <div key={project.id} className="w-[85%] shrink-0 snap-start sm:w-auto">

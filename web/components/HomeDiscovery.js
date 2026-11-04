@@ -1,82 +1,126 @@
 import Link from 'next/link';
-import { Film, LineChart, Tag } from 'lucide-react';
+import { Play } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
+import HomeSectionHeader, { HOME_SECTION } from '@/components/HomeSectionHeader';
 import { getT } from '@/lib/i18n/server';
 import { listingImages } from '@/lib/listingView';
-import { getCollectionTiles, getPriceGuides, getVideoListings, getLukkaIndex } from '@/lib/browseFeatures';
+import { getCollectionTiles, getVideoListings } from '@/lib/browseFeatures';
+import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces';
 import { memo } from '@/lib/memo';
 
 /**
- * Reasons to browse when nobody is looking for a place yet (growth plan items
- * 28–31), on the homepage: the themed collections,
- * and links to the price guides, the video feed and the Lukka Index — each
- * shown only when it has something real behind it. One 60-second in-process
- * copy (lib/memo.js), like the homepage's other counts: these are a handful
- * of aggregate reads, not search results.
+ * "Explorer" — the homepage's one browse section (2026-11-04 landing pass,
+ * from the approved mockup). It replaces three bands that asked the same
+ * question one after another: the collections, three plain link cards
+ * (Combien coûte / Vidéos / Indice Lukka) and "Par type de bien".
  *
- * "Bien du jour" (item 27) was removed from here on 2026-11-04, owner's call:
- * an unweighted daily draw with no plan behind it. /bien-du-jour answers 404
- * and is out of the sitemap; lib/browseFeatures.js getListingOfTheDay and the
- * /admin/croissance pick are kept for when it comes back.
+ *  - The themed collections as large photo tiles, at most four (one row on
+ *    a desktop; a swipe on a phone). Each cover is a real listing's photo.
+ *  - One row of chips: the busiest property types (six at most) and their real count
+ *    (getPropertyTypeFacets, the hero dropdown's own source, so a chip never
+ *    leads to an empty page), then "Visites en vidéo" when there are videos.
+ *    Offices, shops and warehouses share one "Bureaux & commerces" chip, as
+ *    the old tiles did. Names are the database's own category names.
+ *
+ * The price guides and the Lukka Index moved to HomeMarketBand, which shows
+ * their figures instead of linking to them. Each piece renders only with
+ * real data behind it; the section renders nothing when none has any.
+ *
+ * "Bien du jour" (item 27) was removed on 2026-11-04, owner's call; see
+ * lib/browseFeatures.js getListingOfTheDay.
  */
-export default async function HomeDiscovery() {
+const MAX_TILES = 4;
+const MAX_CHIPS = 6;
+
+function typeChips(propertyTypes, commercialLabel) {
+  const { residential, commercial } = groupTypeFacets(propertyTypes.filter((type) => type.count > 0));
+  const singles = commercial.filter((type) => !type.umbrella);
+  const commercialChip = singles.length > 1
+    ? { value: COMMERCIAL_FILTER_VALUE, label: commercialLabel, count: singles.reduce((sum, type) => sum + type.count, 0) }
+    : singles[0] || null;
+  // Six chips at most, as the type tiles had: the busiest residential types,
+  // then the commercial one. Every type stays one tap away in the hero's
+  // "Type de bien" select and on /listings.
+  const busiest = [...residential].sort((a, b) => b.count - a.count).slice(0, commercialChip ? MAX_CHIPS - 1 : MAX_CHIPS);
+  return [...busiest, commercialChip].filter(Boolean);
+}
+
+export default async function HomeDiscovery({ propertyTypes = [] }) {
   const t = await getT();
-  const [tiles, guides, videos, index] = await memo('home-discovery', 60_000, () => Promise.all([
+  const [tiles, videos] = await memo('home-discovery:v2', 60_000, () => Promise.all([
     getCollectionTiles(),
-    getPriceGuides(),
     getVideoListings({ limit: 3 }),
-    getLukkaIndex(),
   ]));
 
-  const links = [
-    guides.length ? { href: '/combien-coute', icon: Tag, label: t('home.discovery.prices'), hint: t('home.discovery.pricesHint', { count: guides.length }) } : null,
-    videos.length ? { href: '/videos', icon: Film, label: t('home.discovery.videos'), hint: t('home.discovery.videosHint') } : null,
-    index?.communes?.length ? { href: '/indice-lukka', icon: LineChart, label: t('home.discovery.index'), hint: t('home.discovery.indexHint') } : null,
-  ].filter(Boolean);
-
-  if (!tiles.length && !links.length) return null;
+  const shownTiles = tiles.slice(0, MAX_TILES);
+  const chips = typeChips(propertyTypes, t('listings.commercial.group.commercial'));
+  const showTypes = chips.length >= 2;
+  if (!shownTiles.length && !showTypes && !videos.length) return null;
 
   return (
-    <section className="bg-canvas pb-8 pt-2 sm:pb-12">
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-8 px-4 sm:px-6 lg:px-8">
-        {tiles.length ? (
-          <div>
-            <h2 className="u-title-storefront mb-4 text-ink">{t('home.collections.title')}</h2>
-            <ul className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] sm:overflow-visible sm:px-0">
-              {tiles.map((tile) => {
-                const cover = tile.cover ? listingImages(tile.cover)[0] : null;
-                return (
-                  <li key={tile.slug} className="w-44 shrink-0 snap-start sm:w-auto">
-                    <Link href={`/collections/${tile.slug}`} className="u-press group block overflow-hidden rounded-card bg-surface shadow-[var(--hairline),var(--shadow-card)]">
-                      <div className="relative aspect-[4/3] bg-canvas-alt">
-                        {cover ? <SafeImage src={cover} alt="" fill sizes="(min-width: 640px) 16rem, 11rem" className="object-cover" /> : null}
-                      </div>
-                      <div className="p-3">
-                        <span className="block text-[0.875rem] font-bold text-ink">{t(tile.titleKey)}</span>
-                        <span className="u-tabular block text-[0.75rem] text-ink-45">{t('home.types.count', { count: tile.total })}</span>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+    <section className="bg-canvas">
+      <div className={HOME_SECTION}>
+        <HomeSectionHeader title={t('home.explore.title')} href="/listings" linkLabel={t('listings.empty.seeAll')} />
+
+        {shownTiles.length ? (
+          <ul className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 lg:grid-cols-4">
+            {shownTiles.map((tile) => {
+              const cover = tile.cover ? listingImages(tile.cover)[0] : null;
+              return (
+                <li key={tile.slug} className="w-[64%] shrink-0 snap-start sm:w-auto">
+                  <Link
+                    href={`/collections/${tile.slug}`}
+                    className="u-press group relative block h-56 overflow-hidden rounded-2xl bg-canvas-deep text-white sm:h-72"
+                  >
+                    {cover ? (
+                      <SafeImage
+                        src={cover}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1024px) 24rem, (min-width: 640px) 50vw, 64vw"
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                    ) : null}
+                    <span aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(0deg,rgba(11,17,32,0.78)_0%,rgba(11,17,32,0.1)_55%,rgba(11,17,32,0)_100%)]" />
+                    <span className="absolute inset-x-4 bottom-4 flex flex-col gap-0.5 sm:inset-x-5">
+                      <span className="text-[1.0625rem] font-bold leading-snug sm:text-[1.125rem]">{t(tile.titleKey)}</span>
+                      <span className="u-tabular text-[0.8125rem] text-white/85">{t('home.types.count', { count: tile.total })}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         ) : null}
 
-        {links.length ? (
-          <ul className="grid gap-3 sm:grid-cols-3">
-            {links.map(({ href, icon: Icon, label, hint }) => (
-              <li key={href}>
-                <Link href={href} className="u-press flex h-full items-center gap-3 rounded-card bg-surface p-4 shadow-[var(--hairline),var(--shadow-card)]">
-                  <Icon strokeWidth={1.5} className="h-6 w-6 shrink-0 text-blue" aria-hidden="true" />
-                  <span className="min-w-0">
-                    <span className="block text-[0.9375rem] font-bold text-ink">{label}</span>
-                    <span className="block text-[0.8125rem] text-ink-45">{hint}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+        {showTypes || videos.length ? (
+          <div className={shownTiles.length ? 'mt-6 sm:mt-7' : ''}>
+            {showTypes ? <p className="mb-3 text-[0.8125rem] font-semibold text-ink-45">{t('home.types.title')}</p> : null}
+            <ul className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+              {showTypes ? chips.map(({ value, label, count }) => (
+                <li key={value} className="shrink-0">
+                  <Link
+                    href={`/listings?property_type=${encodeURIComponent(value)}`}
+                    className="u-press inline-flex min-h-11 items-center gap-2 rounded-full bg-canvas-alt px-4 text-[0.875rem] font-semibold text-ink transition-colors hover:bg-blue-tint"
+                  >
+                    {label}
+                    <span className="u-tabular font-normal text-ink-45">{count}</span>
+                  </Link>
+                </li>
+              )) : null}
+              {videos.length ? (
+                <li className="shrink-0">
+                  <Link
+                    href="/videos"
+                    className="u-press inline-flex min-h-11 items-center gap-2 rounded-full bg-blue-tint px-4 text-[0.875rem] font-semibold text-blue-deep transition-colors hover:bg-blue-deep hover:text-white"
+                  >
+                    <Play aria-hidden="true" className="h-3.5 w-3.5 fill-current" strokeWidth={0} />
+                    {t('home.discovery.videos')}
+                  </Link>
+                </li>
+              ) : null}
+            </ul>
+          </div>
         ) : null}
       </div>
     </section>

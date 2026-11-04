@@ -3,11 +3,11 @@ import { getHeroSettings } from '@/lib/cmsSettings';
 import FeaturedListings from '@/components/FeaturedListings';
 import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
-import PropertyTypeTiles from '@/components/PropertyTypeTiles';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import HomeDiscovery from '@/components/HomeDiscovery';
 import HomeAlertBand from '@/components/HomeAlertBand';
+import HomeMarketBand from '@/components/HomeMarketBand';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -100,6 +100,15 @@ import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
  * alert on commune + budget, signup keeping the search) beside the
  * no-account "Trouver pour moi". web/CLAUDE.md, "Landing pass".
  *
+ * **Below the search, decluttered (later the same day, from the approved
+ * mockup).** One section style (HomeSectionHeader: title + link, no eyebrow,
+ * no borders around sections); "Récemment consultés" is a slim strip from
+ * two listings up; the alert band is one royal band whose form opens on tap;
+ * collections, property types and videos are one "Explorer" section
+ * (PropertyTypeTiles is gone); the price guides and the Lukka Index are shown
+ * as figures (HomeMarketBand); "Notre approche" is three unboxed points.
+ * web/CLAUDE.md, "Homepage below the search".
+ *
  * CommuneShortcuts is no longer rendered here. It was a row of commune
  * pills sitting immediately under the search panel; the panel now carries
  * that row itself, where a tap FILLS the search field instead of navigating
@@ -130,16 +139,16 @@ export default async function HomePage() {
       {/* Who Lukka Place is and the sitelinks search box — lib/seoSchema.js. */}
       <JsonLd data={{ '@context': 'https://schema.org', '@graph': [organizationSchema(), websiteSchema()] }} />
       <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} weeklyNew={weeklyNew} />
-      {/* Returning visitors pick up where they left off; renders nothing on a first visit. */}
-      <RecentlyViewed />
-      {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
-      {/* Why an account is worth having (an alert) and the no-account request. */}
+      {/* One slim line of the listings this browser opened, from two up; nothing on a first visit. */}
+      <RecentlyViewed variant="strip" minItems={2} />
+      {saved ? <SavedListings listings={saved.listings} /> : <FeaturedListings />}
+      {/* Why an account is worth having (an alert) and the no-account request: one royal band. */}
       <HomeAlertBand />
       <NewProjectsStrip />
-      {/* Bien du jour, collections, prices, videos, the Lukka Index — only what has data behind it. */}
-      <HomeDiscovery />
-      {/* One tile per property type with listings, counts from the same facets as the hero dropdown. */}
-      <PropertyTypeTiles propertyTypes={propertyTypes} />
+      {/* Explorer: collections as photo tiles, then one row of type chips (same facets as the hero dropdown). */}
+      <HomeDiscovery propertyTypes={propertyTypes} />
+      {/* The price guides and the Lukka Index as figures. */}
+      <HomeMarketBand />
       <ValueProposition />
     </>
   );

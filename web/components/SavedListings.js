@@ -1,5 +1,5 @@
 import SavedListingsRail from './SavedListingsRail';
-import SectionHeading from './SectionHeading';
+import HomeSectionHeader, { HOME_SECTION } from './HomeSectionHeader';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -30,7 +30,7 @@ import { getT } from '@/lib/i18n/server';
  * properties in this app. /compte/client/favoris is a redirect into it and
  * would just add a hop.
  */
-export default async function SavedListings({ listings, firstName }) {
+export default async function SavedListings({ listings }) {
   const t = await getT();
 
   return (
@@ -40,16 +40,8 @@ export default async function SavedListings({ listings, firstName }) {
        grounds depending on who is looking at it. Band rhythm note above
        applies to the fill too. */
     <section className="bg-canvas">
-      <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-5 sm:px-6 sm:pt-14 sm:pb-10 lg:px-8">
-        <SectionHeading
-          eyebrow={firstName ? t('home.saved.eyebrow', { name: firstName }) : t('home.saved.eyebrowAnonymous')}
-          title={t('home.saved.title')}
-          lead={t('home.saved.lead', { count: listings.length })}
-          href="/compte/client/favoris"
-          linkLabel={t('home.saved.viewAll')}
-          className="mb-4 sm:mb-10"
-          eyebrowClassName="u-eyebrow-ink"
-        />
+      <div className={HOME_SECTION}>
+        <HomeSectionHeader title={t('home.saved.title')} href="/compte/client/favoris" linkLabel={t('home.saved.viewAll')} />
         <SavedListingsRail listings={listings} />
       </div>
     </section>

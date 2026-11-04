@@ -4020,3 +4020,30 @@ collection. Web half: `lib/marketGuide.js` (SQL), `lib/marketObservationRules.js
   the pasted text is not kept; a link is required except for Facebook), and
   the list with exclude (`manual:<code>`) / restore. An automatic exclusion
   cannot be restored.
+
+## Homepage below the search (2026-11-04)
+
+Decluttered from an approved mockup; the hero and search panel are unchanged.
+`tests/unit/home-below-search.test.js`.
+
+- **One section style**: `components/HomeSectionHeader.js` (title + a
+  sentence-case link with an arrow, no eyebrow) and `HOME_SECTION` (width,
+  gutters, `py-10 sm:py-16`) on Sélection / Biens enregistrés, Nouveaux
+  projets, Explorer, the market band and Notre approche. Bands are told apart
+  by their ground (white, royal, chalk), never by a border around them.
+- **Récemment consultés** on the homepage is `RecentlyViewed variant="strip"`
+  with `minItems={2}`: one line of 56px photos, price and place. The listing
+  page keeps the card rail.
+- **The alert band** is one `bg-blue-deep` band, two buttons; "Créer une
+  alerte" unfolds the unchanged `HomeAlertPicker` on a white panel
+  (`HomeAlertReveal`, rendered hidden so its state survives a close).
+- **Explorer** (`HomeDiscovery`) = at most four collection photo tiles + at
+  most six type chips (busiest residential types, then one "Bureaux &
+  commerces") + "Visites en vidéo". `PropertyTypeTiles.js` is deleted.
+- **Le marché locatif en chiffres** (`HomeMarketBand`, `HomeMarketExplorer`,
+  `lib/homeMarket.js`): the published price guides (communes with ≥2 bedroom
+  counts among 1–4, busiest four) as tappable bars, and the latest Lukka Index.
+  No trend line: the index has one month, and a month-on-month figure prints
+  only where `getLukkaIndex` computed one.
+- **Notre approche**: three unboxed points with icons, shorter copy (same
+  claims), header link to /a-propos; the "Voir les annonces" button is gone.

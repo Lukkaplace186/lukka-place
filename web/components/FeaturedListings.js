@@ -1,5 +1,5 @@
 import FeaturedListingsCarousel from './FeaturedListingsCarousel';
-import SectionHeading from './SectionHeading';
+import HomeSectionHeader, { HOME_SECTION } from './HomeSectionHeader';
 import { cachedFeaturedListings } from '@/lib/listingsCached';
 import { getT } from '@/lib/i18n/server';
 
@@ -27,25 +27,10 @@ export default async function FeaturedListings() {
        container sits inside it, so a future ground or rule reaches both
        edges of the screen rather than stopping at the 1600px gutter. */
     <section className="bg-canvas">
-      <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-5 sm:px-6 sm:pt-14 sm:pb-10 lg:px-8">
-        {/* No `lead`. It read "Les annonces les plus récemment vérifiées et
-            mises en ligne." directly under a title and an eyebrow that both
-            already said as much — the same claim three times in one header
-            block, and on mobile that third line pushed the first real listing
-            two rows further down. The eyebrow carries the recency framing, the
-            title names the section.
-
-            The eyebrow was also the last hardcoded French string on this page:
-            an English visitor read "Sélection de la semaine" above an English
-            title. It resolves through the dictionary like everything else now. */}
-        <SectionHeading
-          eyebrow={t('home.featuredEyebrow')}
-          title={t('home.featuredHeading')}
-          href="/listings"
-          linkLabel={t('listings.empty.seeAll')}
-          className="u-reveal-in-view mb-4 sm:mb-10"
-          eyebrowClassName="u-eyebrow-ink"
-        />
+      <div className={HOME_SECTION}>
+        {/* The homepage's one section header (HomeSectionHeader): title and a
+            sentence-case link, no eyebrow — 2026-11-04 landing pass. */}
+        <HomeSectionHeader title={t('home.featuredHeading')} href="/listings" linkLabel={t('listings.empty.seeAll')} />
         <FeaturedListingsCarousel listings={data} />
       </div>
     </section>

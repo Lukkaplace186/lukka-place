@@ -229,12 +229,13 @@
     },
     "value": {
       "verifiedTitle": "Annonces relues",
-      "verifiedBody": "Chaque bien passe par un contrôle humain avant publication — informations, photos et localisation sont revues, pas simplement recopiées.",
+      "verifiedBody": "Chaque annonce est relue par notre équipe avant publication : informations, photos et localisation.",
       "contactTitle": "Contact direct",
-      "contactBody": "Le numéro de l'agent quand il est vérifié, sinon notre ligne WhatsApp. Pas de formulaire, pas de rappel commercial non sollicité.",
+      "contactBody": "Le numéro de l'agent quand il est vérifié, sinon notre ligne WhatsApp. Pas de rappel commercial.",
       "pricesTitle": "Prix transparents",
-      "pricesBody": "Prix, superficie et référence affichés tels quels, en dollars comme en francs. Aucun frais de dossier ajouté par la plateforme.",
-      "eyebrow": "Notre approche"
+      "pricesBody": "Prix affichés tels quels, en dollars comme en francs. Aucun frais de dossier ajouté.",
+      "eyebrow": "Notre approche",
+      "aboutLink": "À propos de Lukka Place"
     },
     "trustHeading": "Qui est derrière",
     "featuredEyebrow": "Nouveautés",
@@ -358,7 +359,38 @@
       "pickCommune": "Choisissez une commune pour créer l'alerte.",
       "requestTitle": "Trouver pour moi",
       "requestLead": "Pas besoin de compte : décrivez ce que vous cherchez, nous transmettons votre demande aux agences de la commune.",
-      "requestButton": "Décrire ma recherche"
+      "requestButton": "Décrire ma recherche",
+      "lead": "Recevez une alerte WhatsApp gratuite (avec un compte) dès qu'un bien correspond à votre commune et à votre budget. Sans compte, décrivez votre recherche : nous la transmettons aux agences de la commune.",
+      "open": "Créer une alerte",
+      "close": "Fermer"
+    },
+    "explore": {
+      "title": "Explorer"
+    },
+    "market": {
+      "title": "Le marché locatif en chiffres",
+      "note": "Loyers mensuels médians demandés, sur les annonces de Lukka Place et celles relevées ailleurs (sites immobiliers, groupes WhatsApp, Facebook). Hors meublés, et seulement là où au moins {n} annonces comparables existent.",
+      "indexLead": "Loyer médian demandé, par commune",
+      "indexNoChange": "L'évolution sur un mois s'affichera dès que deux relevés consécutifs seront comparables.",
+      "indexLink": "Voir l'indice",
+      "communes": "Communes",
+      "statLabel": {
+        "one": "Loyer médian demandé pour 1 chambre à {commune}",
+        "other": "Loyer médian demandé pour {count} chambres à {commune}"
+      },
+      "statCount": {
+        "one": "{count} annonce comparée",
+        "other": "{count} annonces comparées"
+      },
+      "detail": "Voir le détail",
+      "barLabel": {
+        "one": "1 chambre : {median} $ par mois",
+        "other": "{count} chambres : {median} $ par mois"
+      },
+      "bedsShort": {
+        "one": "{count} ch",
+        "other": "{count} ch"
+      }
     }
   },
   "about": {

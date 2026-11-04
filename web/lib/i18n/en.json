@@ -229,12 +229,13 @@
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
-      "verifiedBody": "Every property goes through a human check before publication — details, photos and location are reviewed, not simply copied across.",
+      "verifiedBody": "Every listing is reviewed by our team before publication: details, photos and location.",
       "contactTitle": "Direct Contact",
-      "contactBody": "The agent's own number when it is verified, otherwise our WhatsApp line. No forms, no unsolicited sales calls.",
+      "contactBody": "The agent's own number when it is verified, otherwise our WhatsApp line. No sales calls.",
       "pricesTitle": "Transparent Prices",
-      "pricesBody": "Price, floor area and reference shown as they are, in dollars and in francs. No platform admin fees added.",
-      "eyebrow": "Our Approach"
+      "pricesBody": "Prices shown as they are, in dollars and in francs. No admin fees added.",
+      "eyebrow": "Our Approach",
+      "aboutLink": "About Lukka Place"
     },
     "trustHeading": "Who's Behind This",
     "featuredEyebrow": "Newly Listed",
@@ -358,7 +359,38 @@
       "pickCommune": "Choose a commune to create the alert.",
       "requestTitle": "Find It for Me",
       "requestLead": "No account needed: describe what you are looking for and we pass your request to the commune's agencies.",
-      "requestButton": "Describe my search"
+      "requestButton": "Describe my search",
+      "lead": "Get a free WhatsApp alert (account needed) as soon as a property matches your commune and budget. No account? Describe your search and we pass it on to the commune's agencies.",
+      "open": "Create an Alert",
+      "close": "Close"
+    },
+    "explore": {
+      "title": "Explore"
+    },
+    "market": {
+      "title": "The Rental Market in Figures",
+      "note": "Median monthly asking rents, from Lukka Place listings and those found elsewhere (property sites, WhatsApp groups, Facebook). Unfurnished only, and only where at least {n} comparable listings exist.",
+      "indexLead": "Median asking rent, by commune",
+      "indexNoChange": "The month-on-month change will show once two consecutive months can be compared.",
+      "indexLink": "See the index",
+      "communes": "Communes",
+      "statLabel": {
+        "one": "Median asking rent for 1 bedroom in {commune}",
+        "other": "Median asking rent for {count} bedrooms in {commune}"
+      },
+      "statCount": {
+        "one": "{count} listing compared",
+        "other": "{count} listings compared"
+      },
+      "detail": "See the details",
+      "barLabel": {
+        "one": "1 bedroom: {median} $ a month",
+        "other": "{count} bedrooms: {median} $ a month"
+      },
+      "bedsShort": {
+        "one": "{count} bed",
+        "other": "{count} beds"
+      }
     }
   },
   "about": {

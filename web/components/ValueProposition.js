@@ -1,105 +1,47 @@
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { MessageCircle, ShieldCheck, Tag } from 'lucide-react';
+import HomeSectionHeader, { HOME_SECTION } from './HomeSectionHeader';
 import { getT } from '@/lib/i18n/server';
 
 // Keys, not text — see components/navItems.js on why a module-level constant
 // cannot hold translated copy.
 const VALUE_PROPS = [
-  { id: 'verified', titleKey: 'home.value.verifiedTitle', bodyKey: 'home.value.verifiedBody' },
-  { id: 'contact', titleKey: 'home.value.contactTitle', bodyKey: 'home.value.contactBody' },
-  { id: 'prices', titleKey: 'home.value.pricesTitle', bodyKey: 'home.value.pricesBody' },
+  { id: 'verified', icon: ShieldCheck, titleKey: 'home.value.verifiedTitle', bodyKey: 'home.value.verifiedBody' },
+  { id: 'contact', icon: MessageCircle, titleKey: 'home.value.contactTitle', bodyKey: 'home.value.contactBody' },
+  { id: 'prices', icon: Tag, titleKey: 'home.value.pricesTitle', bodyKey: 'home.value.pricesBody' },
 ];
 
 /**
- * Three value props as an editorial row, on the chalk band that closes the
- * homepage before the footer.
+ * "Notre approche" — the three promises, closing the homepage before the
+ * footer's partner band.
  *
- * No "01/02/03" numerals. They were decoration, not information: the three
- * claims are peers, not an ordered procedure, so numbering them implied a
- * sequence the copy does not have — and on mobile, where the three cells
- * stack, each 34px serif numeral pushed the actual heading a full line
- * further down the fold for no gain. The heading is now the first thing in
- * every cell, on the same left axis as its body text.
- *
- * Two things the refonte changed here, both about where the reader is sent
- * next:
- *
- *   - Left-aligned, not centred. Everything above it — hero, commune row,
- *     listings grid — sits on the container's left edge, and this section
- *     breaking that axis was the only place the page changed alignment
- *     mid-scroll. Centring is for a closing statement, not for a row of
- *     three cards.
- *   - One exit, not three. Each prop used to carry its own CTA ("Voir les
- *     annonces" / "Nous contacter" / "En savoir plus"), which scattered the
- *     reader at exactly the moment the section had finished making its
- *     case. The three claims are now stated, then a single primary button
- *     under the group carries all of them.
- *
- * The three cells are fused into one hairline-ruled band (gap-px over a
- * `bg-line` grid, with a rule top and bottom) rather than three separate
- * floating cards — the copy reads as one argument in three parts, not as
- * three offers.
- *
- * No Buying/Renting/Selling tabs: none of these three differ by transaction
- * type, so tabs would be dead UI.
+ * 2026-11-04 landing pass (approved mockup): no boxes. Three short points,
+ * each an icon, a title and one line, side by side on a desktop and stacked
+ * on a phone, under the homepage's shared section header. They were three
+ * bordered numbered cards plus a "Voir les annonces" button — the numbers
+ * implied an order the claims do not have, and the button repeated the
+ * listings section's own link. The header now links to /a-propos, where the
+ * promises are argued at length. The copy was shortened to one line each;
+ * the claims are the same.
  */
 export default async function ValueProposition() {
   const t = await getT();
   return (
-    /* White, not --canvas-alt. This band was #f7f7f5 against a #ffffff
-       listings section above it — a 1.5% difference in lightness, which
-       read as neither one ground nor two. With the storefront settled on
-       prestige white throughout, the honest version is a single ground and
-       a real rule: the inset top hairline is now the only thing separating
-       this section from the listings, and it does the job that the
-       almost-invisible fill was pretending to. */
-    /* Asymmetric padding, deliberately: the top is roughly half the bottom.
-       The dead white space reported above this section's kicker was two
-       paddings stacked — the listings section's own pb plus this one's pt
-       — which came to 100px on a phone and 176px on desktop with nothing
-       in it. The hairline above already marks the break, so the label does
-       not need to be pushed away from it; the bottom keeps its old
-       generosity because the footer's royal band follows and wants the
-       air. Trimmed alongside the listings sections' pb, which owns the
-       other half of that gap — measured on a phone rather than guessed:
-       card bottom to hairline was 32px, hairline to label 24px, with the
-       carousel's own 16px scrollbar padding inside that again. */
-    <section className="bg-canvas pt-4 pb-11 shadow-[0_1px_0_var(--line)_inset] sm:pt-7 sm:pb-20">
-      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-        {/* The eyebrow IS the header. It previously sat above a serif title
-            ("Ce qui change, concrètement" / "What actually changes") that
-            restated the same promise the three numbered props then make in
-            full — a label, a paraphrase of the section, and the section
-            itself, in that order. The label is kept because it names the
-            section in the page outline; the paraphrase is gone. */}
-        <h2 className="u-reveal-in-view u-title-storefront mb-5 text-ink sm:mb-8">{t('home.value.eyebrow')}</h2>
-
-        {/* Three numbered cards (2026-10-06 storefront upgrade, the same card
-            language as the portals): the three promises read as steps a
-            visitor goes through — reviewed listings, direct contact, prices
-            stated — rather than as a ruled band. Copy unchanged. */}
-        <ol className="u-stagger-in-view grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-5">
-          {VALUE_PROPS.map(({ id, titleKey, bodyKey }, index) => (
-            <li key={id} className="flex gap-3.5 rounded-card bg-surface p-4 shadow-[var(--hairline),var(--shadow-card)] sm:p-6 md:flex-col md:gap-3">
-              <span className="u-tabular grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue text-[0.9375rem] font-extrabold text-white">
-                {index + 1}
+    <section className="bg-canvas">
+      <div className={HOME_SECTION}>
+        <HomeSectionHeader title={t('home.value.eyebrow')} href="/a-propos" linkLabel={t('home.value.aboutLink')} />
+        <ul className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10">
+          {VALUE_PROPS.map(({ id, icon: Icon, titleKey, bodyKey }) => (
+            <li key={id} className="flex items-start gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-tint text-blue-deep">
+                <Icon strokeWidth={1.75} aria-hidden="true" className="h-[1.375rem] w-[1.375rem]" />
               </span>
-              <div className="flex flex-col gap-1.5">
-                <h3 className="text-[1.0625rem] font-bold leading-snug text-ink sm:text-[1.1875rem]">{t(titleKey)}</h3>
-                <p className="text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty">{t(bodyKey)}</p>
+              <div className="min-w-0">
+                <h3 className="text-[1rem] font-bold leading-snug text-ink">{t(titleKey)}</h3>
+                <p className="mt-1.5 text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty">{t(bodyKey)}</p>
               </div>
             </li>
           ))}
-        </ol>
-
-        <Link
-          href="/listings"
-          className="u-press u-btn-primary mt-7 inline-flex h-12 items-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white sm:mt-9"
-        >
-          {t('listings.viewVerified')}
-          <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-        </Link>
+        </ul>
       </div>
     </section>
   );

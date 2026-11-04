@@ -1638,7 +1638,33 @@
       "headingSale": "Biens à vendre",
       "readMore": "Lire la suite",
       "readLess": "Réduire",
-      "communesLabel": "Communes couvertes :"
+      "communesLabel": "Communes couvertes :",
+      "memberSinceMonth": "Membre depuis {date}",
+      "statListings": {
+        "one": "bien en ligne",
+        "other": "biens en ligne"
+      },
+      "statCommunes": {
+        "one": "commune couverte",
+        "other": "communes couvertes"
+      },
+      "backToAgencies": "Agences",
+      "aboutEyebrow": "À propos de l'agence",
+      "listingsHeading": "Les biens de {name}",
+      "thisAgency": "l'agence",
+      "featuredEyebrow": "Dernier bien publié",
+      "featuredCta": "Voir le bien",
+      "whatsappCta": "Contacter sur WhatsApp",
+      "whatsappCentralCta": "Contacter Lukka Place sur WhatsApp",
+      "centralNote": "Le numéro de l'agence n'est pas encore vérifié. Notre équipe transmet votre message.",
+      "shareCta": "Partager ce profil sur WhatsApp",
+      "shareShort": "Partager",
+      "contactCardTitle": "Contacter l'agence",
+      "contactRole": "Contact principal",
+      "writeToAgency": "Écrire à l'agence",
+      "zonesLabel": "Zones couvertes",
+      "alertTitle": "Recevez les nouveaux biens de {name}",
+      "alertBody": "Dites à l'agence ce que vous cherchez et elle vous prévient sur WhatsApp dès qu'un bien correspond."
     },
     "completion": {
       "nameLabel": "Nom renseigné",

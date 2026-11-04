@@ -39,13 +39,21 @@ export async function getAgentProfile(id) {
        -- The direct-routing switch (/admin/benchmarks), read here so the
        -- profile applies the same rule as every listing CTA: the agent's
        -- number is published only when verified AND routing is not off.
-       (SELECT direct_routing_enabled FROM agents WHERE id = $1) AS direct_routing_enabled`,
+       (SELECT direct_routing_enabled FROM agents WHERE id = $1) AS direct_routing_enabled,
+       -- "Membre depuis …" on the public profile. Through jsonb so a table
+       -- without the column reads as no date rather than a 42703.
+       (SELECT to_jsonb(a) ->> 'created_at' FROM agents a WHERE a.id = $1) AS member_since`,
     [agent.id, agent.vendor_id || null],
   );
   const own = rows[0]?.own_details;
   const bio = own != null ? own : rows[0]?.vendor_details;
 
-  return { ...agent, bio: bio || null, direct_routing_enabled: rows[0]?.direct_routing_enabled ?? null };
+  return {
+    ...agent,
+    bio: bio || null,
+    direct_routing_enabled: rows[0]?.direct_routing_enabled ?? null,
+    member_since: rows[0]?.member_since || null,
+  };
 }
 
 /**

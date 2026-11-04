@@ -40,7 +40,7 @@ export default async function InquiryForm({ agentId, agentName, sent, error }) {
 
   if (sent) {
     return (
-      <div className="u-card rounded-card bg-surface p-6 text-center">
+      <div className="text-center">
         <p className="u-title-card text-ink">{t('agent.portfolio.requestSent')}</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-70">
           {agentName} a reçu votre message et vous répondra sur WhatsApp au numéro que vous avez laissé.
@@ -50,10 +50,10 @@ export default async function InquiryForm({ agentId, agentName, sent, error }) {
   }
 
   return (
-    <div className="rounded-card border border-line/60 bg-surface p-4">
-      <h3 className="u-title-card text-ink">{t('agent.portfolio.sendMessage')}</h3>
-
-      <form action={bound} className="mt-3.5 flex flex-col gap-3">
+    // Framed and titled by the profile's "Écrire à l'agence" card
+    // (AgentProfileView), so no box or heading of its own.
+    <div>
+      <form action={bound} className="flex flex-col gap-3">
         <div>
           <label htmlFor="inquiry-name" className="mb-1 block text-xs font-semibold text-ink-70">
             {t('account.profile.fullName')}

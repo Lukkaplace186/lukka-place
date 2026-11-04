@@ -1638,7 +1638,33 @@
       "headingSale": "Properties for Sale",
       "readMore": "Read more",
       "readLess": "Show less",
-      "communesLabel": "Areas covered:"
+      "communesLabel": "Areas covered:",
+      "memberSinceMonth": "Member since {date}",
+      "statListings": {
+        "one": "listing online",
+        "other": "listings online"
+      },
+      "statCommunes": {
+        "one": "commune covered",
+        "other": "communes covered"
+      },
+      "backToAgencies": "Agencies",
+      "aboutEyebrow": "About the Agency",
+      "listingsHeading": "Listings from {name}",
+      "thisAgency": "this agency",
+      "featuredEyebrow": "Latest Listing",
+      "featuredCta": "View listing",
+      "whatsappCta": "Message on WhatsApp",
+      "whatsappCentralCta": "Message Lukka Place on WhatsApp",
+      "centralNote": "The agency's number is not verified yet. Our team will pass your message on.",
+      "shareCta": "Share this profile on WhatsApp",
+      "shareShort": "Share",
+      "contactCardTitle": "Contact the Agency",
+      "contactRole": "Main contact",
+      "writeToAgency": "Write to the agency",
+      "zonesLabel": "Areas covered",
+      "alertTitle": "Get New Listings from {name}",
+      "alertBody": "Tell the agency what you are looking for and they will let you know on WhatsApp as soon as a property matches."
     },
     "completion": {
       "nameLabel": "Name provided",

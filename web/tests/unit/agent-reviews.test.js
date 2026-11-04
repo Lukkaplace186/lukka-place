@@ -70,8 +70,10 @@ test('the profile names the agent, not the property, and the rating card is the 
   assert.match(card, /needsAgentRating\(visit\)/);
   const actions = read('app/(site)/compte/client/actions.js');
   assert.match(actions, /customerRateAgent\(id, \{ waId, stars: value/);
+  // The public profile shows no rating until the feature launches (owner,
+  // 2026-11-04). Put this back to `getAgentPublicRating(agent.id)` then.
   const page = read('app/(portfolio)/agents/[id]/page.js');
-  assert.match(page, /getAgentPublicRating\(agent\.id\)/);
+  assert.doesNotMatch(page, /getAgentPublicRating/);
   const fr = JSON.parse(read('lib/i18n/fr.json'));
   assert.match(fr.account.agenda.rating.hint, /pas le bien/);
 });

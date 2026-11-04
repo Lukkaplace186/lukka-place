@@ -1,14 +1,12 @@
 import { notFound } from 'next/navigation';
-import { Star } from 'lucide-react';
 import InquiryForm from './InquiryForm';
 import AgentProfileView from './AgentProfileView';
 import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
-import { getAgentPublicRating, formatAverage } from '@/lib/agentReviews';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
-import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { listingImages, typeLabel, specItems, feedLocationLine } from '@/lib/listingView';
+import { buildWhatsAppLink, buildWhatsAppShareLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { listingImages, typeLabel, specItems, feedLocationLine, LISTING_TIME_ZONE } from '@/lib/listingView';
 import { placeLabel } from '@/lib/placeLabel';
 import { isVerifiedLevel, LEVEL_LABEL_KEYS } from '@/lib/verificationLevels';
 import { formatPhoneDisplay, telHref } from '@/lib/phone';
@@ -66,16 +64,16 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   if (!agent) notFound();
 
   // Both tabs at once: the segmented control shows each tab's count and
-  // switches without a round trip. Projects and ratings never take the
-  // profile down.
-  const [rentals, sales, projects, rating, locale] = await Promise.all([
+  // switches without a round trip. Projects never take the profile down.
+  // No rating on the profile for now (owner decision, 2026-11-04: the
+  // ratings feature is not launched) — lib/agentReviews.js is untouched.
+  const [rentals, sales, projects, locale] = await Promise.all([
     getAgentListings(agent.id, { transactionType: 'location', limit: LISTINGS_PER_TAB }),
     getAgentListings(agent.id, { transactionType: 'vente', limit: LISTINGS_PER_TAB }),
     getPublicProjects({ agentId: agent.id }).catch((err) => {
       console.error(`[agents/${agent.id}] projects unavailable: ${err.message}`);
       return [];
     }),
-    getAgentPublicRating(agent.id),
     getLocale(),
   ]);
 
@@ -105,7 +103,10 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   const whatsappTo = (message) => (routablePhone ? buildWhatsAppLink(routablePhone, message) : getCentralWhatsAppHref(message));
 
   const contactName = agentContactName(agent);
-  const subline = [contactName, routablePhone && hasRealName ? formatPhoneDisplay(routablePhone) : null]
+  const subline = [
+    contactName ? t('agent.portfolio.contactPerson', { name: contactName }) : null,
+    routablePhone && hasRealName ? formatPhoneDisplay(routablePhone) : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -133,6 +134,23 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     };
   }
 
+  // The cover band's photo: the newest public listing that has one. A real
+  // photo of a real place this agency lists — never a stock image; no photo
+  // anywhere means the plain blue band.
+  const coverImage = [...rentals.data, ...sales.data]
+    .map((listing) => ({ at: listing.created_at ? new Date(listing.created_at).getTime() : 0, src: listingImages(listing)[0] }))
+    .filter((entry) => entry.src)
+    .sort((a, b) => b.at - a.at)[0]?.src || null;
+
+  // "Membre depuis mars 2024", from the account's own creation date, on the
+  // Kinshasa calendar so the server and every phone print the same month.
+  const memberDate = agent.member_since ? new Date(agent.member_since) : null;
+  const memberSince = memberDate && !Number.isNaN(memberDate.getTime())
+    ? t('agent.portfolio.memberSinceMonth', {
+        date: new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', { month: 'long', year: 'numeric', timeZone: LISTING_TIME_ZONE }).format(memberDate),
+      })
+    : null;
+
   const tabs = TABS.map((entry, index) => {
     const items = (index === 0 ? rentals : sales).data.map(toItem);
     return {
@@ -155,16 +173,40 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     subline: subline || null,
     communes: communes.map((c) => communeLabel(c)),
     verifiedLabel: isVerifiedLevel(agent.verification_level) ? t(LEVEL_LABEL_KEYS[agent.verification_level]) : null,
-    rating: rating ? `${formatAverage(rating.average, locale)} (${t('agent.portfolio.reviewsCount', { count: rating.count })})` : null,
+    memberSince,
+    coverImage,
+    // The contact rail's person: the agent's own name, shown only when it
+    // differs from the heading (an agency name), with their initials.
+    contactName: contactName && contactName !== headingName ? contactName : null,
+    contactInitials: contactName
+      ? contactName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('')
+      : null,
+    communesCount: communes.length,
     telHref: routablePhone ? telHref(routablePhone) : null,
     whatsappHref: whatsappTo(PROFILE_MESSAGE),
+    // Contact goes to Lukka Place's desk when the agency's number is not
+    // published; the button says so instead of promising the agency.
+    whatsappIsCentral: !routablePhone,
+    // A share to anyone (WhatsApp's contact picker), French — read by the
+    // agency's customers whatever language this visitor browses in.
+    shareHref: buildWhatsAppShareLink(`${hasRealName ? name : 'Une agence'} sur Lukka Place : ses biens à louer et à vendre.
+${profileUrl}`),
+    // The alert band: the same pre-written ask as the empty-tab button, for
+    // any kind of property. The agency answers it — Lukka Place's own
+    // search alerts cannot be limited to one agency.
+    alertHref: whatsappTo(
+      `Bonjour, je cherche un bien. Pouvez-vous me prévenir quand un bien correspond ? (vu sur ${profileUrl})`,
+    ),
     // The header's address line: the office address when one is on file,
     // else the city (or cities) the agent's communes are in.
     locationLine: [agent.address, agent.city || agentCities.join(', ')].filter(Boolean).join(', ') || null,
   };
 
+  const liveCount = agent.live_listing_count ?? rentals.data.length + sales.data.length;
   const labels = {
-    activeCount: t('agent.portfolio.activeCount', { count: agent.live_listing_count ?? rentals.data.length + sales.data.length }),
+    liveCount,
+    liveCountLabel: t('agent.portfolio.statListings', { count: liveCount }),
+    communesCountLabel: t('agent.portfolio.statCommunes', { count: communes.length }),
     sorts: {
       recent: t('agent.portfolio.sortRecent'),
       priceAsc: t('agent.portfolio.sortPriceAsc'),
@@ -182,6 +224,23 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     copyLink: t('agent.portfolio.copyLink'),
     logo: t('agent.portfolio.logo'),
     contactUnavailable: t('agent.portfolio.contactUnavailable'),
+    agencies: t('agent.portfolio.backToAgencies'),
+    about: t('agent.portfolio.aboutEyebrow'),
+    listingsHeading: t('agent.portfolio.listingsHeading', { name: hasRealName ? name : t('agent.portfolio.thisAgency') }),
+    featuredEyebrow: t('agent.portfolio.featuredEyebrow'),
+    featuredCta: t('agent.portfolio.featuredCta'),
+    whatsappCta: t('agent.portfolio.whatsappCta'),
+    whatsappCentralCta: t('agent.portfolio.whatsappCentralCta'),
+    centralNote: t('agent.portfolio.centralNote'),
+    shareCta: t('agent.portfolio.shareCta'),
+    shareShort: t('agent.portfolio.shareShort'),
+    contactCardTitle: t('agent.portfolio.contactCardTitle'),
+    contactRole: t('agent.portfolio.contactRole'),
+    writeToAgency: t('agent.portfolio.writeToAgency'),
+    zonesLabel: t('agent.portfolio.zonesLabel'),
+    alertTitle: t('agent.portfolio.alertTitle', { name: hasRealName ? name : t('agent.portfolio.thisAgency') }),
+    alertBody: t('agent.portfolio.alertBody'),
+    alertCta: t('agent.portfolio.emptyCta'),
   };
 
   // RealEstateAgent structured data — only facts the page itself shows; no
@@ -212,64 +271,25 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
         initialTab={initialTab}
         labels={labels}
         profileUrl={profileUrl}
+        enquiryOpen={sp.inquiry_sent === '1' || Boolean(sp.inquiry_error)}
+        enquiry={
+          // The written enquiry creates a tracked lead and alerts the agent
+          // (root CLAUDE.md "Profile enquiries"); on a laptop it sits in the
+          // contact rail, on a phone it is folded under the listings.
+          <InquiryForm agentId={agent.id} agentName={name} sent={sp.inquiry_sent === '1'} error={sp.inquiry_error} />
+        }
       >
         {projects.length ? (
-          <section className="flex flex-col gap-4 border-t border-line/60 px-5 pt-8">
+          <section className="flex flex-col gap-4">
             <div>
               <span className="u-eyebrow">{t('projects.profile.eyebrow')}</span>
               <h2 className="u-title-section mt-1.5 text-ink">{t('projects.profile.title')}</h2>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2">
               {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
             </div>
           </section>
         ) : null}
-
-        {rating ? (
-          <section id="avis" className="mt-8 flex scroll-mt-24 flex-col gap-4 border-t border-line/60 px-5 pt-8">
-            <div>
-              <span className="u-eyebrow">{t('agent.portfolio.reviewsEyebrow')}</span>
-              <h2 className="u-title-section mt-1.5 text-ink">{t('agent.portfolio.reviewsTitle')}</h2>
-              <p className="u-tabular mt-2 flex items-center gap-1.5 text-base font-bold text-ink">
-                <Star strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 fill-warning text-warning" aria-hidden="true" />
-                {formatAverage(rating.average, locale)} {t('agent.portfolio.outOfFive')} · {t('agent.portfolio.reviewsCount', { count: rating.count })}
-              </p>
-              <p className="mt-1 text-[0.8125rem] text-ink-45">{t('agent.portfolio.reviewsNote')}</p>
-            </div>
-            {rating.comments.length ? (
-              <ul className="grid gap-3 lg:grid-cols-2">
-                {rating.comments.map((review) => (
-                  <li key={review.id} className="rounded-card border border-line/60 bg-surface p-4">
-                    <p className="flex gap-0.5" aria-label={`${review.stars}/5`}>
-                      {[1, 2, 3, 4, 5].map((value) => (
-                        <Star
-                          key={value}
-                          strokeWidth={ICON_STROKE_WIDTH}
-                          className={value <= review.stars ? 'h-4 w-4 fill-warning text-warning' : 'h-4 w-4 text-ink-25'}
-                          aria-hidden="true"
-                        />
-                      ))}
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed text-ink">{review.comment}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-        ) : null}
-
-        {/* The written enquiry stays (it creates a tracked lead and alerts
-            the agent — root CLAUDE.md "Profile enquiries"), folded away so
-            WhatsApp remains the one-gesture contact the design asks for. */}
-        <details
-          className="mx-5 mt-8 rounded-card border border-line/60 bg-surface p-4 lg:mx-4 lg:max-w-2xl"
-          open={sp.inquiry_sent === '1' || Boolean(sp.inquiry_error)}
-        >
-          <summary className="cursor-pointer text-sm font-semibold text-ink">{t('agent.portfolio.writtenEnquiry')}</summary>
-          <div className="mt-3">
-            <InquiryForm agentId={agent.id} agentName={name} sent={sp.inquiry_sent === '1'} error={sp.inquiry_error} />
-          </div>
-        </details>
       </AgentProfileView>
     </>
   );

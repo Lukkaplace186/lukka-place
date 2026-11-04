@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CalendarClock, CalendarRange, Droplets, Sofa, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
+import { CalendarClock, CalendarRange, SlidersHorizontal } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import FiltersDrawer from './FiltersDrawer';
@@ -24,17 +24,13 @@ import {
 import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { cn } from '@/lib/utils';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
-import { UTILITY_FILTERS, UTILITY_FILTER_KEYS } from '@/lib/utilityTags';
 import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 import { frNumber } from '@/lib/format';
 
-const UTILITY_ICONS = { zap: Zap, droplets: Droplets, shield: Shield, route: Route };
 const LEASE_ICONS = { long: CalendarRange, short: CalendarClock };
 
 const FORM_ID = 'listings-filter-form';
 const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin', 'plotMin', 'plotMax'];
-// Meublé has its own chip in the row under the bar, beside the utilities.
-const FURNISHED_KEY = 'furnished';
 // Recording a "recent search" only makes sense once at least one of these
 // is set — a bare /listings visit with none of them isn't a search worth
 // remembering. sort/view/page deliberately excluded: they don't filter the
@@ -295,11 +291,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // ADVANCED_KEYS' plain truthiness check, since `Boolean([])` is true and
   // would otherwise always count as "1 active filter" even with nothing
   // checked.
-  // The four utility chips (⚡ 💧 🛡 🛣) have their own row and show their own
-  // state, so they are not counted again on "Plus de filtres".
+  // Every amenity toggle lives in the sheets now (2026-11-04), so each one
+  // counts on "Plus de filtres" / Filtres.
   const advancedCount =
     ADVANCED_KEYS.filter((key) => defaults[key]).length
-    + (defaults.amenities || []).filter((key) => !UTILITY_FILTER_KEYS.includes(key) && key !== FURNISHED_KEY).length
+    + (defaults.amenities || []).length
     + (defaults.depositMax || defaults.depositRange ? 1 : 0);
   // Mobile's single "Filtres" button badge — the primary pills' own active
   // count (Chambres/Prix-as-one/Type de bien) plus everything advancedCount
@@ -309,7 +305,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     (defaults.bedsMin ? 1 : 0) +
     (defaults.priceMin || defaults.priceMax ? 1 : 0) +
     (defaults.propertyType ? 1 : 0) +
-    (defaults.leaseTerm ? 1 : 0) +
     advancedCount;
 
   function submit() {
@@ -648,17 +643,18 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           </div>
         </div>
 
-        {/* Kinshasa's four questions — courant, eau, sécurité, accès — one tap
-            each (lib/utilityTags.js). They ride in `amenities`, so saved
-            searches, alerts and the map carry them. Hidden once the bar
-            condenses on scroll, like the pills' second line would be. */}
-        {!condensed ? (
-          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+        {/* Only the rental duration stays under the bar (2026-11-04, owner
+            direction). Courant, eau, sécurité, accès, parking and meublé moved
+            into the Filtres / "Plus de filtres" sheets (AdvancedFilterFields,
+            "Équipements & conditions"); they still ride in `amenities`.
+            Hidden once the bar condenses on scroll, and on a sale search. */}
+        {!condensed && showLeaseTerm ? (
+          <div className="mt-2">
             {/* Durée du bail first: longue durée is the standard, courte durée
                 is a room or flat let by the day / week (lib/leaseTerm.js).
                 Tapping the selected one clears it. */}
             {showLeaseTerm ? (
-              <div className="flex shrink-0 gap-1.5" role="group" aria-label={t('listings.leaseTerm.label')}>
+              <div className="grid grid-cols-2 gap-2 lg:flex" role="group" aria-label={t('listings.leaseTerm.label')}>
                 {LEASE_TERM_OPTIONS.filter((o) => o.value).map((option) => {
                   const on = leaseTerm === option.value;
                   const Icon = LEASE_ICONS[option.value];
@@ -669,7 +665,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                       aria-pressed={on}
                       onClick={() => apply(setLeaseTerm)(on ? '' : option.value)}
                       className={cn(
-                        'u-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors',
+                        'u-press inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors lg:min-h-9 lg:shrink-0',
                         on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
                       )}
                     >
@@ -678,44 +674,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                     </button>
                   );
                 })}
-                <span aria-hidden="true" className="mx-0.5 my-1.5 w-px shrink-0 bg-line" />
               </div>
             ) : null}
-            <div className="flex shrink-0 gap-1.5" role="group" aria-label={t('listings.utilityFilters.label')}>
-            {UTILITY_FILTER_KEYS.map((key) => {
-              const on = amenities.includes(key);
-              const Icon = UTILITY_ICONS[UTILITY_FILTERS[key].icon];
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => apply(setAmenities)(on ? amenities.filter((k) => k !== key) : [...amenities, key])}
-                  className={cn(
-                    'u-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors',
-                    on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
-                  )}
-                >
-                  <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t(UTILITY_FILTERS[key].labelKey)}
-                </button>
-              );
-            })}
-            {/* Meublé — the agent's stated `furnished`, or the listing's own
-                words for older listings (lib/listings.js). */}
-            <button
-              type="button"
-              aria-pressed={amenities.includes(FURNISHED_KEY)}
-              onClick={() => apply(setAmenities)(amenities.includes(FURNISHED_KEY) ? amenities.filter((k) => k !== FURNISHED_KEY) : [...amenities, FURNISHED_KEY])}
-              className={cn(
-                'u-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors',
-                amenities.includes(FURNISHED_KEY) ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
-              )}
-            >
-              <Sofa strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('listings.amenities.furnished')}
-            </button>
-            </div>
           </div>
         ) : null}
 

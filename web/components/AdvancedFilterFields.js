@@ -4,9 +4,22 @@ import { PillOption } from './FilterPill';
 import { useMemo } from 'react';
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { UTILITY_FILTERS, UTILITY_FILTER_KEYS } from '@/lib/utilityTags';
 
 // Furnished / semi-furnished / AC sit under "Conditions de paiement".
 const RENTAL_TERMS_KEY = 'listings.amenityGroups.rentalTerms';
+const ACCESS_SECURITY_KEY = 'listings.amenityGroups.accessSecurity';
+// "Équipements & conditions" (2026-11-04, owner direction): the toggles that
+// used to sit in a chip row under the /listings search bar. The four services
+// are lib/utilityTags.js's chips (structured codes OR the listing's words);
+// parking and meublé come from AMENITY_GROUPS. The old "Accessibilité &
+// Sécurité" group (security, paved_road, parking) is not drawn: Sécurité and
+// Accès here cover the same listings, and two "Sécurité" toggles in one sheet
+// read as a bug. Its keys still filter when they arrive in a saved link.
+const ESSENTIAL_EXTRA = [
+  { key: 'parking', labelKey: 'listings.amenities.parking' },
+  { key: 'furnished', labelKey: 'listings.amenities.furnished' },
+];
 
 const PLOTLESS_TYPES = ['appartement', 'studio', 'chambre', 'chambre / annexe', 'penthouse', 'bureau', 'boutique'];
 
@@ -183,7 +196,22 @@ export default function AdvancedFilterFields({
           against the listing's own title/description in lib/listings.js.
           Real, working filters — just not database-verified ones, hence
           the caption below rather than silently implying otherwise. */}
-      {AMENITY_GROUPS.filter((group) => group.titleKey !== RENTAL_TERMS_KEY).map((group) => (
+      <Field label={t('listings.amenityGroups.essentials')}>
+        <div className="flex flex-wrap gap-2">
+          {UTILITY_FILTER_KEYS.map((key) => (
+            <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
+              {t(UTILITY_FILTERS[key].labelKey)}
+            </PillOption>
+          ))}
+          {ESSENTIAL_EXTRA.map(({ key, labelKey }) => (
+            <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
+              {t(labelKey)}
+            </PillOption>
+          ))}
+        </div>
+      </Field>
+
+      {AMENITY_GROUPS.filter((group) => group.titleKey !== RENTAL_TERMS_KEY && group.titleKey !== ACCESS_SECURITY_KEY).map((group) => (
         <Field key={group.titleKey} label={t(group.titleKey)}>
           <div className="flex flex-wrap gap-2">
             {group.options.map(({ key, labelKey }) => (
@@ -209,7 +237,7 @@ export default function AdvancedFilterFields({
             <p className="mt-1.5 text-xs text-ink-45">{t('listings.filters.depositRangeHint')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {AMENITY_GROUPS.find((group) => group.titleKey === RENTAL_TERMS_KEY).options.map(({ key, labelKey }) => (
+            {AMENITY_GROUPS.find((group) => group.titleKey === RENTAL_TERMS_KEY).options.filter(({ key }) => key !== 'furnished').map(({ key, labelKey }) => (
               <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
                 {t(labelKey)}
               </PillOption>

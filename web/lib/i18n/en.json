@@ -605,7 +605,8 @@
       "accessSecurity": "Access & Security",
       "rentalTerms": "Rental terms",
       "paymentTerms": "Payment Terms",
-      "comfort": "Comfort"
+      "comfort": "Comfort",
+      "essentials": "Amenities & Conditions"
     },
     "amenities": {
       "generator": "Generator",

@@ -605,7 +605,8 @@
       "accessSecurity": "Accessibilité & Sécurité",
       "rentalTerms": "Conditions de location",
       "paymentTerms": "Conditions de paiement",
-      "comfort": "Confort"
+      "comfort": "Confort",
+      "essentials": "Équipements & conditions"
     },
     "amenities": {
       "generator": "Groupe électrogène",

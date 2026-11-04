@@ -105,8 +105,9 @@ import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
  * no borders around sections); "Récemment consultés" is a slim strip from
  * two listings up; the alert band is one royal band whose form opens on tap;
  * collections, property types and videos are one "Explorer" section
- * (PropertyTypeTiles is gone); the price guides and the Lukka Index are shown
- * as figures (HomeMarketBand); "Notre approche" is three unboxed points.
+ * (PropertyTypeTiles is gone); the price guides are shown as figures
+ * (HomeMarketBand — the Lukka Index panel beside them was removed the same
+ * day, owner: not needed for now); "Notre approche" is three unboxed points.
  * web/CLAUDE.md, "Homepage below the search".
  *
  * CommuneShortcuts is no longer rendered here. It was a row of commune
@@ -147,7 +148,7 @@ export default async function HomePage() {
       <NewProjectsStrip />
       {/* Explorer: collections as photo tiles, then one row of type chips (same facets as the hero dropdown). */}
       <HomeDiscovery propertyTypes={propertyTypes} />
-      {/* The price guides and the Lukka Index as figures. */}
+      {/* The price guides as figures. */}
       <HomeMarketBand />
       <ValueProposition />
     </>

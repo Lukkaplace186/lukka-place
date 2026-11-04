@@ -33,8 +33,11 @@ export default function HomeMarketExplorer({ communes, note }) {
   const max = Math.max(1, ...current.rows.map((row) => row.median));
 
   return (
-    <div className="flex flex-col gap-6 rounded-2xl bg-surface p-5 sm:p-7">
-      <div role="group" aria-label={t('home.market.communes')} className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
+    // One column on a phone (communes, figure, chart, note); on a desktop the
+    // panel has the whole width since the Lukka Index left, so the figure and
+    // note sit left and the chart right rather than four very wide bars.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 rounded-2xl bg-surface p-5 sm:p-7 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-x-14 lg:p-9">
+      <div role="group" aria-label={t('home.market.communes')} className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 lg:col-start-1">
         {communes.map((entry, index) => {
           const on = index === communeIndex;
           return (
@@ -53,7 +56,7 @@ export default function HomeMarketExplorer({ communes, note }) {
         })}
       </div>
 
-      <div className="flex flex-col gap-1.5" aria-live="polite">
+      <div className="flex flex-col gap-1.5 lg:col-start-1" aria-live="polite">
         <p className="flex items-baseline gap-2">
           <span className="u-tabular text-[2.75rem] font-extrabold leading-none tracking-[-0.04em] text-ink sm:text-[3.5rem]">
             {frNumber(selected.median)} $
@@ -72,7 +75,7 @@ export default function HomeMarketExplorer({ communes, note }) {
         </p>
       </div>
 
-      <div>
+      <div className="lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:self-end">
         <div className="flex h-44 items-end gap-3 border-b border-line sm:gap-4">
           {current.rows.map((row) => {
             const on = row.beds === selected.beds;
@@ -105,7 +108,7 @@ export default function HomeMarketExplorer({ communes, note }) {
         </div>
       </div>
 
-      <p className="text-[0.75rem] leading-relaxed text-ink-45">{note}</p>
+      <p className="text-[0.75rem] leading-relaxed text-ink-45 lg:col-start-1 lg:self-end">{note}</p>
     </div>
   );
 }

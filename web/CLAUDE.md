@@ -4042,8 +4042,9 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   commerces") + "Visites en vidéo". `PropertyTypeTiles.js` is deleted.
 - **Le marché locatif en chiffres** (`HomeMarketBand`, `HomeMarketExplorer`,
   `lib/homeMarket.js`): the published price guides (communes with ≥2 bedroom
-  counts among 1–4, busiest four) as tappable bars, and the latest Lukka Index.
-  No trend line: the index has one month, and a month-on-month figure prints
-  only where `getLukkaIndex` computed one.
+  counts among 1–4, busiest four) as tappable bars; figure left, chart right
+  on a desktop. The Lukka Index panel beside it was removed the same day
+  (owner: not needed for now); its `home.market.index*` strings are unused.
+  /indice-lukka is unchanged.
 - **Notre approche**: three unboxed points with icons, shorter copy (same
   claims), header link to /a-propos; the "Voir les annonces" button is gone.

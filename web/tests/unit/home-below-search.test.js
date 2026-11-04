@@ -61,17 +61,17 @@ test('the alert form stays folded until the button is tapped', () => {
   assert.match(read('../../components/HomeAlertBand.js'), /bg-blue-deep/);
 });
 
-test('the index never draws a trend it does not have', () => {
+test('the Lukka Index is off the homepage (owner, 2026-11-04); the guides stay', () => {
   const band = read('../../components/HomeMarketBand.js');
-  assert.match(band, /row\.changePct != null \?/);
-  assert.match(band, /anyChange \? null :/);
+  assert.doesNotMatch(band, /getLukkaIndex|href="\/indice-lukka"/);
+  assert.match(band, /getPriceGuides\(\)/);
 });
 
 test('every new homepage string exists in French and English', () => {
   for (const dict of [fr, en]) {
     for (const key of ['lead', 'open', 'close']) assert.ok(dict.home.alertBand[key], `alertBand.${key}`);
     assert.ok(dict.home.explore.title);
-    for (const key of ['title', 'note', 'indexLead', 'indexNoChange', 'indexLink', 'communes', 'detail']) assert.ok(dict.home.market[key], `market.${key}`);
+    for (const key of ['title', 'note', 'communes', 'detail']) assert.ok(dict.home.market[key], `market.${key}`);
     for (const key of ['statLabel', 'statCount', 'barLabel', 'bedsShort']) {
       assert.ok(dict.home.market[key].one && dict.home.market[key].other, `market.${key}`);
     }

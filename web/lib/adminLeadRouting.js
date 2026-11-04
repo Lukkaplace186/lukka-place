@@ -142,31 +142,70 @@ export async function getRecentLeadClicks({ limit = 100 } = {}) {
   return rows;
 }
 
-/** One page of the tap log, with its real total. `id DESC` breaks created_at ties. */
-export const LEAD_CLICKS_PAGE_SQL = `
+/**
+ * Who a tap is counted for. `whatsapp_clicks.viewer_kind` (lib/trackIngest.js)
+ * tells a customer from the listing's own agent, another agent, the team, a
+ * bot or a prefetch; every tap is stored, and the console shows customers'
+ * taps unless asked for all of them. NULL predates the column: a visitor.
+ */
+export const VISITOR_CLICK_CONDITION = "COALESCE(wc.viewer_kind, 'visitor') = 'visitor'";
+
+/** Minutes within which the same browser tapping the same listing again is a repeat, not a new contact. */
+export const REPEAT_TAP_MINUTES = 10;
+
+/**
+ * One page of the tap log, with its real total. `id DESC` breaks created_at ties.
+ *
+ * Each row carries the agent the chat opened to (`agent_name`, never the
+ * username, which is a phone number), who tapped (`viewer_kind`), which
+ * button (`placement`, read through to_jsonb so a database without that
+ * column still answers) and `repeat_tap`: the same anonymous visitor id
+ * already tapped this listing in the previous REPEAT_TAP_MINUTES.
+ */
+export function leadClicksPageSql({ visitorsOnly = true, repParam = null } = {}) {
+  const where = [
+    visitorsOnly ? VISITOR_CLICK_CONDITION : null,
+    repParam ? repClickCondition('wc', repParam) : null,
+  ].filter(Boolean);
+  return `
   SELECT wc.id, wc.created_at, wc.listing_id, wc.routing_type, wc.device, wc.source,
-         wc.commune, wc.agent_id, p.reference, pc.title
+         wc.commune, wc.agent_id, wc.viewer_kind, to_jsonb(wc) ->> 'placement' AS placement,
+         p.reference, pc.title,
+         COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), NULLIF(TRIM(a.agency_name), '')) AS agent_name,
+         (wc.visitor_id IS NOT NULL AND EXISTS (
+           SELECT 1 FROM whatsapp_clicks w2
+            WHERE w2.listing_id = wc.listing_id
+              AND w2.visitor_id = wc.visitor_id
+              AND w2.created_at >= wc.created_at - make_interval(mins => ${REPEAT_TAP_MINUTES})
+              AND (w2.created_at < wc.created_at OR (w2.created_at = wc.created_at AND w2.id < wc.id))
+         )) AS repeat_tap
     FROM whatsapp_clicks wc
     LEFT JOIN properties p ON p.id = wc.listing_id
     LEFT JOIN property_contents pc ON pc.property_id = wc.listing_id AND pc.language_id = 20
+    LEFT JOIN agents a ON a.id = wc.agent_id
+    ${AGENT_INFOS_JOIN}
+   ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
    ORDER BY wc.created_at DESC, wc.id DESC
    LIMIT $1 OFFSET $2
 `;
+}
 
-export async function getLeadClicksPage({ limit = 25, offset = 0, repId = null } = {}) {
+export const LEAD_CLICKS_PAGE_SQL = leadClicksPageSql({ visitorsOnly: false });
+
+export async function getLeadClicksPage({ limit = 25, offset = 0, repId = null, visitorsOnly = true } = {}) {
   const pool = getPool();
+  const visitors = visitorsOnly ? ` AND ${VISITOR_CLICK_CONDITION}` : '';
   if (repId != null) {
     const rep = Number(repId) || 0;
     const [{ rows: countRows }, { rows }] = await Promise.all([
-      pool.query(`SELECT COUNT(*)::int AS total FROM whatsapp_clicks wc WHERE ${repClickCondition('wc', '$1')}`, [rep]),
-      pool.query(LEAD_CLICKS_PAGE_SQL.replace('ORDER BY', `WHERE ${repClickCondition('wc', '$3')}
-   ORDER BY`), [limit, offset, rep]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM whatsapp_clicks wc WHERE ${repClickCondition('wc', '$1')}${visitors}`, [rep]),
+      pool.query(leadClicksPageSql({ visitorsOnly, repParam: '$3' }), [limit, offset, rep]),
     ]);
     return { total: countRows[0]?.total ?? 0, rows };
   }
   const [{ rows: countRows }, { rows }] = await Promise.all([
-    pool.query('SELECT COUNT(*)::int AS total FROM whatsapp_clicks'),
-    pool.query(LEAD_CLICKS_PAGE_SQL, [limit, offset]),
+    pool.query(`SELECT COUNT(*)::int AS total FROM whatsapp_clicks wc WHERE TRUE${visitors}`),
+    pool.query(leadClicksPageSql({ visitorsOnly }), [limit, offset]),
   ]);
   return { total: countRows[0]?.total ?? 0, rows };
 }
@@ -176,10 +215,10 @@ export async function getLeadClicksPage({ limit = 25, offset = 0, repId = null }
  * the tap recorded; a tap with none is counted apart (`untagged`) rather than
  * dropped, so the ranking never hides how much of the traffic it covers.
  */
-export async function getLeadClicksByCommune({ days = 30, repId = null } = {}) {
+export async function getLeadClicksByCommune({ days = 30, repId = null, visitorsOnly = true } = {}) {
   const pool = getPool();
   const scoped = repId != null;
-  const scope = scoped ? ` AND ${repClickCondition('wc', '$2')}` : '';
+  const scope = (scoped ? ` AND ${repClickCondition('wc', '$2')}` : '') + (visitorsOnly ? ` AND ${VISITOR_CLICK_CONDITION}` : '');
   const params = scoped ? [days, Number(repId) || 0] : [days];
   const [{ rows }, { rows: untaggedRows }] = await Promise.all([
     pool.query(
@@ -205,12 +244,13 @@ export async function getLeadClicksByCommune({ days = 30, repId = null } = {}) {
  * before routing was tracked — reported as its own bucket, never folded into
  * either real one.
  */
-export async function getLeadClickTotals({ days = 30, repId = null } = {}) {
+export async function getLeadClickTotals({ days = 30, repId = null, visitorsOnly = true } = {}) {
   const scoped = repId != null;
+  const visitors = visitorsOnly ? ` AND ${VISITOR_CLICK_CONDITION}` : '';
   const { rows } = await getPool().query(
     `SELECT routing_type, COUNT(*)::int AS total
        FROM whatsapp_clicks wc
-      WHERE created_at >= NOW() - make_interval(days => $1::int)${scoped ? ` AND ${repClickCondition('wc', '$2')}` : ''}
+      WHERE created_at >= NOW() - make_interval(days => $1::int)${scoped ? ` AND ${repClickCondition('wc', '$2')}` : ''}${visitors}
       GROUP BY routing_type`,
     scoped ? [days, Number(repId) || 0] : [days],
   );

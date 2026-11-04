@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { CheckCircle2, CircleSlash } from 'lucide-react';
 import { getLeadAnalytics, listViewingFeed } from '@/lib/adminApi';
-import { getLeadClickTotals, getLeadClicksByCommune, getLeadClicksPage } from '@/lib/adminLeadRouting';
+import { REPEAT_TAP_MINUTES, getLeadClickTotals, getLeadClicksByCommune, getLeadClicksPage } from '@/lib/adminLeadRouting';
+import { LEAD_CLICK_PLACEMENTS } from '@/lib/leadClicks';
 import { ROUTING_TYPE_LABEL_KEYS } from '@/lib/adminLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildHref, firstParam, parsePage } from '@/lib/adminPagination';
@@ -59,11 +60,13 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
   const t = await getT();
   const raw = (await searchParams) || {};
   const days = WINDOWS.includes(Number(firstParam(raw.days))) ? Number(firstParam(raw.days)) : 30;
+  // Customers' taps by default; ?who=all adds the agent's own, the team's, bots' (lib/trackIngest.js viewer_kind).
+  const visitorsOnly = firstParam(raw.who) !== 'all';
   const taps = parsePage(raw, { pageParam: 'tp', sizeParam: 'ts' });
   const nudges = parsePage(raw, { pageParam: 'np', sizeParam: 'ns' });
   const checkins = parsePage(raw, { pageParam: 'cp', sizeParam: 'cs' });
   const params = Object.fromEntries(
-    ['days', 'tp', 'ts', 'np', 'ns', 'cp', 'cs'].map((key) => [key, firstParam(raw[key]) || undefined]),
+    ['days', 'who', 'tp', 'ts', 'np', 'ns', 'cp', 'cs'].map((key) => [key, firstParam(raw[key]) || undefined]),
   );
 
   // A sales rep (lib/salesScope.js) sees only taps on listings of the agents
@@ -72,10 +75,10 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
   const repId = scope ? scope.repId : null;
   const none = Promise.resolve(null);
   const [totalsR, communesR, analyticsR, clicksR, awaitingR, checkinsR] = await Promise.allSettled([
-    getLeadClickTotals({ days, repId }),
-    getLeadClicksByCommune({ days, repId }),
+    getLeadClickTotals({ days, repId, visitorsOnly }),
+    getLeadClicksByCommune({ days, repId, visitorsOnly }),
     scope ? none : getLeadAnalytics({ days }),
-    getLeadClicksPage({ limit: taps.limit, offset: taps.offset, repId }),
+    getLeadClicksPage({ limit: taps.limit, offset: taps.offset, repId, visitorsOnly }),
     scope ? none : listViewingFeed({ view: 'awaiting_agent', limit: nudges.limit, offset: nudges.offset }),
     scope ? none : listViewingFeed({ view: 'checkins', limit: checkins.limit, offset: checkins.offset }),
   ]);
@@ -222,9 +225,29 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
       </div>
 
       <section className="flex flex-col gap-2">
-        <h2 className="u-title-card text-ink">{t('admin.telemetry.clicksTitle')}</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="u-title-card text-ink">{t('admin.telemetry.clicksTitle')}</h2>
+            <p className="u-micro mt-0.5 text-ink-45">{t('admin.telemetry.clicksNote', { minutes: REPEAT_TAP_MINUTES })}</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {[['', 'whoVisitors'], ['all', 'whoAll']].map(([value, key]) => {
+              const active = (value === 'all') === !visitorsOnly;
+              return (
+                <Link
+                  key={key}
+                  href={buildHref(PATH, params, { who: value, tp: '' })}
+                  aria-current={active ? 'page' : undefined}
+                  className={`u-press rounded-full px-3.5 py-1.5 text-[0.8125rem] font-bold transition-colors ${active ? 'bg-ink text-white' : 'bg-canvas-alt text-ink-70 hover:bg-canvas-deep'}`}
+                >
+                  {t(`admin.telemetry.${key}`)}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
         <TableFrame
-          minWidth="48rem"
+          minWidth="68rem"
           footer={clicks.value ? (
             <Pagination pathname={PATH} params={params} total={clicks.value.total} page={taps.page} pageSize={taps.pageSize} pageParam="tp" sizeParam="ts" />
           ) : null}
@@ -233,7 +256,10 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
             <tr>
               <th className={TH_STICKY}>{t('admin.telemetry.colTime')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colListing')}</th>
+              <th className={TH_STICKY}>{t('admin.telemetry.colAgent')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colRouting')}</th>
+              <th className={TH_STICKY}>{t('admin.telemetry.colWho')}</th>
+              <th className={TH_STICKY}>{t('admin.telemetry.colPlacement')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colCommune')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colDevice')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colSource')}</th>
@@ -241,18 +267,36 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
           </thead>
           <tbody>
             {(clicks.value?.rows || []).length === 0 ? (
-              <EmptyRow colSpan={6}>{t('admin.telemetry.clicksEmpty')}</EmptyRow>
+              <EmptyRow colSpan={9}>{t('admin.telemetry.clicksEmpty')}</EmptyRow>
             ) : (
               clicks.value.rows.map((click) => (
-                <tr key={click.id} className={TR_DENSE}>
-                  <td className={`${TD_DENSE} whitespace-nowrap`}>{formatKinshasa(click.created_at)}</td>
+                <tr key={click.id} className={`${TR_DENSE} ${click.repeat_tap ? 'opacity-60' : ''}`}>
+                  <td className={`${TD_DENSE} whitespace-nowrap`}>
+                    {formatKinshasa(click.created_at)}
+                    {click.repeat_tap ? (
+                      <div className="mt-0.5" title={t('admin.telemetry.repeatHelp', { minutes: REPEAT_TAP_MINUTES })}>
+                        <Chip tone="neutral">{t('admin.telemetry.repeat')}</Chip>
+                      </div>
+                    ) : null}
+                  </td>
                   <td className={TD_DENSE}>
                     {click.listing_id ? (
                       <Link href={`/admin/listings/${click.listing_id}`} className="font-semibold text-blue-deep hover:underline">
-                        {click.reference ? `Réf: ${click.reference}` : `#${click.listing_id}`}
+                        #{click.listing_id}
                       </Link>
                     ) : '—'}
+                    {/* The reference is usually a landmark the agent typed, not a code: shown as text, never as "Réf:". */}
+                    {click.reference ? <span className="text-ink-70"> · {click.reference}</span> : null}
                     {click.title ? <div className="max-w-[18rem] truncate text-ink-45">{click.title}</div> : null}
+                  </td>
+                  <td className={TD_DENSE}>
+                    {click.agent_id ? (
+                      <Link href={`/admin/agents/${click.agent_id}`} className="text-blue-deep hover:underline">
+                        {click.agent_name || t('admin.interactions.agentFallback', { id: click.agent_id })}
+                      </Link>
+                    ) : (
+                      <span className="text-ink-35">{t('admin.telemetry.noAgent')}</span>
+                    )}
                   </td>
                   <td className={TD_DENSE}>
                     {click.routing_type ? (
@@ -261,9 +305,17 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
                       <span className="text-ink-35">{t('admin.telemetry.unknown')}</span>
                     )}
                   </td>
+                  <td className={TD_DENSE}>
+                    {(click.viewer_kind || 'visitor') === 'visitor'
+                      ? t('admin.telemetry.viewerKind.visitor')
+                      : <Chip tone="warning">{t(`admin.telemetry.viewerKind.${click.viewer_kind}`)}</Chip>}
+                  </td>
+                  <td className={TD_DENSE}>
+                    {LEAD_CLICK_PLACEMENTS.includes(click.placement) ? t(`admin.telemetry.placement.${click.placement}`) : <span className="text-ink-35">—</span>}
+                  </td>
                   <td className={TD_DENSE}>{click.commune || '—'}</td>
                   <td className={TD_DENSE}>{click.device || '—'}</td>
-                  <td className={TD_DENSE}>{click.source || '—'}</td>
+                  <td className={TD_DENSE}>{!click.source || click.source === 'direct' ? <span className="text-ink-45">{t('admin.telemetry.sourceUnknown')}</span> : click.source}</td>
                 </tr>
               ))
             )}

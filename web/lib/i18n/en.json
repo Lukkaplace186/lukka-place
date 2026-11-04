@@ -4558,7 +4558,31 @@
         "templateViewing": "Viewing request template",
         "templateOtp": "OTP template"
       },
-      "subtitleSales": "WhatsApp taps on listings of the agents you brought in."
+      "subtitleSales": "WhatsApp taps on listings of the agents you brought in.",
+      "clicksNote": "A tap = the WhatsApp button pressed on a listing. The conversation then happens on the agent’s phone: we don’t see it. A new tap by the same visitor on the same listing within {minutes} min is greyed out. The filter also applies to the totals above.",
+      "whoVisitors": "Customers Only",
+      "whoAll": "All Taps",
+      "colAgent": "Agent",
+      "colWho": "Who",
+      "colPlacement": "Button",
+      "repeat": "Repeat",
+      "repeatHelp": "The same visitor already tapped this listing in the previous {minutes} minutes.",
+      "noAgent": "No agent",
+      "sourceUnknown": "unknown",
+      "viewerKind": {
+        "visitor": "Customer",
+        "owner": "The listing’s agent",
+        "agent": "Another agent",
+        "staff": "Lukka Place team",
+        "bot": "Bot",
+        "prefetch": "Prefetch"
+      },
+      "placement": {
+        "card": "Listing card",
+        "listing_desktop": "Listing page (desktop)",
+        "listing_mobile_bar": "Listing page (phone)",
+        "map_card": "Map card"
+      }
     },
     "table": {
       "all": "All",

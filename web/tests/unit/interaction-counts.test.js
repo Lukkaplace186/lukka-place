@@ -110,3 +110,25 @@ test('the desk form offers exactly the engine\'s channels, and the page is wired
 test('an introduction is not shown to the customer as a search of theirs', () => {
   assert.ok(NON_SEARCH_LEAD_SOURCES.includes('team-introduction'));
 });
+
+test('the tap log shows customers by default, names the agent, and marks repeats', async () => {
+  const leadRouting = await import('@/lib/adminLeadRouting');
+  await leadRouting.getLeadClicksPage({ limit: 25, offset: 0 });
+  const [count, page] = calls;
+  assert.match(count.sql, /COALESCE\(wc\.viewer_kind, 'visitor'\) = 'visitor'/);
+  assert.match(page.sql, /WHERE COALESCE\(wc\.viewer_kind, 'visitor'\) = 'visitor'/);
+  assert.match(page.sql, /AS agent_name/);
+  assert.doesNotMatch(page.sql, /username/, 'an agent is never named by their phone digits');
+  assert.match(page.sql, /to_jsonb\(wc\) ->> 'placement'/, 'works on a database without the placement column');
+  assert.ok(page.sql.includes(`make_interval(mins => ${leadRouting.REPEAT_TAP_MINUTES})`));
+  assert.match(page.sql, /w2\.visitor_id = wc\.visitor_id/);
+
+  reset();
+  await leadRouting.getLeadClicksPage({ limit: 25, offset: 0, visitorsOnly: false });
+  assert.doesNotMatch(calls[1].sql, /WHERE COALESCE\(wc\.viewer_kind/, '"Tous les clics" shows every tap');
+
+  reset();
+  await leadRouting.getLeadClickTotals({ days: 30 });
+  await leadRouting.getLeadClicksByCommune({ days: 30 });
+  for (const call of calls) assert.match(call.sql, /COALESCE\(wc\.viewer_kind, 'visitor'\) = 'visitor'/, 'the totals follow the same filter');
+});

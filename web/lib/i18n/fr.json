@@ -4558,7 +4558,31 @@
         "templateViewing": "Modèle de demande de visite",
         "templateOtp": "Modèle OTP"
       },
-      "subtitleSales": "Clics WhatsApp sur les annonces des agents que vous avez fait venir."
+      "subtitleSales": "Clics WhatsApp sur les annonces des agents que vous avez fait venir.",
+      "clicksNote": "Un clic = le bouton WhatsApp pressé sur une annonce. La conversation se passe ensuite sur le téléphone de l’agent : nous ne la voyons pas. Un nouveau clic du même visiteur sur la même annonce en moins de {minutes} min est grisé. Le filtre s’applique aussi aux totaux ci-dessus.",
+      "whoVisitors": "Clients seulement",
+      "whoAll": "Tous les clics",
+      "colAgent": "Agent",
+      "colWho": "Qui",
+      "colPlacement": "Bouton",
+      "repeat": "Répété",
+      "repeatHelp": "Le même visiteur a déjà cliqué sur cette annonce dans les {minutes} minutes précédentes.",
+      "noAgent": "Aucun agent",
+      "sourceUnknown": "inconnue",
+      "viewerKind": {
+        "visitor": "Client",
+        "owner": "L’agent de l’annonce",
+        "agent": "Un autre agent",
+        "staff": "Équipe Lukka Place",
+        "bot": "Robot",
+        "prefetch": "Préchargement"
+      },
+      "placement": {
+        "card": "Carte d’annonce",
+        "listing_desktop": "Page annonce (ordinateur)",
+        "listing_mobile_bar": "Page annonce (téléphone)",
+        "map_card": "Carte (plan)"
+      }
     },
     "table": {
       "all": "Tous",

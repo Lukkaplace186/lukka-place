@@ -144,6 +144,7 @@ export const SECTION_PERMISSIONS = {
   // listings.moderate (app/admin/agent-reviews/actions.js).
   '/admin/agent-reviews': 'agents.view',
   '/admin/partenaires': 'partners.view',
+  '/admin/campagne': 'partners.view',
   '/admin/liens': 'partners.view',
   '/admin/croissance': 'partners.view',
 };

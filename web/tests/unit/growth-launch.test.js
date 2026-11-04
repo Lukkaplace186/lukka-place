@@ -113,7 +113,9 @@ test('only finance and the owner pay; the programme announcement is session text
   assert.equal(actions.match(/requireAdmin\('partners\.payout'\)/g)?.length, 4);
   assert.match(actions, /requireAdmin\('partners\.manage'\)/);
   const text = announcementText({ firstName: 'Marie', inviteLink: 'https://lukkaplace.com/i/MARIE01' });
-  assert.match(text, /1 \$ pour chaque client/);
+  assert.match(text, /vous paie pour nous amener vos clients/);
+  assert.match(text, /vous n’avez rien à faire pour votre compte/);
+  assert.match(text, /vous gagnez 1 \$/);
   assert.match(text, /14 jours/);
   assert.match(text, /toutes les deux semaines/);
   assert.match(text, /https:\/\/lukkaplace\.com\/i\/MARIE01/);

@@ -45,17 +45,24 @@ export function announcementTemplateName() {
   return name || null;
 }
 
+/**
+ * The session text. Reworded on 2026-11-04 (owner): agents read the first
+ * version as THEM having to sign up. It now says up front that Lukka Place
+ * pays them to bring their clients, that their own account needs nothing,
+ * and who the link is for. Same wording as the parrainage_clients_agent
+ * template submitted to Meta.
+ */
 export function announcementText({ firstName, inviteLink }) {
   return [
-    `Bonjour${firstName ? ` ${firstName}` : ''} !`,
+    `Bonjour${firstName ? ` ${firstName}` : ''} ! Lukka Place vous paie pour nous amener vos clients.`,
     '',
-    'Nouveau sur Lukka Place : gagnez *1 $ pour chaque client* qui crée son compte avec votre lien et l’utilise (il enregistre un bien, crée une alerte ou demande une visite dans les 14 jours).',
-    'Vos gains sont payés toutes les deux semaines par mobile money.',
+    'Vous êtes déjà inscrit : vous n’avez rien à faire pour votre compte. Partagez simplement votre lien personnel avec les personnes qui cherchent un logement ou un terrain (vos clients, vos contacts, vos groupes WhatsApp) :',
     '',
-    `Votre lien d’invitation : ${inviteLink}`,
-    'Les biens que vous partagez depuis Lukka Place portent déjà votre code.',
+    inviteLink,
     '',
-    `Suivez vos parrainages dans votre espace : ${SITE_URL}/compte/agent`,
+    'Pour chaque client qui crée son compte gratuit avec ce lien et l’utilise dans les 14 jours (il enregistre un bien, crée une alerte ou demande une visite), vous gagnez 1 $. Vos gains sont payés toutes les deux semaines par mobile money.',
+    '',
+    `Suivez vos clients invités et vos gains dans votre espace agent : ${SITE_URL}/compte/agent`,
   ].join('\n');
 }
 
@@ -223,4 +230,31 @@ export async function announceOnWrite({ agentId, previousInboundAt = null }) {
   const result = await sendTo(agent, { template: null, onWrite: true });
   if (!result) return { status: 'not-eligible' };
   return { status: result.accepted ? 'sent' : 'refused' };
+}
+
+/**
+ * The Campagne tab's figures: agents whose announcement was accepted, by
+ * channel, and agents who would still receive it. `available: false` before
+ * the announcements table exists.
+ * @returns {Promise<{available: boolean, byChannel: Record<string, number>, sent: number, remaining: number}>}
+ */
+export async function getAnnouncementStats() {
+  const pool = getPool();
+  try {
+    const [{ rows: channels }, { rows: left }] = await Promise.all([
+      pool.query(`SELECT COALESCE(channel, 'session') AS channel, COUNT(*)::int AS n
+                    FROM partner_program_announcements WHERE accepted GROUP BY 1`),
+      pool.query(`SELECT COUNT(*)::int AS n FROM (${ANNOUNCE_TARGETS_SQL}) t`, [100000]),
+    ]);
+    const byChannel = Object.fromEntries(channels.map((r) => [r.channel, Number(r.n)]));
+    return {
+      available: true,
+      byChannel,
+      sent: Object.values(byChannel).reduce((a, b) => a + b, 0),
+      remaining: Number(left[0]?.n || 0),
+    };
+  } catch (err) {
+    if (err?.code === '42P01' || err?.code === '42703') return { available: false, byChannel: {}, sent: 0, remaining: 0 };
+    throw err;
+  }
 }

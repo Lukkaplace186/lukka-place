@@ -3399,7 +3399,8 @@
       "partners": "Partenaires",
       "links": "Liens de campagne",
       "growth": "Croissance",
-      "blog": "Guides & Actualités"
+      "blog": "Guides & Actualités",
+      "campaign": "Campagne"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -6441,6 +6442,37 @@
         "coverType": "L’image doit être en JPEG, PNG ou WebP.",
         "coverSize": "L’image dépasse {max} Mo.",
         "gone": "Cet article n’existe plus."
+      }
+    },
+    "campaign": {
+      "title": "Campagne d’annonce aux agents",
+      "lead": "Le message qui présente le programme de parrainage aux agents vérifiés. Arrêtée, elle n’envoie rien. Les liens, les codes et les crédits de parrainage fonctionnent dans les deux cas.",
+      "statusActive": "Active : le message part avec le bouton « Annoncer » et quand un agent nous écrit.",
+      "statusStopped": "Arrêtée : aucun message du programme n’est envoyé aux agents.",
+      "changed": "Dernier changement le {time}, par {by}.",
+      "neverChanged": "Arrêtée depuis le 4 novembre 2026 (les agents comprenaient que c’était à eux de s’inscrire).",
+      "stop": "Arrêter la campagne",
+      "start": "Relancer la campagne",
+      "ownerOnly": "Seul un propriétaire peut arrêter ou relancer la campagne.",
+      "howTitle": "Comment le message part",
+      "howButton": "Bouton « Annoncer le programme aux agents » (page Parrainages agents) : jusqu’à 100 agents par clic, à ceux qui ne l’ont pas encore reçu.",
+      "howOnWrite": "Quand un agent vérifié nous écrit sur WhatsApp : une seule fois, s’il ne l’a pas encore reçu.",
+      "templateSet": "Modèle WhatsApp utilisé par le bouton : « {name} ». Il atteint tous les agents, même ceux qui ne nous ont pas écrit depuis 24 h.",
+      "templateUnset": "Aucun modèle WhatsApp n’est configuré : le message n’atteint que les agents qui nous ont écrit dans les dernières 24 h. Une fois parrainage_clients_agent approuvé par Meta, ajoutez REFERRAL_ANNOUNCEMENT_TEMPLATE=parrainage_clients_agent au .env.local du site.",
+      "messageTitle": "Le message envoyé",
+      "messageNote": "Exemple pour un agent prénommé Charly, code CHARLY01.",
+      "statsTitle": "Envoyés",
+      "sent": "Agents prévenus",
+      "remaining": "Agents qui le recevraient encore",
+      "channelSession": "message simple",
+      "channelTemplate": "modèle WhatsApp",
+      "channelOnWrite": "quand l’agent a écrit",
+      "statsUnavailable": "Les chiffres ne sont pas disponibles (table des annonces absente).",
+      "ledgerLink": "Crédits et paiements des agents",
+      "flash": {
+        "campaignStarted": "Campagne relancée.",
+        "campaignStopped": "Campagne arrêtée : plus aucun message du programme ne part.",
+        "failed": "Le changement n’a pas pu être enregistré. Réessayez."
       }
     }
   },

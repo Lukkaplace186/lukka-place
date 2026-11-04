@@ -3816,3 +3816,20 @@ Six small rewards, each built on a fact we already record. Tests:
   would read as the deal price; `sold_price` is the landlord's business) —
   captions linking to the agent's page (the closed listing's page is gone).
   Never stored offline, nothing recorded in `listing_shares`.
+
+## The agent announcement campaign — the Campagne tab (2026-11-04)
+
+`/admin/campagne` (`partners.view`; the switch is `partners.manage`, audited):
+the referral programme announcement in one place — its state with
+"Arrêter / Relancer la campagne", how it goes out (the "Annoncer" button on
+/admin/partenaires/agents and the engine's send when an agent writes in),
+whether `REFERRAL_ANNOUNCEMENT_TEMPLATE` is set, the exact text, and how many
+agents it reached / would still reach. One switch, `cms_settings`
+`growth.referral_campaign` (`lib/siteSettings.js` `getReferralCampaign`):
+no row or an unreadable one = **stopped**, and both ways out send and record
+nothing while stopped. Stopped on 2026-11-04 because agents read the message
+as THEM having to sign up; the text (`announcementText`) was rewritten the same
+day to the `parrainage_clients_agent` template's wording ("Lukka Place vous
+paie pour nous amener vos clients… vous n'avez rien à faire pour votre
+compte"). The "Mes parrainages" card on the agent overview still has the old
+wording. Tests: `tests/unit/referral-campaign-switch.test.js`.

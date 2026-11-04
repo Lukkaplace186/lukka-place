@@ -3399,7 +3399,8 @@
       "partners": "Partners",
       "links": "Campaign Links",
       "growth": "Growth",
-      "blog": "Guides & News"
+      "blog": "Guides & News",
+      "campaign": "Campaign"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -6441,6 +6442,37 @@
         "coverType": "The image must be JPEG, PNG or WebP.",
         "coverSize": "The image is over {max} MB.",
         "gone": "This article no longer exists."
+      }
+    },
+    "campaign": {
+      "title": "Agent Announcement Campaign",
+      "lead": "The message that introduces the referral programme to verified agents. While stopped, it sends nothing. Referral links, codes and credits work either way.",
+      "statusActive": "Active: the message goes out with the “Announce” button and when an agent writes to us.",
+      "statusStopped": "Stopped: no programme message is sent to agents.",
+      "changed": "Last changed on {time}, by {by}.",
+      "neverChanged": "Stopped since 4 November 2026 (agents understood that they had to sign up).",
+      "stop": "Stop the Campaign",
+      "start": "Restart the Campaign",
+      "ownerOnly": "Only an owner can stop or restart the campaign.",
+      "howTitle": "How the Message Goes Out",
+      "howButton": "The “Announce the programme to agents” button (Agent referrals page): up to 100 agents per click, to those who have not had it.",
+      "howOnWrite": "When a verified agent writes to us on WhatsApp: once, if they have not had it.",
+      "templateSet": "WhatsApp template used by the button: “{name}”. It reaches every agent, even those who have not written to us in 24 h.",
+      "templateUnset": "No WhatsApp template is configured: the message only reaches agents who wrote to us in the last 24 h. Once Meta approves parrainage_clients_agent, add REFERRAL_ANNOUNCEMENT_TEMPLATE=parrainage_clients_agent to the site’s .env.local.",
+      "messageTitle": "The Message Sent",
+      "messageNote": "Example for an agent named Charly, code CHARLY01. Sent in French.",
+      "statsTitle": "Sent",
+      "sent": "Agents reached",
+      "remaining": "Agents who would still receive it",
+      "channelSession": "plain message",
+      "channelTemplate": "WhatsApp template",
+      "channelOnWrite": "when the agent wrote",
+      "statsUnavailable": "Figures unavailable (announcements table missing).",
+      "ledgerLink": "Agent credits and payouts",
+      "flash": {
+        "campaignStarted": "Campaign restarted.",
+        "campaignStopped": "Campaign stopped: no more programme messages go out.",
+        "failed": "The change could not be saved. Try again."
       }
     }
   },

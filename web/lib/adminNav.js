@@ -30,6 +30,8 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: 'Star' },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: 'HandCoins' },
       { href: '/admin/partenaires', labelKey: 'admin.nav.partners', icon: 'Megaphone' },
+      // The agent announcement campaign: stop / restart, the message, who got it.
+      { href: '/admin/campagne', labelKey: 'admin.nav.campaign', icon: 'Send' },
       { href: '/admin/liens', labelKey: 'admin.nav.links', icon: 'Link2' },
       { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: 'Users' },
       { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },

@@ -51,3 +51,19 @@ test('the console switch is owner-only, audited, and the page shows the state', 
     for (const key of ['campaignStarted', 'campaignStopped', 'paused']) assert.ok(dict.admin.referrals.flash[key], `${lang} ${key}`);
   }
 });
+
+test('the Campagne tab: in the sidebar, the switch for owners, the clearer message', async () => {
+  const nav = read('lib/adminNav.js');
+  assert.match(nav, /href: '\/admin\/campagne', labelKey: 'admin\.nav\.campaign'/);
+  assert.match(read('lib/adminRoles.js'), /'\/admin\/campagne': 'partners\.view'/);
+  const actions = read('app/admin/campagne/actions.js');
+  assert.match(actions, /requireAdmin\('partners\.manage'\)[\s\S]*saveReferralCampaign[\s\S]*recordAudit/);
+  const page = read('app/admin/campagne/page.js');
+  assert.match(page, /canManage \? \(\s*<form action=\{setCampaignAction\}/);
+  assert.match(page, /announcementText\(SAMPLE\)/);
+  const { announcementText } = await import('@/lib/referralAnnouncement');
+  const text = announcementText({ firstName: 'Charly', inviteLink: 'https://lukkaplace.com/i/CHARLY01' });
+  assert.match(text, /^Bonjour Charly ! Lukka Place vous paie pour nous amener vos clients\./);
+  assert.match(text, /Vous êtes déjà inscrit/);
+  assert.doesNotMatch(text, /Nouveau sur Lukka Place/, 'the wording agents misread is gone');
+});

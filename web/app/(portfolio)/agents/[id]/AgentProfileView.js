@@ -79,11 +79,11 @@ function ListingCard({ item, labels }) {
   return (
     <Link
       href={item.href}
-      className="group block overflow-hidden rounded-2xl border border-line/70 bg-surface shadow-sm transition-[box-shadow,scale] duration-150 hover:shadow-md [&:active:not(:has(button:active)):not(:has([data-card-photo]:active))]:scale-[0.985]"
+      className="group block h-full overflow-hidden rounded-2xl border border-line/70 bg-surface shadow-sm transition-[box-shadow,scale] duration-150 hover:shadow-md [&:active:not(:has(button:active)):not(:has([data-card-photo]:active))]:scale-[0.985]"
     >
       <div className="relative aspect-[3/2] w-full overflow-hidden bg-canvas-alt">
         {item.photos.length ? (
-          <CardImageCarousel images={item.photos} alt={item.title} sizes="(min-width: 640px) 600px, 100vw" />
+          <CardImageCarousel images={item.photos} alt={item.title} sizes="(min-width: 1024px) 400px, (min-width: 768px) 360px, 100vw" />
         ) : null}
         {item.isNew || item.reserved ? (
           <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
@@ -172,39 +172,63 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
     // direction, 2026-11-04: the centred-logo card read as amateurish).
     <div className="overflow-x-clip bg-canvas-deep pb-10">
       <div className="border-b border-line/70 bg-surface">
-        <div className="mx-auto max-w-[40rem] px-4 pt-5">
-          <div className="flex items-center gap-3.5">
+        <div className="mx-auto max-w-[40rem] px-4 pt-5 md:max-w-3xl lg:max-w-[77.5rem] lg:px-6 lg:pt-8">
+          <div className="flex items-center gap-3.5 lg:gap-6">
             <div
-              className={`grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl ring-1 ring-line/60 ${
+              className={`grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl ring-1 ring-line/60 lg:h-24 lg:w-24 lg:rounded-2xl ${
                 agent.image ? 'bg-surface' : 'bg-gradient-to-br from-blue-900 to-blue'
               }`}
             >
               {agent.image ? (
                 <AgentAvatar src={agent.image} alt={agent.name} />
               ) : agent.initial ? (
-                <span className="text-xl font-bold leading-none text-white">{agent.initial}</span>
+                <span className="text-xl font-bold leading-none text-white lg:text-[2rem]">{agent.initial}</span>
               ) : (
                 <Building2 strokeWidth={1.75} className="h-6 w-6 text-white/85" aria-hidden="true" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="flex items-center gap-1.5 text-xl font-bold leading-tight tracking-tight text-ink">
+              <h1 className="flex items-center gap-1.5 text-xl font-bold leading-tight tracking-tight text-ink lg:text-[1.875rem]">
                 <span className="line-clamp-2 min-w-0 break-words">{agent.name}</span>
                 {agent.verifiedLabel ? (
                   <BadgeCheck strokeWidth={2.25} className="h-[1.125rem] w-[1.125rem] flex-none text-blue" aria-label={agent.verifiedLabel} />
                 ) : null}
               </h1>
-              {agent.subline ? <p className="mt-0.5 truncate text-[0.8125rem] font-medium text-ink-70">{agent.subline}</p> : null}
+              {agent.subline ? <p className="mt-0.5 truncate text-[0.8125rem] font-medium text-ink-70 lg:mt-1.5 lg:text-[0.9375rem]">{agent.subline}</p> : null}
               {agent.locationLine ? (
-                <p className="mt-0.5 flex items-center gap-1 text-[0.8125rem] text-ink-45">
+                <p className="mt-0.5 flex items-center gap-1 text-[0.8125rem] text-ink-45 lg:text-sm">
                   <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
                   <span className="truncate">{agent.locationLine}</span>
                 </p>
               ) : null}
             </div>
+            {/* From a laptop up the contact actions sit in the header, where a
+                desktop visitor looks for them; the pinned bar is a phone pattern. */}
+            <div className="hidden flex-none items-center gap-3 lg:flex">
+              {agent.whatsappHref ? (
+                <a
+                  href={agent.whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="u-press inline-flex h-11 items-center gap-2 rounded-xl bg-green px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-green-deep"
+                >
+                  <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />
+                  WhatsApp
+                </a>
+              ) : null}
+              {agent.telHref ? (
+                <a
+                  href={agent.telHref}
+                  className="u-press inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-bold text-blue-deep ring-[1.5px] ring-inset ring-blue-deep transition-colors hover:bg-blue-tint"
+                >
+                  <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                  {labels.call}
+                </a>
+              ) : null}
+            </div>
           </div>
 
-          <div className="mt-3.5 flex items-center gap-2">
+          <div className="mt-3.5 flex items-center gap-2 lg:mt-5">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
               <span className="rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70">{labels.activeCount}</span>
               {agent.rating ? (
@@ -244,7 +268,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
 
           {agent.bio ? (
             <div className="mt-3">
-              <p className={`whitespace-pre-line text-sm leading-relaxed text-ink-70 ${bioLong && !bioOpen ? 'line-clamp-2' : ''}`}>
+              <p className={`max-w-[70ch] whitespace-pre-line text-sm leading-relaxed text-ink-70 ${bioLong && !bioOpen ? 'line-clamp-2' : ''}`}>
                 {agent.bio}
               </p>
               {bioLong ? (
@@ -261,7 +285,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
           ) : null}
 
           {/* Underlined tabs on the strip's bottom edge, flush with the feed. */}
-          <div className="mt-3 flex gap-6" role="tablist">
+          <div className="mt-3 flex gap-6 lg:mt-5 lg:gap-8" role="tablist">
             {tabs.map((entry) => {
               const active = entry.key === current.key;
               return (
@@ -271,7 +295,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                   role="tab"
                   aria-selected={active}
                   onClick={() => pickTab(entry.key)}
-                  className={`-mb-px border-b-2 pb-3 pt-2 text-sm font-semibold transition-colors ${
+                  className={`-mb-px border-b-2 pb-3 pt-2 text-sm font-semibold transition-colors lg:text-[0.9375rem] ${
                     active ? 'border-blue text-ink' : 'border-transparent text-ink-45 hover:text-ink-70'
                   }`}
                 >
@@ -283,10 +307,10 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         </div>
       </div>
 
-      <div className="mx-auto max-w-[40rem]">
+      <div className="mx-auto max-w-[40rem] md:max-w-3xl lg:max-w-[77.5rem] lg:px-2">
         {items.length ? (
           <>
-            <div className="flex items-center justify-between px-5 pb-3 pt-5">
+            <div className="flex items-center justify-between px-5 pb-3 pt-5 lg:px-4 lg:pb-4 lg:pt-6">
               <h2 className="text-[0.8125rem] font-medium text-ink-45">{current.countLabel}</h2>
               <button
                 type="button"
@@ -297,7 +321,8 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                 {labels.sorts[sort]}
               </button>
             </div>
-            <ul className="flex flex-col gap-4 px-4">
+            {/* One column on a phone, a grid from a tablet up. */}
+            <ul className="flex flex-col gap-4 px-4 md:grid md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
               {items.map((item) => (
                 <li key={item.id}>
                   <ListingCard item={item} labels={labels} />
@@ -331,7 +356,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
 
       {/* Pinned contact bar on the brand's dark blue, two labelled buttons:
           WhatsApp in the green the listing page uses, call outlined. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 bg-blue-deep pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_rgba(12,29,80,0.18)]">
+      <div className="fixed inset-x-0 bottom-0 z-30 bg-blue-deep pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_rgba(12,29,80,0.18)] lg:hidden">
         <div className="mx-auto flex max-w-[40rem] items-center gap-3 px-4">
           {agent.whatsappHref ? (
             <a
@@ -362,7 +387,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
 
       <div
         role="status"
-        className={`pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex justify-center transition-opacity duration-200 ${toast ? 'opacity-100' : 'opacity-0'}`}
+        className={`pointer-events-none fixed inset-x-0 bottom-24 z-[60] lg:bottom-8 flex justify-center transition-opacity duration-200 ${toast ? 'opacity-100' : 'opacity-0'}`}
       >
         {toast ? (
           <span className="rounded-full bg-ink px-4 py-2 text-[0.8125rem] font-semibold text-white shadow-md">{labels.linkCopied}</span>

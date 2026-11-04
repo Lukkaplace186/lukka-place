@@ -219,7 +219,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               <span className="u-eyebrow">{t('projects.profile.eyebrow')}</span>
               <h2 className="u-title-section mt-1.5 text-ink">{t('projects.profile.title')}</h2>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
             </div>
           </section>
@@ -237,7 +237,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               <p className="mt-1 text-[0.8125rem] text-ink-45">{t('agent.portfolio.reviewsNote')}</p>
             </div>
             {rating.comments.length ? (
-              <ul className="grid gap-3">
+              <ul className="grid gap-3 lg:grid-cols-2">
                 {rating.comments.map((review) => (
                   <li key={review.id} className="rounded-card border border-line/60 bg-surface p-4">
                     <p className="flex gap-0.5" aria-label={`${review.stars}/5`}>
@@ -262,7 +262,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
             the agent — root CLAUDE.md "Profile enquiries"), folded away so
             WhatsApp remains the one-gesture contact the design asks for. */}
         <details
-          className="mx-5 mt-8 rounded-card border border-line/60 bg-surface p-4"
+          className="mx-5 mt-8 rounded-card border border-line/60 bg-surface p-4 lg:mx-4 lg:max-w-2xl"
           open={sp.inquiry_sent === '1' || Boolean(sp.inquiry_error)}
         >
           <summary className="cursor-pointer text-sm font-semibold text-ink">{t('agent.portfolio.writtenEnquiry')}</summary>

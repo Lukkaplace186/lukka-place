@@ -38,6 +38,20 @@ test('each bar carries the guide page\'s own range and Lukka Place count, never 
   assert.equal(bare.rows[0].lukkaListings, 0);
 });
 
+test('the homepage chart keeps Kinshasa communes only (owner, 2026-11-04)', () => {
+  const guides = [guide('Limete', 2, 550, 135), guide('Lubumbashi', 3, 3000, 5), guide('Lemba', 2, 425, 16)];
+  const kinshasa = new Set(['Limete', 'Lemba']);
+  assert.deepEqual(marketCommunes(guides, { keep: (c) => kinshasa.has(c) }).map((c) => c.commune), ['Limete', 'Lemba']);
+  const band = read('../../components/HomeMarketBand.js');
+  assert.match(band, /keep: \(commune\) => cityOfCommune\(commune\) === DEFAULT_CITY/);
+});
+
+test('the card shows no listing counts; the guide page keeps them (owner, 2026-11-04)', () => {
+  const explorer = read('../../components/HomeMarketExplorer.js');
+  assert.doesNotMatch(explorer, /home\.market\.statCount|home\.market\.onLukka|lukkaListings >/);
+  assert.match(read('../../app/(site)/combien-coute/[slug]/page.js'), /guide\.lukkaListings/);
+});
+
 test('the guide page opens its listings search through the shared helper', () => {
   assert.equal(guideSearchHref('Kasa-Vubu', 2), '/listings?transaction_type=location&commune=Kasa-Vubu&beds_min=2&lease_term=long');
   assert.match(read('../../app/(site)/combien-coute/[slug]/page.js'), /guideSearchHref\(guide\.commune, guide\.beds\)/);

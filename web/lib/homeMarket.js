@@ -14,10 +14,13 @@
  *
  * @param {{commune: string, beds: number, median: number, p25: number, p75: number, listings: number, lukkaListings: number, slug: string}[]} guides
  */
-export function marketCommunes(guides, { max = 12, label = (commune) => commune } = {}) {
+export function marketCommunes(guides, { max = 12, label = (commune) => commune, keep = () => true } = {}) {
   const byCommune = new Map();
   for (const guide of guides || []) {
     if (!(guide.beds >= 1 && guide.beds <= 4)) continue;
+    // The homepage keeps Kinshasa only for now (owner, 2026-11-04):
+    // HomeMarketBand passes keep = cityOfCommune(c) === 'Kinshasa'.
+    if (!keep(guide.commune)) continue;
     const entry = byCommune.get(guide.commune) || { commune: guide.commune, total: 0, rows: [] };
     entry.total += guide.listings;
     entry.rows.push({

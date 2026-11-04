@@ -83,16 +83,15 @@ export default function HomeMarketExplorer({ communes, note }) {
             {t('home.prices.range', { p25: frNumber(selected.p25), p75: frNumber(selected.p75) })}
           </p>
         ) : null}
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-ink-45">
-          <span>
-            {t('home.market.statCount', { count: selected.listings })}
-            {selected.lukkaListings > 0 ? ` · ${t('home.market.onLukka', { count: selected.lukkaListings })}` : ''}
-          </span>
-          <Link href={`/combien-coute/${selected.slug}`} className="inline-flex items-center gap-1 font-semibold text-blue-deep hover:text-ink">
-            {t('home.market.detail')}
-            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-3.5 w-3.5" />
-          </Link>
-        </p>
+        {/* No listing counts on the card (owner, 2026-11-04); the guide page
+            behind "Voir le détail" still states them. */}
+        <Link
+          href={`/combien-coute/${selected.slug}`}
+          className="inline-flex items-center gap-1 self-start text-[0.8125rem] font-semibold text-blue-deep hover:text-ink"
+        >
+          {t('home.market.detail')}
+          <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       <div className="lg:col-start-2 lg:row-span-2 lg:row-start-2 lg:self-end">

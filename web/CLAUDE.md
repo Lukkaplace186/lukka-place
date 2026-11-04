@@ -821,12 +821,17 @@ so the restart is enough.
 Not affected, and still OTP-gated: `/mot-de-passe-oublie` (self-service
 password reset). Use the admin reset below instead while the template is down.
 
-**Customers are no longer governed by it (2026-11-04, owner decision).**
-`customerOtpBypassEnabled()` is true only when the flag is on AND no
-`AGENT_OTP_TEMPLATE` is configured. With the template set (production since
-`agent_auth_otp` started being accepted, 2026-11-03), customer signup and the
-login of an unverified customer SEND a 6-digit code and the verify page asks
-for it; the reverse WhatsApp proof appears only after `error=send_failed`.
+**Customers can be sent a code instead (2026-11-04, owner decision) — off
+for now.** `customerOtpBypassEnabled()` is false only when
+`CUSTOMER_SENT_CODE=on` AND `AGENT_OTP_TEMPLATE` is set; then customer signup
+and the login of an unverified customer SEND a 6-digit code and the verify
+page asks for it, the reverse WhatsApp proof appearing only after
+`error=send_failed`. It went live on the template alone on 2026-11-03 and was
+switched back the next morning: three customers were sent `agent_auth_otp`,
+Chakra accepted all three, none arrived (one had written to us a minute
+before), and Chakra forwards no receipt to say why. Check the template in
+WhatsApp Manager (Authentication, fr, Copy-code button, intake account) and
+see one arrive on a number that never wrote to us before setting the flag.
 Agents still follow `AUTH_OTP_BYPASS`. The same day the customer form's name
 became required ("Nom et prénom", refused before the account exists), and
 "Membre fondateur" moved to the agent overview (`getAgentFounderInfo`, rank

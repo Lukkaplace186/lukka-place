@@ -12,7 +12,7 @@ const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
  */
 
 function withEnv(env, fn) {
-  const saved = { AUTH_OTP_BYPASS: process.env.AUTH_OTP_BYPASS, AGENT_OTP_TEMPLATE: process.env.AGENT_OTP_TEMPLATE };
+  const saved = { AUTH_OTP_BYPASS: process.env.AUTH_OTP_BYPASS, AGENT_OTP_TEMPLATE: process.env.AGENT_OTP_TEMPLATE, CUSTOMER_SENT_CODE: process.env.CUSTOMER_SENT_CODE };
   Object.assign(process.env, env);
   for (const [k, v] of Object.entries(env)) if (v === undefined) delete process.env[k];
   try { return fn(); } finally {
@@ -20,16 +20,20 @@ function withEnv(env, fn) {
   }
 }
 
-test('customers get a sent code whenever a template exists, whatever AUTH_OTP_BYPASS says', () => {
-  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: 'agent_auth_otp' }, () => {
+test('a sent code is opt-in: CUSTOMER_SENT_CODE=on AND a template, else the reverse proof', () => {
+  // 2026-11-04: the template alone switched it on, and it reached nobody.
+  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: 'agent_auth_otp', CUSTOMER_SENT_CODE: undefined }, () => {
     assert.equal(otpBypassEnabled(), true, 'agents keep the bypass');
-    assert.equal(customerOtpBypassEnabled(), false, 'customers are sent a code');
+    assert.equal(customerOtpBypassEnabled(), true, 'a configured template is not enough');
   });
-  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: '  ' }, () => {
-    assert.equal(customerOtpBypassEnabled(), true, 'no template: a session message would never arrive, keep the reverse proof');
+  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: 'agent_auth_otp', CUSTOMER_SENT_CODE: 'on' }, () => {
+    assert.equal(customerOtpBypassEnabled(), false, 'switched on deliberately: customers are sent a code');
   });
-  withEnv({ AUTH_OTP_BYPASS: undefined, AGENT_OTP_TEMPLATE: undefined }, () => {
-    assert.equal(customerOtpBypassEnabled(), false);
+  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: '  ', CUSTOMER_SENT_CODE: 'on' }, () => {
+    assert.equal(customerOtpBypassEnabled(), true, 'no template: a session message would never arrive');
+  });
+  withEnv({ AUTH_OTP_BYPASS: undefined, AGENT_OTP_TEMPLATE: undefined, CUSTOMER_SENT_CODE: undefined }, () => {
+    assert.equal(customerOtpBypassEnabled(), false, 'no bypass at all: codes are sent, as before');
   });
 });
 

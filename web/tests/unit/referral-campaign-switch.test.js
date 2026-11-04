@@ -83,3 +83,9 @@ test('while the campaign is off, an agent code is not a code: every check reads 
   assert.match(read('app/go/[code]/[[...rest]]/route.js'), /resolveCode/);
   assert.match(read('components/AgentReferralCard.js'), /if \(!\(await getReferralCampaign\(\)\)\.active\) return null;/);
 });
+
+test('the credit job creates no agent credit while the campaign is stopped', async () => {
+  const { CREDIT_CANDIDATES_SQL } = await import('@/lib/referralCredits');
+  const { AGENT_CODES_LIVE_SQL } = await import('@/lib/partners');
+  assert.ok(CREDIT_CANDIDATES_SQL.includes(AGENT_CODES_LIVE_SQL));
+});

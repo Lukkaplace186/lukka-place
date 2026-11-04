@@ -3841,6 +3841,9 @@ code check reads (/go, ?ref=, /i/<code>, both signups' prefill and credit,
 `partnerVisit`); the engine's WhatsApp signup (`services/customerOnboarding.js`)
 carries the same condition. While stopped an agent's link lands untagged,
 /i/<code> is a 404, nothing is credited, and "Mes parrainages"
-(`AgentReferralCard`) is not rendered. Credits already recorded stay.
+(`AgentReferralCard`) is not rendered, and the credit job
+(`CREDIT_CANDIDATES_SQL`) creates no agent credit — sign-ups already linked
+wait and are credited only if the campaign is restarted. On 2026-11-04 the
+only agent credit on record was already void.
 Creators' and campaigns' codes are not affected.
 Tests: `tests/unit/referral-campaign-switch.test.js`.

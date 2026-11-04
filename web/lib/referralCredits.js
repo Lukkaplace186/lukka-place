@@ -4,6 +4,7 @@ import { getLeadCountsByWaIds } from './adminApi';
 import {
   ACTIVATION_WINDOW_DAYS, REFERRAL_CREDIT, approvableAt, evaluateActivation, phoneHash, referralFlags, voidReasonFor,
 } from './referralRules';
+import { AGENT_CODES_LIVE_SQL } from './partners';
 
 /**
  * The agents' $1-per-customer ledger (growth plan items 13–17): writing
@@ -40,6 +41,10 @@ export const CREDIT_CANDIDATES_SQL = `
     JOIN partners p ON p.id = c.partner_id AND p.kind = 'agent'
     JOIN customers cu ON cu.id = c.account_id
    WHERE c.account_type = 'customer'
+     -- No agent credit is created while the agent campaign is stopped
+     -- (/admin/campagne, 2026-11-04): sign-ups already linked to an agent's
+     -- code wait, and are credited only if the campaign is restarted.
+     AND ${AGENT_CODES_LIVE_SQL}
      AND NOT EXISTS (SELECT 1 FROM partner_credits pc WHERE pc.conversion_id = c.id)
      AND cu.created_at >= NOW() - make_interval(days => $1::int)
    ORDER BY c.id

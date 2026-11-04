@@ -37,7 +37,7 @@ export default function HomeMarketExplorer({ communes, note }) {
     // panel has the whole width since the Lukka Index left, so the figure and
     // note sit left and the chart right rather than four very wide bars.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 rounded-2xl bg-surface p-5 sm:p-7 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-x-14 lg:p-9">
-      <div role="group" aria-label={t('home.market.communes')} className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 lg:col-start-1">
+      <div role="group" aria-label={t('home.market.communes')} className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 lg:col-start-1 lg:flex-wrap lg:overflow-visible">
         {communes.map((entry, index) => {
           const on = index === communeIndex;
           return (

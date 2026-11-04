@@ -6289,8 +6289,8 @@
         "paused": "The campaign is stopped: nothing was sent."
       },
       "campaign": {
-        "active": "Agent announcement campaign: active. The programme message goes out with the “Announce” button and when an agent writes to us.",
-        "stopped": "Agent announcement campaign: stopped. No programme message is sent to agents. Referral links and credits keep working.",
+        "active": "Agent campaign: active. The message goes out with the “Announce” button and when an agent writes to us, and agents' codes count signups.",
+        "stopped": "Agent campaign: stopped. No programme message is sent and agents' codes no longer work (credits already recorded stay). Creator and campaign codes are not affected.",
         "changed": "Last change: {by}.",
         "stop": "Stop the Campaign",
         "start": "Restart the Campaign"
@@ -6446,9 +6446,9 @@
     },
     "campaign": {
       "title": "Agent Announcement Campaign",
-      "lead": "The message that introduces the referral programme to verified agents. While stopped, it sends nothing. Referral links, codes and credits work either way.",
-      "statusActive": "Active: the message goes out with the “Announce” button and when an agent writes to us.",
-      "statusStopped": "Stopped: no programme message is sent to agents.",
+      "lead": "The agent referral programme: the message that introduces it, and the agents' codes. While stopped, nothing goes out and agents' codes stop working: their links arrive unattributed, no signup is credited to them and the “My referrals” card leaves their dashboard. Creator and campaign codes are not affected.",
+      "statusActive": "Active: the message goes out with the “Announce” button and when an agent writes to us, and agents' codes count signups.",
+      "statusStopped": "Stopped: no message is sent and agents' codes no longer work.",
       "changed": "Last changed on {time}, by {by}.",
       "neverChanged": "Stopped since 4 November 2026 (agents understood that they had to sign up).",
       "stop": "Stop the Campaign",

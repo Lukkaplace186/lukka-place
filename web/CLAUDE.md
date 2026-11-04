@@ -3831,5 +3831,16 @@ nothing while stopped. Stopped on 2026-11-04 because agents read the message
 as THEM having to sign up; the text (`announcementText`) was rewritten the same
 day to the `parrainage_clients_agent` template's wording ("Lukka Place vous
 paie pour nous amener vos clients… vous n'avez rien à faire pour votre
-compte"). The "Mes parrainages" card on the agent overview still has the old
-wording. Tests: `tests/unit/referral-campaign-switch.test.js`.
+compte").
+
+**The same switch turns agents' CODES off** (same day, owner: "shut them
+down" — switching one partner off is not enough, `ensureAgentPartnerCode`
+just mints a new one, JOSUE01 → JOSUE02). `lib/partners.js`
+`AGENT_CODES_LIVE_SQL` is inside `FIND_PARTNER_BY_CODE_SQL`, which every
+code check reads (/go, ?ref=, /i/<code>, both signups' prefill and credit,
+`partnerVisit`); the engine's WhatsApp signup (`services/customerOnboarding.js`)
+carries the same condition. While stopped an agent's link lands untagged,
+/i/<code> is a 404, nothing is credited, and "Mes parrainages"
+(`AgentReferralCard`) is not rendered. Credits already recorded stay.
+Creators' and campaigns' codes are not affected.
+Tests: `tests/unit/referral-campaign-switch.test.js`.

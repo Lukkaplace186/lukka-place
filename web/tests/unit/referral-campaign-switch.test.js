@@ -67,3 +67,19 @@ test('the Campagne tab: in the sidebar, the switch for owners, the clearer messa
   assert.match(text, /Vous êtes déjà inscrit/);
   assert.doesNotMatch(text, /Nouveau sur Lukka Place/, 'the wording agents misread is gone');
 });
+
+test('while the campaign is off, an agent code is not a code: every check reads one SQL condition', async () => {
+  const { FIND_PARTNER_BY_CODE_SQL, AGENT_CODES_LIVE_SQL } = await import('@/lib/partners');
+  assert.ok(FIND_PARTNER_BY_CODE_SQL.includes(AGENT_CODES_LIVE_SQL));
+  assert.match(AGENT_CODES_LIVE_SQL, /p\.kind <> 'agent' OR EXISTS/);
+  assert.match(AGENT_CODES_LIVE_SQL, /s\.key = 'growth\.referral_campaign' AND \(s\.value ->> 'active'\) = 'true'/);
+  // The engine's WhatsApp signup carries the same condition.
+  const engine = readFileSync(new URL('../../../services/customerOnboarding.js', import.meta.url), 'utf8');
+  assert.match(engine, /p\.kind <> 'agent' OR EXISTS \(\s*SELECT 1 FROM cms_settings s\s*WHERE s\.key = 'growth\.referral_campaign' AND \(s\.value ->> 'active'\) = 'true'\)/);
+  // Every code check goes through findActivePartnerByCode / resolveCode, which use that SQL.
+  for (const file of ['lib/partnerVisit.js', 'lib/partnerPrefill.js', 'lib/accountAcquisition.js', 'app/(site)/compte/inscription/actions.js', 'app/(site)/compte/agent/inscription/actions.js', 'app/(site)/i/[code]/actions.js']) {
+    assert.match(read(file), /findActivePartnerByCode/, file);
+  }
+  assert.match(read('app/go/[code]/[[...rest]]/route.js'), /resolveCode/);
+  assert.match(read('components/AgentReferralCard.js'), /if \(!\(await getReferralCampaign\(\)\)\.active\) return null;/);
+});

@@ -2,6 +2,7 @@ import { Download, Gift } from 'lucide-react';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { getAgentReferralStats } from '@/lib/partners';
+import { getReferralCampaign } from '@/lib/siteSettings';
 import { getAgentCreditSummary } from '@/lib/referralCredits';
 import { ACTIVATION_WINDOW_DAYS, REFERRAL_CREDIT } from '@/lib/referralRules';
 import { partnerLinks } from '@/lib/partnerRules';
@@ -28,6 +29,9 @@ import { WhatsAppIcon } from './WhatsAppCTA';
 const INVITE_MESSAGE = 'Créez votre compte gratuit sur Lukka Place pour recevoir les nouveaux biens à louer et à vendre à Kinshasa : ';
 
 export default async function AgentReferralCard({ agentId }) {
+  // The programme is off while the agent campaign is stopped (/admin/campagne):
+  // an invite link that credits nothing must not be offered.
+  if (!(await getReferralCampaign()).active) return null;
   const stats = await getAgentReferralStats(agentId);
   if (!stats) return null;
   const credits = await getAgentCreditSummary(agentId).catch(() => null);

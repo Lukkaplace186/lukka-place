@@ -30,12 +30,25 @@ function partnerRow(row) {
     : null;
 }
 
+/**
+ * An AGENT's code counts only while the agent campaign is on (cms_settings
+ * growth.referral_campaign, the /admin/campagne switch; no row = off).
+ * Stopped on 2026-11-04: links carrying an agent's code land untagged, /i/<code>
+ * is a 404, signup neither prefills nor credits it. Creators' and campaigns'
+ * codes are not affected. Same condition in the engine's
+ * services/customerOnboarding.js — change one, change the other.
+ */
+export const AGENT_CODES_LIVE_SQL = `(p.kind <> 'agent' OR EXISTS (
+    SELECT 1 FROM cms_settings s
+     WHERE s.key = 'growth.referral_campaign' AND (s.value ->> 'active') = 'true'))`;
+
 export const FIND_PARTNER_BY_CODE_SQL = `
   SELECT p.id, p.kind, p.code, p.name, p.agent_id, p.handle, p.status, a.phone AS agent_phone
   FROM partners p
   LEFT JOIN agents a ON a.id = p.agent_id
   WHERE p.code = $1
     AND (p.agent_id IS NULL OR (a.deleted_at IS NULL AND a.status = 1))
+    AND ${AGENT_CODES_LIVE_SQL}
 `;
 
 /** An ACTIVE partner by code (an agent partner only while the agent's account is live), or null. */

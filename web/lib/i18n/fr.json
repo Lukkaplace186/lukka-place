@@ -6289,8 +6289,8 @@
         "paused": "La campagne est arrêtée : rien n’a été envoyé."
       },
       "campaign": {
-        "active": "Campagne d’annonce aux agents : active. Le message du programme part avec le bouton « Annoncer » et quand un agent nous écrit.",
-        "stopped": "Campagne d’annonce aux agents : arrêtée. Aucun message du programme n’est envoyé aux agents. Les liens et les crédits de parrainage continuent de fonctionner.",
+        "active": "Campagne agents : active. Le message part avec le bouton « Annoncer » et quand un agent nous écrit, et les codes des agents comptent les inscriptions.",
+        "stopped": "Campagne agents : arrêtée. Aucun message du programme n’est envoyé et les codes des agents ne fonctionnent plus (les crédits déjà enregistrés restent). Les codes des créateurs et des campagnes ne sont pas touchés.",
         "changed": "Dernier changement : {by}.",
         "stop": "Arrêter la campagne",
         "start": "Relancer la campagne"
@@ -6446,9 +6446,9 @@
     },
     "campaign": {
       "title": "Campagne d’annonce aux agents",
-      "lead": "Le message qui présente le programme de parrainage aux agents vérifiés. Arrêtée, elle n’envoie rien. Les liens, les codes et les crédits de parrainage fonctionnent dans les deux cas.",
-      "statusActive": "Active : le message part avec le bouton « Annoncer » et quand un agent nous écrit.",
-      "statusStopped": "Arrêtée : aucun message du programme n’est envoyé aux agents.",
+      "lead": "Le programme de parrainage des agents : le message qui le présente, et les codes des agents. Arrêtée, plus rien ne part et les codes des agents ne fonctionnent plus : leurs liens arrivent sans parrainage, aucune inscription ne leur est créditée et la carte « Mes parrainages » disparaît de leur espace. Les codes des créateurs et des campagnes ne sont pas touchés.",
+      "statusActive": "Active : le message part avec le bouton « Annoncer » et quand un agent nous écrit, et les codes des agents comptent les inscriptions.",
+      "statusStopped": "Arrêtée : aucun message n’est envoyé et les codes des agents ne fonctionnent plus.",
       "changed": "Dernier changement le {time}, par {by}.",
       "neverChanged": "Arrêtée depuis le 4 novembre 2026 (les agents comprenaient que c’était à eux de s’inscrire).",
       "stop": "Arrêter la campagne",

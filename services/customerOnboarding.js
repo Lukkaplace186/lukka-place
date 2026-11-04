@@ -101,7 +101,13 @@ async function createCustomerFromWhatsApp({ waId, code = null }, pool = require(
           `SELECT p.id, p.code, p.kind, a.phone AS agent_phone
              FROM partners p LEFT JOIN agents a ON a.id = p.agent_id
             WHERE p.code = $1 AND p.status = 'active'
-              AND (p.agent_id IS NULL OR (a.deleted_at IS NULL AND a.status = 1))`,
+              AND (p.agent_id IS NULL OR (a.deleted_at IS NULL AND a.status = 1))
+              -- An agent's code only while the agent campaign is on (web
+              -- /admin/campagne, cms_settings growth.referral_campaign; no row
+              -- = off). Same condition as web lib/partners.js AGENT_CODES_LIVE_SQL.
+              AND (p.kind <> 'agent' OR EXISTS (
+                SELECT 1 FROM cms_settings s
+                 WHERE s.key = 'growth.referral_campaign' AND (s.value ->> 'active') = 'true'))`,
           [code],
         );
         const partner = rows[0];

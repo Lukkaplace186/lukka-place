@@ -56,6 +56,7 @@
 
 const chakra = require('./chakra');
 const deskAlert = require('./deskAlert');
+const agentEnquiryAlert = require('./agentEnquiryAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
@@ -234,7 +235,7 @@ function opsMessage({ listing, propertyId, from, quotedReference, agentNotified,
  *
  * @returns {Promise<{agentNotified: boolean, opsNotified: boolean, reason?: string}>}
  */
-async function notifyEnquiry({ listing, propertyId, from, quotedReference }) {
+async function notifyEnquiry({ listing, propertyId, from, quotedReference, leadId = null }) {
   // Same gate as services/postgres.js's resolveAgentId and
   // agentOnboarding's identifySender: an unverified number is somebody's
   // claim, and messaging it would tell a stranger who is asking about an
@@ -248,13 +249,20 @@ async function notifyEnquiry({ listing, propertyId, from, quotedReference }) {
   let agentNotified = false;
   if (!agentSkipReason) {
     try {
-      await chakra.sendWhatsAppMessage(
-        String(listing.agent_phone).replace(/\D/g, ''),
+      const { via } = await agentEnquiryAlert.sendAgentEnquiryAlert(
+        String(listing.agent_phone),
         agentMessage({ listing, propertyId, from, quotedReference }),
-        { previewUrl: true },
+        {
+          agentName: listing.agent_name,
+          subject: [listing.title || `annonce n° ${propertyId}`, placeLabel(listing)].filter(Boolean).join(', '),
+          client: displayPhone(from),
+          message: 'Est-il toujours disponible ? Le client souhaite le visiter.',
+          leadId,
+          label: `listing enquiry #${propertyId}`,
+        },
       );
       agentNotified = true;
-      console.log(`[enquiry] property #${propertyId} -> agent #${listing.agent_id} notified`);
+      console.log(`[enquiry] property #${propertyId} -> agent #${listing.agent_id} notified (${via})`);
     } catch (err) {
       agentSkipReason = `échec de l'envoi : ${err.message}`;
       console.error(`[enquiry] notifying agent #${listing.agent_id} for property #${propertyId} failed: ${err.message}`);
@@ -356,13 +364,6 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
     return { handled: false };
   }
 
-  // Fire the alert BEFORE replying: the customer's reply states whether
-  // somebody was reached, so it cannot be written until we know.
-  const { agentNotified, opsNotified } = await notifyEnquiry({
-    listing, propertyId, from, quotedReference,
-  });
-  const reached = agentNotified || opsNotified;
-
   // An existing thread with this customer is reused rather than forked —
   // they may well have been mid-search when they tapped the button, and a
   // second conversation row would split one person's transcript in two.
@@ -375,7 +376,15 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
     console.error(`[enquiry] could not record the conversation for ${from}: ${err.message}`);
   }
 
-  recordEnquiryLead({ from, propertyId, listing, conversationId: conversation?.id ?? null });
+  // Recorded before the alert: the agent's template button opens this lead.
+  const lead = recordEnquiryLead({ from, propertyId, listing, conversationId: conversation?.id ?? null });
+
+  // Fire the alert BEFORE replying: the customer's reply states whether
+  // somebody was reached, so it cannot be written until we know.
+  const { agentNotified, opsNotified } = await notifyEnquiry({
+    listing, propertyId, from, quotedReference, leadId: lead?.id ?? null,
+  });
+  const reached = agentNotified || opsNotified;
 
   const reply = customerReply({ listing, propertyId, quotedReference, reached });
 

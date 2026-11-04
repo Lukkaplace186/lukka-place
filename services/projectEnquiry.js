@@ -26,7 +26,7 @@
  * the developer's own Demandes inbox with no new plumbing.
  */
 
-const chakra = require('./chakra');
+const agentEnquiryAlert = require('./agentEnquiryAlert');
 const deskAlert = require('./deskAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
@@ -164,10 +164,17 @@ async function handleProjectEnquiry({ developmentId, waId, name, interest, messa
   let developerNotified = false;
   if (!skipReason) {
     try {
-      await chakra.sendWhatsAppMessage(
-        String(contact.agent_phone).replace(/\D/g, ''),
+      await agentEnquiryAlert.sendAgentEnquiryAlert(
+        contact.agent_phone,
         developerMessage({ project, picked, from, name: cleanName, message: cleanMessage }),
-        { previewUrl: true },
+        {
+          agentName: contact.agent_name || project.developer_name,
+          subject: `votre projet « ${project.name} » (${interestLabel(picked)})`,
+          client: `${cleanName ? `${cleanName}, ` : ''}${displayPhone(from)}`,
+          message: cleanMessage,
+          leadId: lead.id,
+          label: `project enquiry lead #${lead.id}`,
+        },
       );
       developerNotified = true;
     } catch (err) {

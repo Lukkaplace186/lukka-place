@@ -13764,6 +13764,74 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §73 Enquiry alerts reach agents outside the 24 h window (2026-11-04)
+  // ---------------------------------------------------------------------------
+  console.log('\n§73 Enquiry alerts: nouvelle_demande_agent outside the 24 h window');
+  {
+    const alert73 = require('../services/agentEnquiryAlert');
+    const chakra73 = require('../services/chakra');
+    const window73 = require('../services/sessionWindow');
+    const saved73 = {
+      text: chakra73.sendWhatsAppMessage, template: chakra73.sendTemplate, env: process.env.AGENT_ENQUIRY_TEMPLATE,
+    };
+    const sent73 = [];
+    chakra73.sendWhatsAppMessage = async (to, body) => { sent73.push({ kind: 'text', to, body }); return {}; };
+    chakra73.sendTemplate = async (to, name, options) => { sent73.push({ kind: 'template', to, name, options }); return {}; };
+    const details = {
+      agentName: 'Immo Kin', subject: 'Appartement\nà Limete', client: 'Jean, +243812345678', message: '', leadId: 42,
+    };
+    try {
+      await checkAsync('outside the window with the template set: the template, with the lead id on its button', async () => {
+        sent73.length = 0;
+        process.env.AGENT_ENQUIRY_TEMPLATE = 'nouvelle_demande_agent';
+        const result = await alert73.sendAgentEnquiryAlert('243906500073', 'texte', details);
+        assert.deepStrictEqual(result, { via: 'template', outsideWindow: true });
+        assert.strictEqual(sent73.length, 1);
+        assert.strictEqual(sent73[0].name, 'nouvelle_demande_agent');
+        assert.strictEqual(sent73[0].options.urlButton, '42');
+        assert.deepStrictEqual(sent73[0].options.bodyParams,
+          ['Immo Kin', 'Appartement à Limete', 'Jean, +243812345678', 'demande de renseignements'],
+          'four one-line variables, none empty');
+      });
+
+      await checkAsync('inside the window the text is sent, as before', async () => {
+        sent73.length = 0;
+        window73.recordInbound('243906500074');
+        const result = await alert73.sendAgentEnquiryAlert('243906500074', 'texte', details);
+        assert.strictEqual(result.via, 'session');
+        assert.strictEqual(sent73[0].kind, 'text');
+      });
+
+      await checkAsync('a refused template, no template or no lead id still sends the text', async () => {
+        chakra73.sendTemplate = async () => { throw new Error('#132001'); };
+        sent73.length = 0;
+        assert.strictEqual((await alert73.sendAgentEnquiryAlert('243906500075', 'texte', details)).via, 'session');
+        assert.strictEqual(sent73[0].body, 'texte');
+        delete process.env.AGENT_ENQUIRY_TEMPLATE;
+        sent73.length = 0;
+        assert.strictEqual((await alert73.sendAgentEnquiryAlert('243906500075', 'texte', details)).via, 'session');
+        process.env.AGENT_ENQUIRY_TEMPLATE = 'nouvelle_demande_agent';
+        sent73.length = 0;
+        assert.strictEqual((await alert73.sendAgentEnquiryAlert('243906500075', 'texte', { ...details, leadId: null })).via, 'session');
+      });
+
+      check('all three enquiry alerts go through it, and a listing enquiry records its lead first', () => {
+        for (const file of ['listingEnquiry.js', 'agentProfileEnquiry.js', 'projectEnquiry.js']) {
+          const src = fs.readFileSync(path.join(__dirname, '..', 'services', file), 'utf8');
+          assert.match(src, /agentEnquiryAlert\.sendAgentEnquiryAlert\(/, file);
+          assert.match(src, /leadId/, file);
+        }
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'listingEnquiry.js'), 'utf8');
+        assert.ok(src.indexOf('const lead = recordEnquiryLead(') < src.indexOf('await notifyEnquiry({'));
+      });
+    } finally {
+      chakra73.sendWhatsAppMessage = saved73.text;
+      chakra73.sendTemplate = saved73.template;
+      if (saved73.env === undefined) delete process.env.AGENT_ENQUIRY_TEMPLATE; else process.env.AGENT_ENQUIRY_TEMPLATE = saved73.env;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

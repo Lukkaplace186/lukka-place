@@ -2212,3 +2212,20 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   the Lukka listing while public, not at all once rejected/deleted; the same
   rounded price in one commune × bedrooms on several sources counts as the
   most any one source shows.
+
+## Agent templates approved 2026-11-03 — switched on 2026-11-04
+
+All four are on the INTAKE account, French, set in the engine `.env`:
+
+- `DESK_ALERT_TEMPLATE=alerte_bureau` — every desk copy; the keepalive stops asking "OK".
+- `AGENT_LEAD_MATCH_TEMPLATE=agent_lead_match` (approved as MARKETING) — the
+  "Trouver pour moi" push, five variables as `leadDispatch.templateParams`.
+- `LISTING_AVAILABILITY_TEMPLATE=disponibilite_annonce_agent` — sent with the
+  three quick-reply payloads; a template approved without them is refused and
+  the check falls back to buttons / numbered text.
+- `AGENT_ENQUIRY_TEMPLATE=nouvelle_demande_agent` — `services/agentEnquiryAlert.js`,
+  used by listing, profile and project enquiries: text inside the agent's 24 h
+  window, else the template (agent, subject, client, message; DYNAMIC button =
+  lead id), else the text. A listing enquiry now records its lead before the
+  alert so the button has an id. The profile enquiry's desk warning only fires
+  when the alert still went as text outside the window. §73.

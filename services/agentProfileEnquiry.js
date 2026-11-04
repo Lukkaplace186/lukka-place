@@ -17,17 +17,18 @@
  *   - `leads.agent_id` is stamped with the agent, one of the ownership
  *     signals db.listLeads ORs, so the request is in their Demandes inbox.
  *
- * The alert to the agent is a session message (no template exists for this
- * yet). The desk copy says so when the agent has not written to us within
- * the 24 h window (services/sessionWindow.js), because "prévenu" would
- * otherwise read as delivered when it almost certainly was not.
+ * The alert goes through services/agentEnquiryAlert.js: the session text
+ * inside the 24 h window, the `nouvelle_demande_agent` template outside it.
+ * The desk copy warns only when it still had to go as a session message
+ * outside the window (no template configured, or refused), because
+ * "prévenu" would otherwise read as delivered when it almost certainly was
+ * not.
  */
 
-const chakra = require('./chakra');
+const agentEnquiryAlert = require('./agentEnquiryAlert');
 const deskAlert = require('./deskAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
-const { insideSessionWindow } = require('./sessionWindow');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -107,10 +108,18 @@ async function notifyAgentProfileEnquiry({ lead, agentId }) {
   let agentNotified = false;
   let outsideWindow = false;
   if (!skipReason) {
-    const phone = String(contact.agent_phone).replace(/\D/g, '');
-    outsideWindow = !insideSessionWindow(phone);
     try {
-      await chakra.sendWhatsAppMessage(phone, agentMessage({ lead, contact }), { previewUrl: true });
+      const sent = await agentEnquiryAlert.sendAgentEnquiryAlert(contact.agent_phone, agentMessage({ lead, contact }), {
+        agentName: contact.agent_name,
+        subject: 'votre profil Lukka Place',
+        client: `${lead.name ? `${lead.name}, ` : ''}${displayPhone(lead.wa_id)}`,
+        message: summaryLines(lead).join(' · '),
+        leadId: lead.id,
+        label: `profile enquiry lead #${lead.id}`,
+      });
+      // Only a session message sent outside the window is likely lost; a
+      // template reaches the agent whenever they last wrote.
+      outsideWindow = sent.outsideWindow && sent.via === 'session';
       agentNotified = true;
     } catch (err) {
       skipReason = `échec de l'envoi : ${err.message}`;

@@ -13716,16 +13716,24 @@ console.log('\n2. services/openai.js');
       assert.strictEqual(row.posted_at, '2026-11-02T09:15:11.000Z');
     });
 
-    await checkAsync('group captures: every capture with a price, never one from an unauthorised group', async () => {
+    await checkAsync('group captures: every capture with a price, never one from an excluded group', async () => {
       const insert = dbService.db.prepare(`INSERT INTO listings (wa_id, transaction_type, property_type, commune, quartier, price, currency, price_period, bedrooms, furnished, remote_property_id, parsed_json, created_at)
         VALUES (@wa, @t, @type, @commune, @q, @price, 'USD', @period, @beds, @furn, @remote, @json, '2026-11-01 10:00:00')`);
       const ok = insert.run({ wa: '243999384203', t: 'location', type: 'appartement', commune: 'Limete', q: 'Industriel', price: 450, period: 'mois', beds: 2, furn: 0, remote: 662, json: JSON.stringify({ source: 'whatsapp-group', group_jid: '120363344702370143@g.us' }) }).lastInsertRowid;
-      const banned = insert.run({ wa: '243834915639', t: 'location', type: 'appartement', commune: 'Gombe', q: null, price: 900, period: 'mois', beds: 2, furn: null, remote: null, json: JSON.stringify({ source: 'whatsapp-group', group_jid: market72.EXCLUDED_GROUP_JIDS[0] }) }).lastInsertRowid;
+      const vitesse = insert.run({ wa: '243834915639', t: 'location', type: 'appartement', commune: 'Gombe', q: null, price: 900, period: 'mois', beds: 2, furn: null, remote: null, json: JSON.stringify({ source: 'whatsapp-group', group_jid: '120363424833758385@g.us' }) }).lastInsertRowid;
+      const banned = insert.run({ wa: '243834915640', t: 'location', type: 'appartement', commune: 'Gombe', q: null, price: 950, period: 'mois', beds: 2, furn: null, remote: null, json: JSON.stringify({ source: 'whatsapp-group', group_jid: '120363000000000099@g.us' }) }).lastInsertRowid;
       const own = insert.run({ wa: '243810000000', t: 'location', type: 'appartement', commune: 'Gombe', q: null, price: 900, period: 'mois', beds: 2, furn: null, remote: null, json: JSON.stringify({ source: 'whatsapp' }) }).lastInsertRowid;
-      const { observations } = await group72.collect({ since: '2026-01-01T00:00:00Z' });
+      const savedExcluded = process.env.MARKET_EXCLUDED_GROUP_JIDS;
+      process.env.MARKET_EXCLUDED_GROUP_JIDS = '120363000000000099@g.us';
+      let observations;
+      try { ({ observations } = await group72.collect({ since: '2026-01-01T00:00:00Z' })); } finally {
+        if (savedExcluded === undefined) delete process.env.MARKET_EXCLUDED_GROUP_JIDS; else process.env.MARKET_EXCLUDED_GROUP_JIDS = savedExcluded;
+      }
       const refs = observations.map((o) => o.source_ref);
       assert.ok(refs.includes(`listing:${ok}`));
-      assert.ok(!refs.includes(`listing:${banned}`), 'Vitesse maximale 5/5 is never read');
+      assert.ok(!refs.includes(`listing:${banned}`), 'a group in MARKET_EXCLUDED_GROUP_JIDS is never read');
+      assert.ok(refs.includes(`listing:${vitesse}`), 'Vitesse maximale 5/5 counts since its authorisation (2026-11-04)');
+      assert.deepStrictEqual(market72.EXCLUDED_GROUP_JIDS, []);
       assert.ok(!refs.includes(`listing:${own}`), 'an agent\'s own WhatsApp listing is not a group capture');
       const row = market72.normaliseObservation({ ...observations.find((o) => o.source_ref === `listing:${ok}`), source: 'whatsapp_group' });
       assert.deepStrictEqual([row.property_id, row.purpose, row.property_kind, row.beds, row.monthly_usd, row.commune, row.furnished], [662, 'rent', 'appartement', 2, 450, 'Limete', false]);

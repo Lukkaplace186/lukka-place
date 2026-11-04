@@ -2177,7 +2177,8 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   description or phone. Nothing is ever shown as a listing.
 - **Sources, chosen by their terms of use (read 2026-11-04):**
   collected nightly — `whatsapp_group` (our own group captures from SQLite,
-  never `EXCLUDED_GROUP_JIDS`: Vitesse maximale 5/5), `immo24` (public WP REST
+  never a group in `EXCLUDED_GROUP_JIDS` — empty since Vitesse maximale 5/5 was
+  authorised on 2026-11-04), `immo24` (public WP REST
   feed), `imcongo` (6 result pages, Crawl-delay 10; terms forbid reproduction,
   nothing is reproduced), `alain_realty` (sitemap + pages), `smartimmo`
   (sitemap + schema.org; the UUIDv7 id dates the advert). **Hand-entered only**

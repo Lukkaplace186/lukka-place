@@ -13,7 +13,8 @@
  * SOURCES (decided 2026-11-04, owner request; terms of use read that day)
  *   collected automatically, facts only, politely (marketSources/http.js):
  *   - whatsapp_group  our own group captures (services/groupRelay.js), from
- *                     authorised groups only — EXCLUDED_GROUP_JIDS below.
+ *                     authorised groups only — EXCLUDED_GROUP_JIDS below
+ *                     (empty since Vitesse maximale 5/5 was authorised).
  *                     Owner decision: the intake store is never a source for
  *                     the storefront's LISTINGS; its prices may feed medians.
  *   - immo24          immo24.cd, public WordPress REST feed. robots.txt
@@ -74,11 +75,13 @@ const RESIDENTIAL_KINDS = ['appartement', 'maison', 'villa', 'studio', 'duplex',
 const PROPERTY_KINDS = [...RESIDENTIAL_KINDS, 'chambre', 'terrain', 'bureau', 'commercial', 'immeuble', 'autre'];
 
 /**
- * "Vitesse maximale 5/5" was read without authorisation (2026-10-23 → 26) and
- * removed on owner instruction; its captures never become market data.
- * MARKET_EXCLUDED_GROUP_JIDS adds others (comma-separated).
+ * Groups whose captures never become market data. Empty since 2026-11-04:
+ * "Vitesse maximale 5/5" (120363424833758385@g.us), excluded while we had no
+ * authorisation to use its data, was re-added by the owner that day with the
+ * group's authorisation. A group we may not use goes here, or in
+ * MARKET_EXCLUDED_GROUP_JIDS (comma-separated, read at call time).
  */
-const EXCLUDED_GROUP_JIDS = ['120363424833758385@g.us'];
+const EXCLUDED_GROUP_JIDS = [];
 
 function excludedGroupJids() {
   const extra = String(process.env.MARKET_EXCLUDED_GROUP_JIDS || '').split(',').map((s) => s.trim()).filter(Boolean);

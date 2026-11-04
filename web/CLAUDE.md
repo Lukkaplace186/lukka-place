@@ -3869,3 +3869,38 @@ leaves the other's channels on the page with an `ErrorNote`).
   heading. The lead detail page shows how and who recorded it;
   `NON_SEARCH_LEAD_SOURCES` keeps it off the customer's own searches.
 - `tests/unit/interaction-counts.test.js`.
+
+## Agent signup page, after the October ad (2026-11-04)
+
+The 29–30 October Meta campaign sent 4,215 phone visitors (3,788 feed + 427
+Audience Network, campaign `120253650320780174`) to
+`/compte/agent/inscription`; 2 reached the code step and new agents stayed at
+the usual daily rate. The page was a bare five-field form opening on
+"Nom de l'agence". Now (`app/(site)/compte/agent/inscription/page.js`):
+
+- **Why join, above the form**: "2 mois gratuits" (the engine's SIGNUP_REPLY
+  claim, no new one), customers write on your WhatsApp, and the real live
+  listing count (`countLiveListings`, shown from 10).
+- **"S'inscrire sur WhatsApp" first** (`agentWhatsappSignupLink`,
+  lib/whatsappSignup.js): opens the intake number with a message the engine
+  answers without a model call — SIGNUP_REPLY ("send your first listing"),
+  or, with an ACTIVE rep's code, salesReferral's welcome (code remembered for
+  the account the first listing creates). Never "Inscription Lukka Place…"
+  (that creates a CUSTOMER); a partner's code is not passed (the engine would
+  say "code inconnu"). `tests/unit/agent-signup-page.test.js` runs the
+  engine's matchers on the exact text.
+- **The person first, the agency optional**: `error=agency` is no longer
+  raised; an empty agency leaves the public name to the person
+  (AGENCY_NAME_EXPR). The referral field folds behind "J'ai un code de
+  parrainage" unless a code is carried or `error=ref`. Inputs are 44px and
+  16px on a phone (no iOS zoom); nothing autofocuses.
+- **Funnel log** (`components/SignupFunnelTracker.js` →
+  `POST /api/telemetry/signup-funnel`, a log line like vitals, no table):
+  `form_start`, `submit`, `whatsapp_tap`, `referral_open`, with source,
+  campaign, device, viewer kind and visitor id. Read with
+  `pm2 logs lukka-place-web --lines 20000 --nostream | grep '\[signup-funnel\]'`
+  and count distinct `visitor`. A WhatsApp signup's account still shows up as
+  `account_acquisitions.channel = 'whatsapp'`.
+- Not done: the password still comes before verification, and the Meta pixel
+  / CAPI token are not set (`/admin/settings` → Croissance), so a campaign
+  cannot optimise for registrations yet.

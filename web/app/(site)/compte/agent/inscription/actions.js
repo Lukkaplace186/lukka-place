@@ -41,9 +41,12 @@ export async function agentSignupAction(formData) {
   const agencyName = String(formData.get('agency_name') || '').trim().slice(0, 160);
   const contactName = String(formData.get('contact_name') || '').trim().slice(0, 160) || legacyFullName;
 
-  if (!legacyFullName && !agencyName) {
-    redirect(`/compte/agent/inscription?error=agency&next=${encodeURIComponent(next)}`);
-  }
+  // The agency is optional since 2026-11-04: most Kinshasa brokers are
+  // independent commissionnaires, and a form that opened on "Nom de l'agence"
+  // told them the page was not for them (4,215 ad visitors, 2 reached the
+  // code step). Left empty, the public name is the person's (AGENCY_NAME_EXPR
+  // and agentPublicName fall back to agent_infos) — never a copy stored as an
+  // agency that does not exist.
   if (!contactName) {
     redirect(`/compte/agent/inscription?error=name&next=${encodeURIComponent(next)}`);
   }

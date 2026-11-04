@@ -6754,6 +6754,19 @@
       "hint": "One message, already written: WhatsApp confirms your number.",
       "or": "or with a password"
     },
+    "agentSignup": {
+      "pitchFree": "2 months free for agents and brokers",
+      "pitchLeads": "Customers message you directly on your WhatsApp",
+      "pitchLive": "{count} properties already live on Lukka Place",
+      "whatsappCta": "Sign up on WhatsApp",
+      "whatsappHint": "No form: send your first property (photos, commune, price) and your account is created.",
+      "or": "or with the form",
+      "yourName": "Your name",
+      "agencyOptional": "Agency name (optional)",
+      "agencyHint": "Working on your own? Leave it empty: your name will be shown.",
+      "haveCode": "I have a referral code",
+      "alreadyAccount": "Already have an account?"
+    },
     "activateCustomer": {
       "metaTitle": "Choose My Password — Lukka Place",
       "title": "Choose Your Password",

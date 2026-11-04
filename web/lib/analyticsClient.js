@@ -156,6 +156,18 @@ export function trackEvent(type, payload = {}) {
   beacon('/api/track', { type, ...payload });
 }
 
+/**
+ * How far a visitor got on a signup form (app/api/telemetry/signup-funnel):
+ * 'form_start' | 'submit' | 'whatsapp_tap' | 'referral_open'. A log line on
+ * the server, carrying the session's campaign like every other beacon.
+ *
+ * @param {'agent'} form
+ * @param {string} step
+ */
+export function trackSignupStep(form, step) {
+  beacon('/api/telemetry/signup-funnel', { form, step });
+}
+
 const ATTRIBUTION_KEY = 'lp_attr';
 
 /**

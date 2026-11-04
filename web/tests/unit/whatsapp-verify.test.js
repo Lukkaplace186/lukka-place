@@ -46,3 +46,19 @@ test('both verify pages offer WhatsApp verification', () => {
     assert.match(read(page), /<WhatsAppVerifyPanel/);
   }
 });
+
+test('a login finishes a proof the verify page never collected (customers #35 and #39)', () => {
+  const lib = read('lib/whatsappVerify.js');
+  assert.match(lib, /export async function consumeProofAtLogin[\s\S]*?consumeVerifiedChallenge\(\{ role, id, phone \}\)/, 'the same spend-once proof the page uses');
+  for (const [file, consume, gate] of [
+    ['app/(site)/compte/connexion/actions.js', 'consumeCustomerOtp', 'customerOtpBypassEnabled()'],
+    ['app/(site)/compte/agent/connexion/actions.js', 'consumeAgentOtp', 'otpBypassEnabled()'],
+  ]) {
+    const src = read(file);
+    const check = src.indexOf('consumeProofAtLogin({');
+    assert.ok(check > 0, `${file}: checks for a proof`);
+    assert.ok(check > src.indexOf('verifyPasswordAgainstHash(password'), `${file}: only after the password matched`);
+    assert.ok(check < src.indexOf(`!${file.includes('agent') ? 'agent' : 'customer'}.phone_verified_at && ${gate}`), `${file}: before the verify step is chosen`);
+    assert.ok(src.slice(check, check + 300).includes(`await ${consume}(`), `${file}: verifies through the usual path`);
+  }
+});

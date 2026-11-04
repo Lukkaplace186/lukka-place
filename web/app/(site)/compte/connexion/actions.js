@@ -19,6 +19,7 @@ import {
 import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { customerOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { consumeProofAtLogin } from '@/lib/whatsappVerify';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -85,6 +86,15 @@ export async function loginAction(formData) {
   // deliberately backfills nobody, because nobody proved those numbers).
   // Both are the same one-time step, and it is the same step an agent with
   // an unverified account already goes through.
+  //
+  // Unless the number was already proven by a WhatsApp message the verify
+  // page never collected (lib/whatsappVerify.js consumeProofAtLogin): then
+  // this login finishes the verification instead of asking again.
+  if (!customer.phone_verified_at && (await consumeProofAtLogin({ role: 'customer', id: customer.id, phone }))) {
+    await consumeCustomerOtp(customer.id);
+    customer.phone_verified_at = new Date();
+  }
+
   if (!customer.phone_verified_at && customerOtpBypassEnabled()) {
     // No code is sent; the verify page proves the number by a WhatsApp
     // message from it (lib/whatsappVerify.js).

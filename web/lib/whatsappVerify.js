@@ -81,6 +81,24 @@ export async function consumeVerifiedChallenge({ role, id, phone }) {
 }
 
 /**
+ * At login: was this account's number already proven by a WhatsApp message
+ * the verify page never got to collect? The page only completes a proof
+ * while it is open and polling, so a person who sent the code and never came
+ * back stayed unverified for good (customers #35 and #39, 2026-11-03). A
+ * login that passed the password check consumes such a proof — the same
+ * spend-once proof the page would have used. Never throws: a failed read
+ * just means the usual verify step.
+ */
+export async function consumeProofAtLogin({ role, id, phone }) {
+  try {
+    return await consumeVerifiedChallenge({ role, id, phone });
+  } catch (err) {
+    console.error(`[verify] proof check at login failed for ${role} #${id}: ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * The Lukka Place number the code must be sent TO, for display ("+243 97 632
  * 1848"), or null when none is configured. Shown beside the code so a person
  * whose wa.me link did not open — or who types the message by hand — knows

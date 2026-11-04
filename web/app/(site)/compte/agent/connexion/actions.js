@@ -14,6 +14,7 @@ import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
+import { consumeProofAtLogin } from '@/lib/whatsappVerify';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -53,6 +54,15 @@ export async function agentLoginAction(formData) {
   }
 
   await clearAgentFailedLogins(agent.id);
+  // A number already proven by a WhatsApp message the verify page never
+  // collected (lib/whatsappVerify.js consumeProofAtLogin): this login
+  // finishes the verification — and the listing claim that goes with it —
+  // instead of asking again.
+  if (!agent.phone_verified_at && (await consumeProofAtLogin({ role: 'agent', id: agent.id, phone }))) {
+    await consumeAgentOtp(agent.id);
+    await recordAgentLoginAttempt(agent.id, 'whatsapp_verified');
+    agent.phone_verified_at = new Date();
+  }
   // Signed in now, or sent on to prove the number first (the console shows
   // the second as "vérification en attente").
   await recordAgentLoginAttempt(agent.id, agent.phone_verified_at ? 'success' : 'verify_required');

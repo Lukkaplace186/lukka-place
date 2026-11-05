@@ -2241,3 +2241,11 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   and `chakra.sendTemplate` adds `TEMPLATE_HEADER_IMAGE` (else
   `VIEWING_REQUEST_TEMPLATE_IMAGE`) to any listed template whose caller passed
   no image, so every caller is covered. Live-tested 2026-11-04 to the desk.
+- **`annonce_en_ligne` is OFF again (2026-11-05, owner).** Its "Visit website"
+  button opened a 404 for listing #685, while `/listings/685` itself answered
+  200 — the button URL registered at Meta is not `/listings/{{1}}`.
+  `LISTING_APPROVED_TEMPLATE` is commented out in production, so every
+  approval goes as the text with `https://lukkaplace.com/listings/<id>`, which
+  only reaches an agent who wrote within 24 h. To bring the template back, fix
+  its button at Meta to `https://lukkaplace.com/listings/{{1}}` (listing pages
+  are `/listings/`, never `/biens/`).

@@ -173,9 +173,7 @@ export default async function Footer() {
           already carries) plus the "become a partner agency" band — a
           screen and a half of scrolling on a phone below every tab. There
           it is one strip: the two real pages worth reaching from anywhere,
-          the display preferences, the copyright. No "Conditions" or
-          "Confidentialité" link: neither page exists yet, and a link to a
-          404 is worse than none. */}
+          the display preferences, the copyright and the terms link. */}
       <FooterByPath
         prefixes={ACCOUNT_FOOTER_PATHS}
         compact={
@@ -194,7 +192,13 @@ export default async function Footer() {
               <CurrencyToggle />
               <LanguageToggle />
             </div>
-            <p className="text-xs text-ink-35">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
+            <p className="text-xs text-ink-35">
+              {t('footer.copyright', { year: new Date().getFullYear() })}
+              <span aria-hidden="true" className="mx-2">·</span>
+              <Link href="/conditions" className="transition-colors hover:text-blue-deep">
+                {t('footer.links.terms')}
+              </Link>
+            </p>
           </div>
         }
       >
@@ -388,7 +392,15 @@ export default async function Footer() {
 
           <div className="mt-6 border-t border-line pt-6 md:mt-8">
             <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{t('footer.disclaimer')}</p>
-            <p className="mt-4 text-xs text-ink-25">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
+            {/* The terms (/conditions, incl. the scraping ban) sit beside the
+                copyright on purpose: discreet, as asked, but on every page. */}
+            <p className="mt-4 text-xs text-ink-25">
+              {t('footer.copyright', { year: new Date().getFullYear() })}
+              <span aria-hidden="true" className="mx-2">·</span>
+              <Link href="/conditions" className="transition-colors hover:text-blue-deep hover:underline">
+                {t('footer.links.terms')}
+              </Link>
+            </p>
           </div>
         </div>
       </FooterByPath>

@@ -2261,3 +2261,8 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   only reaches an agent who wrote within 24 h. To bring the template back, fix
   its button at Meta to `https://lukkaplace.com/listings/{{1}}` (listing pages
   are `/listings/`, never `/biens/`).
+- **The "Toujours disponible ?" check is PAUSED (2026-11-05, owner: to be
+  reworked).** `AVAILABILITY_CHECK=off` in production makes the
+  `listing-availability-check` job never run (`availabilityCheck.checkEnabled`,
+  read at call time); answers to questions already sent are still handled.
+  Delete the line and restart to resume. §74.

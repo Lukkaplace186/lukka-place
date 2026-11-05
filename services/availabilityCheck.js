@@ -825,7 +825,17 @@ function kinshasaDayStartUtc(now = new Date()) {
   return new Date(`${kinshasaDay(now)}T00:00:00+01:00`).toISOString();
 }
 
+/**
+ * `AVAILABILITY_CHECK=off` (read at call time) stops new questions; answers
+ * to questions already sent are still handled. Owner, 2026-11-05: paused
+ * until the check is reworked.
+ */
+function checkEnabled() {
+  return String(process.env.AVAILABILITY_CHECK || '').trim().toLowerCase() !== 'off';
+}
+
 function checkDue(now = new Date()) {
+  if (!checkEnabled()) return false;
   if (!pg.isConfigured()) return false;
   if (now.getUTCHours() !== (CHECK_HOUR_KINSHASA + 23) % 24) return false;
   const last = dbService.getLastJobRun(JOB_NAME);
@@ -953,4 +963,5 @@ module.exports = {
   handleAvailabilityButtonReply,
   handleAvailabilityTextReply,
   availabilityCheckJob,
+  checkEnabled,
 };

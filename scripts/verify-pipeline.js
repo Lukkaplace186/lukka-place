@@ -13956,6 +13956,26 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // §74 The availability check can be paused (2026-11-05)
+  // ---------------------------------------------------------------------------
+  console.log('\n§74 AVAILABILITY_CHECK=off pauses new questions');
+  check('with AVAILABILITY_CHECK=off the daily check never runs; unset it runs as before', () => {
+    const avail74 = require('../services/availabilityCheck');
+    const before = process.env.AVAILABILITY_CHECK;
+    try {
+      process.env.AVAILABILITY_CHECK = 'off';
+      assert.strictEqual(avail74.checkEnabled(), false);
+      assert.strictEqual(avail74.checkDue(new Date()), false);
+      process.env.AVAILABILITY_CHECK = 'OFF ';
+      assert.strictEqual(avail74.checkEnabled(), false);
+      delete process.env.AVAILABILITY_CHECK;
+      assert.strictEqual(avail74.checkEnabled(), true);
+    } finally {
+      if (before === undefined) delete process.env.AVAILABILITY_CHECK; else process.env.AVAILABILITY_CHECK = before;
+    }
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

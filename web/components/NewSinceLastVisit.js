@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Sparkles, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';

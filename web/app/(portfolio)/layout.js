@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { Wordmark } from '@/components/Brand';

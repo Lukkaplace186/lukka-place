@@ -3347,6 +3347,20 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
 - **Recorded** as `kit_share` / `kit_download` × `feed` and `kit_copy` × text.
   `feed` needs the engine migration `20261026_listing_share_feed_format.sql`;
   until it runs, a feed share records nothing and the share itself works.
+- **Facebook reads the link before it is posted** (2026-11-05,
+  `lib/facebookPreview.js`). Two of three team link posts showed a bare
+  "LUKKAPLACE.COM / lukkaplace.com" box: Facebook's first read of those URLs
+  failed (the pages, og tags and og:image all answered 200 to its user agent
+  the next day) and it caches that read per URL, query string included, for
+  about a month. Opening the 4:5 dialog (team or agent, never the sold card)
+  now calls `refreshTeamFacebookPreviewAction` / `refreshFacebookPreviewAction`,
+  which rebuild the caption's exact link server-side (`kit.socialUrl`) and
+  POST it to Graph `?scrape=true` — ready only with a real title AND an image,
+  3 tries, a good read cached 6 h in-process. Needs `FACEBOOK_APP_ID` +
+  `FACEBOOK_APP_SECRET` (or `FACEBOOK_APP_TOKEN`), read at call time; unset →
+  nothing is called and the dialog shows "Aperçu Facebook non vérifié" with
+  the Sharing Debugger link ("Récupérer à nouveau" by hand, which also repairs
+  a post already published). `tests/unit/facebook-preview.test.js`.
 - Not built: a visitor-facing "Générer la carte" on the public listing page,
   and a 9:16 option in the dialog (the layout has one).
 
@@ -4052,3 +4066,77 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   /indice-lukka is unchanged.
 - **Notre approche**: three unboxed points with icons, shorter copy (same
   claims), header link to /a-propos; the "Voir les annonces" button is gone.
+
+## /admin/seo — SEO & Google (2026-11-05)
+
+`app/admin/seo/page.js` (`market.view`, Analyses group), pure rules in
+`lib/seoAuditRules.js`, reads in `lib/seoAudit.js`, Search Console in
+`lib/searchConsole.js`. `tests/unit/seo-audit.test.js`.
+
+- **Live checks**: the domain's TXT records (Google's
+  `google-site-verification=` — added on Hostinger 2026-11-05 for the
+  `sc-domain:lukkaplace.com` property — and Bing's `MS=`), the sitemap counted
+  by calling `app/sitemap.js` itself, English pages (none: the locale is a
+  cookie, docs/seo-english-pages-plan.md), social profiles, Bing.
+- **Target searches** (FR + EN, `TARGET_SEARCHES`): the landing page meant to
+  answer each and its listing count (`getSeoFacets`, Kinshasa only, overlays
+  only on their own page). With Search Console connected, the position is the
+  impression-weighted average of our queries holding all the target's words
+  (`matchTargetRows`; FR/EN synonyms fold, "apartments for rent" =
+  "appartement à louer"). Without it the column says so — never a guess.
+- **Search Console** is a service account, no dependency: RS256 JWT via
+  node:crypto → access token → searchAnalytics + sitemaps, cached 10 min,
+  never throws. Env `GSC_SERVICE_ACCOUNT_JSON` (raw JSON or base64),
+  `GSC_PROPERTY` (default `sc-domain:lukkaplace.com`). Setup steps are on the
+  page. **Not connected yet, so that half is unverified against Google.**
+- **Coverage** per commune (≤5 listings = thin, 0 = noindex page) and
+  **listing quality** over every public listing (<3 photos, no commune, no
+  quartier, description <120 chars, no price, land with bedrooms and no
+  parcelle sub-type — its title reads "Terrain 3 chambres", e.g. #685).
+- **`sameAs` now carries the console's saved profiles** (`sameAsProfiles`:
+  /admin/settings links over the env ones, no WhatsApp, query strings
+  stripped). Before, only `NEXT_PUBLIC_*_URL` was read, so the Instagram and
+  TikTok links the footer showed never reached Google's Organization data.
+
+## English pages for search engines — `/en/…` (2026-11-05)
+
+Phases 1–2 of docs/seo-english-pages-plan.md. Google sends no cookie, so it
+had only ever seen French. Tests: `tests/unit/locale-paths.test.js`,
+`tests/unit/middleware.test.js`.
+
+- **One table, `lib/localePaths.js`** (pure, import-free): `/`→`/en`,
+  `/a-propos`→`/en/about`, `/contact`, `/agents[/id]`, `/location`→`/en/rent`,
+  `/vente`→`/en/buy`, type slugs translated (`EN_TYPE_SLUGS`: apartments,
+  houses, land, plots, compounds…; a test fails if a new French type has
+  none), commune/city slugs unchanged, `/listings/:id`, `/combien-coute[/slug]`
+  →`/en/rent-prices[/slug]`. Everything else (search, accounts, guides, legal)
+  has no twin. `/en` accepts only English slugs: `/en/rent/appartements` 404s.
+- **No copied routes.** middleware.js rewrites `/en/*` onto the French route
+  and sets `x-lukka-url-locale: en` (`lib/i18n/urlLocale.js`);
+  `lib/i18n/server.js` `getLocale` reads it before the cookie. It also sets
+  `NEXT_LOCALE=en`, so the reader's next search is English. `getUrlLocale()`
+  is the URL's language — canonicals follow it, never the cookie.
+- **hreflang**: `localizedAlternates(frPath)` (server.js) on home, about,
+  contact, agents, agent profiles, listings, landing pages and the price
+  guide — canonical in the URL's language + fr / en / x-default. The sitemap
+  lists both URLs with `alternates.languages` (`withEnglishTwins`).
+- **Links stay English for an English reader**: `components/LocaleLink.js`
+  (next/link + `localizeHref(href, locale)`) replaces next/link in ~50 public
+  components (chrome, cards, home, landing pages, listing and agent pages). It
+  changes nothing for French readers or for a path with no twin, so swapping
+  it in is safe. Landing-page links, crumbs and JSON-LD use `localizeHref`
+  directly.
+- **The FR | EN switch changes URL with a full load** (`window.location`), not
+  `router.push`: `/en/rent/x` and `/location/x` are the same route segments,
+  and the client router reused the page rendered in the old language
+  (measured). Pages without a twin still just refresh.
+- **English listing `<title>`/description/h1** use English type words and
+  prices (`listingSeo.js` `EN_KINDS`, `priceOf`, `listingKindLabel`): "2-bedroom
+  apartment for rent in Limete — $450 / month". The listing's own title and
+  description stay as the agent wrote them.
+- **Known, not done**: cards still print "450 $ / mois" and the French
+  category on English pages (lib/format.js is French-only, site-wide); the
+  404 page on an unknown `/en` path is French; the guides have no English
+  version (phase 3, copy work). The locale header can be sent by any client on
+  a French URL — it only renders that page in English for that client, the
+  same as the cookie; nothing is shared-cached.

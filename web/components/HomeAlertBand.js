@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { ArrowRight, BellRing } from 'lucide-react';
 import HomeAlertPicker from './HomeAlertPicker';
 import HomeAlertReveal from './HomeAlertReveal';

@@ -27,10 +27,36 @@ export function socialProfiles() {
   return Object.fromEntries(entries.filter(([, url]) => typeof url === 'string' && /^https:\/\//.test(url.trim())).map(([k, url]) => [k, url.trim()]));
 }
 
-export function organizationSchema() {
+/**
+ * Profile URLs for `sameAs`: the console's saved links (/admin/settings) over
+ * the env ones, never the WhatsApp link (a chat, not a profile), and without
+ * their query string — the saved Instagram/TikTok links carry share-tracking
+ * parameters ("?utm_source=qr", "?_r=1&_t=…") that are not the profile's
+ * address. Until 2026-11-05 only the env ones were read, so the profiles the
+ * footer showed never reached Google.
+ */
+export function sameAsProfiles(links = socialProfiles()) {
+  const out = [];
+  for (const [network, value] of Object.entries(links || {})) {
+    if (network === 'whatsapp' || typeof value !== 'string') continue;
+    try {
+      const url = new URL(value.trim());
+      if (url.protocol !== 'https:') continue;
+      url.search = '';
+      url.hash = '';
+      const clean = url.toString().replace(/\/$/, '');
+      if (!out.includes(clean)) out.push(clean);
+    } catch {
+      // not a URL — left out
+    }
+  }
+  return out;
+}
+
+export function organizationSchema({ profiles } = {}) {
   const url = base();
   const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const sameAs = Object.values(socialProfiles());
+  const sameAs = sameAsProfiles(profiles || socialProfiles());
   return {
     '@type': 'RealEstateAgent',
     '@id': `${url}/#organization`,

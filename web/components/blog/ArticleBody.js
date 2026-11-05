@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 
 /**
  * The body of a guide or a post (lib/blogRules.js blocks). Server-rendered,

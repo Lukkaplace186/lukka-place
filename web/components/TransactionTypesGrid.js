@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Home, KeyRound, Megaphone } from 'lucide-react';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';

@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { SearchX } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithParam } from '@/lib/urlParams';

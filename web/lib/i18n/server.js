@@ -1,10 +1,12 @@
 import 'server-only';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 import fr from './fr.json';
 import en from './en.json';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, normalizeLocale } from './config';
 import { createTranslator } from './translate';
+import { URL_LOCALE_HEADER } from './urlLocale';
+import { localeAlternates } from '../localePaths';
 
 /**
  * Server-side locale access.
@@ -28,8 +30,25 @@ const DICTIONARIES = { fr, en };
  * not the synchronous call older examples show.
  */
 export async function getLocale() {
+  // An /en/… URL (middleware.js) is English whatever the cookie says.
+  if ((await getUrlLocale()) === 'en') return 'en';
   const store = await cookies();
   return normalizeLocale(store.get(LOCALE_COOKIE)?.value);
+}
+
+/**
+ * The language of the URL being served: 'en' on an /en/… page, else 'fr' —
+ * even when the cookie renders a French URL in English. Canonicals follow the
+ * URL, never the cookie.
+ */
+export async function getUrlLocale() {
+  const store = await headers();
+  return store.get(URL_LOCALE_HEADER) === 'en' ? 'en' : 'fr';
+}
+
+/** `alternates` for a page's French path: canonical in the URL's language + hreflang (lib/localePaths.js). */
+export async function localizedAlternates(frPath) {
+  return localeAlternates(frPath, await getUrlLocale());
 }
 
 /** The whole dictionary for a locale — used to seed the client provider. */

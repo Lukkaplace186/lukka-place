@@ -1,8 +1,8 @@
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { BadgeCheck, CalendarCheck, Layers, MapPin, MessageCircle, PhoneCall } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
-import { getT } from '@/lib/i18n/server';
+import { getT, localizedAlternates } from '@/lib/i18n/server';
 import heroPhoto from '../../../Hero/about-moving-in.jpg';
 import bukavuPhoto from '../../../Hero/about-bukavu.jpg';
 import buildingPhoto from '../../../Hero/about-building.jpg';
@@ -25,6 +25,7 @@ export async function generateMetadata() {
   return {
     title: t('about.metaTitle'),
     description: t('about.metaDescription'),
+    alternates: await localizedAlternates('/a-propos'),
   };
 }
 

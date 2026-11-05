@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { ArrowLeftRight } from 'lucide-react';
 import { getCdfRate } from '@/lib/currencyRate';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';

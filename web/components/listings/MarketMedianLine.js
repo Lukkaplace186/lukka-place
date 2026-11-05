@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { BarChart3 } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import { getMarketPosition } from '@/lib/listingPerformance';

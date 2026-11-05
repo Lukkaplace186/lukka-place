@@ -3,6 +3,7 @@ import { SITE_URL } from './constants';
 import { formatPrice, usablePrice } from './format';
 import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
+import { localizeHref } from './localePaths';
 import { DEFAULT_CITY, cityOfCommune, cityOfListing, communeLabel, provinceOfCity } from './cities';
 
 // UN/CEFACT codes for the rent's unit; a short-term rent is per day / week.
@@ -34,6 +35,51 @@ function placeOf(listing, t) {
   return listing.quartier || (listing.city_name && cityOfListing(listing) !== DEFAULT_CITY ? cityOfListing(listing) : t('seo.city'));
 }
 
+/**
+ * English words for the category names, for the English <title> and meta
+ * description only (/en pages): Google matches "2-bedroom apartment for rent",
+ * not "Appartement". A taxonomy label, not the agent's text — the listing's
+ * own title and description stay as written.
+ */
+const EN_KINDS = {
+  appartement: 'apartment',
+  maison: 'house',
+  terrain: 'land',
+  villa: 'villa',
+  studio: 'studio',
+  duplex: 'duplex',
+  penthouse: 'penthouse',
+  concession: 'compound',
+  boutique: 'shop',
+  bureau: 'office',
+  'entrepôt': 'warehouse',
+  immeuble: 'building',
+  'bâtiment': 'building',
+  'chambre / annexe': 'room',
+  'ferme / terrain agricole': 'farm',
+};
+const EN_PERIODS = { an: '/ year', jour: '/ day', semaine: '/ week' };
+
+function kindOf(listing, t) {
+  const kind = typeLabel(listing, t);
+  if (t?.locale !== 'en' || !kind || kind !== listing.category_name) return kind;
+  // A parcelle sub-type is already a translated key; a category name is French data.
+  return EN_KINDS[String(kind).toLowerCase()] || kind;
+}
+
+/** "450 $ / mois" in French, "$450 / month" in English. */
+function priceOf(listing, t) {
+  if (t?.locale !== 'en') return formatPrice(listing.price, listing.purpose, listing.price_period);
+  const amount = usablePrice(listing.price);
+  if (amount === null) return 'price on request';
+  const money = `$${amount.toLocaleString('en-US')}`;
+  return listing.purpose === 'rent' ? `${money} ${EN_PERIODS[listing.price_period] || '/ month'}` : money;
+}
+
+function capitalise(text) {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
 function clip(text, max) {
   if (text.length <= max) return text;
   const cut = text.slice(0, max - 1);
@@ -43,15 +89,15 @@ function clip(text, max) {
 
 export function listingMetaTitle(listing, t) {
   const beds = Number(listing.beds) > 0 ? t('seo.listingBeds', { count: Number(listing.beds) }) : '';
-  const kind = typeLabel(listing, t) || t('seo.allTypes');
+  const kind = kindOf(listing, t) || t('seo.allTypes');
   const title = t('seo.listingTitle', {
     kind,
     beds,
     purpose: purposeWord(listing, t),
     place: placeOf(listing, t),
-    price: formatPrice(listing.price, listing.purpose, listing.price_period),
+    price: priceOf(listing, t),
   });
-  return title.replace(/\s{2,}/g, ' ').trim();
+  return capitalise(title.replace(/\s{2,}/g, ' ').trim());
 }
 
 export function listingMetaDescription(listing, t) {
@@ -61,13 +107,13 @@ export function listingMetaDescription(listing, t) {
   if (hasArea(listing.area)) facts.push(t('seo.factArea', { n: Number(listing.area) }));
   if (listing.purpose === 'rent' && Number(listing.deposit_months) > 0) facts.push(t('seo.factDeposit', { n: Number(listing.deposit_months) }));
   const place = placeLabel(listing) || placeOf(listing, t);
-  const head = t('seo.listingDescription', {
-    kind: typeLabel(listing, t) || t('seo.allTypes'),
+  const head = capitalise(t('seo.listingDescription', {
+    kind: kindOf(listing, t) || t('seo.allTypes'),
     purpose: purposeWord(listing, t),
     place,
-    price: formatPrice(listing.price, listing.purpose, listing.price_period),
+    price: priceOf(listing, t),
     facts: facts.length ? `${facts.join(', ')}.` : '',
-  }).replace(/\s{2,}/g, ' ').trim();
+  }).replace(/\s{2,}/g, ' ').trim());
   const excerpt = typeof listing.description === 'string' ? listing.description.replace(/\s+/g, ' ').trim() : '';
   return clip(excerpt ? `${head} ${excerpt}` : head, DESCRIPTION_MAX);
 }
@@ -100,7 +146,9 @@ export function communeHref(listing) {
  * one. No agent phone either — that has its own verification rule on the page.
  */
 export function listingJsonLd(listing, t) {
-  const url = `${base()}/listings/${listing.id}`;
+  // English pages point at English URLs (lib/localePaths.js); `t.locale` is the page's language.
+  const loc = (path) => localizeHref(path, t?.locale);
+  const url = `${base()}${loc(`/listings/${listing.id}`)}`;
   const images = listingImages(listing).map(absolute).filter(Boolean).slice(0, 8);
   const price = usablePrice(listing.price);
   const category = String(listing.parcelle_subtype === 'villa' ? 'villa' : listing.category_name || '').toLowerCase();
@@ -135,9 +183,9 @@ export function listingJsonLd(listing, t) {
     : undefined;
   const posted = listing.created_at ? new Date(listing.created_at) : null;
 
-  const crumbs = [{ name: t('breadcrumb.home'), item: base() }, { name: t('breadcrumb.listings'), item: `${base()}/listings` }];
+  const crumbs = [{ name: t('breadcrumb.home'), item: `${base()}${loc('/') === '/' ? '' : loc('/')}` }, { name: t('breadcrumb.listings'), item: `${base()}/listings` }];
   const communeLink = communeHref(listing);
-  if (communeLink) crumbs.push({ name: communeLabel(listing.commune), item: `${base()}${communeLink}` });
+  if (communeLink) crumbs.push({ name: communeLabel(listing.commune), item: `${base()}${loc(communeLink)}` });
   crumbs.push({ name: listing.title, item: url });
 
   return {
@@ -161,4 +209,9 @@ export function listingJsonLd(listing, t) {
       },
     ],
   };
+}
+
+/** The type as a heading word: "Appartement" in French, "Apartment" on an English page. */
+export function listingKindLabel(listing, t) {
+  return t?.locale === 'en' ? capitalise(kindOf(listing, t)) : typeLabel(listing, t);
 }

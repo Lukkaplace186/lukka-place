@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { LOCALES, LOCALE_LABELS } from '@/lib/i18n/config';
 import { persistLocale, useLocale, useT } from '@/lib/i18n/client';
+import { frenchPathOf, isEnglishPath, localizeHref } from '@/lib/localePaths';
 
 /**
  * Site-wide FR | EN segmented control.
@@ -41,6 +42,23 @@ export default function LanguageToggle({ longLabels = false, tone = 'light', cla
   function select(next) {
     if (next === locale) return;
     persistLocale(next);
+    // A page with an English twin changes URL with its language
+    // (lib/localePaths.js): /a-propos <-> /en/about. On an /en page the URL,
+    // not the cookie, decides the language, so going back to French has to
+    // leave it. Read from window.location in the handler, not
+    // useSearchParams() (which would put the whole header in Suspense).
+    const here = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const french = isEnglishPath(window.location.pathname) ? frenchPathOf(here) : here;
+    const target = french ? localizeHref(french, next) : null;
+    if (target && target !== here) {
+      // A full load, not router.push: /en/rent/x and /location/x are the SAME
+      // route segments (middleware rewrite), so the client router reuses the
+      // page already rendered in the old language — measured: the URL changed
+      // and the page stayed English. The root layout (<html lang>, the
+      // dictionary) has to be rendered again anyway.
+      window.location.assign(target);
+      return;
+    }
     // Re-render the Server Components of the current route against the new
     // cookie. See the doc comment above for why this is not optional.
     startTransition(() => router.refresh());

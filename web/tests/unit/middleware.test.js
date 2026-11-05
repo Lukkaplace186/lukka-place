@@ -29,6 +29,9 @@ function outcome(response) {
 
 test('the matcher covers exactly the private realms, plus everything for a "view as" browser', () => {
   assert.deepEqual(config.matcher, [
+    // English pages (lib/localePaths.js): rewritten onto the French route.
+    '/en',
+    '/en/:path*',
     '/admin/:path*',
     '/compte/:path*',
     { source: '/((?!_next/static|_next/image|favicon\\.ico).*)', has: [{ type: 'cookie', key: 'lukka_impersonation' }] },
@@ -165,4 +168,21 @@ test('agent signup keeps its own ?ref= (a sales rep code that prefills the form)
 test('a POST carrying ?ref= is never redirected', () => {
   const req = { ...getRequest('/listings', '?ref=MARIE01'), method: 'POST' };
   assert.equal(outcome(middleware(req)).redirected, false);
+});
+
+test('/en pages are served by the French route, marked English; unknown /en paths are left to 404', async () => {
+  const { NextRequest } = await import('next/server');
+  const response = middleware(new NextRequest('http://localhost:3002/en/rent/apartments/gombe?sort=price'));
+  const rewrite = new URL(response.headers.get('x-middleware-rewrite'));
+  assert.equal(rewrite.pathname, '/location/appartements/gombe');
+  assert.equal(rewrite.search, '?sort=price');
+  assert.equal(response.headers.get('x-middleware-request-x-lukka-url-locale'), 'en');
+  assert.match(response.headers.get('set-cookie') || '', /NEXT_LOCALE=en/);
+
+  const english = middleware(new NextRequest('http://localhost:3002/en', { headers: { cookie: 'NEXT_LOCALE=en' } }));
+  assert.equal(new URL(english.headers.get('x-middleware-rewrite')).pathname, '/');
+  assert.equal(english.headers.get('set-cookie'), null, 'no cookie rewritten when it already says en');
+
+  const unknown = middleware(new NextRequest('http://localhost:3002/en/rent/appartements'));
+  assert.equal(unknown.headers.get('x-middleware-rewrite'), null);
 });

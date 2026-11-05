@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { BadgeCheck, CalendarClock, Check, Info, MapPin, Ruler, ScrollText } from 'lucide-react';
 import { LandIcon } from '@/components/icons/PropertyTypeIcons';
 import Breadcrumb from '@/components/Breadcrumb';

@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import AdvancedFilterFields from './AdvancedFilterFields';
 import { useT } from '@/lib/i18n/client';

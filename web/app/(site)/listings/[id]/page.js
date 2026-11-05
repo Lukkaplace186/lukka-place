@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getT } from '@/lib/i18n/server';
-import Link from 'next/link';
+import { getT, localizedAlternates } from '@/lib/i18n/server';
+import Link from '@/components/LocaleLink';
 import { MapPin, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
@@ -17,7 +17,7 @@ import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
 import { cache, Suspense } from 'react';
 import { getListingById as readListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, locationLine, typeLabel, specItems, entryCostBreakdown } from '@/lib/listingView';
+import { listingImages, locationLine, specItems, entryCostBreakdown } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
@@ -33,7 +33,7 @@ import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
 import { similarAlertQuery, transactionTypeOfPurpose } from '@/lib/similarSearch';
 import SimilarAlertButton from '@/components/SimilarAlertButton';
-import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
+import { communeHref, listingJsonLd, listingKindLabel, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
 
 // generateMetadata and the page both read the listing; per-request dedupe so
 // one visit costs one query, not two. Per request only (React cache): an
@@ -71,7 +71,7 @@ export async function generateMetadata({ params }) {
     description,
     // Shared links carry ?utm_source= (lib/listingShareCopy.js SHARE_SOURCES);
     // every tagged variant is the same page.
-    alternates: { canonical: `/listings/${listing.id}` },
+    alternates: await localizedAlternates(`/listings/${listing.id}`),
     openGraph: {
       title: ogTitle,
       description,
@@ -171,7 +171,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
   const purposeLabel = listing.purpose === 'rent'
     ? t('listings.transaction.rent')
     : listing.purpose === 'sale' ? t('listings.transaction.sale') : null;
-  const kindLabel = typeLabel(listing, t);
+  // English pages name the type in English ("Apartment to rent"), lib/listingSeo.js.
+  const kindLabel = listingKindLabel(listing, t);
   // "Appartement à louer" — leads the h1 (see there); the kicker above the
   // price keeps the room counts.
   const kindAndPurpose = [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' ');

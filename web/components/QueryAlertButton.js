@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Bell, Check } from 'lucide-react';
 import { isSearchSaved, saveSearch, subscribeSavedSearches } from '@/lib/favorites';
 import { buildSearchLabel, searchCriteriaTags } from '@/lib/searchLabel';

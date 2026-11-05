@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import { getT } from '@/lib/i18n/server';
+import Link from '@/components/LocaleLink';
+import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { frNumber } from '@/lib/format';
 import { communeLabel } from '@/lib/cities';
 import { getPriceGuides, MIN_PRICE_SAMPLE, priceQuestion } from '@/lib/browseFeatures';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata() {
   const t = await getT();
-  return { title: `${t('home.prices.indexTitle')} — Lukka Place`, description: t('home.prices.indexLead', { n: MIN_PRICE_SAMPLE }), alternates: { canonical: '/combien-coute' } };
+  return { title: `${t('home.prices.indexTitle')} — Lukka Place`, description: t('home.prices.indexLead', { n: MIN_PRICE_SAMPLE }), alternates: await localizedAlternates('/combien-coute') };
 }
 
 /**

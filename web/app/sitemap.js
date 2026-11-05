@@ -6,6 +6,7 @@ import { getSitemapProjects } from '@/lib/developments';
 import { getFeatureFlags } from '@/lib/siteSettings';
 import { getCollectionTiles, getLukkaIndex, getPriceGuides } from '@/lib/browseFeatures';
 import { listPublicPostSlugs } from '@/lib/blog';
+import { toEnglishPath } from '@/lib/localePaths';
 
 const PROJECT_PAGES = ['/projets', '/promoteurs'];
 
@@ -61,7 +62,7 @@ export default async function sitemap() {
     ...(lukkaIndex?.communes?.length ? ['/indice-lukka'] : []),
   ];
 
-  return [
+  return withEnglishTwins(base, [
     ...pages,
     ...discovery.map((path) => ({ url: `${base}${path}`, lastModified: now, changeFrequency: 'daily', priority: 0.6 })),
     ...landingPathsFromFacets(facets).map((path) => ({
@@ -96,5 +97,26 @@ export default async function sitemap() {
       changeFrequency: 'weekly',
       priority: 0.8,
     })),
-  ];
+  ]);
+}
+
+/**
+ * Every page with an English twin (lib/localePaths.js) is listed in both
+ * languages, each entry naming the other as its alternate — the sitemap form
+ * of hreflang, which Google reads as "the same page, translated", not as a
+ * duplicate. The English entry follows its French one.
+ */
+function withEnglishTwins(base, entries) {
+  const out = [];
+  for (const entry of entries) {
+    const frPath = entry.url.slice(base.length) || '/';
+    const enPath = toEnglishPath(frPath);
+    if (!enPath) {
+      out.push(entry);
+      continue;
+    }
+    const alternates = { languages: { fr: entry.url, en: `${base}${enPath}` } };
+    out.push({ ...entry, alternates }, { ...entry, url: `${base}${enPath}`, alternates });
+  }
+  return out;
 }

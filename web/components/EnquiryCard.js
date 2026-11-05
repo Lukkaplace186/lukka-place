@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { useEffect, useRef, useState } from 'react';
 import { Phone, CalendarClock, ChevronRight } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppCTA';

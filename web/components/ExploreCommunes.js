@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import SafeImage from './SafeImage';
 import SectionHeading from './SectionHeading';
 import { getT } from '@/lib/i18n/server';

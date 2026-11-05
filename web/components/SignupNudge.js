@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { usePathname } from 'next/navigation';
 import { Bell, X } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Play } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import HomeSectionHeader, { HOME_SECTION } from '@/components/HomeSectionHeader';

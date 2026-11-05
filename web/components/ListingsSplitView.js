@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';

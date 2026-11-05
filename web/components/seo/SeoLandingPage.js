@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { notFound } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
@@ -7,13 +7,14 @@ import PropertyCard from '@/components/PropertyCard';
 import JsonLd from '@/components/seo/JsonLd';
 import { getListings, getListingStats } from '@/lib/listings';
 import { cachedSeoFacets } from '@/lib/listingsCached';
-import { getT } from '@/lib/i18n/server';
+import { getT, getUrlLocale, localizedAlternates } from '@/lib/i18n/server';
 import { formatPrice } from '@/lib/format';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { distanceKm } from '@/lib/mapViewport';
 import { GUIDES } from '@/lib/guides';
 import { DEFAULT_CITY, provinceOfCity } from '@/lib/cities';
+import { localizeHref } from '@/lib/localePaths';
 import {
   SEO_PROPERTY_TYPES,
   OVERLAY_PROPERTY_TYPES,
@@ -78,11 +79,11 @@ export async function seoLandingMetadata(transaction, params) {
   return {
     title: t('seo.metaTitle', { heading }),
     description,
-    alternates: { canonical: path },
+    alternates: await localizedAlternates(path),
     // An empty page is thin content: kept out of the index until a listing
     // lands, still followed so its links count.
     robots: total > 0 ? undefined : { index: false, follow: true },
-    openGraph: { title: heading, description, url: path, type: 'website' },
+    openGraph: { title: heading, description, url: (await getUrlLocale()) === 'en' ? localizeHref(path, 'en') : path, type: 'website' },
   };
 }
 
@@ -141,7 +142,14 @@ export default async function SeoLandingPage({ transaction, params }) {
   const { page, filters, stats, listings, facets } = data;
   const t = await getT();
   const { type, transaction: txLabel, place, heading, headingLower } = labels(page, t);
-  const path = seoPath(page);
+  // Links in the reader's language: an English reader stays on /en pages
+  // (lib/localePaths.js), so Google crawls the English site as a whole.
+  const locale = t.locale === 'en' ? 'en' : 'fr';
+  const seoHref = (args) => {
+    const p = seoPath(args);
+    return p ? localizeHref(p, locale) : p;
+  };
+  const path = seoHref(page);
   const purpose = page.purpose;
   const price = (v) => formatPrice(v, purpose, null);
 
@@ -170,7 +178,7 @@ export default async function SeoLandingPage({ transaction, params }) {
     otherCommunes = communeCounts.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
   }
   const communeLinks = otherCommunes
-    .map((c) => ({ href: seoPath({ transaction, propertyType: page.propertyType, commune: c.value }), label: c.value === 'Kinshasa' ? t('seo.communeKinshasa') : c.value, count: c.count }))
+    .map((c) => ({ href: seoHref({ transaction, propertyType: page.propertyType, commune: c.value }), label: c.value === 'Kinshasa' ? t('seo.communeKinshasa') : c.value, count: c.count }))
     .filter((l) => l.href);
 
   const inPlace = page.commune ? samePurpose.filter((f) => f.commune === page.commune) : samePurpose;
@@ -178,12 +186,12 @@ export default async function SeoLandingPage({ transaction, params }) {
     .filter((f) => f.value !== page.propertyType && typeSlugFor(f.value))
     .sort((a, b) => b.count - a.count)
     .map((f) => ({
-      href: seoPath({ transaction, propertyType: f.value, commune: page.commune, city: page.city }),
+      href: seoHref({ transaction, propertyType: f.value, commune: page.commune, city: page.city }),
       label: t(SEO_PROPERTY_TYPES[typeSlugFor(f.value)].pluralKey),
       count: f.count,
     }));
   if (page.propertyType) {
-    typeLinks.unshift({ href: seoPath({ transaction, commune: page.commune, city: page.city }), label: t('seo.allTypes') });
+    typeLinks.unshift({ href: seoHref({ transaction, commune: page.commune, city: page.city }), label: t('seo.allTypes') });
   }
 
   const otherTransaction = transaction === 'location' ? 'vente' : 'location';
@@ -193,7 +201,7 @@ export default async function SeoLandingPage({ transaction, params }) {
     .reduce((sum, f) => sum + f.count, 0);
   const seeAlso = otherCount > 0
     ? [{
-        href: seoPath({ transaction: otherTransaction, propertyType: page.propertyType, commune: page.commune, city: page.city }),
+        href: seoHref({ transaction: otherTransaction, propertyType: page.propertyType, commune: page.commune, city: page.city }),
         label: t('seo.heading', { type, transaction: t(SEO_TRANSACTIONS[otherTransaction].labelKey), place }),
         count: otherCount,
       }]
@@ -210,7 +218,7 @@ export default async function SeoLandingPage({ transaction, params }) {
       )
         .filter((c) => c.value !== pageCity && (c.value === DEFAULT_CITY || SEO_CITIES.includes(c.value)))
         .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
-        .map((c) => ({ href: seoPath({ transaction, propertyType: page.propertyType, city: c.value }), label: c.value, count: c.count }))
+        .map((c) => ({ href: seoHref({ transaction, propertyType: page.propertyType, city: c.value }), label: c.value, count: c.count }))
         .filter((l) => l.href);
 
   // ---- figures ----
@@ -241,15 +249,15 @@ export default async function SeoLandingPage({ transaction, params }) {
 
   // ---- breadcrumb ----
   const crumbs = [
-    { label: t('breadcrumb.home'), href: '/' },
-    { label: transaction === 'location' ? t('seo.breadcrumbRent') : t('seo.breadcrumbSale'), href: `/${transaction}` },
+    { label: t('breadcrumb.home'), href: localizeHref('/', locale) },
+    { label: transaction === 'location' ? t('seo.breadcrumbRent') : t('seo.breadcrumbSale'), href: localizeHref(`/${transaction}`, locale) },
   ];
   if (page.city) {
     // Home > Louer > Lubumbashi > Appartements: the city is the wider page.
-    crumbs.push({ label: place, href: seoPath({ transaction, city: page.city }) });
+    crumbs.push({ label: place, href: seoHref({ transaction, city: page.city }) });
     if (page.propertyType) crumbs.push({ label: type, href: path });
   } else {
-    if (page.propertyType) crumbs.push({ label: type, href: seoPath({ transaction, propertyType: page.propertyType }) });
+    if (page.propertyType) crumbs.push({ label: type, href: seoHref({ transaction, propertyType: page.propertyType }) });
     if (page.commune) crumbs.push({ label: place, href: path });
   }
   crumbs[crumbs.length - 1] = { label: crumbs[crumbs.length - 1].label };
@@ -282,7 +290,7 @@ export default async function SeoLandingPage({ transaction, params }) {
           ? {
               '@type': 'ItemList',
               numberOfItems: stats.total,
-              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}/listings/${l.id}` })),
+              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${localizeHref(`/listings/${l.id}`, locale)}` })),
             }
           : undefined,
       },

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { History } from 'lucide-react';
 import PropertyCard from './PropertyCard';
 import Price from './Price';

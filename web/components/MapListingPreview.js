@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Camera, X } from 'lucide-react';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';

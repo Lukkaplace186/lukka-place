@@ -3556,7 +3556,8 @@
       "growth": "Growth",
       "blog": "Guides & News",
       "campaign": "Campaign",
-      "interactions": "Interactions"
+      "interactions": "Interactions",
+      "seo": "SEO & Google"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -4852,6 +4853,134 @@
       "savedSearchesTitle": "Saved Searches",
       "favoritesTitle": "{count} Saved Listings",
       "none": "None."
+    },
+    "seoAudit": {
+      "title": "SEO & Google",
+      "subtitle": "What stands between us and page one of Google for \"appartement à louer Kinshasa\" and \"apartment for rent Kinshasa\": setup, our real positions, the commune pages and listing quality. Everything is read live; nothing is estimated.",
+      "notConnected": "Search Console not connected",
+      "stats": {
+        "sitemap": "Pages in the Sitemap",
+        "sitemapHint": "What Google can crawl",
+        "landing": "Indexable Commune Pages",
+        "landingHint": "{thin} with 5 listings or fewer · {empty} empty (not indexed)",
+        "clicks": "Google Clicks (28 d)",
+        "impressions": "{count} impressions",
+        "position": "Average Position",
+        "positionHint": "All searches, 28 days"
+      },
+      "checks": {
+        "title": "Google Setup",
+        "note": "Checked live every time this page opens.",
+        "dns": "Domain Verification (DNS)",
+        "dnsOk": "google-site-verification record present on lukkaplace.com — press \"Verify\" in Search Console if not done yet.",
+        "dnsMissing": "No google-site-verification record in lukkaplace.com's DNS.",
+        "gsc": "Search Console Data",
+        "gscOk": "Connected to {property}.",
+        "gscError": "Search Console refused: {error}",
+        "gscMissing": "Not connected: our Google positions and clicks cannot show here.",
+        "howTo": "How to connect",
+        "sitemap": "Sitemap",
+        "sitemapOk": "{count} pages listed for Google.",
+        "sitemapNotSubmitted": "{count} pages listed, but the sitemap is not submitted in Search Console yet.",
+        "english": "English Pages",
+        "englishMissing": "None: to Google the site only exists in French (the language is a cookie Google never sends). Page one for \"apartment for rent Kinshasa\" is impossible without /en/ pages.",
+        "englishOk": "{count} English pages in the sitemap (/en/…), linked to their French version (hreflang).",
+        "social": "Social Profiles Linked to the Site",
+        "socialOk": "{count} profiles declared to Google (sameAs).",
+        "socialMissing": "No profile saved.",
+        "settings": "Settings",
+        "bing": "Bing",
+        "bingOk": "Domain verified for Bing.",
+        "bingMissing": "Not verified: in Bing Webmaster Tools, import the site from Google Search Console (2 minutes). Bing also feeds Yahoo and DuckDuckGo."
+      },
+      "targets": {
+        "title": "Target Searches",
+        "note": "The searches to win, the page that answers each and its listing count. Position: Google average over 28 days for our searches containing those words (Search Console). Page one = positions 1 to 10, in green.",
+        "query": "Search",
+        "page": "Our page",
+        "listings": "Listings",
+        "position": "Position",
+        "impressions": "Impressions",
+        "clicks": "Clicks",
+        "noEnglishPage": "No English page",
+        "pageN": "page {page}",
+        "notSeen": "not seen yet"
+      },
+      "gsc": {
+        "queries": "Searches That Show Lukka Place",
+        "pages": "Pages Shown Most in Google",
+        "range": "{startDate} to {endDate} (Google lags 2 to 3 days).",
+        "empty": "No data yet — normal in the first weeks.",
+        "sitemaps": "Sitemaps Read by Google",
+        "sitemapLine": "{submitted} URLs submitted · last read {downloaded} · {errors} errors · {warnings} warnings"
+      },
+      "connect": {
+        "title": "Connect Search Console",
+        "intro": "To see our real positions here, give the console read access to Search Console. Once:",
+        "step1": "console.cloud.google.com → create a project → enable \"Google Search Console API\".",
+        "step2": "IAM & Admin → Service accounts → create one → Keys → Add key → JSON (a file downloads).",
+        "step3": "Search Console → lukkaplace.com → Settings → Users and permissions → add the service account's e-mail with \"Restricted\" permission.",
+        "step4": "On the server, in web/.env.local: GSC_SERVICE_ACCOUNT_JSON= the JSON file's content (or the same in base64). Property used: sc-domain:lukkaplace.com (GSC_PROPERTY for another).",
+        "step5": "pm2 restart lukka-place-web --update-env, then reopen this page."
+      },
+      "coverage": {
+        "title": "Coverage by Commune",
+        "note": "Public listings per Kinshasa commune — what the /location/… and /vente/… pages show. Orange: {max} listings or fewer, too few to beat a portal on page one. \"none\": page not indexed.",
+        "commune": "Commune",
+        "rent": "For rent",
+        "sale": "For sale",
+        "none": "none"
+      },
+      "quality": {
+        "title": "Listing Quality for Google",
+        "note": "Across the {total} public listings. Google ranks a page on what it holds: photos, place, text.",
+        "fewPhotos": "Fewer than 3 photos",
+        "noCommune": "No commune",
+        "noQuartier": "No quartier",
+        "shortDescription": "Description under 120 characters",
+        "landWithRooms": "Land with bedrooms (check the type)",
+        "noPrice": "No price",
+        "open": "Open the list",
+        "listing": "Listing",
+        "issues": "To fix"
+      },
+      "plan": {
+        "title": "Plan for Page One",
+        "note": "In order of impact. Steps 1, 3 and 4 need no development.",
+        "speed": "Speed: our pages answered in 1.5 to 2 s from outside (measured 5 November 2026). Google publishes the speed real visitors get in Search Console → Core Web Vitals. Test a page:",
+        "step1": {
+          "title": "Verify the Domain and Submit the Sitemap",
+          "body": "Search Console → \"Verify\". Then Sitemaps → add \"sitemap.xml\". Then URL inspection → \"Request indexing\" for /location/appartements, /location/maisons, /vente/maisons and /vente/terrains."
+        },
+        "step2": {
+          "title": "Get the English Pages Indexed",
+          "body": "The /en/ pages exist since 5 November 2026 (home, rent, buy, communes, listings, agencies, prices). In Search Console, request indexing for /en, /en/rent/apartments and /en/buy/houses. English guides for expats are still to write (renting in Kinshasa, neighbourhoods, paying from abroad): today's guides exist in French only."
+        },
+        "step3": {
+          "title": "Google Business Profile",
+          "body": "business.google.com: \"Lukka Place\", service area Kinshasa (and the other cities), link lukkaplace.com, logo, photos, WhatsApp number. Pick an online real-estate service category, not \"agency\". This is what puts Lukka Place on Google Maps and in the local pack."
+        },
+        "step4": {
+          "title": "Earn Links to the Site",
+          "body": "The factor that separates a new site from established portals. Ask every agent to put their Lukka Place page link on their Facebook, Instagram and WhatsApp Business; list the site in DRC business directories; offer Congolese media (Actualite.cd, 7sur7.cd, Radio Okapi) the \"Combien coûte\" figures and the Lukka Index; diaspora groups and embassy and NGO housing lists."
+        },
+        "step5": {
+          "title": "Fill the Pages of the Communes People Search",
+          "body": "A page with 2 listings does not beat a portal with 200. Aim for at least 20 listings on the key pages (Gombe, Ngaliema, Limete, Lemba, Kintambo…): see the orange cells in the coverage by commune."
+        },
+        "step6": {
+          "title": "Complete Listings",
+          "body": "3 photos or more, a quartier, 2 or 3 sentences of description written by the agent, the right property type (not \"Land\" for a house). See listing quality above."
+        },
+        "step7": {
+          "title": "Content Nobody Else Has",
+          "body": "One guide a month on what people search (rents by commune, deposit, furnished, buying from abroad), in French and English. The \"Combien coûte\" prices and the Lukka Index are unique data: cite them, share them, keep them current."
+        },
+        "step8": {
+          "title": "Measure Every Week",
+          "body": "A new site usually takes 3 to 6 months to climb on competitive searches. Come back here weekly: the target searches' Position turns green on page one."
+        }
+      }
     },
     "health": {
       "title": "System Health",

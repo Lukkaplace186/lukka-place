@@ -1,7 +1,7 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { notFound } from 'next/navigation';
 import ShareOnWhatsAppButton from '@/components/ShareOnWhatsAppButton';
-import { getT } from '@/lib/i18n/server';
+import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { frNumber } from '@/lib/format';
 import { communeLabel } from '@/lib/cities';
 import { SITE_URL } from '@/lib/constants';
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }) {
   return {
     title: `${question} — Lukka Place`,
     description: t('home.prices.answer', { median: frNumber(guide.median), n: guide.listings }),
-    alternates: { canonical: `/combien-coute/${guide.slug}` },
+    alternates: await localizedAlternates(`/combien-coute/${guide.slug}`),
   };
 }
 

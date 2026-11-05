@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { getPopularCommunes } from '@/lib/listings';
 import { getT } from '@/lib/i18n/server';
 

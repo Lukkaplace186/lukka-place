@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 
 /**
  * Shared section header: eyebrow, serif title, optional lead, optional link.

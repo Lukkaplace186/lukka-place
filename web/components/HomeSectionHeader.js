@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { ArrowRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 

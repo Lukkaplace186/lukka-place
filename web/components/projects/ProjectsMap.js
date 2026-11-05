@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { MapPin, X } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Search, Phone, Star, MapPin, BadgeCheck, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
 import AgentVerificationBadge from '@/components/AgentVerificationBadge';
@@ -21,7 +21,7 @@ import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { telHref } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { getLocale, getT } from '@/lib/i18n/server';
+import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
 import DirectorySelect from './DirectorySelect';
 import NearMeButton from './NearMeButton';
 
@@ -40,7 +40,7 @@ export async function generateMetadata({ searchParams }) {
   return {
     title: t('agent.portfolio.directoryMetaTitle'),
     description: t('agent.portfolio.directoryMetaDescription'),
-    alternates: { canonical: '/agents' },
+    alternates: await localizedAlternates('/agents'),
     // One indexable directory; every filtered or paged copy points at it.
     ...(hasDirectoryFilters(params) ? { robots: { index: false, follow: true } } : {}),
   };

@@ -3556,7 +3556,8 @@
       "growth": "Croissance",
       "blog": "Guides & Actualités",
       "campaign": "Campagne",
-      "interactions": "Interactions"
+      "interactions": "Interactions",
+      "seo": "SEO & Google"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -4852,6 +4853,134 @@
       "savedSearchesTitle": "Recherches enregistrées",
       "favoritesTitle": "{count} bien(s) favori(s)",
       "none": "Aucun."
+    },
+    "seoAudit": {
+      "title": "SEO & Google",
+      "subtitle": "Ce qui nous sépare de la page 1 de Google sur « appartement à louer Kinshasa » et « apartment for rent Kinshasa » : la mise en place, nos positions réelles, les pages par commune et la qualité des annonces. Tout est lu en direct, rien n'est estimé.",
+      "notConnected": "Search Console non connecté",
+      "stats": {
+        "sitemap": "Pages dans le sitemap",
+        "sitemapHint": "Ce que Google peut explorer",
+        "landing": "Pages commune indexables",
+        "landingHint": "{thin} avec 5 annonces ou moins · {empty} vides (non indexées)",
+        "clicks": "Clics Google (28 j)",
+        "impressions": "{count} affichages",
+        "position": "Position moyenne",
+        "positionHint": "Toutes recherches, 28 jours"
+      },
+      "checks": {
+        "title": "Mise en place Google",
+        "note": "Vérifié en direct à chaque ouverture de la page.",
+        "dns": "Vérification du domaine (DNS)",
+        "dnsOk": "Enregistrement google-site-verification présent sur lukkaplace.com — cliquez « Valider » dans Search Console si ce n'est pas encore fait.",
+        "dnsMissing": "Aucun enregistrement google-site-verification dans le DNS de lukkaplace.com.",
+        "gsc": "Données Search Console",
+        "gscOk": "Connecté à {property}.",
+        "gscError": "Search Console a refusé : {error}",
+        "gscMissing": "Non connecté : nos positions et nos clics Google ne peuvent pas s’afficher ici.",
+        "howTo": "Comment connecter",
+        "sitemap": "Plan du site (sitemap)",
+        "sitemapOk": "{count} pages listées pour Google.",
+        "sitemapNotSubmitted": "{count} pages listées, mais le sitemap n'est pas encore soumis dans Search Console.",
+        "english": "Pages en anglais",
+        "englishMissing": "Aucune : pour Google, le site n'existe qu'en français (la langue est un cookie que Google n'envoie pas). Impossible d'être en page 1 sur « apartment for rent Kinshasa » sans pages /en/.",
+        "englishOk": "{count} pages en anglais dans le sitemap (/en/…), reliées à leur version française (hreflang).",
+        "social": "Réseaux sociaux reliés au site",
+        "socialOk": "{count} profils déclarés à Google (sameAs).",
+        "socialMissing": "Aucun profil enregistré.",
+        "settings": "Paramètres",
+        "bing": "Bing",
+        "bingOk": "Domaine vérifié pour Bing.",
+        "bingMissing": "Non vérifié : dans Bing Webmaster Tools, importez le site depuis Google Search Console (2 minutes). Bing alimente aussi Yahoo et DuckDuckGo."
+      },
+      "targets": {
+        "title": "Recherches cibles",
+        "note": "Les recherches à gagner, la page qui y répond et son nombre d'annonces. Position : moyenne Google sur 28 jours de nos recherches contenant ces mots (Search Console). Page 1 = positions 1 à 10, en vert.",
+        "query": "Recherche",
+        "page": "Notre page",
+        "listings": "Annonces",
+        "position": "Position",
+        "impressions": "Affichages",
+        "clicks": "Clics",
+        "noEnglishPage": "Pas de page anglaise",
+        "pageN": "page {page}",
+        "notSeen": "pas encore vue"
+      },
+      "gsc": {
+        "queries": "Recherches qui affichent Lukka Place",
+        "pages": "Pages les plus affichées dans Google",
+        "range": "Du {startDate} au {endDate} (Google a 2 à 3 jours de retard).",
+        "empty": "Aucune donnée pour l’instant — normal les premières semaines.",
+        "sitemaps": "Sitemaps lus par Google",
+        "sitemapLine": "{submitted} URL soumises · dernière lecture {downloaded} · {errors} erreurs · {warnings} avertissements"
+      },
+      "connect": {
+        "title": "Connecter Search Console",
+        "intro": "Pour voir ici nos vraies positions, donnez à la console un accès en lecture à Search Console. Une seule fois :",
+        "step1": "console.cloud.google.com → créez un projet → activez « Google Search Console API ».",
+        "step2": "IAM et administration → Comptes de service → créez-en un → Clés → Ajouter une clé → JSON (un fichier se télécharge).",
+        "step3": "Search Console → lukkaplace.com → Paramètres → Utilisateurs et autorisations → ajoutez l'adresse e-mail du compte de service, autorisation « Restreinte ».",
+        "step4": "Sur le serveur, dans web/.env.local : GSC_SERVICE_ACCOUNT_JSON= le contenu du fichier JSON (ou le même en base64). Propriété utilisée : sc-domain:lukkaplace.com (GSC_PROPERTY pour une autre).",
+        "step5": "pm2 restart lukka-place-web --update-env, puis rouvrez cette page."
+      },
+      "coverage": {
+        "title": "Couverture par commune",
+        "note": "Annonces publiques par commune de Kinshasa, c'est-à-dire ce que montrent les pages /location/… et /vente/…. En orange : {max} annonces ou moins, trop peu pour battre un portail en page 1. « aucune » : page non indexée.",
+        "commune": "Commune",
+        "rent": "À louer",
+        "sale": "À vendre",
+        "none": "aucune"
+      },
+      "quality": {
+        "title": "Qualité des annonces pour Google",
+        "note": "Sur les {total} annonces publiques. Google classe une page sur ce qu’elle contient : photos, lieu, texte.",
+        "fewPhotos": "Moins de 3 photos",
+        "noCommune": "Sans commune",
+        "noQuartier": "Sans quartier",
+        "shortDescription": "Description de moins de 120 caractères",
+        "landWithRooms": "Terrain avec chambres (type à revoir)",
+        "noPrice": "Sans prix",
+        "open": "Ouvrir la liste",
+        "listing": "Annonce",
+        "issues": "À corriger"
+      },
+      "plan": {
+        "title": "Plan pour la page 1",
+        "note": "Par ordre d’impact. Les étapes 1, 3 et 4 ne demandent aucun développement.",
+        "speed": "Vitesse : nos pages ont répondu en 1,5 à 2 s depuis l’extérieur (mesure du 5 novembre 2026). Google publie la vitesse vécue par les vrais visiteurs dans Search Console → Signaux Web essentiels. Tester une page :",
+        "step1": {
+          "title": "Valider le domaine et soumettre le sitemap",
+          "body": "Search Console → « Valider ». Puis Sitemaps → ajouter « sitemap.xml ». Puis Inspection de l’URL → « Demander l’indexation » pour /location/appartements, /location/maisons, /vente/maisons et /vente/terrains."
+        },
+        "step2": {
+          "title": "Faire indexer les pages en anglais",
+          "body": "Les pages /en/ existent depuis le 5 novembre 2026 (accueil, location, vente, communes, annonces, agences, prix). Dans Search Console, demander l’indexation de /en, /en/rent/apartments et /en/buy/houses. Reste à écrire des guides en anglais pour les expatriés (louer à Kinshasa, quartiers, payer depuis l’étranger) : les guides actuels n’existent qu’en français."
+        },
+        "step3": {
+          "title": "Fiche Google Business Profile",
+          "body": "business.google.com : « Lukka Place », zone desservie Kinshasa (et les autres villes), lien lukkaplace.com, logo, photos, numéro WhatsApp. Choisir une catégorie de service immobilier en ligne, pas « agence ». C’est ce qui fait apparaître Lukka Place sur Google Maps et dans le bloc local."
+        },
+        "step4": {
+          "title": "Obtenir des liens vers lukkaplace.com",
+          "body": "Le critère qui sépare un site neuf des portails installés. Demander à chaque agent de mettre le lien de sa page Lukka Place sur son Facebook, Instagram et WhatsApp Business ; inscrire le site dans les annuaires d’entreprises de la RDC ; proposer à la presse congolaise (Actualite.cd, 7sur7.cd, Radio Okapi) les chiffres de « Combien coûte » et de l’Indice Lukka ; les groupes diaspora et les listes de logement des ambassades et ONG."
+        },
+        "step5": {
+          "title": "Remplir les pages des communes recherchées",
+          "body": "Une page avec 2 annonces ne bat pas un portail qui en a 200. Viser au moins 20 annonces sur les pages clés (Gombe, Ngaliema, Limete, Lemba, Kintambo…) : voir les cases orange de la couverture par commune."
+        },
+        "step6": {
+          "title": "Des annonces complètes",
+          "body": "3 photos ou plus, un quartier, 2 ou 3 phrases de description écrites par l’agent, le bon type de bien (pas « Terrain » pour une maison). Voir la qualité des annonces ci-dessus."
+        },
+        "step7": {
+          "title": "Un contenu que personne d’autre n’a",
+          "body": "Un guide par mois sur ce que les gens cherchent (loyers par commune, garantie, meublé, acheter depuis l’étranger), en français et en anglais. Les prix de « Combien coûte » et l’Indice Lukka sont des données uniques : les citer, les partager, les mettre à jour."
+        },
+        "step8": {
+          "title": "Mesurer chaque semaine",
+          "body": "Un site neuf met en général 3 à 6 mois à monter sur des recherches concurrentielles. Revenir ici chaque semaine : la colonne « Position » des recherches cibles passe en vert à la page 1."
+        }
+      }
     },
     "health": {
       "title": "Santé du système",

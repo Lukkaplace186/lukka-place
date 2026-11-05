@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { SearchX, HomeIcon } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';

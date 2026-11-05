@@ -1,6 +1,6 @@
 import PageShell, { PageAction, PageNotice } from '@/components/PageShell';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { getT } from '@/lib/i18n/server';
+import { getT, localizedAlternates } from '@/lib/i18n/server';
 
 // See /a-propos on why this is generateMetadata rather than a static object.
 export async function generateMetadata() {
@@ -8,6 +8,7 @@ export async function generateMetadata() {
   return {
     title: t('contact.metaTitle'),
     description: t('contact.metaDescription'),
+    alternates: await localizedAlternates('/contact'),
   };
 }
 

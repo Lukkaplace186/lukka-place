@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, Search, User, Heart, Bell, LogOut, ArrowRight, Mail, ChevronRight, SearchCheck } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
@@ -10,7 +10,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { frenchPathOf, localizeHref } from '@/lib/localePaths';
 import { useIsLoggedIn, useIsAgentSignedIn } from '@/lib/customerClient';
 import { logoutAction } from '@/app/(site)/compte/actions';
 
@@ -148,7 +149,10 @@ export default function Header({ hiddenHrefs = [] }) {
   // Sections switched off on /admin/settings (Projets neufs) leave the bar and the drawer.
   const primaryLinks = PRIMARY_LINKS.filter(({ href }) => !hiddenHrefs.includes(href));
   const drawerLinks = DRAWER_PRIMARY_LINKS.filter(({ href }) => !hiddenHrefs.includes(href));
-  const pathname = usePathname();
+  // On an English page (/en/…) compare against the French path the links are written in.
+  const rawPathname = usePathname() || '/';
+  const pathname = frenchPathOf(rawPathname) || rawPathname;
+  const locale = useLocale();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const loggedIn = useIsLoggedIn();
@@ -161,7 +165,7 @@ export default function Header({ hiddenHrefs = [] }) {
   // portal mounts; this starts during the slide. No-op in dev.
   const handleMenuOpenChange = (open) => {
     setMenuOpen(open);
-    if (open) drawerLinks.forEach(({ href }) => router.prefetch(href));
+    if (open) drawerLinks.forEach(({ href }) => router.prefetch(localizeHref(href, locale)));
   };
 
   return (

@@ -3,7 +3,7 @@ import InquiryForm from './InquiryForm';
 import AgentProfileView from './AgentProfileView';
 import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
-import { getLocale, getT } from '@/lib/i18n/server';
+import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, buildWhatsAppShareLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { listingImages, typeLabel, specItems, feedLocationLine, LISTING_TIME_ZONE } from '@/lib/listingView';
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }) {
   if (!agent) return {};
 
   const name = agentPublicName(agent);
-  return { title: `${name} — Lukka Place`, description: agent.bio?.slice(0, 160), alternates: { canonical: `/agents/${agent.id}` } };
+  return { title: `${name} — Lukka Place`, description: agent.bio?.slice(0, 160), alternates: await localizedAlternates(`/agents/${agent.id}`) };
 }
 
 /**

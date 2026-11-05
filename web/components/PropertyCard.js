@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatDistance } from '@/lib/landmarks';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Camera } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import CardImageCarousel from './CardImageCarousel';

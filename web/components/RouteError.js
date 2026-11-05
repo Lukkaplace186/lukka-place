@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { AlertTriangle, RotateCw, WifiOff } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useOnline } from '@/lib/useOnline';

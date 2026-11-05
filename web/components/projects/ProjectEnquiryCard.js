@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Phone } from 'lucide-react';
 import AgentMonogram from '@/components/AgentMonogram';
 import PhoneField from '@/components/PhoneField';

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import Price from '@/components/Price';
 import { unitListingState } from '@/lib/developmentRules';
 import { getT } from '@/lib/i18n/server';

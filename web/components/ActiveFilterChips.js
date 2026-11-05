@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { X } from 'lucide-react';
 import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, DEPOSIT_RANGE_OPTIONS, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';

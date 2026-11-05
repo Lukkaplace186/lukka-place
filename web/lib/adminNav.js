@@ -57,6 +57,8 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/demande', labelKey: 'admin.nav.demand', icon: 'Target' },
       { href: '/admin/investisseurs', labelKey: 'admin.nav.investors', icon: 'Presentation' },
       { href: '/admin/croissance', labelKey: 'admin.nav.growth', icon: 'TrendingUp' },
+      // Search Console figures, target searches, landing-page coverage, listing quality.
+      { href: '/admin/seo', labelKey: 'admin.nav.seo', icon: 'Search' },
     ],
   },
   {

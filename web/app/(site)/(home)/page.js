@@ -12,7 +12,10 @@ import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, c
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
-import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
+import { organizationSchema, socialProfiles, websiteSchema } from '@/lib/seoSchema';
+import { getSocialLinks } from '@/lib/siteSettings';
+import { localizedAlternates } from '@/lib/i18n/server';
+import { mergeSocialLinks } from '@/lib/siteSettingsRules';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -120,7 +123,7 @@ import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
  * else imports it, same as the four other sections listed above.
  */
 export async function generateMetadata() {
-  return { alternates: { canonical: '/' } };
+  return { alternates: await localizedAlternates('/') };
 }
 
 export default async function HomePage() {
@@ -134,11 +137,13 @@ export default async function HomePage() {
     // "N nouveaux biens cette semaine" on the hero; a failed count shows nothing.
     cachedWeeklyNewCount().catch(() => 0),
   ]);
+  // The profiles the footer shows, so Google ties them to the site (sameAs).
+  const profiles = mergeSocialLinks(await getSocialLinks(), socialProfiles());
 
   return (
     <>
       {/* Who Lukka Place is and the sitelinks search box — lib/seoSchema.js. */}
-      <JsonLd data={{ '@context': 'https://schema.org', '@graph': [organizationSchema(), websiteSchema()] }} />
+      <JsonLd data={{ '@context': 'https://schema.org', '@graph': [organizationSchema({ profiles }), websiteSchema()] }} />
       <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} weeklyNew={weeklyNew} />
       {/* One slim line of the listings this browser opened, from two up; nothing on a first visit. */}
       <RecentlyViewed variant="strip" minItems={2} />

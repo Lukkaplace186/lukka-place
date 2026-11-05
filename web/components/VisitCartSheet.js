@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { CalendarClock, CheckCircle2, ListChecks, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';

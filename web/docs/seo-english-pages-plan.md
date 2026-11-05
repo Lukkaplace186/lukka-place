@@ -1,6 +1,6 @@
 # English pages for search engines (`/en/…`) — plan
 
-Status: proposed 2026-10-24, not built. Owner decision needed before work starts.
+Status: phases 1 and 2 built 2026-11-05 (web/CLAUDE.md, "English pages for search engines"). Phase 3 (English guides) not started. Proposed 2026-10-24.
 
 ## Why
 

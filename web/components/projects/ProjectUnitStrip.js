@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Building2 } from 'lucide-react';
 import { getPublicProjectById } from '@/lib/developments';
 import { unitListingState } from '@/lib/developmentRules';

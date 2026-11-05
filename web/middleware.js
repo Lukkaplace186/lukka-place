@@ -5,6 +5,9 @@ import { isValidAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_CO
 import { IMPERSONATION_COOKIE, impersonationDecision } from '@/lib/impersonationToken';
 import { normaliseSearchAliases } from '@/lib/searchAliases';
 import { refParamApplies, searchWithoutRef } from '@/lib/partnerRules';
+import { isEnglishPath, toFrenchPath } from '@/lib/localePaths';
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from '@/lib/i18n/config';
+import { URL_LOCALE_HEADER } from '@/lib/i18n/urlLocale';
 
 /**
  * Gates /admin/* (team password), /compte/agent/* (agent self-service
@@ -20,6 +23,10 @@ import { refParamApplies, searchWithoutRef } from '@/lib/partnerRules';
  */
 export const config = {
   matcher: [
+    // English pages for search engines (lib/localePaths.js): rewritten onto
+    // the French route, marked English.
+    '/en',
+    '/en/:path*',
     '/admin/:path*',
     '/compte/:path*',
     // Every other page and API route too, but ONLY for a browser carrying the
@@ -140,6 +147,25 @@ export function middleware(request) {
     target.searchParams.set('via', 'param');
     target.searchParams.set('to', back);
     return NextResponse.redirect(target, 307);
+  }
+
+  // /en/rent/apartments/gombe is served by /location/appartements/gombe in
+  // English: the URL stays, the request carries the locale header that
+  // lib/i18n/server.js reads before the cookie. An /en path that names no page
+  // passes through untouched and 404s. The cookie follows, so the reader's
+  // next search or account page is English too.
+  if (isEnglishPath(pathname)) {
+    const french = toFrenchPath(pathname);
+    if (!french) return NextResponse.next();
+    const target = request.nextUrl.clone();
+    target.pathname = french;
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(URL_LOCALE_HEADER, 'en');
+    const response = NextResponse.rewrite(target, { request: { headers: requestHeaders } });
+    if (request.cookies.get(LOCALE_COOKIE)?.value !== 'en') {
+      response.cookies.set(LOCALE_COOKIE, 'en', { path: '/', maxAge: LOCALE_COOKIE_MAX_AGE, sameSite: 'lax' });
+    }
+    return response;
   }
 
   if (pathname === '/listings') {

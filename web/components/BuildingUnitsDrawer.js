@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { useEffect } from 'react';
 
 import { buildingBedroomsLabel, orderedUnits } from '@/lib/buildingGroups';

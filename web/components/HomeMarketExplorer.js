@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { ArrowRight } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { frNumber } from '@/lib/format';

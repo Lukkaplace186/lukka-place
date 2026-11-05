@@ -1,7 +1,7 @@
 'use client';
 
 import { getImageProps } from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import SearchBar from './SearchBar';
 import heroSunlit from '../Hero/hero-sunlit.jpg';
 import { useT } from '@/lib/i18n/client';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { LOT_STATUS_LABEL_KEYS, TITLE_STATUS_LABEL_KEYS } from '@/lib/developmentRules';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';

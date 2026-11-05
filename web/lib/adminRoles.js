@@ -123,6 +123,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/viewings': 'leads.view',
   '/admin/market-data': 'market.view',
   '/admin/investisseurs': 'market.view',
+  '/admin/seo': 'market.view',
   '/admin/benchmarks': 'analytics.view',
   '/admin/telemetry': 'analytics.view',
   '/admin/agents': 'agents.view',

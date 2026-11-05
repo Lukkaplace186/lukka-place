@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { useT } from '@/lib/i18n/client';
 
 const RELATED_SEARCHES = [

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/LocaleLink';
 import { Volume2, VolumeX } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 

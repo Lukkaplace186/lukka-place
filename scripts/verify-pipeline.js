@@ -12420,6 +12420,10 @@ console.log('\n2. services/openai.js');
     const POSTER62 = '243999384203';
     const savedRelay62 = process.env.RELAY_NUMBERS;
     process.env.RELAY_NUMBERS = '0850006201';
+    // The checks below cover the publishing path, now behind
+    // GROUP_CAPTURE_PUBLISH=on; the default (prices only) is checked at the end.
+    const savedPublish62 = process.env.GROUP_CAPTURE_PUBLISH;
+    process.env.GROUP_CAPTURE_PUBLISH = 'on';
     const sendsTo = (to) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === to);
     const textOf = (call) => call.data?.text?.body || '';
 
@@ -12571,6 +12575,36 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(again62.body.listingId, reader62.body.listingId);
       });
 
+      // The default since 2026-11-05 (owner): group posts feed the prices only.
+      delete process.env.GROUP_CAPTURE_PUBLISH;
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Lemba', quartier: null, price: 400, bedrooms: 2 }, '…'));
+      const pricesOnly62 = await adminRequest('POST', '/internal/group-posts', {
+        ...readerBody,
+        text: 'Appartement à louer à Lemba, 2 chambres, salon, cuisine, loyer 400$ par mois, garantie 3 mois.',
+        wamids: ['grpmsg-62-prices'],
+      });
+      check('with publishing off (the default), a group post is kept for prices, never published', () => {
+        assert.strictEqual(relay62.capturesPublish(), false);
+        assert.strictEqual(pricesOnly62.body.outcome, 'stored');
+        const row = dbService.getListing(pricesOnly62.body.listingId);
+        assert.strictEqual(row.status, 'pending_confirmation', 'a draft, never in the approval queue');
+        assert.ok(!row.remote_property_id, 'never synced to Postgres');
+        assert.strictEqual(row.parsed_json.source, 'whatsapp-group', 'still a capture, so the price collector reads it');
+        assert.strictEqual(row.price, 400);
+        assert.strictEqual(httpCalls.filter((c) => c.method === 'post' && c.data?.type === 'text').length, 0);
+      });
+      check('the draft auto-submit never picks up a group capture', () => {
+        const due = require('../services/draftAutoSubmit').dueDrafts(new Date(Date.now() + 48 * 3600 * 1000), 10000).map((r) => r.id);
+        assert.ok(!due.includes(pricesOnly62.body.listingId));
+      });
+      check('the relay receipt says "pour les prix du marché", not "en modération"', () => {
+        const receipt = relay62.relayReceipt([{ outcome: 'stored', listingId: pricesOnly62.body.listingId, ids: [pricesOnly62.body.listingId], published: false, pricesOnly: true }]);
+        assert.match(receipt, /1 annonce enregistrée pour les prix du marché\* \(non publiée\)/);
+        assert.doesNotMatch(receipt, /modération/);
+      });
+      process.env.GROUP_CAPTURE_PUBLISH = 'on';
+
       // Moderation verdict: never to a group poster.
       dbService.db.prepare('UPDATE listings SET remote_property_id = 990620 WHERE id = ?').run(fresh62[0].id);
       const savedRecipient62 = repo62.getModerationRecipient;
@@ -12611,6 +12645,8 @@ console.log('\n2. services/openai.js');
     } finally {
       if (savedRelay62 === undefined) delete process.env.RELAY_NUMBERS;
       else process.env.RELAY_NUMBERS = savedRelay62;
+      if (savedPublish62 === undefined) delete process.env.GROUP_CAPTURE_PUBLISH;
+      else process.env.GROUP_CAPTURE_PUBLISH = savedPublish62;
     }
   }
 

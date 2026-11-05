@@ -13,8 +13,11 @@
  *  - via 'reader': group-reader/ (a linked device of that number) posts each
  *    group post to POST /internal/group-posts with the author's real number.
  *
- * One path for both. A group post is stored as its own listing and sent to
- * the approval queue at once — nobody is asked for "OK", nobody is onboarded,
+ * One path for both. A group post is stored as its own listing row. Since
+ * 2026-11-05 (owner) it is NOT published: it only feeds the price guide
+ * (marketSources/whatsappGroup.js). GROUP_CAPTURE_PUBLISH=on restores the old
+ * behaviour, described next: sent to the approval queue at once — nobody is
+ * asked for "OK", nobody is onboarded,
  * nothing is ever sent to the poster or into a group. The relay phone (our
  * staff) gets one receipt per burst. Duplicates — the same post forwarded from
  * three groups — are dropped by text and photo fingerprints. The moderator sees
@@ -36,6 +39,15 @@ const { normaliseOpsNumber, opsNumber } = require('./opsDesk');
 const { standsAloneAsListing } = require('./listingBoundary');
 
 const SOURCE = 'whatsapp-group';
+
+/**
+ * Whether a capture is published into the approval queue. Off unless
+ * GROUP_CAPTURE_PUBLISH=on (read at call time): since 2026-11-05 (owner) group
+ * posts are kept for the price guide only and never become listings.
+ */
+function capturesPublish() {
+  return String(process.env.GROUP_CAPTURE_PUBLISH || '').trim().toLowerCase() === 'on';
+}
 const FINGERPRINT_DAYS = 30;
 /** Below this many folded characters a text says too little to be called the same post. */
 const MIN_TEXT_FINGERPRINT = 40;
@@ -285,6 +297,14 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
   if (raced) return { outcome: 'duplicate', listingId: id };
   recordFingerprints(id, fingerprints);
 
+  if (!capturesPublish()) {
+    // Owner, 2026-11-05: group posts feed the market prices only. The row
+    // stays a draft nobody confirms (findLatestPendingListing and
+    // draftAutoSubmit both skip group captures); marketSources/whatsappGroup
+    // reads its price like any capture.
+    console.log(`[group-capture] ${label}: listing #${id} kept for market prices — not published (GROUP_CAPTURE_PUBLISH off)`);
+    return { outcome: 'stored', listingId: id, ids: [id], published: false, pricesOnly: true };
+  }
   if (!photos.length && !videos.length) {
     // The photo-or-video rule holds on every publish path: kept as a draft.
     console.log(`[group-capture] ${label}: listing #${id} stored without a photo or video — not sent to moderation`);
@@ -352,20 +372,26 @@ function relayReceipt(results) {
   const listingCard = require('./listingCard');
   const sent = [];
   const drafts = [];
+  const kept = [];
   const duplicates = [];
   let failed = 0;
   for (const r of results) {
     if (r.outcome === 'stored') {
       const rows = (r.ids || [r.listingId]).map((id) => db.getListing(id)).filter(Boolean);
-      (r.published ? sent : drafts).push(...rows);
+      (r.pricesOnly ? kept : r.published ? sent : drafts).push(...rows);
     } else if (r.outcome === 'duplicate') {
       duplicates.push(r.listingId);
     } else if (r.outcome === 'failed') {
       failed += 1;
     }
   }
-  if (!sent.length && !drafts.length && !duplicates.length && !failed) return null;
+  if (!sent.length && !drafts.length && !kept.length && !duplicates.length && !failed) return null;
   const lines = [];
+  if (kept.length) {
+    const s = kept.length > 1 ? 's' : '';
+    lines.push(`📊 *${kept.length} annonce${s} enregistrée${s} pour les prix du marché* (non publiée${s})`);
+    kept.forEach((row, i) => lines.push(`${i + 1}. ${listingCard.listingSummaryLine(row)} (n° ${row.id})`));
+  }
   if (sent.length) {
     lines.push(`✅ *${sent.length} annonce${sent.length > 1 ? 's' : ''} envoyée${sent.length > 1 ? 's' : ''} en modération*`);
     sent.forEach((row, i) => lines.push(`${i + 1}. ${listingCard.listingSummaryLine(row)} (n° ${row.id})`));
@@ -422,6 +448,7 @@ function isGroupCapture(row) {
 
 module.exports = {
   SOURCE,
+  capturesPublish,
   isRelaySender,
   relayNumbers,
   ownNumbers,

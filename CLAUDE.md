@@ -764,8 +764,13 @@ brings them in. `services/groupRelay.js` is the one path for both ways in:
 - **Each post** is read alone (`parseMessage`, never with a draft), stored as
   its own listing with `parsed_json.source = 'whatsapp-group'`
   (+ `source_via`, `group_name`, `poster_phone`, `poster_name`, `relay_from`)
-  and published to the approval queue at once: no "OK", no onboarding, no
-  quota. No photo → kept as a draft (photo rule), named in the receipt.
+  and — **only with `GROUP_CAPTURE_PUBLISH=on`** — published to the approval
+  queue at once: no "OK", no onboarding, no quota. **Since 2026-11-05 (owner)
+  the default is off: a capture stays a draft that is never published and
+  only feeds the price guide** (marketSources/whatsappGroup.js reads it);
+  draftAutoSubmit skips group captures, and the relay receipt says
+  "enregistrée pour les prix du marché (non publiée)". With publishing on:
+  no photo → kept as a draft (photo rule), named in the receipt.
   Chatter is dropped only when the model says no listing AND the text names
   no property + price AND there are no photos.
 - **Duplicates**: `listing_fingerprints` (SQLite, 30 days). A post with real

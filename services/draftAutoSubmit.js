@@ -49,9 +49,12 @@ const BLOCKED_RETRY_HOURS = 24;
 
 // Drafts with no photo and no video are filtered here, not after: left in the batch they
 // would occupy its first slots forever and nothing behind them would move.
+// A WhatsApp group capture is never submitted: since 2026-11-05 (owner) it
+// stays a draft that only feeds the price guide (services/groupRelay.js).
 const DUE_SQL = `
   SELECT id FROM listings
   WHERE status = 'pending_confirmation'
+    AND NOT (json_valid(parsed_json) AND COALESCE(json_extract(parsed_json, '$.source'), '') = 'whatsapp-group')
     AND datetime(created_at) <= datetime(@cutoff)
     AND ((photos IS NOT NULL AND TRIM(photos) NOT IN ('', '[]', 'null'))
       OR (videos IS NOT NULL AND TRIM(videos) NOT IN ('', '[]', 'null')))
@@ -119,5 +122,6 @@ module.exports = {
   runDraftAutoSubmit,
   autoSubmitDue,
   autoSubmitHours,
+  dueDrafts,
   JOB_NAME,
 };

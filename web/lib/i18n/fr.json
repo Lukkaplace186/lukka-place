@@ -369,7 +369,7 @@
     },
     "market": {
       "title": "Le marché locatif en chiffres",
-      "note": "Loyers médians demandés, hors meublés, relevés sur Lukka Place et ailleurs. Au moins {n} annonces par chiffre.",
+      "note": "Loyers médians demandés, hors meublés, relevés sur Lukka Place et ailleurs.",
       "indexLead": "Loyer médian demandé, par commune",
       "indexNoChange": "L'évolution sur un mois s'affichera dès que deux relevés consécutifs seront comparables.",
       "indexLink": "Voir l'indice",

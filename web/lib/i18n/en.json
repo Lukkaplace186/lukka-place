@@ -369,7 +369,7 @@
     },
     "market": {
       "title": "The Rental Market in Figures",
-      "note": "Median asking rents, unfurnished, from Lukka Place and elsewhere. At least {n} listings behind each figure.",
+      "note": "Median asking rents, unfurnished, from Lukka Place and elsewhere.",
       "indexLead": "Median asking rent, by commune",
       "indexNoChange": "The month-on-month change will show once two consecutive months can be compared.",
       "indexLink": "See the index",

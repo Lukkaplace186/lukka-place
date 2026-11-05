@@ -1,7 +1,7 @@
 import HomeSectionHeader, { HOME_SECTION } from './HomeSectionHeader';
 import HomeMarketExplorer from './HomeMarketExplorer';
 import { getT } from '@/lib/i18n/server';
-import { MIN_PRICE_SAMPLE, getPriceGuides } from '@/lib/browseFeatures';
+import { getPriceGuides } from '@/lib/browseFeatures';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
 import { memo } from '@/lib/memo';
 import { marketCommunes } from '@/lib/homeMarket';
@@ -38,7 +38,7 @@ export default async function HomeMarketBand() {
     <section className="bg-canvas-alt">
       <div className={HOME_SECTION}>
         <HomeSectionHeader title={t('home.market.title')} href="/combien-coute" linkLabel={t('home.discovery.prices')} />
-        <HomeMarketExplorer communes={communes} note={t('home.market.note', { n: MIN_PRICE_SAMPLE })} />
+        <HomeMarketExplorer communes={communes} note={t('home.market.note')} />
       </div>
     </section>
   );

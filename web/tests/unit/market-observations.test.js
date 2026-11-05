@@ -172,7 +172,10 @@ test('web and engine agree on the sources, the kinds and the migration', () => {
 test('entering and excluding observations is a permission of its own', () => {
   assert.deepEqual(PERMISSIONS['market.manage'], ['owner', 'moderator', 'analyst']);
   const actions = readFileSync(path.join(process.cwd(), 'app/admin/market-data/marche/actions.js'), 'utf8');
-  assert.equal((actions.match(/requireAdmin\('market\.manage'\)/g) || []).length, 3);
+  // Every action in the file (single entry, the batch paste's read and save, exclusion).
+  const exported = (actions.match(/^export async function /gm) || []).length;
+  assert.ok(exported >= 5);
+  assert.equal((actions.match(/requireAdmin\('market\.manage'\)/g) || []).length, exported);
   assert.match(actions, /recordAudit/);
 });
 

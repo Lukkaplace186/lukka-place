@@ -1786,6 +1786,27 @@ router.patch('/properties/:id/price', async (req, res) => {
  * above: the request is a normal outcome that failed on the far side, not a
  * bug in this route.
  */
+/**
+ * "Coller des annonces" (web /admin/market-data/marche): one paste → each
+ * advert's price facts AND its poster's name / agency / phone, for the price
+ * guide and the prospects list. Stores nothing (services/marketPaste.js).
+ */
+router.post('/parse-market-paste', async (req, res) => {
+  const marketPaste = require('../services/marketPaste');
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (text.length < 15) return res.status(400).json({ success: false, error: 'text is required.' });
+  if (text.length > marketPaste.MAX_TEXT) {
+    return res.status(400).json({ success: false, error: `text is too long (max ${marketPaste.MAX_TEXT} characters).` });
+  }
+  try {
+    const result = await marketPaste.parseMarketPaste(text);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] parse-market-paste failed: ${err.message}`);
+    return res.status(502).json({ success: false, error: 'Could not read the pasted text.' });
+  }
+});
+
 router.post('/parse-listing', async (req, res) => {
   const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
   if (!text) {

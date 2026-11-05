@@ -6982,6 +6982,106 @@
           "engine": "Could not save: {error}"
         }
       }
+    },
+    "marketPaste": {
+      "title": "Paste Adverts",
+      "note": "Paste a page of adverts (Facebook, Zwandako, a website, a WhatsApp group). Each advert is read with its price and the person who posted it: one save fills the market prices and the agent prospects list. Check every row before saving; the pasted text is not kept.",
+      "prospectsLink": "Agent prospects",
+      "pageUrl": "Page link (optional)",
+      "pasteLabel": "Copied adverts",
+      "pastePlaceholder": "Paste one or more adverts here, with the name and number of the person posting them…",
+      "readButton": "Read the adverts",
+      "reading": "Reading…",
+      "readHint": "Up to 30 adverts per paste.",
+      "readDone": {
+        "one": "{count} advert read. Check it, then save.",
+        "other": "{count} adverts read. Check them, then save."
+      },
+      "untitled": "Advert",
+      "keepPrice": "Price → price guide",
+      "keepProspect": "Agent → prospects",
+      "priceRent": "Rent ($)",
+      "priceSale": "Price ($)",
+      "warnPrice": "The price read does not appear as such in the text: type it from the advert.",
+      "warnFrancs": "Price in francs: it will not be counted. Type the dollar amount if given, or untick the price.",
+      "warnCommune": "Commune \"{written}\" not recognised: pick it from the list.",
+      "noteCommuneDeduced": "Commune deduced from the quartier \"{quartier}\".",
+      "contactName": "Agent name",
+      "agency": "Agency",
+      "phone": "Phone / WhatsApp",
+      "noPhone": "No number in the advert: no prospect for this row (the price can be kept).",
+      "newProspect": "New prospect: {phone}.",
+      "alreadyProspect": "{phone} is already on the list (status: {status}). The advert will be added to it.",
+      "alreadyAgent": "{phone} is already a Lukka Place agent.",
+      "saveButton": {
+        "one": "Save {count} advert",
+        "other": "Save {count} adverts"
+      },
+      "clear": "Clear all",
+      "saved": "Saved: {prices} prices added to the guide ({duplicates} already known), {newProspects} new prospects, {updatedProspects} prospects updated.",
+      "errors": {
+        "tooLong": "Text too long ({max} characters at most). Paste it in two goes.",
+        "noAdverts": "No adverts found in this text.",
+        "row": "Advert {n}: {error}",
+        "phone": "Invalid phone number.",
+        "nothingKept": "Nothing to save: every row is unticked.",
+        "notMigrated": "The prospects table does not exist on this database yet (migration 20261105_market_prospects.sql)."
+      }
+    },
+    "marketProspects": {
+      "title": "Agent Prospects",
+      "subtitle": "Agents and agencies found in the pasted adverts, one per number. Each paste adds the advert and the source without erasing what the team already noted.",
+      "statTotal": "Prospects",
+      "statTodo": "To contact",
+      "statInterested": "Interested / call back",
+      "statSigned": "Signed up",
+      "filterOpen": "In progress",
+      "filterAll": "All",
+      "searchPlaceholder": "Name, agency, number, note…",
+      "search": "Search",
+      "export": "Export (CSV)",
+      "pasteMore": "Paste adverts",
+      "empty": "No prospects yet. Paste adverts from \"Market prices\": the people who posted them will appear here.",
+      "emptyFiltered": "No prospects match this filter.",
+      "noName": "Name unknown",
+      "alreadyAgent": "Already a Lukka Place agent",
+      "adverts": {
+        "one": "{count} advert",
+        "other": "{count} adverts"
+      },
+      "showAdverts": "show",
+      "hideAdverts": "hide",
+      "advertExcluded": "excluded from the guide",
+      "whatsapp": "WhatsApp",
+      "edit": "Follow-up and Notes",
+      "fieldStatus": "Status",
+      "fieldContactedOn": "Contacted on",
+      "fieldChannel": "Channel",
+      "fieldNotes": "Notes",
+      "saveButton": "Save",
+      "saved": "Saved.",
+      "status": {
+        "todo": "To contact",
+        "noanswer": "No answer",
+        "callback": "Call back",
+        "interested": "Interested",
+        "signed": "Signed up",
+        "declined": "Not interested",
+        "optout": "Do not contact"
+      },
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "phone": "Call",
+        "in_person": "In person",
+        "facebook": "Facebook",
+        "other": "Other"
+      },
+      "errors": {
+        "status": "Invalid status.",
+        "channel": "Invalid channel.",
+        "date": "Invalid date.",
+        "missing": "This prospect no longer exists."
+      }
     }
   },
   "errors": {

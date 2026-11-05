@@ -95,7 +95,7 @@ const amountOrNull = (value) => {
  * @param {object} input raw form values
  * @param {{communes?: string[], now?: Date}} [options] communes = the allow-list
  */
-export function validateManualObservation(input, { communes = [], now = new Date() } = {}) {
+export function validateManualObservation(input, { communes = [], now = new Date(), requireUrl = true } = {}) {
   const source = String(input.source || '');
   if (!MANUAL_SOURCES.includes(source)) return { ok: false, error: 'source' };
 
@@ -112,7 +112,10 @@ export function validateManualObservation(input, { communes = [], now = new Date
   // A link is what makes a hand entry checkable later; Facebook groups are
   // the one place a post may have no shareable link, so "other" and Zwandako
   // must carry one and Facebook may not.
-  if (!url && source !== 'facebook') return { ok: false, error: 'urlRequired' };
+  // A batch paste ("Coller des annonces") keys each advert on its own facts
+  // instead (pasteSourceRef in lib/marketProspectRules.js), so it may come
+  // with no link at all.
+  if (!url && source !== 'facebook' && requireUrl) return { ok: false, error: 'urlRequired' };
 
   const purpose = input.purpose === 'sale' ? 'sale' : input.purpose === 'rent' ? 'rent' : null;
   if (!purpose) return { ok: false, error: 'purpose' };

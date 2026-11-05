@@ -14012,6 +14012,66 @@ console.log('\n2. services/openai.js');
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // §75 One paste → market prices AND prospects (2026-11-05)
+  // ---------------------------------------------------------------------------
+  console.log('\n§75 Coller des annonces: prices and posters from one paste');
+  {
+    const paste75 = require('../services/marketPaste');
+    const text75 = [
+      'Jean Mukendi · Agence Bonheur Immo',
+      'A louer appartement 2 chambres salon, Ngaliema Mbinza Delvaux, 600$ / mois. Contact 0812 345 678',
+      '---',
+      'Maison 3 chambres à Limete, Industriel, 1 200 $. WhatsApp +243 99 765 4321',
+    ].join('\n');
+    const fakeClient75 = (adverts) => ({
+      chat: { completions: { create: async () => ({ model: 'gpt-4o', usage: {}, choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ adverts }) } }] }) } },
+    });
+    const advert75 = (over) => ({
+      purpose: 'rent', property_kind: 'appartement', beds: 2, price: 600, price_text: '600$', currency: 'USD', price_period: 'mois',
+      furnished: null, commune: 'Ngaliema', quartier: 'Mbinza Delvaux', contact_name: 'Jean Mukendi', agency_name: 'Agence Bonheur Immo',
+      contact_phone: '0812 345 678', posted_hint: null, title: 'Appartement 2 ch. à Ngaliema', ...over,
+    });
+
+    await checkAsync('each advert keeps its facts and its poster; a written number becomes 243…', async () => {
+      const { adverts } = await paste75.parseMarketPaste(text75, { client: fakeClient75([
+        advert75({}),
+        advert75({ property_kind: 'maison', beds: 3, price: 1200, price_text: '1 200 $', commune: 'Limete', quartier: 'Industriel', contact_name: null, agency_name: null, contact_phone: '+243 99 765 4321' }),
+      ]) });
+      assert.strictEqual(adverts.length, 2);
+      assert.strictEqual(adverts[0].contact_phone, '243812345678');
+      assert.strictEqual(adverts[0].contact_name, 'Jean Mukendi');
+      assert.strictEqual(adverts[0].commune, 'Ngaliema');
+      assert.strictEqual(adverts[0].price, 600);
+      assert.strictEqual(adverts[1].contact_phone, '243997654321');
+      assert.strictEqual(adverts[1].price, 1200);
+      assert.strictEqual(adverts[1].commune, 'Limete');
+    });
+
+    await checkAsync('a number or a price that is not in the text is dropped, never kept', async () => {
+      const { adverts } = await paste75.parseMarketPaste(text75, { client: fakeClient75([
+        advert75({ contact_phone: '0815 000 111', price: 650, price_text: '650$' }),
+      ]) });
+      assert.strictEqual(adverts[0].contact_phone, null);
+      assert.strictEqual(adverts[0].price, null);
+      assert.strictEqual(adverts[0].price_unverified, true);
+    });
+
+    check('a commune the resolver cannot place is left empty; a phone is never a name', () => {
+      const a = paste75.cleanAdvert(advert75({ commune: 'Quelque part', quartier: null, contact_name: '+243 812 345 678' }), text75);
+      assert.strictEqual(a.commune, null);
+      assert.strictEqual(a.contact_name, null);
+      assert.strictEqual(a.commune_written, 'Quelque part');
+    });
+
+    check('the route exists behind the admin router and the prompt asks for posters, not inventions', () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(src, /router\.post\('\/parse-market-paste'/);
+      assert.match(paste75.SYSTEM_PROMPT, /jamais deviné/);
+      assert.match(paste75.SYSTEM_PROMPT, /contact_phone/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

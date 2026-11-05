@@ -17,6 +17,7 @@ import { MIN_PRICE_SAMPLE } from '@/lib/browseFeatures';
 import publishedEstimates from '@/lib/data/published-rent-estimates.json';
 import { Chip, ErrorNote, Panel, Stat, TD, TD_RIGHT, TH, TH_RIGHT, formatKinshasa, money } from '../../LeadRoutingUI';
 import ObservationEntryForm from './ObservationEntryForm';
+import MarketPasteBatch from './MarketPasteBatch';
 import ExclusionControl from './ExclusionControl';
 
 export const metadata = {
@@ -196,6 +197,17 @@ export default async function MarketObservationsPage({ searchParams }) {
           ))}
         </div>
       </Panel>
+
+      {canManage && !notMigrated ? (
+        <section className="flex flex-col gap-2" id="coller">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="u-title-card text-ink">{t('admin.marketPaste.title')}</h2>
+            <Link href="/admin/market-data/prospects" className="u-micro-strong text-blue-deep hover:underline">{t('admin.marketPaste.prospectsLink')} →</Link>
+          </div>
+          <p className="u-micro max-w-3xl text-ink-45">{t('admin.marketPaste.note')}</p>
+          <MarketPasteBatch communes={hierarchy.communes} sources={MANUAL_SOURCES.map((key) => ({ key, name: SOURCE_NAMES[key] }))} />
+        </section>
+      ) : null}
 
       {canManage && !notMigrated ? (
         <section className="flex flex-col gap-2">

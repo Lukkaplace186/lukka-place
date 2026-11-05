@@ -4034,6 +4034,21 @@ collection. Web half: `lib/marketGuide.js` (SQL), `lib/marketObservationRules.js
   the pasted text is not kept; a link is required except for Facebook), and
   the list with exclude (`manual:<code>`) / restore. An automatic exclusion
   cannot be restored.
+- **"Coller des annonces" + `/admin/market-data/prospects` (2026-11-05).** One
+  paste of many adverts feeds the price guide AND the agents to recruit
+  (engine root CLAUDE.md, same heading, has the reader). `MarketPasteBatch`
+  shows one card per advert with two ticks — "Prix → guide des prix" and
+  "Agent → prospects" — and says when a number is already on the list or is a
+  Lukka Place agent (`knownPhones`). `saveMarketPasteAction` re-checks every
+  row (`validateManualObservation(…, { requireUrl: false })`,
+  `validateProspect`), refuses the whole save naming the first bad row, and
+  writes both tables in one transaction (`lib/marketProspects.js`
+  `saveMarketPasteBatch`). The prospects page (market.view; edits
+  market.manage) has status chips, search, a WhatsApp opener in French that
+  promises nothing (no "gratuit"), quick status buttons that date the first
+  contact, notes, the adverts behind each person and the CSV export
+  (`/admin/export/prospects`). Before the migration both pages say so and
+  nothing 500s. `tests/unit/market-prospects.test.js`.
 
 ## Homepage below the search (2026-11-04)
 

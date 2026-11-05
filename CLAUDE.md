@@ -2236,6 +2236,24 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   Zwandako rentals the owner pasted (96 counted, 83 in Ngaliema). Rows count
   as online from the import and leave the guide 60 days later unless
   re-imported.
+- **"Coller des annonces" — one paste, prices AND prospects (2026-11-05,
+  owner: "so I don't have to do the job twice").** `services/marketPaste.js`
+  behind `POST /admin/parse-market-paste` reads a pasted page (Facebook,
+  Zwandako, a site, a WhatsApp group; ≤12,000 chars, ≤30 adverts, one gpt-4o
+  call, ~0.5 ¢) into adverts, each with its price facts and its poster's name,
+  agency and number. Kept only when literally in the text: the number (last 9
+  digits) and the price; the commune only when `locations.js` resolves it to
+  one Kinshasa commune or deduces it from a quartier; a buyer's "je cherche"
+  is not an advert. Stores nothing — web's /admin/market-data/marche shows
+  each advert for checking, and one save writes the prices to
+  `market_observations` (source_ref `paste:<hash of the facts + number>`, so a
+  repost is one row; still no phone in that table) and the posters to
+  `market_prospects` (`migrations/20261105_market_prospects.sql`, one row per
+  number; a later paste fills a blank name/agency, adds the source, counts the
+  advert, never touches the team's status or notes) in one transaction.
+  `/admin/market-data/prospects` is the follow-up list that replaces the
+  separate "Prospects agents" tracker page. §75; web
+  `tests/unit/market-prospects.test.js`.
 
 ## Agent templates approved 2026-11-03 — switched on 2026-11-04
 

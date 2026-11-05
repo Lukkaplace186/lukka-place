@@ -6982,6 +6982,106 @@
           "engine": "Enregistrement impossible : {error}"
         }
       }
+    },
+    "marketPaste": {
+      "title": "Coller des annonces",
+      "note": "Collez une page d'annonces (Facebook, Zwandako, un site, un groupe WhatsApp). Chaque annonce est lue avec son prix et la personne qui la publie : un seul enregistrement remplit les prix du marché et la liste des prospects agents. Vérifiez chaque ligne avant d'enregistrer ; le texte collé n'est pas conservé.",
+      "prospectsLink": "Prospects agents",
+      "pageUrl": "Lien de la page (facultatif)",
+      "pasteLabel": "Annonces copiées",
+      "pastePlaceholder": "Collez ici une ou plusieurs annonces, avec le nom et le numéro de la personne qui les publie…",
+      "readButton": "Lire les annonces",
+      "reading": "Lecture…",
+      "readHint": "Jusqu'à 30 annonces par collage.",
+      "readDone": {
+        "one": "{count} annonce lue. Vérifiez-la puis enregistrez.",
+        "other": "{count} annonces lues. Vérifiez-les puis enregistrez."
+      },
+      "untitled": "Annonce",
+      "keepPrice": "Prix → guide des prix",
+      "keepProspect": "Agent → prospects",
+      "priceRent": "Loyer ($)",
+      "priceSale": "Prix ($)",
+      "warnPrice": "Le prix lu n'apparaît pas tel quel dans le texte : saisissez-le depuis l'annonce.",
+      "warnFrancs": "Prix en francs : il ne sera pas compté. Saisissez le montant en dollars s'il est indiqué, ou décochez le prix.",
+      "warnCommune": "Commune « {written} » non reconnue : choisissez-la dans la liste.",
+      "noteCommuneDeduced": "Commune déduite du quartier « {quartier} ».",
+      "contactName": "Nom de l'agent",
+      "agency": "Agence",
+      "phone": "Téléphone / WhatsApp",
+      "noPhone": "Aucun numéro dans l'annonce : pas de prospect pour cette ligne (le prix peut être gardé).",
+      "newProspect": "Nouveau prospect : {phone}.",
+      "alreadyProspect": "{phone} est déjà dans la liste (statut : {status}). L'annonce lui sera ajoutée.",
+      "alreadyAgent": "{phone} est déjà un agent Lukka Place.",
+      "saveButton": {
+        "one": "Enregistrer {count} annonce",
+        "other": "Enregistrer {count} annonces"
+      },
+      "clear": "Tout effacer",
+      "saved": "Enregistré : {prices} prix ajoutés au guide ({duplicates} déjà connus), {newProspects} nouveaux prospects, {updatedProspects} prospects mis à jour.",
+      "errors": {
+        "tooLong": "Texte trop long ({max} caractères au plus). Collez-le en deux fois.",
+        "noAdverts": "Aucune annonce trouvée dans ce texte.",
+        "row": "Annonce {n} : {error}",
+        "phone": "Numéro de téléphone invalide.",
+        "nothingKept": "Rien à enregistrer : toutes les lignes sont décochées.",
+        "notMigrated": "La table des prospects n'existe pas encore sur cette base (migration 20261105_market_prospects.sql)."
+      }
+    },
+    "marketProspects": {
+      "title": "Prospects agents",
+      "subtitle": "Les agents et agences repérés dans les annonces collées, un par numéro. Chaque collage ajoute l'annonce et la source sans effacer ce que l'équipe a déjà noté.",
+      "statTotal": "Prospects",
+      "statTodo": "À contacter",
+      "statInterested": "Intéressés / à rappeler",
+      "statSigned": "Inscrits",
+      "filterOpen": "En cours",
+      "filterAll": "Tous",
+      "searchPlaceholder": "Nom, agence, numéro, note…",
+      "search": "Rechercher",
+      "export": "Exporter (CSV)",
+      "pasteMore": "Coller des annonces",
+      "empty": "Aucun prospect pour l'instant. Collez des annonces depuis « Prix du marché » : leurs auteurs apparaîtront ici.",
+      "emptyFiltered": "Aucun prospect ne correspond à ce filtre.",
+      "noName": "Nom inconnu",
+      "alreadyAgent": "Déjà agent Lukka Place",
+      "adverts": {
+        "one": "{count} annonce",
+        "other": "{count} annonces"
+      },
+      "showAdverts": "voir",
+      "hideAdverts": "masquer",
+      "advertExcluded": "exclue du guide",
+      "whatsapp": "WhatsApp",
+      "edit": "Suivi et notes",
+      "fieldStatus": "Statut",
+      "fieldContactedOn": "Contacté le",
+      "fieldChannel": "Canal",
+      "fieldNotes": "Notes",
+      "saveButton": "Enregistrer",
+      "saved": "Enregistré.",
+      "status": {
+        "todo": "À contacter",
+        "noanswer": "Pas de réponse",
+        "callback": "À rappeler",
+        "interested": "Intéressé",
+        "signed": "Inscrit",
+        "declined": "Pas intéressé",
+        "optout": "Ne plus contacter"
+      },
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "phone": "Appel",
+        "in_person": "En personne",
+        "facebook": "Facebook",
+        "other": "Autre"
+      },
+      "errors": {
+        "status": "Statut invalide.",
+        "channel": "Canal invalide.",
+        "date": "Date invalide.",
+        "missing": "Ce prospect n'existe plus."
+      }
     }
   },
   "errors": {

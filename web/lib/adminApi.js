@@ -534,6 +534,15 @@ export async function parseAgentListingText(text) {
 }
 
 /**
+ * "Coller des annonces": one paste → each advert's price facts and poster
+ * (engine POST /admin/parse-market-paste, services/marketPaste.js).
+ * @returns {Promise<{adverts: Object[]}>}
+ */
+export async function parseMarketPaste(text) {
+  return engineFetch('/admin/parse-market-paste', { method: 'POST', body: JSON.stringify({ text }) });
+}
+
+/**
  * @param {number} propertyId
  * @param {'approved'|'rejected'} status
  * @param {{reasonCode?: string|null, note?: string|null}} [reason] a rejection's

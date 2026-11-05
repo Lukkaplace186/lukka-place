@@ -10,6 +10,7 @@ import { listAgenciesForAdmin } from '@/lib/adminAgencies';
 import { listMembershipsForAdmin } from '@/lib/adminBilling';
 import { listConversations, listLeadMatches, listViewingFeed } from '@/lib/adminApi';
 import { getInvestorMonthlyRows } from '@/lib/investorMetrics';
+import { listProspects } from '@/lib/marketProspects';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,17 @@ async function collect(fetchPage) {
 const iso = (value) => (value ? new Date(value).toISOString() : '');
 
 const DATASETS = {
+  // /admin/market-data/prospects: agents to recruit, with the page's filters.
+  prospects: {
+    permission: 'market.view',
+    fetch: (p) => collect(({ limit, offset }) => listProspects({ status: p.get('status') || 'open', q: p.get('q'), source: p.get('source'), limit, offset })),
+    columns: [
+      ['id', (r) => r.id], ['name', (r) => r.name], ['agency', (r) => r.agency], ['phone', (r) => r.phone],
+      ['sources', (r) => (r.sources || []).join('|')], ['adverts', (r) => r.adverts_count], ['last_advert', (r) => iso(r.last_advert_at)],
+      ['status', (r) => r.status], ['contacted_on', (r) => r.contacted_on_text || ''], ['channel', (r) => r.channel],
+      ['already_agent', (r) => Boolean(r.is_agent)], ['notes', (r) => r.notes], ['created_at', (r) => iso(r.created_at)],
+    ],
+  },
   // /admin/investisseurs' data-room file: one row per month, nulls left empty
   // (not measured), never written as 0.
   investors: {

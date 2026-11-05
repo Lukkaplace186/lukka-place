@@ -2219,6 +2219,18 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   the Lukka listing while public, not at all once rejected/deleted; the same
   rounded price in one commune × bedrooms on several sources counts as the
   most any one source shows.
+- **Recent rents weigh double** (2026-11-05, owner): in a guide's median and
+  p25–p75, an advert posted in the last 92 days (web `RECENT_DAYS`,
+  `RECENT_WEIGHT` = 2; posted_at, else first_seen_at; a Lukka listing's later
+  of created / moderated) counts twice. The stated number of listings stays
+  the real count; the method note on /combien-coute says so.
+- **A hand-copied batch** (more than the admin form is for):
+  `node scripts/import-market-observations.js <file.json> [--write]`, file in
+  `scripts/data/` (columns slug, kind, price, beds, commune, quartier,
+  daysAgo; manual sources only). First one: `zwandako-2026-11-05.json`, 99
+  Zwandako rentals the owner pasted (96 counted, 83 in Ngaliema). Rows count
+  as online from the import and leave the guide 60 days later unless
+  re-imported.
 
 ## Agent templates approved 2026-11-03 — switched on 2026-11-04
 

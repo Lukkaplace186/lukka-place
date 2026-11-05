@@ -3,6 +3,8 @@ import { getPool } from './db';
 import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 import {
   MARKET_WINDOW_DAYS,
+  RECENT_DAYS,
+  RECENT_WEIGHT,
   RESIDENTIAL_KINDS,
   STILL_LISTED_DAYS,
 } from './marketObservationRules';
@@ -35,6 +37,12 @@ import {
  *    that shows it most (MAX of the per-source counts), never their sum. Two
  *    different flats at exactly the same price on two sites are therefore
  *    counted once — the conservative error.
+ *
+ * **Recent adverts weigh more** (owner, 2026-11-05): in the median and the
+ * p25–p75 range, a row posted in the last RECENT_DAYS counts RECENT_WEIGHT
+ * times (`recent` on each row, carried through the de-duplication as the
+ * recent share of a point). `listings` stays the real count — the weight
+ * moves the figure, never the number of adverts we say it rests on.
  */
 
 const COMMUNE_EXPR = `(
@@ -48,7 +56,9 @@ const COMMUNE_EXPR = `(
 export const LUKKA_RENTS_SQL = `
   SELECT ${COMMUNE_EXPR} AS commune, p.beds::int AS beds,
          (CASE WHEN p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END)::numeric AS amount,
-         'lukka'::text AS src
+         'lukka'::text AS src,
+         (GREATEST(p.created_at, COALESCE((to_jsonb(p) ->> 'moderated_at')::timestamptz, p.created_at))
+            >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent
     FROM properties p
    WHERE p.status = 1 AND p.approve_status = 1
      AND p.purpose = 'rent' AND p.price > 0
@@ -60,7 +70,8 @@ export const LUKKA_RENTS_SQL = `
 
 /** Market observations that count, one row each. $2 = residential kinds. */
 export const MARKET_RENTS_SQL = `
-  SELECT o.commune, o.beds::int AS beds, o.monthly_usd::numeric AS amount, o.source AS src
+  SELECT o.commune, o.beds::int AS beds, o.monthly_usd::numeric AS amount, o.source AS src,
+         (COALESCE(o.posted_at, o.first_seen_at) >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent
     FROM market_observations o
    WHERE o.excluded_reason IS NULL
      AND o.purpose = 'rent'
@@ -82,7 +93,9 @@ export const MARKET_RENTS_SQL = `
 
 /**
  * The blended guide: every commune × bedrooms with at least $1 listings after
- * de-duplication. $1 min sample, $2 residential kinds.
+ * de-duplication. $1 min sample, $2 residential kinds. `weighted` repeats each
+ * point once per older advert and RECENT_WEIGHT times per recent one — an
+ * integer-weighted median without a custom aggregate.
  */
 export const BLENDED_GUIDES_SQL = `
   WITH all_rows AS (
@@ -91,25 +104,31 @@ export const BLENDED_GUIDES_SQL = `
     ${MARKET_RENTS_SQL}
   ),
   per_src AS (
-    SELECT commune, beds, ROUND(amount)::int AS amt, src, COUNT(*)::int AS n
+    SELECT commune, beds, ROUND(amount)::int AS amt, src, COUNT(*)::int AS n,
+           COUNT(*) FILTER (WHERE recent)::int AS r
       FROM all_rows WHERE commune IS NOT NULL
      GROUP BY commune, beds, ROUND(amount), src
   ),
   points AS (
-    SELECT commune, beds, amt, MAX(n)::int AS n,
+    SELECT commune, beds, amt, MAX(n)::int AS n, LEAST(MAX(r), MAX(n))::int AS r,
            COALESCE(MAX(n) FILTER (WHERE src = 'lukka'), 0)::int AS lukka_n
       FROM per_src GROUP BY commune, beds, amt
   ),
-  expanded AS (
-    SELECT commune, beds, amt FROM points, generate_series(1, points.n)
+  counted AS (
+    SELECT commune, beds, SUM(n)::int AS listings FROM points GROUP BY commune, beds
+    HAVING SUM(n) >= $1
+  ),
+  weighted AS (
+    SELECT commune, beds, amt FROM points,
+           generate_series(1, (points.n - points.r) + points.r * ${RECENT_WEIGHT})
   ),
   stats AS (
-    SELECT commune, beds, COUNT(*)::int AS listings,
-           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amt)::float AS median,
-           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amt)::float AS p25,
-           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amt)::float AS p75
-      FROM expanded GROUP BY commune, beds
-    HAVING COUNT(*) >= $1
+    SELECT w.commune, w.beds, c.listings,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY w.amt)::float AS median,
+           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY w.amt)::float AS p25,
+           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY w.amt)::float AS p75
+      FROM weighted w JOIN counted c ON c.commune = w.commune AND c.beds = w.beds
+     GROUP BY w.commune, w.beds, c.listings
   ),
   lukka AS (
     SELECT commune, beds, SUM(lukka_n)::int AS lukka FROM points GROUP BY commune, beds

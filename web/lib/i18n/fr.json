@@ -323,7 +323,7 @@
       "sourceWhatsapp": "groupes WhatsApp",
       "sourceOther": "autre source",
       "range": "La moitié des annonces se situe entre {p25} $ et {p75} $.",
-      "method": "Prix demandés (pas les prix conclus), location longue durée, hors meublés, loyers annuels ramenés au mois. Les annonces relevées ailleurs datent de moins d'un an et étaient encore en ligne ces 60 derniers jours ; une même annonce vue sur plusieurs sites n'est comptée qu'une fois. Aucune n'est reproduite ici.",
+      "method": "Prix demandés (pas les prix conclus), location longue durée, hors meublés, loyers annuels ramenés au mois. Les annonces relevées ailleurs datent de moins d'un an et étaient encore en ligne ces 60 derniers jours ; une même annonce vue sur plusieurs sites n'est comptée qu'une fois. Les annonces des trois derniers mois comptent double dans le loyer médian et la fourchette. Aucune n'est reproduite ici.",
       "see": {
         "one": "Voir l’annonce sur Lukka Place",
         "other": "Voir les {count} annonces sur Lukka Place"

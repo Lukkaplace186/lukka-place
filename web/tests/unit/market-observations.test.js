@@ -7,9 +7,11 @@ import {
   queryPriceGuides, setObservationExclusion,
 } from '@/lib/marketGuide';
 import {
-  COLLECTED_SOURCES, MANUAL_SOURCES, MARKET_SOURCES, PROPERTY_KINDS, RESIDENTIAL_KINDS,
+  COLLECTED_SOURCES, MANUAL_SOURCES, MARKET_SOURCES, PROPERTY_KINDS, RECENT_DAYS, RECENT_WEIGHT, RESIDENTIAL_KINDS,
   manualSourceRef, prefillFromExtraction, validateManualObservation,
 } from '@/lib/marketObservationRules';
+import fr from '@/lib/i18n/fr.json' with { type: 'json' };
+import en from '@/lib/i18n/en.json' with { type: 'json' };
 import { PRICE_GUIDES_SQL } from '@/lib/browseFeatures';
 import { PERMISSIONS } from '@/lib/adminRoles';
 import { calls, enqueue, reset } from '../support/fakePool.js';
@@ -54,9 +56,23 @@ test('the same price on several sources counts as the most any one source shows,
   const sql = squash(BLENDED_GUIDES_SQL);
   assert.match(sql, /GROUP BY commune, beds, ROUND\(amount\), src/);
   assert.match(sql, /SELECT commune, beds, amt, MAX\(n\)::int AS n/);
-  assert.match(sql, /generate_series\(1, points\.n\)/);
-  assert.match(sql, /HAVING COUNT\(\*\) >= \$1/);
+  assert.match(sql, /HAVING SUM\(n\) >= \$1/);
   assert.match(sql, /lukka_listings/);
+});
+
+test('recent adverts weigh double in the figures, never in the count (owner, 2026-11-05)', () => {
+  assert.equal(RECENT_DAYS, 92);
+  assert.equal(RECENT_WEIGHT, 2);
+  assert.match(squash(MARKET_RENTS_SQL), /\(COALESCE\(o\.posted_at, o\.first_seen_at\) >= NOW\(\) - INTERVAL '92 days'\) AS recent/);
+  assert.match(squash(LUKKA_RENTS_SQL), /moderated_at.*>= NOW\(\) - INTERVAL '92 days'\) AS recent/);
+  const sql = squash(BLENDED_GUIDES_SQL);
+  // The recent share of a de-duplicated point is bounded by its count.
+  assert.match(sql, /LEAST\(MAX\(r\), MAX\(n\)\)::int AS r/);
+  assert.match(sql, /generate_series\(1, \(points\.n - points\.r\) \+ points\.r \* 2\)/);
+  // `listings` is the real count (SUM of n), the percentiles read the weighted rows.
+  assert.match(sql, /SELECT commune, beds, SUM\(n\)::int AS listings FROM points/);
+  assert.match(sql, /PERCENTILE_CONT\(0\.5\) WITHIN GROUP \(ORDER BY w\.amt\)/);
+  for (const dict of [fr, en]) assert.match(dict.home.prices.method, /(trois derniers mois|last three months)/);
 });
 
 /** A pool that answers from a script: an Error entry is thrown, anything else is the rows. */

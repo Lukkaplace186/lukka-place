@@ -56,6 +56,17 @@ export const PRICE_PERIODS = ['mois', 'an', 'total', 'jour', 'semaine'];
 export const MARKET_WINDOW_DAYS = 365;
 export const STILL_LISTED_DAYS = 60;
 
+/**
+ * Recent adverts weigh more in a median and its range (owner, 2026-11-05):
+ * one posted in the last RECENT_DAYS (three months) counts RECENT_WEIGHT
+ * times, an older one once. Only the figure is weighted — the number of
+ * listings a guide states is still the real count. "Posted" is the advert's
+ * own date when the source gives one, else the day we first saw it; a Lukka
+ * Place listing's is the later of created / moderated.
+ */
+export const RECENT_DAYS = 92;
+export const RECENT_WEIGHT = 2;
+
 /** Rent per month must sit here, as in the engine's BOUNDS. */
 export const RENT_BOUNDS = { min: 30, max: 20000 };
 export const SALE_BOUNDS = { min: 1000, max: 20000000 };

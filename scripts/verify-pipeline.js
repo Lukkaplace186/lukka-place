@@ -13844,6 +13844,21 @@ console.log('\n2. services/openai.js');
         'their terms forbid automated collection: entered by hand only');
     });
 
+    check('a hand-copied batch (Zwandako, 2026-11-05) loads as rents with commune, quartier and an age', () => {
+      const { rowsFromFile } = require('./import-market-observations');
+      const rows = rowsFromFile(path.join(__dirname, 'data', 'zwandako-2026-11-05.json'));
+      assert.strictEqual(rows.length, 99);
+      assert.ok(rows.every((r) => r.source === 'zwandako' && r.purpose === 'rent' && r.price_period === 'mois'));
+      const upn = rows.find((r) => r.source_ref === 'location-dun-appartement-a-ngaliema-upn');
+      assert.deepStrictEqual([upn.commune, upn.quartier, upn.beds, upn.monthly_usd, upn.posted_at], ['Ngaliema', 'Binza UPN', 2, 500, '2026-11-05T12:00:00.000Z']);
+      const old = rows.find((r) => r.source_ref === 'maison-a-louer-ngaliema-kinshasa-7');
+      assert.strictEqual(old.posted_at, '2026-07-08T12:00:00.000Z', '"4 months ago" = 120 days before the entry date');
+      // A listing naming two communes ("Masina, ngaliema") is stored without one, never guessed.
+      assert.strictEqual(rows.find((r) => r.source_ref === 'appartement-a-louer-masiala-kinshasa').commune, null);
+      assert.ok(!rows.some((r) => r.excluded_reason), 'every price is a plausible monthly rent');
+      assert.throws(() => rowsFromFile(path.join(__dirname, '..', 'package.json')), /hand-entered source|columns|Cannot read/);
+    });
+
     check('the migration creates both tables closed to PostgREST', () => {
       const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261104_market_observations.sql'), 'utf8');
       assert.match(sql, /CREATE TABLE IF NOT EXISTS market_observations/);

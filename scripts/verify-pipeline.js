@@ -7145,7 +7145,7 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
       'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'sqlite-backup',
     ]);
   });
@@ -14011,6 +14011,127 @@ console.log('\n2. services/openai.js');
       if (before === undefined) delete process.env.AVAILABILITY_CHECK; else process.env.AVAILABILITY_CHECK = before;
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // §76 Messagerie: WhatsApp alerts for unread site messages (2026-11-05)
+  // ---------------------------------------------------------------------------
+  console.log('\n§76 Messagerie: chat-notify alerts the other side once per unread run');
+  {
+    const chat76 = require('../services/chatNotify');
+    const agentRow76 = {
+      id: 55, property_id: 293, phone: '+243 811 000 076', customer_name: 'Grace Kabila', agent_first_name: 'Patrick', agency_name: 'Bel-Air Immo',
+      listing_title: 'Appartement 3 chambres à Limete', first_unread_at: '2026-11-05T09:00:00Z', unread_count: 2, last_message: 'text|Samedi 14 h est-il encore possible ?\nMerci',
+    };
+
+    check('the agent hears who wrote, about what, the latest words and the link to the conversation', () => {
+      const alert = chat76.buildAlert('agent', agentRow76);
+      assert.strictEqual(alert.to, '243811000076');
+      assert.match(alert.link, /\/compte\/agent\/messages\/55$/);
+      assert.match(alert.text, /Nouveau message de Grace K\. sur Lukka Place \(2 messages\), au sujet de : Appartement 3 chambres à Limete/);
+      assert.match(alert.text, /« Samedi 14 h est-il encore possible \? Merci »/);
+      assert.ok(alert.text.endsWith(alert.link));
+      assert.strictEqual(alert.bodyParams.length, 4);
+      assert.deepStrictEqual(alert.bodyParams.slice(0, 2), ['Patrick', 'Grace K.']);
+      for (const p of alert.bodyParams) assert.ok(p && !/\n|\t| {4}/.test(p), `a template variable Meta would refuse: ${JSON.stringify(p)}`);
+    });
+
+    check('the customer hears from the agent; a shared listing reads as one; no listing reads as the request', () => {
+      const alert = chat76.buildAlert('customer', { ...agentRow76, phone: '243899000076', listing_title: null, unread_count: 1, last_message: 'listing|' });
+      assert.match(alert.link, /\/messages\/55$/);
+      assert.match(alert.text, /^Patrick vous a répondu sur Lukka Place, au sujet de : votre demande/);
+      assert.match(alert.text, /« Bien partagé »/);
+      assert.deepStrictEqual(alert.bodyParams.slice(0, 2), ['Grace', 'Patrick']);
+    });
+
+    check('quiet hours are Kinshasa time (21 h – 7 h by default)', () => {
+      assert.strictEqual(chat76.inQuietHours(new Date('2026-11-05T20:30:00Z')), true, '21:30 in Kinshasa');
+      assert.strictEqual(chat76.inQuietHours(new Date('2026-11-05T05:30:00Z')), true, '06:30 in Kinshasa');
+      assert.strictEqual(chat76.inQuietHours(new Date('2026-11-05T06:00:00Z')), false, '07:00 in Kinshasa');
+      assert.strictEqual(chat76.inQuietHours(new Date('2026-11-05T12:00:00Z')), false);
+    });
+
+    check('the due query keeps blocked threads, unverified numbers, opted-out customers and old runs out', () => {
+      const agentSql = chat76.dueSql('agent');
+      assert.match(agentSql, /a\.deleted_at IS NULL AND a\.phone_verified_at IS NOT NULL/);
+      assert.match(agentSql, /m\.id > t\.agent_last_read_id AND m\.sender_role = 'customer'/);
+      assert.match(agentSql, /t\.agent_notified_at IS NULL OR t\.agent_notified_at < u\.first_unread_at/);
+      const customerSql = chat76.dueSql('customer');
+      assert.match(customerSql, /c\.phone_verified_at IS NOT NULL/);
+      assert.match(customerSql, /whatsapp_alerts_opted_out_at'\) IS NULL/);
+      assert.match(customerSql, /m\.sender_role = 'agent'/);
+      for (const sql of [agentSql, customerSql]) {
+        assert.match(sql, /t\.blocked_at IS NULL/);
+        assert.match(sql, /INTERVAL '7 days'/);
+      }
+      assert.match(chat76.claimSql('agent'), /agent_notified_at IS NULL OR agent_notified_at < \$2/);
+    });
+
+    // A pool that answers by query shape: the due rows for one side, then the claims.
+    const fakePool76 = ({ due = {}, claims = [], missing = false } = {}) => {
+      const seen = [];
+      return {
+        seen,
+        query: async (sql, values) => {
+          seen.push({ sql, values });
+          if (missing) { const err = new Error('relation "chat_threads" does not exist'); err.code = '42P01'; throw err; }
+          if (sql.includes('UPDATE chat_threads')) return { rows: claims.length ? claims.shift() : [] };
+          const role = sql.includes("m.sender_role = 'customer'") ? 'agent' : 'customer';
+          return { rows: due[role] || [] };
+        },
+      };
+    };
+    const daytime76 = new Date('2026-11-05T12:00:00Z');
+
+    await checkAsync('one claimed alert is sent; a thread another run already claimed is not sent twice', async () => {
+      const sent = [];
+      const pool = fakePool76({ due: { agent: [agentRow76, { ...agentRow76, id: 56 }] }, claims: [[{ id: 55 }], []] });
+      const result = await chat76.runChatNotifySweep({ now: daytime76, pool, send: async (role, alert) => { sent.push([role, alert.threadId]); return { via: 'session', outsideWindow: false }; } });
+      assert.deepStrictEqual(sent, [['agent', 55]]);
+      assert.strictEqual(result.claimed, 1);
+      assert.strictEqual(result.sent, 1);
+      const claim = pool.seen.find((q) => q.sql.includes('UPDATE chat_threads'));
+      assert.deepStrictEqual(claim.values, [55, agentRow76.first_unread_at], 'claimed against the run it is about');
+    });
+
+    await checkAsync('CHAT_NOTIFY=off, the quiet hours and a missing chat table all send nothing', async () => {
+      const send = async () => { throw new Error('must not send'); };
+      const before = process.env.CHAT_NOTIFY;
+      try {
+        process.env.CHAT_NOTIFY = 'off';
+        assert.strictEqual((await chat76.runChatNotifySweep({ now: daytime76, pool: fakePool76(), send })).skipped, 'disabled');
+        assert.strictEqual(chat76.chatNotifyJob.shouldRun(daytime76), false);
+      } finally {
+        if (before === undefined) delete process.env.CHAT_NOTIFY; else process.env.CHAT_NOTIFY = before;
+      }
+      assert.strictEqual((await chat76.runChatNotifySweep({ now: new Date('2026-11-05T22:00:00Z'), pool: fakePool76(), send })).skipped, 'quiet-hours');
+      assert.strictEqual((await chat76.runChatNotifySweep({ now: daytime76, pool: fakePool76({ missing: true }), send })).skipped, 'no-chat-tables');
+    });
+
+    await checkAsync('outside the 24 h window the approved template goes, its button carrying the thread id; without one, the text', async () => {
+      const calls = [];
+      const client = {
+        templateConfigured: (name) => Boolean(name),
+        sendTemplate: async (to, name, opts) => { calls.push(['template', to, name, opts]); },
+        sendWhatsAppMessage: async (to, text) => { calls.push(['text', to, text]); },
+      };
+      const alert = chat76.buildAlert('agent', { ...agentRow76, phone: '243811999076' });
+      const before = process.env.CHAT_AGENT_TEMPLATE;
+      try {
+        process.env.CHAT_AGENT_TEMPLATE = 'nouveau_message_agent';
+        const how = await chat76.deliverAlert('agent', alert, { now: daytime76, client });
+        assert.deepStrictEqual(how, { via: 'template', outsideWindow: true });
+        assert.strictEqual(calls[0][2], 'nouveau_message_agent');
+        assert.strictEqual(calls[0][3].urlButton, '55');
+        assert.strictEqual(calls[0][3].bodyParams.length, 4);
+        delete process.env.CHAT_AGENT_TEMPLATE;
+        const plain = await chat76.deliverAlert('agent', alert, { now: daytime76, client });
+        assert.strictEqual(plain.via, 'session');
+        assert.strictEqual(calls[1][0], 'text');
+      } finally {
+        if (before === undefined) delete process.env.CHAT_AGENT_TEMPLATE; else process.env.CHAT_AGENT_TEMPLATE = before;
+      }
+    });
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

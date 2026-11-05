@@ -4140,3 +4140,99 @@ had only ever seen French. Tests: `tests/unit/locale-paths.test.js`,
   version (phase 3, copy work). The locale header can be sent by any client on
   a French URL — it only renders that page in English for that client, the
   same as the cookie; nothing is shared-cached.
+
+## Messagerie — customers and agents chat in the site (phase 1, 2026-11-05)
+
+Design: the "Messagerie Lukka Place" canvas (claude.ai artifact UNbqnT7tocXg57fRWeVGrv).
+Phase 1 (below) is the data and the API; phases 2–4 the customer's screens,
+the agent's screens and the WhatsApp alerts. Tests: `tests/unit/chat.test.js`.
+
+- **Tables (Postgres)**: engine `migrations/20261105_chat.sql` — `chat_threads`
+  (one per customer × agent × listing; `property_id` and `lead_id` are soft
+  references on purpose, a hard-deleted listing keeps its conversation),
+  `chat_messages`, `chat_reports`. RLS on, nothing granted. Every read
+  degrades to empty and every write to 503 `unavailable` before it runs.
+  **Applied to production 2026-11-05** (11 indexes, no anon/authenticated
+  grant); every query in lib/chat.js was then EXPLAINed against it, no
+  writes.
+  Not in the engine's SQLite: both account types are here, and a message
+  must not wait on the engine.
+- **`lib/chatRules.js`** (pure: limits, body normalisation, preview, cursor,
+  in-process rate limiter, poll cadence), **`lib/chat.js`** (every query),
+  **`lib/chatApi.js`** (viewer, JSON-only bodies, status → HTTP).
+- **Access is in the SQL.** A viewer is `{role, id}` from that side's own
+  httpOnly session (`?as=agent` picks the agent's; agent sessions get the
+  token_version + deleted check customers already had). Every query carries
+  `t.customer_id = $viewer` or `t.agent_id = $viewer`; not yours = 404, the
+  same as missing.
+- **Who can start**: a customer with a verified phone, to an agent the
+  listing page would show a number for (`CHAT_REACHABLE_AGENT_FILTER` =
+  the `agent_phone` rule in lib/listings.js; the test compares them). From a
+  listing the agent is read from the listing, never the request, and the
+  listing must be public. Not yourself. 10 new conversations / 24 h per
+  customer, enforced in the INSERT. Agents answer; they do not open threads.
+- **Sending**: 2,000 characters, 30 messages / minute per account (in
+  process — one PM2 fork), `clientId` (UUID) makes a retry return the stored
+  message. A blocked thread takes nothing; only the side that blocked lifts
+  it. Agents may share only their OWN public listings (`kind: 'listing'`).
+  A new message un-archives the thread for both sides.
+- **Read state** is one id per side (`*_last_read_id`), moved only by
+  `POST …/read`, never by a GET — so a poll, or an admin viewing as the
+  account (middleware refuses its POSTs), never marks anything read.
+- **Routes** (`app/api/chat/…`, all `no-store`): `GET|POST threads`,
+  `GET threads/:id`, `GET|POST threads/:id/messages` (`?after=` is the poll,
+  with the other side's read id and the block state), `POST threads/:id/read
+  | archive | block | report`, `GET unread`. Writes read
+  `application/json` only (no cross-site form can post one; cookies are Lax).
+- **Phase 2 — the customer's screens (2026-11-05).** `/messages` (inbox; a
+  guest sees a sign-in card with the WhatsApp fallback the old stub had),
+  `/messages/[id]` (conversation), `/messages/nouveau?listing=ID | ?agent=ID`
+  (first message; signed out → login and back; an existing thread opens
+  instead; an agent who cannot receive messages gets an honest page, never a
+  composer). Components in `components/chat/` (`ChatInbox`, `ChatThread`,
+  `ChatComposer`, `ChatStart`, `ChatParts`) take `side`, so the agent's
+  screens reuse them. Browser helpers `lib/chatClient.js`; times
+  `lib/chatTime.js` — always `Africa/Kinshasa`, so the server render and
+  hydration print the same clock (React #418 otherwise).
+  - **Polling**: a chain of timeouts (4 s, 15 s after a quiet minute, none
+    while hidden, at once on return); the inbox every 30 s. Sends are
+    optimistic with a client id; a failed one stays with "Réessayer"; a poll
+    that returns the message first replaces the pending copy.
+  - **Entry points**: "Envoyer un message" in `EnquiryCard`, an icon in
+    `MobileListingBar` (with it and the call icon, "Visiter" shows its icon
+    only under 400px), and on the agent profile (rail and phone bar) — all
+    through `canMessageListing` / `chatStartHref` (lib/chatRules.js), i.e.
+    the `agent_phone` rule. "Messages" is in the header's account menu and
+    drawer (after Favoris: a test pins Favoris first).
+  - **Footer**: compact on `/messages`, none on a conversation
+    (`FooterByPath`'s `hiddenUnder`, `<footer>` is `empty:hidden`).
+  - i18n namespace `chat` (site layout; the profile gets its labels from the
+    server), plus `nav.messages`.
+- **Phase 3 — the agent's screens (2026-11-05).** `/compte/agent/messages`
+  and `/messages/[id]` under the agent portal: on a computer three columns
+  (conversations 360px | the thread | customer panel 300px from `xl`), on a
+  phone the list, then the thread with its back arrow (`frame.js` sizes the
+  area: full height on a computer, above the tab bar on a phone). Same
+  components with `side="agent"`: `ChatInbox variant="column"` (open thread
+  highlighted, "Sans réponse · 12 min" when the customer spoke last),
+  `ChatThread variant="agent"` (a "{name} attend votre réponse depuis …"
+  banner; the agent's own quick replies as chips that FILL the field, rendered
+  by `renderQuickReply` with this listing and the customer's first name; "Partager
+  un bien" → `ShareListingsDialog`, the agent's own public listings from
+  `listShareableListings`, ≤5 per send, each its own listing card, sent in
+  order), `ChatClientPanel` (first name + initial, client since, number
+  verified, the listing with "Modifier l'annonce", opened on — never the
+  customer's phone). "Messages" sits in the sidebar and the phone tab bar
+  with a blue badge: `countUnreadThreads` in the agent layout. The agent
+  layout ships the `chat` namespace.
+  - The waiting chip says how long, nothing more: no alert reaches anyone
+    about an unanswered chat yet (phase 4), so the copy promises none.
+- **Phase 4 (2026-11-05)**: WhatsApp alerts for unread messages are the
+  engine's `chat-notify` job (root CLAUDE.md, "Messagerie — WhatsApp alerts",
+  with the two templates to submit). `/admin/interactions` counts site
+  conversations as the `siteChat` channel (`lib/agentInteractions.js`
+  `CHATS_BY_AGENT_SQL`; "answered" = the agent replied). No lead is recorded
+  per chat: it would duplicate the conversation in the agent's Demandes.
+- **Not done yet**: visit cards inside a conversation; `/admin/messages` and
+  the reports queue; the privacy-policy sentence about reported
+  conversations; photos in a conversation.

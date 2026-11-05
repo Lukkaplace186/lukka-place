@@ -81,6 +81,7 @@ test('only visitors\' taps and calls count, per agent', () => {
 test('the engine being down leaves the taps on the page and says so', async () => {
   enqueue([{ agent_id: 5, routing_type: 'DIRECT_WA', count: 4 }]);
   enqueue([]);
+  enqueue([{ agent_id: 5, count: 2, contacted: 1 }]); // site conversations (Messagerie)
   enqueue([{ id: 5, agency_name: 'Immo Kin', person_name: 'Jean K.' }]);
   const saved = process.env.ENGINE_API_BASE;
   process.env.ENGINE_API_BASE = 'http://127.0.0.1:9';
@@ -88,7 +89,9 @@ test('the engine being down leaves the taps on the page and says so', async () =
     const { counts, names, errors } = await getAgentInteractions({ days: 30 });
     assert.ok(errors.engine, 'the missing half is named');
     assert.equal(errors.taps, null);
-    assert.equal(counts.total, 4);
+    assert.equal(counts.total, 6, '4 taps and 2 site conversations');
+    assert.equal(counts.channels.siteChat, 2);
+    assert.equal(counts.contacted, 1, 'a conversation the agent replied to counts as answered');
     assert.equal(names.get(5), 'Jean K.', 'person first, never the username');
     assert.ok(calls.length >= 2);
   } finally {
@@ -104,7 +107,8 @@ test('the desk form offers exactly the engine\'s channels, and the page is wired
   const action = readFileSync(path.join(root, 'app', 'admin', 'interactions', 'actions.js'), 'utf8');
   assert.match(action, /requireAdmin\('leads\.manage'\)/);
   assert.match(action, /phoneFromForm\(formData, 'phone'\)/);
-  assert.ok(INTERACTION_CHANNELS.length === 7);
+  assert.ok(INTERACTION_CHANNELS.length === 8);
+  assert.ok(INTERACTION_CHANNELS.some((c) => c.key === 'siteChat' && c.total), 'site conversations are in the total');
 });
 
 test('an introduction is not shown to the customer as a search of theirs', () => {

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from '@/components/LocaleLink';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Search, User, Heart, Bell, LogOut, ArrowRight, Mail, ChevronRight, SearchCheck } from 'lucide-react';
+import { Menu, Search, User, Heart, Bell, LogOut, ArrowRight, Mail, ChevronRight, SearchCheck, MessageCircle } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -19,6 +19,7 @@ import { logoutAction } from '@/app/(site)/compte/actions';
 // hold translated copy.
 const ACCOUNT_LINKS = [
   { href: '/compte/client', labelKey: 'nav.myAccount', icon: User },
+  { href: '/messages', labelKey: 'nav.messages', icon: MessageCircle },
   { href: '/favoris', labelKey: 'nav.myFavorites', icon: Heart },
   { href: '/compte/alertes', labelKey: 'nav.alerts', icon: Bell },
 ];
@@ -34,6 +35,7 @@ const DRAWER_GUEST_LINKS = [
 ];
 const DRAWER_ACCOUNT_LINKS = [
   { href: '/favoris', labelKey: 'nav.favorites', icon: Heart },
+  { href: '/messages', labelKey: 'nav.messages', icon: MessageCircle },
   { href: '/compte/demandes', labelKey: 'nav.myRequests', icon: Mail },
   { href: '/compte/alertes', labelKey: 'nav.alerts', icon: Bell },
   { href: '/compte/client', labelKey: 'nav.myAccount', icon: User },

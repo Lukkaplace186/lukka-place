@@ -13,6 +13,7 @@ import { formatPhoneDisplay, telHref } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
+import { chatStartHref } from '@/lib/chatRules';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -183,6 +184,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
       : null,
     communesCount: communes.length,
     telHref: routablePhone ? telHref(routablePhone) : null,
+    // Messagerie (web/CLAUDE.md): offered to the same agents whose number is
+    // published, which is exactly who lib/chat.js lets a customer write to.
+    messageHref: routablePhone ? chatStartHref({ agentId: agent.id }) : null,
     whatsappHref: whatsappTo(PROFILE_MESSAGE),
     // Contact goes to Lukka Place's desk when the agency's number is not
     // published; the button says so instead of promising the agency.
@@ -230,6 +234,8 @@ ${profileUrl}`),
     featuredEyebrow: t('agent.portfolio.featuredEyebrow'),
     featuredCta: t('agent.portfolio.featuredCta'),
     whatsappCta: t('agent.portfolio.whatsappCta'),
+    messageCta: t('chat.cta.message'),
+    messageShort: t('chat.cta.messageShort'),
     whatsappCentralCta: t('agent.portfolio.whatsappCentralCta'),
     centralNote: t('agent.portfolio.centralNote'),
     shareCta: t('agent.portfolio.shareCta'),

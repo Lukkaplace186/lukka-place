@@ -2271,3 +2271,45 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   `listing-availability-check` job never run (`availabilityCheck.checkEnabled`,
   read at call time); answers to questions already sent are still handled.
   Delete the line and restart to resume. §74.
+
+## Messagerie — WhatsApp alerts for unread site messages (2026-11-05)
+
+The conversations themselves live in Postgres and on the site (web/CLAUDE.md,
+"Messagerie"; tables `migrations/20261105_chat.sql`, applied 2026-11-05).
+`services/chatNotify.js`, scheduler job `chat-notify` (registered after
+`viewing-agent-done`, pinned in §24), every 2 minutes. §76 of verify-pipeline.
+
+- **When**: a message from the other side unread for `CHAT_NOTIFY_DELAY_MIN`
+  (3) minutes. Someone with the conversation open reads it within seconds
+  (the page marks it read), so they are not pinged about what they see.
+- **Once per unread run**: `chat_threads.agent_notified_at` /
+  `customer_notified_at` is claimed by an UPDATE before sending; a new alert
+  only when the first unread message is newer than that stamp (the person
+  read everything since). Ten messages = one alert. The stamp stays when the
+  send fails — no retry every 2 minutes.
+- **Who**: agents with a verified phone, not deleted; customers with a
+  verified phone who did not opt out of WhatsApp alerts. Never a blocked
+  thread, never a run older than 7 days.
+- **Quiet hours** 21 h – 7 h Kinshasa (`CHAT_NOTIFY_QUIET_FROM` / `_TO`):
+  held until 7 h. `CHAT_NOTIFY=off` stops the job.
+- **Text inside the 24 h window, template outside it** (`sessionWindow`),
+  same posture as the enquiry alerts. Both templates are unset by default;
+  without one an alert outside the window goes as text and is logged
+  "probably not delivered" — which is every customer who signed up on the
+  website, until `nouveau_message_client` is approved. To submit (UTILITY,
+  fr, intake account, DYNAMIC link button = the thread id):
+  - `CHAT_AGENT_TEMPLATE` = `nouveau_message_agent`: « Bonjour {{1}}, {{2}}
+    vous a écrit sur Lukka Place au sujet de : {{3}}. « {{4}} » Répondez
+    depuis votre espace agent. » Button "Répondre" →
+    `https://lukkaplace.com/compte/agent/messages/{{1}}`.
+  - `CHAT_CUSTOMER_TEMPLATE` = `nouveau_message_client`: « Bonjour {{1}},
+    {{2}} vous a répondu sur Lukka Place au sujet de : {{3}}. « {{4}} » »
+    Button "Lire le message" → `https://lukkaplace.com/messages/{{1}}`.
+  - If Meta approves either with a picture header, add it to
+    `TEMPLATES_WITH_IMAGE` (#132012 otherwise). Register the button URLs
+    exactly as written (the `annonce_en_ligne` 404 came from a wrong one).
+- **No lead is recorded for a chat** (a change from the first plan): it would
+  have sat in the agent's Demandes as a second, never-answered copy of the
+  conversation. web's `/admin/interactions` counts conversations straight
+  from `chat_threads` instead (channel `siteChat`, "answered" =
+  `agent_first_reply_at`).

@@ -32,6 +32,13 @@ const nextConfig = {
     // form", seven times on 2026-11-03), while the photo budget above
     // promised 40 MB. Same constant, so the two ceilings cannot disagree.
     proxyClientMaxBodySize: SERVER_ACTION_BODY_SIZE_LIMIT_BYTES,
+    // Lets a <Link unstable_dynamicOnHover> upgrade to a FULL prefetch when
+    // hovered or touched (speed pass, 2026-11-06). Only PropertyCard opts in:
+    // a listing page is dynamic, so a card in view prefetches just the
+    // loading skeleton, and the tap then waited a whole round trip to Paris
+    // (~450 ms from Kinshasa) for the page. Without this flag the prop is
+    // silently ignored.
+    dynamicOnHover: true,
     // Keep a page the visitor just saw in the in-memory router cache for 30s
     // (Next 15+ defaults this to 0). Every route here is dynamic (the locale
     // cookie), so without it going Vue → Demandes → Vue on the agent tab bar
@@ -116,6 +123,13 @@ const nextConfig = {
     // same photo, measured on production) for no difference visible on a
     // phone, and made the detail page fetch a card's cover photo twice.
     qualities: [75],
+    // AVIF first (speed pass, 2026-11-06): measured on live listing photos
+    // with Next's own AVIF quality mapping, 35-45% fewer bytes than WebP at
+    // the same widths (640w: 48 → 29 KB, 1080w: 87 → 59 KB), for ~0.1-0.2 s
+    // more encoding once per variant — then it sits in the 30-day cache.
+    // Browsers without AVIF still get WebP. After deploying, warm the cache
+    // (scripts/warm-image-cache.js already asks for image/avif).
+    formats: ['image/avif', 'image/webp'],
     // Listing photos are content-addressed in Supabase Storage (the object
     // name carries an md5 of the bytes — lib/listingStorage.js and the
     // engine's services/supabaseStorage.js), so an optimised variant never

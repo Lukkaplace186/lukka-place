@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getT, localizedAlternates } from '@/lib/i18n/server';
+import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
+import { listingStaticMapSrc } from '@/lib/staticMap';
 import Link from '@/components/LocaleLink';
 import { MapPin, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
@@ -184,13 +185,6 @@ export default async function ListingDetailPage({ params, searchParams }) {
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
 
-  // Real pgvector cosine-similarity match against this listing's own stored
-  // embedding (services/embeddings.js, engine repo — written on every
-  // publish) tried first: it can surface a genuinely similar property the
-  // plain commune filter below would miss entirely (same kind of unit and
-  // price range, different neighborhood). Falls back to the previous
-  // commune-then-citywide chain when there's no embedding yet or nothing
-  // comes back — never a dead rail.
   // The phone's section strip names only sections this listing renders, so
   // a tab never jumps to nothing (components/listings/ListingSectionNav.js).
   const sectionNav = [
@@ -200,28 +194,10 @@ export default async function ListingDetailPage({ params, searchParams }) {
     { id: 'emplacement', label: t('listings.detail.sections.location') },
   ].filter(Boolean);
 
-  let related = await getSimilarListings(listing.id, 6);
-  let relatedMode = 'similar';
-  let widened = false;
-
-  // The fallbacks keep rent with rent and sale with sale, like the
-  // similarity rail (lib/similarSearch.js).
-  const transactionType = transactionTypeOfPurpose(listing.purpose);
   // "M'alerter des biens similaires" — null when the listing states too
   // little to search on (lib/similarSearch.js).
   const alertQuery = similarAlertQuery(listing);
-  if (related.length === 0) {
-    relatedMode = 'commune';
-    if (listing.commune) {
-      const { data } = await getListings({ commune: listing.commune, transactionType, excludeId: listing.id, limit: 6 });
-      related = data;
-    }
-    if (related.length === 0) {
-      const { data } = await getListings({ transactionType, excludeId: listing.id, limit: 6 });
-      related = data;
-      widened = Boolean(listing.commune);
-    }
-  }
+  const staticMapSrc = await listingStaticMapSrc(listing, await getLocale());
 
   return (
     // pb-28: clears MobileListingBar.js, fixed at the true `bottom-0` now
@@ -420,7 +396,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             <div id="emplacement" className="flex scroll-mt-32 flex-col gap-3">
               <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>
-              <ListingLocationMap listing={listing} />
+              <ListingLocationMap listing={listing} staticMapSrc={staticMapSrc} />
             </div>
           </div>
 
@@ -438,19 +414,57 @@ export default async function ListingDetailPage({ params, searchParams }) {
         </div>
       </div>
 
-      <div className="mt-16">
-        <RelatedListings
-          listings={related}
-          commune={listing.commune}
-          widened={widened}
-          mode={relatedMode}
-          footer={<SimilarAlertButton query={alertQuery} variant="inline" />}
-        />
-      </div>
+      {/* Streamed: the similarity query and its fallbacks used to hold the
+          whole page — photos and price included — until they answered. */}
+      <Suspense fallback={null}>
+        <RelatedSection listing={listing} alertQuery={alertQuery} />
+      </Suspense>
 
       <RecentlyViewed excludeId={listing.id} />
 
       <MobileListingBar listing={listing} />
+    </div>
+  );
+}
+
+/**
+ * The "similar listings" rail, rendered after the rest of the page has
+ * streamed (speed pass, 2026-11-06).
+ *
+ * Real pgvector cosine-similarity match against this listing's own stored
+ * embedding (services/embeddings.js, engine repo — written on every
+ * publish) tried first: it can surface a genuinely similar property the
+ * plain commune filter below would miss entirely. Falls back to the
+ * commune-then-citywide chain when there's no embedding yet or nothing
+ * comes back — never a dead rail. The fallbacks keep rent with rent and sale
+ * with sale, like the similarity rail (lib/similarSearch.js).
+ */
+async function RelatedSection({ listing, alertQuery }) {
+  let related = await getSimilarListings(listing.id, 6);
+  let relatedMode = 'similar';
+  let widened = false;
+  const transactionType = transactionTypeOfPurpose(listing.purpose);
+  if (related.length === 0) {
+    relatedMode = 'commune';
+    if (listing.commune) {
+      const { data } = await getListings({ commune: listing.commune, transactionType, excludeId: listing.id, limit: 6 });
+      related = data;
+    }
+    if (related.length === 0) {
+      const { data } = await getListings({ transactionType, excludeId: listing.id, limit: 6 });
+      related = data;
+      widened = Boolean(listing.commune);
+    }
+  }
+  return (
+    <div className="mt-16">
+      <RelatedListings
+        listings={related}
+        commune={listing.commune}
+        widened={widened}
+        mode={relatedMode}
+        footer={<SimilarAlertButton query={alertQuery} variant="inline" />}
+      />
     </div>
   );
 }

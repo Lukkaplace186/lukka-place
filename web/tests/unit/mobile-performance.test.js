@@ -104,7 +104,8 @@ test('the map modules are loaded on demand, not bundled with the list view', () 
   const detail = read('components/ListingLocationMap.js');
   // Nothing map-shaped mounts before the frame nears the viewport (or a
   // Data Saver tap), and the single-pin map is its own chunk.
-  assert.match(detail, /show \? \(\s*position \? \(\s*<ListingPinMap[\s\S]*?<ResponsiveMapPane/);
+  // The static image (lib/staticMap.js) comes first when it is switched on.
+  assert.match(detail, /show \? \(\s*position && staticSrc && !interactive \? \([\s\S]*?<img[\s\S]*?\) : position \? \(\s*<ListingPinMap[\s\S]*?<ResponsiveMapPane/);
   assert.match(detail, /dynamic\(\(\) => import\('\.\/ListingPinMap'\)/);
   assert.doesNotMatch(detail, /^import ListingPinMap from/m);
 });

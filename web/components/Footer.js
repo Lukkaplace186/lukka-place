@@ -1,4 +1,4 @@
-import Link from '@/components/LocaleLink';
+import Link from '@/components/IntentLink';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { cachedSeoFacets } from '@/lib/listingsCached';
 import { OVERLAY_PROPERTY_TYPES, seoPath } from '@/lib/seoPages';

@@ -113,8 +113,10 @@ test('pages with an English twin declare hreflang; the sitemap lists both', () =
   assert.match(read('app/sitemap.js'), /withEnglishTwins\(base, \[/);
   // The public chrome keeps English readers in English.
   for (const file of ['components/Header.js', 'components/Footer.js', 'components/Brand.js', 'components/Breadcrumb.js', 'components/PropertyCard.js']) {
-    assert.match(read(file), /import Link from '@\/components\/LocaleLink';/, file);
+    // IntentLink (Header, Footer) is a LocaleLink that prefetches on intent.
+    assert.match(read(file), /import Link from '@\/components\/(LocaleLink|IntentLink)';/, file);
   }
+  assert.match(read('components/IntentLink.js'), /import LocaleLink from '\.\/LocaleLink';/);
 });
 
 test('an English listing title is in English: type, purpose and price', async () => {

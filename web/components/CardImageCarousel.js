@@ -98,6 +98,8 @@ const DOT_WINDOW = 5;
  */
 export default function CardImageCarousel({
   images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false, loadingShimmer = false,
+  // The detail page's full-width carousel: a bigger play badge on a video cover.
+  fullWidth = sizes === '100vw',
 }) {
   const t = useT();
   const [index, setIndex] = useState(0);
@@ -228,7 +230,7 @@ export default function CardImageCarousel({
               />
             ) : null}
             {/* A video's cover frame is not a photo: it says it plays. */}
-            {isVideoPoster(src) ? <VideoPlayBadge size={sizes === '100vw' ? 'md' : 'sm'} /> : null}
+            {isVideoPoster(src) ? <VideoPlayBadge size={fullWidth ? 'md' : 'sm'} /> : null}
           </div>
         ))}
       </div>

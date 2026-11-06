@@ -12,6 +12,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { listingEventPayload, trackEvent } from '@/lib/analyticsClient';
 import { initialGalleryState, noteGalleryStep } from '@/lib/galleryEngagement';
+import { DETAIL_HERO_SIZES, DETAIL_SIDE_SIZES } from '@/lib/detailGallerySizes';
 
 /** A finger travel this far (px) down the viewer closes it; sideways pages. */
 const SWIPE_CLOSE_PX = 70;
@@ -204,7 +205,11 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           aria-label={t('listings.gallery.enlargePhoto', { n: mobileIndex + 1 })}
           className="h-[22rem] w-full cursor-pointer overflow-hidden bg-canvas-deep"
         >
-          <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={onMobileIndexChange} />
+          {/* DETAIL_HERO_SIZES, not "100vw": the same width on a phone, but on
+              desktop this hidden carousel's priority photo then asks for the
+              desktop hero's exact file instead of a second, 1920w copy of the
+              same cover (measured 2026-11-06: both were downloaded). */}
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (
@@ -280,7 +285,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               alt={alt}
               fill
               priority
-              sizes="(min-width: 1280px) 830px, (min-width: 1024px) 64vw, 100vw"
+              sizes={DETAIL_HERO_SIZES}
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
             {items[0]?.video ? <VideoPlayBadge /> : null}
@@ -317,7 +322,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                       src={src}
                       alt=""
                       fill
-                      sizes="(min-width: 1280px) 410px, (min-width: 1024px) 32vw, 50vw"
+                      sizes={DETAIL_SIDE_SIZES}
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
                     />
                     {items[i + 1]?.video ? <VideoPlayBadge size="sm" /> : null}

@@ -21,6 +21,8 @@ import {
   listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities,
 } from '@/lib/listingView';
 import { cn } from '@/lib/utils';
+import { useSaveData } from '@/lib/useSaveData';
+import { warmListingPhotos } from '@/lib/warmListingPhotos';
 
 /**
  * The listing card, on a Rightmove-style four-zone hierarchy.
@@ -103,6 +105,7 @@ export default function PropertyCard({
   const t = useT();
   const horizontal = layout === 'horizontal';
   const images = listingImages(listing);
+  const lightData = useSaveData();
   const [activeIndex, setActiveIndex] = useState(0);
   const specs = specItems(listing, t);
   const type = typeLabel(listing, t);
@@ -143,10 +146,19 @@ export default function PropertyCard({
     <div className={cn('@container h-full', horizontal && 'w-full')}>
     <Link
       href={`/listings/${id}`}
+      // Speed pass (2026-11-06): in view, only the loading skeleton is
+      // prefetched (the page is dynamic); a hover or a finger landing on the
+      // card fetches the whole page, so a tap usually finds it ready. Off on
+      // Data Saver / 2G, where a scroll would pay for pages never opened.
+      unstable_dynamicOnHover={!lightData}
       // Mouse only, for the same iOS reason as CardImageCarousel's
       // handlePointerEnter: a tap's compatibility mouseenter would re-render
       // this card (the hover ring) mid-tap, and Safari drops the click.
-      onPointerEnter={(e) => { if (e.pointerType === 'mouse') onHoverStart?.(); }}
+      onPointerEnter={(e) => {
+        if (e.pointerType !== 'mouse') return;
+        onHoverStart?.();
+        warmListingPhotos(images);
+      }}
       onPointerLeave={(e) => { if (e.pointerType === 'mouse') onHoverEnd?.(); }}
       className={cn(
         'group flex h-full overflow-hidden rounded-t-lg rounded-b-card border border-line bg-surface shadow-[0_8px_20px_-8px_rgba(16,26,46,0.18),0_2px_6px_-2px_rgba(16,26,46,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_34px_-12px_rgba(16,26,46,0.28),0_6px_16px_-6px_rgba(16,26,46,0.14)]',

@@ -4155,3 +4155,59 @@ had only ever seen French. Tests: `tests/unit/locale-paths.test.js`,
   version (phase 3, copy work). The locale header can be sent by any client on
   a French URL — it only renders that page in English for that client, the
   same as the cookie; nothing is shared-cached.
+
+## Navigation speed pass (2026-11-06)
+
+Measured from Kinshasa first (owner's own connection, reported 3G, ~450 ms
+RTT, ~0.55 Mbps): every request to the Paris VPS costs 250–600 ms before its
+first byte, a static file included; each listing photo ~365–580 ms; the Maps
+JS for a map ~200 KB in 4–5 dependent round trips plus tiles. The server
+itself renders in 50–150 ms. So the work is fewer round trips on the path a
+tap takes, and fewer bytes. `tests/unit/navigation-speed.test.js` pins it.
+
+- **A card fetches its whole page on hover or touch**:
+  `PropertyCard`'s Link carries `unstable_dynamicOnHover` (off on Data Saver
+  / 2G), which needs `experimental.dynamicOnHover: true` in next.config —
+  without the flag Next silently ignores the prop. In view a card still
+  prefetches only the loading skeleton (the page is dynamic: the locale
+  cookie). Verified on a local production build: hover → one
+  `/listings/734?_rsc=` (60 KB), click → page shown with no request.
+- **The detail page's opening photos are fetched on mouse hover**
+  (`lib/warmListingPhotos.js`, desktop/tablet only, never Data Saver): the
+  mosaic's hero + two side tiles, through `getImageProps` with the gallery's
+  own `sizes` (`lib/detailGallerySizes.js`, shared, so the browser picks the
+  same srcset candidate and the gallery hits the cache).
+- **One cover download, not two**: the phone carousel in `PhotoGallery` is
+  hidden on desktop but its photo is `priority`, so with `sizes="100vw"` it
+  fetched a 1920w copy of the cover beside the hero's 1080w. It now uses
+  `DETAIL_HERO_SIZES` (still full width on a phone). `CardImageCarousel`'s
+  `fullWidth` prop keeps the bigger video badge.
+- **Header and Footer prefetch on intent** (`components/IntentLink.js`, a
+  LocaleLink): on /listings the chrome prefetched ~8 pages in ~16 requests
+  competing with the photos. `prefetch={false}` alone also kills the hover
+  prefetch in Next 16, hence the state. The logo and the drawer's own
+  `router.prefetch` are unchanged.
+- **The similar-listings rail streams** (`RelatedSection` in
+  `listings/[id]/page.js`, Suspense): pgvector + fallback queries no longer
+  hold the gallery and price.
+- **Photos are AVIF first** (`images.formats`): with Next's own AVIF quality
+  mapping, 35–45% smaller than WebP on live photos (640w 48 → 29 KB, 1080w
+  87 → 59 KB), ~0.1–0.2 s more encoding once per variant. After deploying,
+  run `node scripts/warm-image-cache.js` on the VPS (it already asks for
+  image/avif) — every AVIF variant starts cold.
+- **Static map, built, OFF**: `lib/staticMap.js` draws the detail page's
+  zone as one Static Maps image (same styles, zoom 14, the same jittered
+  point and 500 m circle) — one ~50 KB request instead of the Maps JS chain.
+  The URL is built on the server (`listingStaticMapSrc`: the jitter pulls
+  lib/geocoding.js and its quartier data, which must not ship to the
+  browser). A tap, or an image that fails to load, opens the interactive
+  `ListingPinMap`. **To switch on**: enable "Maps Static API" on the browser
+  key's Google Cloud project (it answered 403 "API not activated" on
+  2026-11-06; add it to the key's API restriction list if it has one), then
+  set `NEXT_PUBLIC_STATIC_LISTING_MAP=on` in web/.env.local and restart (read
+  at request time on the server, not inlined).
+- **Not done, and the bigger levers**: a CDN with a Kinshasa edge
+  (Cloudflare) in front of `/_next/static` and `/_next/image`, plus HTTP/3;
+  and making public pages cacheable (locale from the `/en/` URL instead of
+  the cookie, account-dependent bits fetched in the browser) so a listing
+  page could be prefetched in full from the grid.

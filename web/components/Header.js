@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from '@/components/LocaleLink';
+import Link from '@/components/IntentLink';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, Search, User, Heart, Bell, LogOut, ArrowRight, Mail, ChevronRight, SearchCheck } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';

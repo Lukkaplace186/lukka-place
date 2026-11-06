@@ -821,6 +821,17 @@ so the restart is enough.
 Not affected, and still OTP-gated: `/mot-de-passe-oublie` (self-service
 password reset). Use the admin reset below instead while the template is down.
 
+**(Superseded the same day: customers get no code at all, see "Phone
+verification". This applies only to the password-reset and leftover verify
+flows.) Customers are sent a code by default since 2026-11-06.** `customerOtpBypassEnabled()`
+is false whenever `AGENT_OTP_TEMPLATE` is set, unless `CUSTOMER_SENT_CODE=off`;
+the verify page leads with the code box even after a failed send (error +
+"Renvoyer le code"), and the WhatsApp proof is only the "Code pas reçu ?"
+fallback underneath, or the whole page when no template is configured. Whether
+the code ARRIVES is still the template's health, unproven since the incident
+below — check one reach a number that never wrote to us after deploying.
+History follows.
+
 **Customers can be sent a code instead (2026-11-04, owner decision) — off
 for now.** `customerOtpBypassEnabled()` is false only when
 `CUSTOMER_SENT_CODE=on` AND `AGENT_OTP_TEMPLATE` is set; then customer signup
@@ -976,6 +987,38 @@ sentence case under an English Title Case convention.
   asserted to hold every key the JSX renders in a heading.
 
 ## Phone verification — WhatsApp OTP, both account types
+
+**Superseded for customers on 2026-11-06 (owner decision): a customer
+account is a phone number and a password, nothing else.** 13 of the 30 web
+customer accounts had never confirmed their number and were held at the code
+step on every login. Now:
+
+- **Signup** creates the account, signs in and redirects to `next`; no code is
+  sent and the verify page is not shown (`CompleteRegistration` is recorded at
+  signup). **Login** signs in on the right password.
+- **No feature waits for a confirmed number**: requests and visits found by
+  phone, request/visit actions, saved-search alerts, price-drop messages, chat
+  and its WhatsApp alerts (engine `services/chatNotify.js`) all serve every
+  customer. **Risk the owner accepted:** a mistyped number or someone else's
+  sees that number's requests and visits and sends our alerts to it (each
+  message carries the stop link). The real owner reclaims the number through
+  "Mot de passe oublié", whose code goes to that WhatsApp.
+- **Still counting only confirmed customers, deliberately not changed:**
+  partner referral credits (`lib/referralCredits.js`, money — confirmation is
+  the anti-fraud check) and the growth/partner "verified" counts. New web
+  customers will no longer reach them; that is a pricing decision for the owner.
+- **Forgotten password:** `/mot-de-passe-oublie` (a WhatsApp code we send,
+  with a WhatsApp-support button when it cannot be sent) or the team's reset
+  on `/admin/customers`.
+- **Logout ends this device only** (no `token_version` bump; password resets
+  still end every session). **The login form remembers the number**
+  (`lukka_customer_phone`, httpOnly, 1 year, kept on logout, removed with the
+  account).
+- Agents are unchanged: no session before the code, since confirming an
+  agent's number claims that number's listings.
+  `tests/unit/customer-easy-login.test.js`, verify-pipeline §76 chat check.
+
+The paragraphs below describe the earlier rule and are kept for its history.
 
 **Customer signup no longer establishes a session.** It creates the row,
 sends a code, and hands off to `/compte/inscription/verifier`; only a real

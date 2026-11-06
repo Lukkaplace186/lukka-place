@@ -98,7 +98,7 @@ test('price drops: SQL reads the public gate, the 1–50 % band, cuts after the 
   assert.match(sql, /BETWEEN 0\.01 AND 0\.5/);
   assert.match(sql, /cf\.created_at < pd\.price_drop_at/);
   assert.match(sql, /whatsapp_alerts_opted_out_at/);
-  assert.match(sql, /phone_verified_at IS NOT NULL/);
+  assert.doesNotMatch(sql, /phone_verified_at/, '2026-11-06: any customer number');
   assert.match(sql, /customer_price_drop_notifications/);
 });
 

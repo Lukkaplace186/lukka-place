@@ -14132,13 +14132,15 @@ console.log('\n2. services/openai.js');
       assert.strictEqual(chat76.inQuietHours(new Date('2026-11-05T12:00:00Z')), false);
     });
 
-    check('the due query keeps blocked threads, unverified numbers, opted-out customers and old runs out', () => {
+    check('the due query keeps blocked threads, unverified agents, opted-out customers and old runs out', () => {
       const agentSql = chat76.dueSql('agent');
       assert.match(agentSql, /a\.deleted_at IS NULL AND a\.phone_verified_at IS NOT NULL/);
       assert.match(agentSql, /m\.id > t\.agent_last_read_id AND m\.sender_role = 'customer'/);
       assert.match(agentSql, /t\.agent_notified_at IS NULL OR t\.agent_notified_at < u\.first_unread_at/);
       const customerSql = chat76.dueSql('customer');
-      assert.match(customerSql, /c\.phone_verified_at IS NOT NULL/);
+      // Customers: any number, confirmed or not (2026-11-06, owner decision —
+      // customer accounts carry no phone confirmation). Agents keep the gate.
+      assert.doesNotMatch(customerSql, /phone_verified_at/);
       assert.match(customerSql, /whatsapp_alerts_opted_out_at'\) IS NULL/);
       assert.match(customerSql, /m\.sender_role = 'agent'/);
       for (const sql of [agentSql, customerSql]) {

@@ -568,11 +568,14 @@ export async function startThread(customerId, { propertyId, agentId, body, clien
 
   const pool = getPool();
   const { rows: customers } = await pool.query(
-    'SELECT phone, phone_verified_at FROM customers WHERE id = $1',
+    'SELECT phone FROM customers WHERE id = $1',
     [viewer.id],
   );
   const customer = customers[0];
-  if (!customer?.phone_verified_at) return { status: 'phone-unverified' };
+  // Any signed-in customer may write, confirmed number or not (2026-11-06,
+  // owner decision). 'phone-unverified' stays in the status vocabulary only
+  // for an open tab holding the old answer.
+  if (!customer) return { status: 'unavailable' };
 
   const listingId = parseId(propertyId);
   let agent;

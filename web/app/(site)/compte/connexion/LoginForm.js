@@ -23,7 +23,7 @@ const ERROR_MESSAGE_KEYS = {
  * JS-free form). The account-side merge itself (loginAction ->
  * mergeAnonymousData) is real and additive, not a decoration.
  */
-export default function LoginForm({ action, next, error, defaultCountry }) {
+export default function LoginForm({ action, next, error, defaultCountry, defaultPhone = '' }) {
   const t = useT();
   const locale = useLocale();
   const formRef = useRef(null);
@@ -45,9 +45,13 @@ export default function LoginForm({ action, next, error, defaultCountry }) {
         name="phone"
         id="phone"
         defaultCountry={defaultCountry}
+        defaultValue={defaultPhone}
+        // A remembered number is already the right country: browser
+        // detection must not swap its dial code.
+        detectCountry={!defaultPhone}
         locale={locale}
         labels={phoneFieldLabels(t)}
-        autoFocus
+        autoFocus={!defaultPhone}
         required
       />
 
@@ -65,6 +69,7 @@ export default function LoginForm({ action, next, error, defaultCountry }) {
           type="password"
           name="password"
           autoComplete="current-password"
+          autoFocus={Boolean(defaultPhone)}
           required
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />

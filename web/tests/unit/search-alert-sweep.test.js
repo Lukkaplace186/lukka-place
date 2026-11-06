@@ -135,13 +135,13 @@ test('a full page hands back a cursor; a time-boxed chunk stops before the unpro
   assert.equal(boxed.cursor, 1, 'search 2 was never looked at, so the next chunk starts there');
 });
 
-test('the due-search query pages by id and only reaches verified, opted-in, due searches', async () => {
+test('the due-search query pages by id and reaches opted-in, due searches, confirmed number or not', async () => {
   reset();
   await searchAlerts.getSavedSearchesDueForAlerts({ afterId: 400, limit: 200, newestPublishedAt: NOW });
   const { sql, values } = calls[0];
   assert.match(sql, /css\.id > \$1/);
   assert.match(sql, /ORDER BY css\.id LIMIT \$3/);
-  assert.match(sql, /c\.phone_verified_at IS NOT NULL/);
+  assert.doesNotMatch(sql, /phone_verified_at/, '2026-11-06: customers carry no phone confirmation');
   assert.match(sql, /whatsapp_alerts_opted_out_at'\) IS NULL/);
   assert.match(sql, /<> 'off'/);
   assert.match(sql, /interval '20 hours'/);

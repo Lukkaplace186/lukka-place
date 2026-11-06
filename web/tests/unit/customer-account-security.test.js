@@ -40,10 +40,11 @@ test('a forged or missing token never reaches the database', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('search alerts only go to verified phone numbers', async () => {
+test('search alerts go to every customer number that has not opted out (2026-11-06, owner decision)', async () => {
   enqueue([]);
   await searchAlerts.getSavedSearchesDueForAlerts({ newestPublishedAt: new Date() });
-  assert.match(calls[0].sql, /c\.phone_verified_at IS NOT NULL/);
+  assert.doesNotMatch(calls[0].sql, /phone_verified_at/);
+  assert.match(calls[0].sql, /whatsapp_alerts_opted_out_at'\) IS NULL/);
 });
 
 test('a lead reads every commune it names, and a legacy lead reads its one', () => {

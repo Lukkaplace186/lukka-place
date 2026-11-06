@@ -7373,6 +7373,7 @@
       "codeNotReceived": "Code not received? Try again via WhatsApp"
     },
     "signup": {
+      "phoneHint": "Agencies reply to you on this WhatsApp number.",
       "codeWillBeSent": "You will receive a 6-digit confirmation code on your WhatsApp.",
       "receiveCode": "Get my code",
       "noCodeNeeded": "Right after this, you’ll confirm this number by sending us a code from its WhatsApp.",
@@ -7392,6 +7393,7 @@
     "noCountryFound": "No country found",
     "codeSentTo": "Enter the 6-digit code sent on WhatsApp to {phone}.",
     "wrongNumber": "That’s not my number — start over",
+    "verifyLater": "Later — continue to my account",
     "resend": {
       "sending": "Sending…",
       "retryIn": "Resend the code in {seconds}s",

@@ -8,6 +8,7 @@ import { getT } from '@/lib/i18n/server';
 import WhatsAppVerifyPanel from '@/components/WhatsAppVerifyPanel';
 import { ensureChallenge, whatsappVerifyHref, whatsappVerifyNumber } from '@/lib/whatsappVerify';
 import { customerOtpBypassEnabled } from '@/lib/otpBypass';
+import { getCurrentCustomerId } from '@/lib/customers';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -51,8 +52,11 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
   // types what we sent, and the reverse proof waits UNDER the code box as the
   // way out when the code does not arrive (2026-11-04: Chakra accepts a
   // template it cannot prove was delivered, so a customer must never depend
-  // on it alone). It comes first only when no code was sent or the send failed.
-  const reverseFirst = codeless || error === 'send_failed';
+  // on it alone). It comes first only when no code is sent at all: since
+  // 2026-11-06 a failed send keeps the code box first too, with the error and
+  // "Renvoyer le code" — writing to a number they don't have is the hurdle
+  // the owner asked to remove.
+  const reverseFirst = codeless;
   let challenge = null;
   try {
     challenge = await ensureChallenge(attempt);
@@ -70,6 +74,10 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
     />
   ) : null;
 
+  // Signed in already (signup and login no longer wait for this step), so
+  // the confirmation can be left for later: the Espace Client keeps asking.
+  const signedInAsAttempt = Number(await getCurrentCustomerId()) === Number(attempt.id);
+
   const sent = params.sent === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/client';
   const whatsappHref = getCentralWhatsAppHref(t('auth.forgot.whatsappCodeHelp'));
@@ -84,10 +92,14 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
 
         {codeless ? null : (
         <>
-        <p className="mt-6 text-sm text-ink-45">
-          {reverseFirst && challenge ? t('auth.whatsappVerify.haveCode') : t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
-          {sent ? ` ${t('auth.newCodeSent')}` : ''}
-        </p>
+        {/* After a failed send nothing claims a code was sent: the form's
+            error says so, and "Renvoyer le code" is the next step. */}
+        {error === 'send_failed' && !sent ? null : (
+          <p className="mt-6 text-sm text-ink-45">
+            {t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
+            {sent ? ` ${t('auth.newCodeSent')}` : ''}
+          </p>
+        )}
 
         <form action={customerVerifyOtpAction} className="mt-6 flex flex-col gap-3">
           <input type="hidden" name="next" value={next} />
@@ -152,6 +164,15 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
 
         </>
         )}
+
+        {signedInAsAttempt ? (
+          <Link
+            href={next}
+            className="u-btn-secondary mt-5 flex min-h-11 items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold text-ink-70"
+          >
+            {t('auth.verifyLater')}
+          </Link>
+        ) : null}
 
         <p className="mt-5 text-center text-sm text-ink-45">
           <Link href="/compte/inscription" className="font-semibold text-blue-deep hover:underline">

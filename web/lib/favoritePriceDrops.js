@@ -44,7 +44,7 @@ export async function getUnnotifiedFavoritePriceDrops({ limit = 500 } = {}) {
        ${cutFavoritesFrom(`JOIN customers c ON c.id = cf.customer_id
   LEFT JOIN property_contents pc ON pc.property_id = cf.property_id AND pc.language_id = 20`)}
         AND c.phone IS NOT NULL
-        AND c.phone_verified_at IS NOT NULL
+        -- Any customer number, confirmed or not (2026-11-06, owner decision).
         AND (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM customer_price_drop_notifications n

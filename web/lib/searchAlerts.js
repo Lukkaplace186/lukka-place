@@ -26,8 +26,8 @@ const LAST_ALERTED_SQL = `(to_jsonb(css) ->> 'last_alerted_at')`;
  * one table load (the previous version SELECTed every saved search at once).
  *
  * Only searches that could produce an alert right now:
- *  - a VERIFIED number — nobody has shown they hold an unverified one, and
- *    alerting it sends somebody's property search to a stranger;
+ *  - any customer number, confirmed or not (2026-11-06, owner decision: customers sign up with a number and a password, nothing else); a mistyped
+ *    number reaches a stranger, who stops it with the link in every message;
  *  - an account that has not opted out of WhatsApp alerts;
  *  - a frequency other than 'off', and a last alert old enough for it
  *    (20h for daily, 6 days for weekly — each a little under its period so a
@@ -46,7 +46,6 @@ export async function getSavedSearchesDueForAlerts({ afterId = 0, limit = 200, n
        JOIN customers c ON c.id = css.customer_id
       WHERE css.id > $1
         AND c.phone IS NOT NULL
-        AND c.phone_verified_at IS NOT NULL
         AND (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NULL
         AND css.created_at < $2
         AND ${FREQUENCY_SQL} <> 'off'

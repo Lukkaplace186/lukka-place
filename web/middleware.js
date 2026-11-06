@@ -55,9 +55,9 @@ export const config = {
 
 // '/compte/inscription/verifier' is public for the same reason
 // '/compte/agent/inscription/verifier' below is: it is the step that comes
-// BEFORE a session exists. Signup deliberately does not log anyone in until
-// a WhatsApp code proves the number, so gating this page on a session would
-// bounce every new customer straight back to a login they cannot pass yet.
+// BEFORE a session exists for agents. Customers are signed in before it
+// since 2026-11-06, but the page is also reached by an attempt whose session
+// cookie was lost, and gating it would strand that person.
 // Its own guard is the signed attempt cookie (lib/verifyAttempt.js), which
 // is what actually says who is mid-verification.
 const PUBLIC_COMPTE_PATHS = new Set([

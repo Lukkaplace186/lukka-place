@@ -152,11 +152,11 @@ test('the public-listing and reachable-agent gates are the storefront\'s own', (
   assert.ok(CHAT_REACHABLE_AGENT_FILTER.includes('a.deleted_at IS NULL'));
 });
 
-test('a customer whose phone is not verified cannot open a conversation', async () => {
-  enqueue([{ phone: '243811111111', phone_verified_at: null }]);
+test('a customer with an unconfirmed number can still write (2026-11-06: no phone confirmation for customers)', async () => {
+  enqueue([{ phone: '243811111111' }]);
   const result = await startThread(11, { propertyId: 5, body: 'Bonjour' });
-  assert.equal(result.status, 'phone-unverified');
-  assert.equal(calls.length, 1);
+  assert.notEqual(result.status, 'phone-unverified');
+  assert.doesNotMatch(calls[0].sql, /phone_verified_at/);
 });
 
 test('from a listing, the agent is the listing\'s own and the listing must be public', async () => {

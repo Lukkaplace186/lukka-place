@@ -123,8 +123,9 @@ const SIDES = {
     recipient: `
       JOIN agents a ON a.id = t.agent_id`,
     phone: 'c.phone',
-    extra: `AND c.phone_verified_at IS NOT NULL
-            AND (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NULL`,
+    // Any customer number, confirmed or not (2026-11-06, owner decision:
+    // customer accounts carry no phone confirmation).
+    extra: `AND (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NULL`,
   },
 };
 

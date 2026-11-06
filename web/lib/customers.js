@@ -33,7 +33,7 @@ export async function getCustomerByPhone(phone) {
 export const getCustomerById = cache(async (id) => {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, phone, full_name, token_version, created_at FROM customers WHERE id = $1`,
+    `SELECT id, phone, full_name, token_version, created_at, phone_verified_at FROM customers WHERE id = $1`,
     [id],
   );
   return rows[0] || null;

@@ -32,7 +32,7 @@ export default function SignupForm({
   // The phone hint is a KEY passed down rather than resolved here, because
   // whether a code is actually sent depends on a server-only flag
   // (lib/otpBypass.js) that a client component cannot read.
-  phoneHintKey = 'auth.signup.codeWillBeSent',
+  phoneHintKey = 'auth.signup.phoneHint',
 }) {
   const t = useT();
   const locale = useLocale();

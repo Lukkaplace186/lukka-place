@@ -3,6 +3,8 @@ import { loginAction } from './actions';
 import LoginForm from './LoginForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
+import { getRememberedCustomerPhone } from '@/lib/customerSession';
+import { splitPhone } from '@/lib/phone';
 
 export const metadata = {
   title: 'Connexion — Lukka Place',
@@ -22,6 +24,9 @@ export default async function CustomerLoginPage({ searchParams }) {
   const reset = params.reset === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/client';
   const country = await getRequestCountry();
+  // The number that last signed in on this device (lib/customerSession.js):
+  // coming back is the password and nothing else.
+  const remembered = splitPhone(await getRememberedCustomerPhone());
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
@@ -35,7 +40,13 @@ export default async function CustomerLoginPage({ searchParams }) {
           </p>
         )}
 
-        <LoginForm action={loginAction} next={next} error={error} defaultCountry={country} />
+        <LoginForm
+          action={loginAction}
+          next={next}
+          error={error}
+          defaultCountry={remembered.country || country}
+          defaultPhone={remembered.country ? remembered.national : ''}
+        />
 
         <p className="mt-5 text-center text-sm text-ink-45">
           Pas encore de compte ?{' '}

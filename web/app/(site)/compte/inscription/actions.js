@@ -6,16 +6,13 @@ import {
   getCustomerByPhone,
   createCustomer,
   mergeAnonymousData,
-  sendCustomerOtp,
-  consumeCustomerOtp,
 } from '@/lib/customers';
 import { hashPassword } from '@/lib/customerAuth';
-import { establishCustomerSession } from '@/lib/customerSession';
-import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
-import { customerOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerSession';
 import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 import { normalisePartnerCode } from '@/lib/partnerRules';
 import { findActivePartnerByCode } from '@/lib/partners';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -35,16 +32,12 @@ function parseAnonymousData(formData) {
 }
 
 /**
- * Creates the account, then hands off to the WhatsApp OTP step — it does
- * NOT establish a session. Nothing on this platform reaches a customer
- * except through their phone number (favourites alerts, viewing
- * confirmations, an agent calling back), so an account whose number was
- * mistyped is an account that silently never hears from us again. The code
- * is the only thing that proves the number was typed correctly and belongs
- * to whoever typed it.
- *
- * Same two-step shape agent signup has used since it was built; customer
- * signup is the side that was missing it.
+ * Creates the account and signs the customer in. Number, name and password,
+ * nothing else (2026-11-06, owner decision: every extra step lost customers).
+ * Nothing proves the number belongs to whoever typed it; the owner accepted
+ * that. A mistyped number is fixed by deleting the account and signing up
+ * again; someone else's number is reclaimed by its owner through
+ * "Mot de passe oublié", whose code goes to that WhatsApp.
  */
 export async function signupAction(formData) {
   const next = safeNext(formData.get('next'));
@@ -97,35 +90,20 @@ export async function signupAction(formData) {
   // (lib/accountAcquisition.js). Never throws.
   await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: typedCode || null });
 
-  // Merged now, before verification, deliberately: the row exists, the data
-  // is the visitor's own device state, and losing it because a code was
-  // slow to arrive would be a worse outcome than attaching it to an account
-  // that is one WhatsApp code away from being usable.
+  // The visitor's own device state (favourites, saved searches) joins the
+  // new account.
   const { favoriteIds, savedSearches } = parseAnonymousData(formData);
   if (favoriteIds.length > 0 || savedSearches.length > 0) {
     await mergeAnonymousData(customer.id, { favoriteIds, savedSearches });
   }
 
-  // Which account is being verified travels in a signed httpOnly cookie,
-  // not the URL — see lib/verifyAttempt.js. Set before the send so that a
-  // delivery failure still lands on a page that can offer a real resend.
-  await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
+  // Signed in, done: number + password is the whole signup (2026-11-06,
+  // owner decision). No code is sent and no verification page follows.
+  await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
+  await rememberCustomerPhone(phone);
+  // The ad platforms' CompleteRegistration used to fire at the code step,
+  // which no longer exists: an account created is a registration completed.
+  await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone });
 
-  const verifyUrl = `/compte/inscription/verifier?next=${encodeURIComponent(next)}`;
-
-  // AUTH_OTP_BYPASS=1: no code is sent; the verify page proves the number by
-  // a WhatsApp message from it instead (lib/whatsappVerify.js).
-  if (customerOtpBypassEnabled()) {
-    logOtpBypass('customer-auth', { id: customer.id, phone });
-    redirect(verifyUrl);
-  }
-
-  try {
-    await sendCustomerOtp(customer.id, phone);
-  } catch (err) {
-    console.error(`[customer-auth] OTP send failed for customer #${customer.id}: ${err.message}`);
-    redirect(`${verifyUrl}&error=send_failed`);
-  }
-
-  redirect(verifyUrl);
+  redirect(next);
 }

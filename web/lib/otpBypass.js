@@ -27,20 +27,23 @@ export function otpBypassEnabled() {
 }
 
 /**
- * Whether a customer is SENT a code to type, instead of proving the number by
- * a WhatsApp message (owner decision, 2026-11-04: "Lukka Place sends the
- * code"). **Off unless `CUSTOMER_SENT_CODE=on`.** It was switched on by the
- * mere presence of AGENT_OTP_TEMPLATE the same day, and the next morning not
- * one of three customers received the `agent_auth_otp` template — Chakra
- * accepted every send, Meta delivered none, and Chakra forwards no receipt
- * to say why. Turn it on only after a send to a number that never wrote to us
- * has been seen arriving. It also needs a template: without one a session
- * message never reaches a first-time customer. Agents follow AUTH_OTP_BYPASS
+ * Whether a customer proves the number by SENDING us a WhatsApp message
+ * (true) instead of typing a code we send them (false).
+ *
+ * **A sent code is the default whenever an OTP template is configured
+ * (2026-11-06, owner decision):** asking a customer to write to a number they
+ * don't have is a hurdle of its own. `CUSTOMER_SENT_CODE=off` switches it off.
+ * Until then it was opt-in (`=on`), because on 2026-11-04 three customers
+ * were sent `agent_auth_otp`, Chakra accepted all three and none arrived; the
+ * verify page therefore always keeps the WhatsApp proof under the code box as
+ * "Code pas reçu ?", so an accepted-but-undelivered code strands nobody.
+ * Without a template a session message never reaches a first-time customer,
+ * so the reverse proof stays the only way. Agents follow AUTH_OTP_BYPASS
  * alone. Read at call time, so `pm2 restart --update-env` is enough.
  */
 export function customerOtpBypassEnabled() {
   const templateConfigured = Boolean(String(process.env.AGENT_OTP_TEMPLATE || '').trim());
-  const sentCode = process.env.CUSTOMER_SENT_CODE === 'on' && templateConfigured;
+  const sentCode = templateConfigured && process.env.CUSTOMER_SENT_CODE !== 'off';
   return otpBypassEnabled() && !sentCode;
 }
 

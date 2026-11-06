@@ -20,16 +20,18 @@ function withEnv(env, fn) {
   }
 }
 
-test('a sent code is opt-in: CUSTOMER_SENT_CODE=on AND a template, else the reverse proof', () => {
-  // 2026-11-04: the template alone switched it on, and it reached nobody.
+test('a configured template means a sent code; CUSTOMER_SENT_CODE=off is the way back to the reverse proof', () => {
+  // 2026-11-06 (owner decision): writing to a number the customer doesn't
+  // have is a hurdle, so the typed code is the default. It was opt-in after
+  // the template reached nobody on 2026-11-04.
   withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: 'agent_auth_otp', CUSTOMER_SENT_CODE: undefined }, () => {
     assert.equal(otpBypassEnabled(), true, 'agents keep the bypass');
-    assert.equal(customerOtpBypassEnabled(), true, 'a configured template is not enough');
+    assert.equal(customerOtpBypassEnabled(), false, 'a configured template: customers are sent a code');
   });
-  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: 'agent_auth_otp', CUSTOMER_SENT_CODE: 'on' }, () => {
-    assert.equal(customerOtpBypassEnabled(), false, 'switched on deliberately: customers are sent a code');
+  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: 'agent_auth_otp', CUSTOMER_SENT_CODE: 'off' }, () => {
+    assert.equal(customerOtpBypassEnabled(), true, 'switched off deliberately: back to the reverse proof');
   });
-  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: '  ', CUSTOMER_SENT_CODE: 'on' }, () => {
+  withEnv({ AUTH_OTP_BYPASS: '1', AGENT_OTP_TEMPLATE: '  ', CUSTOMER_SENT_CODE: undefined }, () => {
     assert.equal(customerOtpBypassEnabled(), true, 'no template: a session message would never arrive');
   });
   withEnv({ AUTH_OTP_BYPASS: undefined, AGENT_OTP_TEMPLATE: undefined, CUSTOMER_SENT_CODE: undefined }, () => {
@@ -38,11 +40,10 @@ test('a sent code is opt-in: CUSTOMER_SENT_CODE=on AND a template, else the reve
 });
 
 test('every customer entry point reads the customer rule, never the agents\' flag', () => {
+  // Signup and login send no code at all since 2026-11-06; the verify page
+  // is only reached by an attempt opened before that.
   for (const file of [
-    'app/(site)/compte/inscription/actions.js',
-    'app/(site)/compte/inscription/page.js',
     'app/(site)/compte/inscription/verifier/page.js',
-    'app/(site)/compte/connexion/actions.js',
   ]) {
     const src = read(file);
     assert.match(src, /customerOtpBypassEnabled\(\)/, file);
@@ -52,7 +53,9 @@ test('every customer entry point reads the customer rule, never the agents\' fla
 
 test('the verify page always keeps the WhatsApp proof: first without a sent code, under the code box with one', () => {
   const page = read('app/(site)/compte/inscription/verifier/page.js');
-  assert.match(page, /reverseFirst = codeless \|\| error === 'send_failed'/);
+  // A failed send keeps the code box first (2026-11-06): error + resend.
+  assert.match(page, /const reverseFirst = codeless;/);
+  assert.match(page, /error === 'send_failed' && !sent \? null/, 'nothing claims a code was sent after a failed send');
   assert.doesNotMatch(page, /if \(offerReverse\)/, 'the challenge is opened whatever the mode');
   const form = page.indexOf('customerVerifyOtpAction} className');
   const fallback = page.indexOf("t('auth.whatsappVerify.noCodeFallback')");
@@ -70,7 +73,7 @@ test('the name is required, in the form and in the action', () => {
   assert.ok(action.indexOf('error=name') > 0 && action.indexOf('error=name') < action.indexOf('createCustomer('), 'refused before the account exists');
   const fr = JSON.parse(read('lib/i18n/fr.json'));
   assert.equal(fr.auth.signup.fullName, 'Nom et prénom');
-  assert.match(fr.auth.signup.codeWillBeSent, /6 chiffres/);
+  assert.match(fr.auth.signup.phoneHint, /WhatsApp/);
 });
 
 test('the WhatsApp proof names the Lukka Place number the code goes to', () => {

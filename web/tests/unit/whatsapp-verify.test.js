@@ -13,8 +13,8 @@ const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
 const ENTRY_POINTS = [
   'app/(site)/compte/agent/inscription/actions.js',
   'app/(site)/compte/agent/connexion/actions.js',
-  'app/(site)/compte/inscription/actions.js',
-  'app/(site)/compte/connexion/actions.js',
+  // Customer signup and login open no verification at all since 2026-11-06
+  // (number + password); customer-easy-login.test.js pins that.
 ];
 
 test('no bypass branch verifies a number or opens a session by itself', () => {
@@ -51,14 +51,16 @@ test('a login finishes a proof the verify page never collected (customers #35 an
   const lib = read('lib/whatsappVerify.js');
   assert.match(lib, /export async function consumeProofAtLogin[\s\S]*?consumeVerifiedChallenge\(\{ role, id, phone \}\)/, 'the same spend-once proof the page uses');
   for (const [file, consume, gate] of [
-    ['app/(site)/compte/connexion/actions.js', 'consumeCustomerOtp', 'customerOtpBypassEnabled()'],
+    ['app/(site)/compte/connexion/actions.js', 'consumeCustomerOtp', null],
     ['app/(site)/compte/agent/connexion/actions.js', 'consumeAgentOtp', 'otpBypassEnabled()'],
   ]) {
     const src = read(file);
     const check = src.indexOf('consumeProofAtLogin({');
     assert.ok(check > 0, `${file}: checks for a proof`);
     assert.ok(check > src.indexOf('verifyPasswordAgainstHash(password'), `${file}: only after the password matched`);
-    assert.ok(check < src.indexOf(`!${file.includes('agent') ? 'agent' : 'customer'}.phone_verified_at && ${gate}`), `${file}: before the verify step is chosen`);
+    // Agents: before the verify step is chosen. Customers have no verify step
+    // at login any more (2026-11-06): the proof is simply taken if present.
+    if (gate) assert.ok(check < src.indexOf(`!agent.phone_verified_at && ${gate}`), `${file}: before the verify step is chosen`);
     assert.ok(src.slice(check, check + 300).includes(`await ${consume}(`), `${file}: verifies through the usual path`);
   }
 });

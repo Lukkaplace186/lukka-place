@@ -37,6 +37,9 @@ import { getListingsByIds } from './listings';
 export const getCustomerInquiries = cache(async (customerId) => {
   const customer = await getCustomerById(customerId);
   if (!customer) return [];
+  // Found BY PHONE, confirmed or not: customer accounts carry no phone
+  // confirmation (2026-11-06, owner decision, risk accepted — an account on
+  // someone else's number sees that number's requests).
 
   let leads;
   try {

@@ -7,7 +7,6 @@ import {
   clearFailedLoginsAndTouchLogin,
   recordFailedLogin,
   mergeAnonymousData,
-  sendCustomerOtp,
   consumeCustomerOtp,
 } from '@/lib/customers';
 import {
@@ -16,9 +15,7 @@ import {
   MAX_FAILED_LOGIN_ATTEMPTS,
   LOCKOUT_MS,
 } from '@/lib/customerAuth';
-import { establishCustomerSession } from '@/lib/customerSession';
-import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
-import { customerOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerSession';
 import { consumeProofAtLogin } from '@/lib/whatsappVerify';
 
 function safeNext(nextParam) {
@@ -79,41 +76,20 @@ export async function loginAction(formData) {
     await mergeAnonymousData(customer.id, { favoriteIds, savedSearches });
   }
 
-  // An unverified number never gets a session — it gets a code. Two kinds
-  // of account land here: one created since signup verification existed
-  // whose owner closed the tab before entering the code, and one created
-  // before it existed at all (scripts/migrate-customer-phone-verification.js
-  // deliberately backfills nobody, because nobody proved those numbers).
-  // Both are the same one-time step, and it is the same step an agent with
-  // an unverified account already goes through.
-  //
-  // Unless the number was already proven by a WhatsApp message the verify
-  // page never collected (lib/whatsappVerify.js consumeProofAtLogin): then
-  // this login finishes the verification instead of asking again.
+  // A WhatsApp message the verify page never collected still proves the
+  // number (lib/whatsappVerify.js consumeProofAtLogin): this login finishes
+  // that verification.
   if (!customer.phone_verified_at && (await consumeProofAtLogin({ role: 'customer', id: customer.id, phone }))) {
     await consumeCustomerOtp(customer.id);
-    customer.phone_verified_at = new Date();
   }
 
-  if (!customer.phone_verified_at && customerOtpBypassEnabled()) {
-    // No code is sent; the verify page proves the number by a WhatsApp
-    // message from it (lib/whatsappVerify.js).
-    logOtpBypass('customer-auth', { id: customer.id, phone });
-    await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
-    redirect(`/compte/inscription/verifier?next=${encodeURIComponent(next)}`);
-  } else if (!customer.phone_verified_at) {
-    await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
-    const verifyUrl = `/compte/inscription/verifier?next=${encodeURIComponent(next)}`;
-    try {
-      await sendCustomerOtp(customer.id, phone);
-    } catch (err) {
-      console.error(`[customer-auth] OTP send failed for customer #${customer.id}: ${err.message}`);
-      redirect(`${verifyUrl}&error=send_failed`);
-    }
-    redirect(verifyUrl);
-  }
-
+  // Number + password is all a customer account needs (2026-11-06, owner
+  // decision): no code, at login or anywhere else. Holding unconfirmed
+  // customers at a code step on every login was the main reason they gave up
+  // (13 of 30 web accounts never got past it). A forgotten password is reset
+  // by a WhatsApp code (/mot-de-passe-oublie) or by the team (/admin/customers).
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
+  await rememberCustomerPhone(phone);
 
   redirect(next);
 }

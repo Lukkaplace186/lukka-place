@@ -132,7 +132,8 @@
     "findCta": "Trouver pour moi",
     "projects": "Neuf",
     "agents": "Agents",
-    "blog": "Guides & Actualités"
+    "blog": "Guides & Actualités",
+    "messages": "Messages"
   },
   "footer": {
     "columns": {
@@ -1208,7 +1209,9 @@
       "listingsShort": "Biens",
       "leadsShort": "Demandes",
       "subscriptionShort": "Abonnement",
-      "settingsShort": "Réglages"
+      "settingsShort": "Réglages",
+      "messages": "Messages",
+      "messagesShort": "Messages"
     },
     "overview": {
       "title": "Vue d'ensemble",
@@ -6922,7 +6925,8 @@
         "visitRequest": "Demandes de visite",
         "profileEnquiry": "Demandes via profil",
         "projectEnquiry": "Demandes projet",
-        "teamIntroduction": "Mises en relation"
+        "teamIntroduction": "Mises en relation",
+        "siteChat": "Messagerie du site"
       },
       "channelHelp": {
         "whatsappDirect": "Taps sur le bouton WhatsApp de l’agent",
@@ -6931,7 +6935,8 @@
         "visitRequest": "« Demander une visite » et assistant WhatsApp",
         "profileEnquiry": "Formulaire de la page de l’agent",
         "projectEnquiry": "Demandes sur un projet neuf",
-        "teamIntroduction": "Enregistrées par l’équipe"
+        "teamIntroduction": "Enregistrées par l’équipe",
+        "siteChat": "Conversations ouvertes par un client sur le site"
       },
       "short": {
         "whatsappDirect": "WhatsApp",
@@ -6940,7 +6945,8 @@
         "visitRequest": "Visites",
         "profileEnquiry": "Profil",
         "projectEnquiry": "Projets",
-        "teamIntroduction": "Équipe"
+        "teamIntroduction": "Équipe",
+        "siteChat": "Messagerie"
       },
       "perAgentTitle": "Par agent",
       "perAgentNote": "Les agents qui ont reçu au moins une interaction sur la période, du plus sollicité au moins sollicité.",
@@ -7738,6 +7744,149 @@
       "eyebrow": "Neuf",
       "title": "Nouveaux projets",
       "all": "Tous les projets →"
+    }
+  },
+  "chat": {
+    "title": "Messages",
+    "metaTitle": "Messages — Lukka Place",
+    "lead": "Vos conversations avec les agents, au même endroit.",
+    "verified": "Agent vérifié",
+    "customer": "Client",
+    "agentFallback": "Agent",
+    "safety": "Ne versez jamais de garantie ni d'avance avant d'avoir visité le bien. Les agents vérifiés portent la coche bleue.",
+    "guest": {
+      "title": "Écrivez aux agents depuis Lukka Place",
+      "body": "Connectez-vous pour écrire à un agent depuis une annonce et retrouver ses réponses ici.",
+      "login": "Se connecter",
+      "signup": "Créer un compte",
+      "whatsapp": "Écrire à Lukka Place sur WhatsApp"
+    },
+    "inbox": {
+      "countOne": "1 conversation",
+      "countMany": "{count} conversations",
+      "filtersLabel": "Filtrer les conversations",
+      "filters": {
+        "all": "Toutes",
+        "unread": "Non lues",
+        "archived": "Archivées"
+      },
+      "emptyTitle": "Aucune conversation pour le moment",
+      "emptyBody": "Ouvrez une annonce et touchez « Envoyer un message » : la réponse de l'agent arrivera ici.",
+      "emptyCta": "Voir les biens",
+      "emptyUnread": "Tout est lu.",
+      "emptyArchived": "Aucune conversation archivée.",
+      "you": "Vous : ",
+      "loadMore": "Afficher plus",
+      "unreadLabel": "{count} non lus",
+      "listingGone": "Annonce plus en ligne",
+      "noListing": "Conversation générale",
+      "sharedListing": "Bien partagé"
+    },
+    "thread": {
+      "back": "Retour aux messages",
+      "viewListing": "Voir le bien",
+      "older": "Voir les messages précédents",
+      "newMessages": "Nouveaux messages",
+      "read": "Lu",
+      "sent": "Envoyé",
+      "sending": "Envoi…",
+      "failed": "Non envoyé",
+      "retry": "Réessayer",
+      "sharedListing": "Bien partagé",
+      "openListing": "Ouvrir l'annonce",
+      "blockedByMe": "Vous avez bloqué cette conversation.",
+      "blockedByOther": "Cette conversation est fermée.",
+      "unblock": "Débloquer",
+      "menu": "Plus d'actions",
+      "archive": "Archiver",
+      "unarchive": "Désarchiver",
+      "block": "Bloquer",
+      "report": "Signaler",
+      "blockConfirm": "Bloquer cette conversation ? Plus aucun message ne pourra être envoyé, ni par vous ni par votre interlocuteur.",
+      "archived": "Conversation archivée."
+    },
+    "composer": {
+      "placeholder": "Écrire un message…",
+      "label": "Votre message",
+      "send": "Envoyer",
+      "counter": "{count} / {max}"
+    },
+    "report": {
+      "title": "Signaler cette conversation",
+      "lead": "L'équipe Lukka Place lira cette conversation pour vérifier.",
+      "reasonLabel": "Motif",
+      "reasons": {
+        "scam": "Arnaque ou demande d'argent",
+        "harassment": "Propos déplacés",
+        "spam": "Messages indésirables",
+        "other": "Autre"
+      },
+      "note": "Précisez (facultatif)",
+      "submit": "Envoyer le signalement",
+      "cancel": "Annuler",
+      "done": "Merci. L'équipe Lukka Place va vérifier cette conversation."
+    },
+    "start": {
+      "title": "Écrire à {name}",
+      "titleNoName": "Écrire à l'agent",
+      "lead": "Votre message arrive dans l'espace de l'agent. Sa réponse s'affichera dans vos messages.",
+      "suggestionsLabel": "Messages rapides",
+      "suggestions": {
+        "available": "Bonjour, ce bien est-il toujours disponible ?",
+        "visit": "Bonjour, quand serait-il possible de le visiter ?",
+        "terms": "Bonjour, quelles sont la garantie et l'avance demandées ?",
+        "general": "Bonjour, je cherche un bien et j'aimerais vos conseils."
+      },
+      "unavailableTitle": "La messagerie n'est pas disponible ici",
+      "unavailableBody": "Cet agent n'a pas encore vérifié son numéro. Vous pouvez demander une visite depuis l'annonce ou écrire à Lukka Place sur WhatsApp.",
+      "backToListing": "Retour à l'annonce"
+    },
+    "cta": {
+      "message": "Envoyer un message",
+      "messageShort": "Message"
+    },
+    "time": {
+      "today": "Aujourd'hui",
+      "yesterday": "Hier",
+      "yesterdayShort": "hier"
+    },
+    "errors": {
+      "blocked": "Cette conversation est bloquée.",
+      "rateLimited": "Vous envoyez beaucoup de messages. Patientez une minute.",
+      "limit": "Vous avez ouvert beaucoup de conversations aujourd'hui. Réessayez demain.",
+      "tooLong": "Message trop long : 2 000 caractères au plus.",
+      "phoneUnverified": "Confirmez d'abord votre numéro WhatsApp : reconnectez-vous pour recevoir le code.",
+      "listingUnavailable": "Cette annonce n'accepte plus de messages.",
+      "agentUnavailable": "Cet agent ne reçoit pas de messages pour le moment.",
+      "self": "Vous ne pouvez pas vous écrire à vous-même.",
+      "unavailable": "La messagerie est momentanément indisponible. Réessayez dans un instant.",
+      "network": "Pas de connexion. Touchez « Réessayer » quand le réseau revient.",
+      "generic": "Une erreur est survenue. Réessayez."
+    },
+    "agent": {
+      "lead": "Les conversations de vos clients sur Lukka Place.",
+      "emptyTitle": "Aucun message pour le moment",
+      "emptyBody": "Quand un client vous écrit depuis une annonce ou votre profil, la conversation arrive ici.",
+      "pickTitle": "Choisissez une conversation",
+      "pickBody": "Les messages de vos clients s'affichent ici, avec le bien concerné.",
+      "waitingChip": "Sans réponse · {time}",
+      "waitingBanner": "{name} attend votre réponse depuis {time}.",
+      "shareTitle": "Partager un bien",
+      "shareLead": "Vos biens en ligne. Chacun arrive comme une fiche avec photo, prix et lieu ({max} au plus).",
+      "shareSearch": "Rechercher dans mes biens",
+      "shareNone": "Vous n'avez aucun bien en ligne à partager.",
+      "shareSend": {
+        "zero": "Envoyer",
+        "one": "Envoyer {count} bien",
+        "other": "Envoyer {count} biens"
+      },
+      "clientSince": "Client depuis {date}",
+      "verifiedPhone": "Numéro vérifié",
+      "aboutListing": "Bien concerné",
+      "editListing": "Modifier l'annonce",
+      "fromProfile": "Ce client vous a écrit depuis votre profil, sans bien précis.",
+      "openedOn": "Conversation ouverte le {date}",
+      "panelLabel": "Fiche du client"
     }
   }
 }

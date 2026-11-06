@@ -29,6 +29,19 @@ export const CALLS_BY_AGENT_SQL = `
    GROUP BY p.agent_id, e.routing_type
 `;
 
+/**
+ * Messagerie conversations opened in the window (migrations/20261105_chat.sql),
+ * one per customer × agent × listing; only those with a message. `contacted`
+ * = the agent has replied (agent_first_reply_at).
+ */
+export const CHATS_BY_AGENT_SQL = `
+  SELECT agent_id, COUNT(*)::int AS count, COUNT(agent_first_reply_at)::int AS contacted
+    FROM chat_threads
+   WHERE created_at >= NOW() - make_interval(days => $1::int)
+     AND last_message_id IS NOT NULL
+   GROUP BY agent_id
+`;
+
 export const PROPERTY_AGENTS_SQL = 'SELECT id, agent_id FROM properties WHERE id = ANY($1::bigint[])';
 
 export const AGENT_NAMES_SQL = `
@@ -54,10 +67,12 @@ const toRows = (rows) => rows.map((r) => ({
  */
 export async function getAgentInteractions({ days }) {
   const pool = getPool();
-  const [tapsRes, callsRes, engineRes] = await Promise.allSettled([
+  const [tapsRes, callsRes, engineRes, chatsRes] = await Promise.allSettled([
     pool.query(TAPS_BY_AGENT_SQL, [days]),
     pool.query(CALLS_BY_AGENT_SQL, [days]),
     getEngineInteractionCounts({ days }),
+    // Before the chat migration the table is missing: no conversations, not an error.
+    pool.query(CHATS_BY_AGENT_SQL, [days]).catch((err) => (err?.code === '42P01' ? { rows: [] } : Promise.reject(err))),
   ]);
 
   const errors = {
@@ -71,6 +86,10 @@ export async function getAgentInteractions({ days }) {
   const engine = engineRes.status === 'fulfilled' ? engineRes.value : { leads: [], viewings: [] };
   const taps = tapsRes.status === 'fulfilled' ? toRows(tapsRes.value.rows) : [];
   const calls = callsRes.status === 'fulfilled' ? toRows(callsRes.value.rows) : [];
+  if (chatsRes.status === 'rejected') console.error(`[admin/interactions] site chats read failed: ${chatsRes.reason?.message}`);
+  const chats = chatsRes.status === 'fulfilled'
+    ? chatsRes.value.rows.map((r) => ({ agentId: r.agent_id == null ? null : Number(r.agent_id), count: Number(r.count) || 0, contacted: Number(r.contacted) || 0 }))
+    : [];
 
   const propertyAgents = new Map();
   const toAttribute = propertyIdsToAttribute(engine);
@@ -83,7 +102,7 @@ export async function getAgentInteractions({ days }) {
     }
   }
 
-  const counts = mergeInteractionCounts({ taps, calls, engine, propertyAgents });
+  const counts = mergeInteractionCounts({ taps, calls, chats, engine, propertyAgents });
 
   const names = new Map();
   const ids = counts.agents.map((a) => a.agentId).filter(Boolean);

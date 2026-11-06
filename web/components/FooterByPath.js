@@ -10,9 +10,14 @@ import { usePathname } from 'next/navigation';
  * `prefixes` get `compact`; everything else gets `children` (the full site
  * footer). Matching is by path segment, so '/compte/client' covers its tabs
  * but not an unrelated '/compte/clientele'.
+ *
+ * `hiddenUnder` renders no footer at all on the pages strictly BELOW a
+ * prefix: '/messages' hides it on a conversation (/messages/12), which fills
+ * the screen with its own composer at the bottom, and keeps it on the inbox.
  */
-export default function FooterByPath({ prefixes, compact, children }) {
+export default function FooterByPath({ prefixes, hiddenUnder = [], compact, children }) {
   const pathname = usePathname() || '';
+  if (hiddenUnder.some((prefix) => pathname.startsWith(`${prefix}/`))) return null;
   const matched = prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   return matched ? compact : children;
 }

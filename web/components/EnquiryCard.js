@@ -2,7 +2,7 @@
 
 import Link from '@/components/LocaleLink';
 import { useEffect, useRef, useState } from 'react';
-import { Phone, CalendarClock, ChevronRight } from 'lucide-react';
+import { Phone, CalendarClock, ChevronRight, MessageCircle } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import FavoriteButton from './FavoriteButton';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
@@ -16,6 +16,7 @@ import VisitRequestDialog from './VisitRequestDialog';
 import AddToVisitCartButton from './AddToVisitCartButton';
 import { feedLocationLine, listingImages } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
+import { canMessageListing, chatStartHref } from '@/lib/chatRules';
 import { telHref } from '@/lib/phone';
 import { useT } from '@/lib/i18n/client';
 
@@ -239,6 +240,20 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
             {t('enquiry.contactUnavailable')}
           </span>
         )}
+
+        {/* Messagerie (web/CLAUDE.md): only for an agent who can receive
+            messages — the same verified, routing-enabled rule as the number
+            above, so the server never refuses the first message. A guest is
+            sent to sign in and back. */}
+        {canMessageListing(listing) ? (
+          <Link
+            href={chatStartHref({ propertyId: id })}
+            className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue/40 bg-surface px-5 py-3 text-sm font-semibold text-blue-deep transition-colors hover:bg-blue-tint"
+          >
+            <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+            {t('chat.cta.message')}
+          </Link>
+        ) : null}
 
         <VisitRequestButton propertyId={id} />
         {/* "Mes visites": several listings, one request (lib/visitCart.js). */}

@@ -29,6 +29,8 @@ export const INTERACTION_CHANNELS = [
   { key: 'whatsappDirect', total: true },
   { key: 'callDirect', total: true },
   { key: 'whatsappEnquiry', total: true },
+  // Messagerie (web/CLAUDE.md): a conversation a customer opened on the site.
+  { key: 'siteChat', total: true },
   { key: 'visitRequest', total: true },
   { key: 'profileEnquiry', total: true },
   { key: 'projectEnquiry', total: true },
@@ -66,6 +68,7 @@ function toId(value) {
  * @param {{
  *   taps?: {agentId: number|null, routingType: string, count: number}[],
  *   calls?: {agentId: number|null, routingType: string, count: number}[],
+ *   chats?: {agentId: number|null, count: number, contacted?: number}[],
  *   engine?: {leads?: {source: string, agentId: number|null, propertyId: number|null, count: number, contacted?: number}[],
  *             viewings?: {agentId: number|null, propertyId: number|null, count: number, contacted?: number}[]},
  *   propertyAgents?: Map<number, number|null>,
@@ -74,7 +77,7 @@ function toId(value) {
  *            contacted: number, answerable: number,
  *            agents: {agentId: number|null, channels: Record<string, number>, total: number, contacted: number, answerable: number}[]}}
  */
-export function mergeInteractionCounts({ taps = [], calls = [], engine = {}, propertyAgents = new Map() } = {}) {
+export function mergeInteractionCounts({ taps = [], calls = [], chats = [], engine = {}, propertyAgents = new Map() } = {}) {
   const byAgent = new Map();
   const channels = emptyChannels();
   const central = { whatsapp: 0, call: 0 };
@@ -117,6 +120,8 @@ export function mergeInteractionCounts({ taps = [], calls = [], engine = {}, pro
     if (channel) add(agentFor(l), channel, l.count, l.contacted ?? 0);
   }
   for (const v of engine.viewings || []) add(agentFor(v), 'visitRequest', v.count, v.contacted ?? 0);
+  // A site conversation always names its agent; "contacted" = the agent replied.
+  for (const c of chats) add(toId(c.agentId), 'siteChat', c.count, c.contacted ?? 0);
 
   const agents = [...byAgent.values()].sort((a, b) => b.total - a.total || (a.agentId ?? Infinity) - (b.agentId ?? Infinity));
   const total = Object.values(channels).reduce((s, n) => s + n, 0);

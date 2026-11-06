@@ -1,10 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { Share2 } from 'lucide-react';
-import ListingQuickShare from '@/components/ListingQuickShare';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { useT } from '@/lib/i18n/client';
+import TeamSocialShare from '../TeamSocialShare';
 
 /**
  * "Carte réseaux sociaux" on /admin/listings/[id] (2026-10-26): Lukka Place
@@ -13,21 +9,10 @@ import { useT } from '@/lib/i18n/client';
  * (ListingQuickShare, audience "team"), leading back to the listing on
  * lukkaplace.com. The page renders this only for a listing that is live
  * (shareBlocker), since the card's link would otherwise lead to a 404.
+ *
+ * Since 2026-11-06 the dialog also says where it is posted and records it
+ * (TeamSocialShare); the same dialog opens from each row of /admin/listings.
  */
 export default function TeamSocialCardButton({ listing }) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="u-press inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-[0.8125rem] font-semibold text-blue-deep ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt"
-      >
-        <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-        {t('admin.moderation.socialCard')}
-      </button>
-      <ListingQuickShare listing={listing} open={open} onOpenChange={setOpen} audience="team" />
-    </>
-  );
+  return <TeamSocialShare listing={listing} variant="button" />;
 }

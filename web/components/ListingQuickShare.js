@@ -8,6 +8,7 @@ import { recordListingSharesAction, refreshFacebookPreviewAction } from '@/app/c
 import { refreshTeamFacebookPreviewAction } from '@/app/admin/listings/shareActions';
 import { formatFileName } from '@/lib/marketing/formats';
 import { prepareListingCard } from '@/lib/listingCardCache';
+import { captionForTarget } from '@/lib/teamSocialTargets';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
@@ -57,11 +58,21 @@ const FORMATS = ['square', 'feed'];
  * utm_source), and nothing recorded in listing_shares, which counts what
  * agents did with their own listings.
  *
+ * The team can also say WHERE it posts (2026-11-06, app/admin/listings/
+ * TeamSocialShare.js): `teamTarget` (a group or page from
+ * lib/teamSocialTargets.js) swaps the caption's link for that place's own
+ * link (utm_campaign = the place) and asks Facebook to read THAT link, and
+ * `teamSlot` is the picker and "Marquer comme publié", rendered under the
+ * buttons. Both are owned by the admin component, so this shared dialog
+ * carries no admin copy.
+ *
  * Mounted as a SIBLING of the actions menu (AgentListingActionsMenu), never
  * inside a menu item: Radix unmounts the menu content on close, which would
  * take the dialog with it.
  */
-export default function ListingQuickShare({ listing, caption, open, onOpenChange, audience = 'agent', initialFormat = 'square' }) {
+export default function ListingQuickShare({
+  listing, caption, open, onOpenChange, audience = 'agent', initialFormat = 'square', teamTarget = null, teamSlot = null,
+}) {
   const t = useT();
   const { showToast } = useToast();
   const team = audience === 'team';
@@ -83,7 +94,9 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   // ready | not_ready | hidden for this listing, plus the Sharing Debugger
   // link; "checking" until the answer for THIS listing arrives.
   const [fbResult, setFbResult] = useState(null);
-  const fbKey = `${audience}:${listing.id}`;
+  const target = team ? teamTarget : null;
+  const targetKey = target?.key || '';
+  const fbKey = `${audience}:${listing.id}:${targetKey}`;
   const fbPreview = open && feed && !sold ? (fbResult?.key === fbKey ? fbResult : { status: 'checking' }) : null;
 
   // The 4:5 caption is pasted on Facebook as a link post, and Facebook keeps
@@ -93,7 +106,8 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   useEffect(() => {
     if (!open || !feed || sold) return undefined;
     let cancelled = false;
-    (team ? refreshTeamFacebookPreviewAction : refreshFacebookPreviewAction)(listing.id)
+    const targetInput = targetKey ? { key: target.key, label: target.label } : null;
+    (team ? refreshTeamFacebookPreviewAction(listing.id, targetInput) : refreshFacebookPreviewAction(listing.id))
       .then((result) => {
         if (cancelled) return;
         if (!result?.ok) return setFbResult({ key: fbKey, status: 'hidden' });
@@ -105,7 +119,9 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     return () => {
       cancelled = true;
     };
-  }, [open, feed, sold, team, listing.id, fbKey]);
+    // `target` is read through targetKey: the effect reruns when the place changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, feed, sold, team, listing.id, fbKey, targetKey]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -138,7 +154,8 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   const kit = state.kit;
   // The caption that goes with the image carries the image's utm_source; the
   // text-only link keeps the one the old button sent.
-  const imageCaption = (feed ? kit?.copies?.social : null) || kit?.copies?.image || caption || '';
+  const socialCaption = target && kit ? captionForTarget(kit.copies?.social, kit.socialUrl, listing.id, target) : kit?.copies?.social;
+  const imageCaption = (feed ? socialCaption : null) || kit?.copies?.image || caption || '';
   const textCaption =
     kit?.copies?.whatsapp ||
     caption ||
@@ -359,6 +376,8 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
             </p>
           ) : null}
         </div>
+
+        {team && teamSlot ? teamSlot : null}
 
         {feed && !team && kit?.agentPage ? (
           <div className="rounded-xl bg-canvas-alt p-3">

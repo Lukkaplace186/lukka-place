@@ -4,6 +4,8 @@ import { keysetClause, pageCursors } from './adminPagination';
 import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MODERATION_QUEUE_STATUSES } from './moderation';
 import { VIDEOS_SQL, VIDEO_COUNT_SQL, isVideoPoster, listingVideos } from './listingVideos';
 import { monthlyEquivalent } from './leaseTerm';
+import { SOCIAL_FILTER_SQL, hasTeamSocialPosts } from './teamSocialPosts';
+import { TARGET_KEY_PATTERN } from './teamSocialTargets';
 
 /**
  * The listing moderation queue — one server page at a time, with quality flags.
@@ -102,7 +104,7 @@ export const COMMUNE_OF_P = `(
   LIMIT 1
 )`;
 
-function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = false }, params) {
+function buildBase({ status, q, commune, purpose, agentId, social, notIn, availabilityChecks = false, teamSocial = false }, params) {
   // Soft-deleted listings (lib/adminSoftDelete.js) leave every tab.
   const where = [STATUS_WHERE[status] || STATUS_WHERE.pending, 'p.deleted_at IS NULL'];
   const term = String(q || '').trim();
@@ -133,6 +135,13 @@ function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = 
   if (agentId != null && Number.isFinite(Number(agentId))) {
     params.push(Number(agentId));
     where.push(`p.agent_id = $${params.length}`);
+  }
+  // Where the team already posted it (lib/teamSocialPosts.js): only once the
+  // table exists, so the queue never fails on a missing table.
+  if (teamSocial && SOCIAL_FILTER_SQL[social]) where.push(SOCIAL_FILTER_SQL[social]);
+  if (teamSocial && notIn && TARGET_KEY_PATTERN.test(notIn)) {
+    params.push(notIn);
+    where.push(`NOT EXISTS (SELECT 1 FROM team_social_posts tsp WHERE tsp.property_id = p.id AND tsp.target_key = $${params.length})`);
   }
   params.push(EXTRACTION_FAILURE_MARKERS.map((marker) => `%${marker}%`));
   const markersParam = params.length;
@@ -254,6 +263,7 @@ function toRow(row, medians) {
     approveStatus: row.approve_status,
     status: row.status,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
     moderatedAt: row.moderated_at ? new Date(row.moderated_at).toISOString() : null,
     moderatedByName: row.moderated_by_name || null,
     moderationReasonCode: row.moderation_reason_code,
@@ -266,16 +276,23 @@ function toRow(row, medians) {
 }
 
 /**
+ * `social` ('unposted' | 'posted') and `notIn` (a target key: not yet posted
+ * THERE) filter on where the team posted the listing (lib/teamSocialPosts.js);
+ * both are ignored until migrations/20261106_team_social_posts.sql has run.
+ *
  * @param {{status?: string, q?: string, commune?: string, purpose?: string, flag?: string,
- *          agentId?: number, sort?: string, limit?: number, offset?: number}} [options]
+ *          agentId?: number, social?: string, notIn?: string, sort?: string, limit?: number, offset?: number}} [options]
  */
 export async function listModerationQueue({
-  status = 'pending', q, commune, purpose, flag, agentId, sort, limit = 25, offset = 0, cursor = null,
+  status = 'pending', q, commune, purpose, flag, agentId, social, notIn, sort, limit = 25, offset = 0, cursor = null,
 } = {}) {
   const resolvedStatus = MODERATION_QUEUE_STATUSES.includes(status) ? status : 'pending';
   const params = [];
-  const availabilityChecks = await hasAvailabilityChecks();
-  const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId, availabilityChecks }, params);
+  const [availabilityChecks, teamSocial] = await Promise.all([
+    hasAvailabilityChecks(),
+    social || notIn ? hasTeamSocialPosts() : false,
+  ]);
+  const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId, social, notIn, availabilityChecks, teamSocial }, params);
   const flagWhere = FLAG_SQL[flag] ? `WHERE ${FLAG_SQL[flag]}` : '';
   const resolvedSort = SORTS[sort] ? sort : resolvedStatus === 'pending' ? 'oldest' : 'newest';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);

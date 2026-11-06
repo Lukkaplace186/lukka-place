@@ -14415,6 +14415,32 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §78 Where the team posted each listing on social media (2026-11-06)
+  // ---------------------------------------------------------------------------
+  // team_social_posts is web-only (console share dialog, /admin/listings); the
+  // engine never reads or writes it. Pinned here so the migration stays
+  // additive and closed, and so nothing on the engine side starts writing it.
+  console.log('\n§78 team_social_posts migration is additive, closed to PostgREST, web-only');
+  {
+    const sql78 = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261106_team_social_posts.sql'), 'utf8');
+    check('the migration only creates (IF NOT EXISTS) and revokes; it drops or alters nothing', () => {
+      assert.match(sql78, /CREATE TABLE IF NOT EXISTS team_social_posts/);
+      assert.match(sql78, /CREATE INDEX IF NOT EXISTS team_social_posts_property_idx/);
+      assert.match(sql78, /REVOKE ALL ON team_social_posts FROM anon, authenticated/);
+      assert.ok(!/\b(DROP|ALTER|DELETE|UPDATE|TRUNCATE)\b/i.test(sql78.replace(/^--.*$/gm, '')));
+    });
+    check('no engine module names team_social_posts', () => {
+      const offenders = [];
+      for (const dir of ['services', 'routes']) {
+        for (const file of fs.readdirSync(path.join(__dirname, '..', dir))) {
+          if (!file.endsWith('.js')) continue;
+          if (fs.readFileSync(path.join(__dirname, '..', dir, file), 'utf8').includes('team_social_posts')) offenders.push(`${dir}/${file}`);
+        }
+      }
+      assert.deepStrictEqual(offenders, []);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

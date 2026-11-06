@@ -13,6 +13,8 @@ import TableToolbar from '../table/TableToolbar';
 import { NewItemsNotice } from '../LiveQueueCounts';
 import ModerationTable from './ModerationTable';
 import ServerViewTools from '../table/ServerViewTools';
+import { SOCIAL_FILTERS, getTeamSocialPostsByListing } from '@/lib/teamSocialPosts';
+import { TEAM_SOCIAL_TARGETS } from '@/lib/teamSocialTargets';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +48,9 @@ export default async function AdminListingsPage({ searchParams }) {
     purpose: ['rent', 'sale'].includes(firstParam(raw.purpose)) ? firstParam(raw.purpose) : undefined,
     flag: FILTERABLE_FLAGS.includes(firstParam(raw.flag)) ? firstParam(raw.flag) : undefined,
     sort: MODERATION_SORTS.includes(firstParam(raw.sort)) ? firstParam(raw.sort) : undefined,
+    // Where the team posted it (team_social_posts): live listings only.
+    social: status === 'approved' && SOCIAL_FILTERS.includes(firstParam(raw.social)) ? firstParam(raw.social) : undefined,
+    notIn: status === 'approved' && TEAM_SOCIAL_TARGETS.some((target) => target.key === firstParam(raw.notIn)) ? firstParam(raw.notIn) : undefined,
   };
   const { page, pageSize, limit, offset } = parsePage(raw);
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
@@ -59,6 +64,18 @@ export default async function AdminListingsPage({ searchParams }) {
   const queue = queueResult.status === 'fulfilled' ? queueResult.value : null;
   const counts = countsResult.status === 'fulfilled' ? countsResult.value : {};
   const communes = locations.status === 'fulfilled' ? locations.value.communes || [] : [];
+
+  // "Publié sur" on the live tab: where the team already posted each row.
+  // null = not known (table missing or the read failed), never "nowhere".
+  let socialPosts = null;
+  if (status === 'approved' && queue?.rows?.length) {
+    try {
+      const map = await getTeamSocialPostsByListing(queue.rows.map((row) => row.id));
+      socialPosts = map ? Object.fromEntries(map) : null;
+    } catch (err) {
+      console.error(`[team-social] reading posts for /admin/listings failed: ${err.message}`);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -81,7 +98,7 @@ export default async function AdminListingsPage({ searchParams }) {
         {MODERATION_QUEUE_STATUSES.map((value) => (
           <Link
             key={value}
-            href={buildHref('/admin/listings', params, { status: value === 'pending' ? '' : value, flag: '', sort: '' })}
+            href={buildHref('/admin/listings', params, { status: value === 'pending' ? '' : value, flag: '', sort: '', social: '', notIn: '' })}
             scroll={false}
             aria-current={value === status ? 'page' : undefined}
             className={`u-micro-strong inline-flex items-center gap-1.5 rounded-full border px-3 py-1 ${
@@ -97,8 +114,27 @@ export default async function AdminListingsPage({ searchParams }) {
       <TableToolbar
         params={params}
         search={{ placeholder: t('admin.moderation.searchPlaceholder') }}
-        resetKeys={['q', 'commune', 'purpose', 'flag', 'sort']}
+        resetKeys={['q', 'commune', 'purpose', 'flag', 'sort', 'social', 'notIn']}
         filters={[
+          ...(status === 'approved'
+            ? [
+              {
+                type: 'select',
+                param: 'social',
+                label: t('admin.social.filterLabel'),
+                options: [
+                  { value: 'unposted', label: t('admin.social.filterUnposted') },
+                  { value: 'posted', label: t('admin.social.filterPosted') },
+                ],
+              },
+              {
+                type: 'select',
+                param: 'notIn',
+                label: t('admin.social.notInLabel'),
+                options: TEAM_SOCIAL_TARGETS.map((target) => ({ value: target.key, label: target.label })),
+              },
+            ]
+            : []),
           {
             type: 'select',
             param: 'commune',
@@ -142,6 +178,7 @@ export default async function AdminListingsPage({ searchParams }) {
         canModerate={can(session?.role, 'listings.moderate')}
         canDelete={can(session?.role, 'listings.delete')}
         renderedAt={renderTime()}
+        socialPosts={socialPosts}
         footer={queue ? <Pagination pathname="/admin/listings" params={params} total={queue.total} page={page} pageSize={pageSize} cursors={queue.cursors} /> : null}
       />
 

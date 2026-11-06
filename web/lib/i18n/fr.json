@@ -7213,6 +7213,34 @@
         "date": "Date invalide.",
         "missing": "Ce prospect n'existe plus."
       }
+    },
+    "social": {
+      "whereLabel": "Où le publiez-vous ?",
+      "wherePlaceholder": "Choisir un groupe ou une page",
+      "ourPages": "Nos pages",
+      "groups": "Groupes Facebook",
+      "other": "Autre…",
+      "otherLabel": "Nom du groupe ou de la page",
+      "captionLinkHint": "Le lien de la légende porte le nom de ce groupe, pour savoir d’où viennent les visites.",
+      "openGroup": "Ouvrir le groupe",
+      "alreadyHere": "Déjà marqué ici le {date} par {name}.",
+      "someone": "un membre de l’équipe",
+      "markPosted": "Marquer comme publié ici",
+      "markHint": "À faire une fois la publication envoyée. Un groupe qui valide les publications peut encore la refuser.",
+      "marked": "Marqué comme publié : {place}.",
+      "errorDuplicate": "Déjà marqué dans ce groupe le {date}. Une seconde publication ressemblerait à du spam.",
+      "errorNotPublic": "Cette annonce n’est plus en ligne.",
+      "errorNotReady": "Le suivi des publications n’est pas encore activé (migration à lancer).",
+      "errorInvalid": "Choisissez un groupe ou une page.",
+      "historyUnavailable": "Historique des publications indisponible : migration team_social_posts à lancer.",
+      "historyTitle": "Déjà publié",
+      "colPosted": "Publié sur",
+      "notPosted": "Pas encore publié",
+      "morePlaces": "+ {count} autres",
+      "filterLabel": "Réseaux sociaux",
+      "filterUnposted": "Pas encore publié",
+      "filterPosted": "Déjà publié",
+      "notInLabel": "Pas encore dans"
     }
   },
   "errors": {

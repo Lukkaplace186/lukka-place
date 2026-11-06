@@ -17,6 +17,12 @@ import { Chip } from '../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { moderateListingsAction } from './actions';
 import { BulkDeleteButton, useBulkDelete } from '../BulkDelete';
+import TeamSocialShare from './TeamSocialShare';
+
+/** "6 nov." in Kinshasa time, the same on server and browser. */
+function shortDate(iso) {
+  return new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Africa/Kinshasa', day: 'numeric', month: 'short' });
+}
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -34,12 +40,35 @@ function waiting(iso, t, now) {
 }
 
 /**
+ * "Publié sur" on the live tab: the places the team marked this listing as
+ * posted (team_social_posts), newest first, at most three named. `null` is
+ * "not known" (table not there yet), which is not the same as "nowhere".
+ */
+function SocialPostsCell({ posts, t }) {
+  if (posts === null) return <span className="text-ink-35">—</span>;
+  if (!posts.length) return <span className="text-ink-45">{t('admin.social.notPosted')}</span>;
+  const shown = posts.slice(0, 3);
+  return (
+    <div className="flex max-w-[14rem] flex-col gap-0.5">
+      {shown.map((post) => (
+        <span key={post.id} className="truncate text-ink" title={post.postedBy ? `${post.targetLabel} · ${post.postedBy}` : post.targetLabel}>
+          {post.targetLabel} <span className="text-ink-45">· {shortDate(post.postedAt)}</span>
+        </span>
+      ))}
+      {posts.length > shown.length ? (
+        <span className="text-ink-45">{t('admin.social.morePlaces', { count: posts.length - shown.length })}</span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * One page of the approval queue with row selection and the two decisions.
  * Approving many runs the publishability check per listing and reports the
  * ones it skipped; rejecting many asks for one reason that every selected
  * agent is told.
  */
-export default function ModerationTable({ rows, status, canModerate, canDelete = false, footer, renderedAt }) {
+export default function ModerationTable({ rows, status, canModerate, canDelete = false, footer, renderedAt, socialPosts = null }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -56,6 +85,9 @@ export default function ModerationTable({ rows, status, canModerate, canDelete =
   // Delete works on every tab; approve / reject only where a decision is open.
   const selectable = canDecide || canDelete;
   const bulkDelete = useBulkDelete('listing', { onDeleted: () => setSelected(new Set()) });
+  // The live tab carries the team's social post per row and where it already went.
+  const live = status === 'approved';
+  const columns = 8 + (live ? 1 : 0);
 
   function decide(ids, decision, reason = {}) {
     startTransition(async () => {
@@ -130,12 +162,13 @@ export default function ModerationTable({ rows, status, canModerate, canDelete =
             <th className={TH_STICKY_RIGHT}>{t('admin.moderation.colPrice')}</th>
             <th className={TH_STICKY}>{t('admin.moderation.colQuality')}</th>
             <th className={TH_STICKY}>{status === 'pending' ? t('admin.moderation.colWaiting') : t('admin.moderation.colDecision')}</th>
+            {live ? <th className={TH_STICKY}>{t('admin.social.colPosted')}</th> : null}
             <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={8}>{t('admin.listings.empty')}</EmptyRow>
+            <EmptyRow colSpan={columns}>{t('admin.listings.empty')}</EmptyRow>
           ) : (
             rows.map((row) => (
               <tr key={row.id} className={`${TR_DENSE} ${selected.has(row.id) ? 'bg-blue-tint/40' : ''}`}>
@@ -226,8 +259,27 @@ export default function ModerationTable({ rows, status, canModerate, canDelete =
                     </>
                   )}
                 </td>
+                {live ? (
+                  <td className={TD_DENSE}>
+                    <SocialPostsCell posts={socialPosts ? socialPosts[row.id] || [] : null} t={t} />
+                  </td>
+                ) : null}
                 <td className={TD_DENSE}>
                   <div className="flex items-center gap-1.5">
+                    {live ? (
+                      <TeamSocialShare
+                        variant="icon"
+                        listing={{
+                          id: row.id,
+                          title: row.title,
+                          price: row.price,
+                          purpose: row.purpose,
+                          price_period: row.pricePeriod,
+                          featured_image: row.featuredImage,
+                          updated_at: row.updatedAt,
+                        }}
+                      />
+                    ) : null}
                     {canDecide ? (
                       <button type="button" className={BUTTON} disabled={pending} onClick={() => decide([row.id], 'approve')} title={t('admin.actions.approve')}>
                         <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-success" />

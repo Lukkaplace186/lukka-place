@@ -7213,6 +7213,34 @@
         "date": "Invalid date.",
         "missing": "This prospect no longer exists."
       }
+    },
+    "social": {
+      "whereLabel": "Where Are You Posting It?",
+      "wherePlaceholder": "Choose a group or a page",
+      "ourPages": "Our pages",
+      "groups": "Facebook groups",
+      "other": "Other…",
+      "otherLabel": "Group or page name",
+      "captionLinkHint": "The caption’s link carries this group’s name, so visits can be traced back to it.",
+      "openGroup": "Open the group",
+      "alreadyHere": "Already marked here on {date} by {name}.",
+      "someone": "a team member",
+      "markPosted": "Mark as posted here",
+      "markHint": "Do this once the post is sent. A group that approves posts can still decline it.",
+      "marked": "Marked as posted: {place}.",
+      "errorDuplicate": "Already marked in this group on {date}. A second post would look like spam.",
+      "errorNotPublic": "This listing is no longer online.",
+      "errorNotReady": "Post tracking is not switched on yet (migration to run).",
+      "errorInvalid": "Choose a group or a page.",
+      "historyUnavailable": "Post history unavailable: the team_social_posts migration has not run.",
+      "historyTitle": "Already Posted",
+      "colPosted": "Posted On",
+      "notPosted": "Not posted yet",
+      "morePlaces": "+ {count} more",
+      "filterLabel": "Social media",
+      "filterUnposted": "Not posted yet",
+      "filterPosted": "Already posted",
+      "notInLabel": "Not yet in"
     }
   },
   "errors": {

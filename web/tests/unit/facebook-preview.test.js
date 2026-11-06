@@ -93,11 +93,14 @@ test('the debugger link carries the encoded URL', () => {
 test('the kit exposes the feed caption link, and the actions scrape only that', () => {
   assert.equal(listingPublicUrl(651, { source: TEAM_SOCIAL_SOURCE }), URL_651);
   assert.match(read('lib/marketing/shareKit.js'), /socialUrl: urlFor\('social'\)/);
-  for (const file of ['app/admin/listings/shareActions.js', 'app/compte/agent/shareActions.js']) {
-    assert.match(read(file), /refreshFacebookPreview\(kit\.socialUrl\)/, file);
-  }
+  assert.match(read('app/compte/agent/shareActions.js'), /refreshFacebookPreview\(kit\.socialUrl\)/);
+  // The team's link is the kit's, or (2026-11-06) the picked group's own link,
+  // rebuilt on the server from the listing — never a URL from the browser.
+  const team = read('app/admin/listings/shareActions.js');
+  assert.match(team, /const url = target \? teamSocialUrl\(listing\.id, target\) : kit\.socialUrl;/);
+  assert.match(team, /refreshFacebookPreview\(url\)/);
   const dialog = read('components/ListingQuickShare.js');
-  assert.match(dialog, /team \? refreshTeamFacebookPreviewAction : refreshFacebookPreviewAction/);
+  assert.match(dialog, /team \? refreshTeamFacebookPreviewAction\(listing\.id, targetInput\) : refreshFacebookPreviewAction\(listing\.id\)/);
   assert.match(dialog, /if \(!open \|\| !feed \|\| sold\) return undefined;/);
 });
 

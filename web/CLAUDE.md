@@ -3363,6 +3363,34 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   a post already published). `tests/unit/facebook-preview.test.js`.
 - Not built: a visitor-facing "Générer la carte" on the public listing page,
   and a 9:16 option in the dialog (the layout has one).
+- **Where the team posted it** (2026-11-06, `team_social_posts`,
+  `migrations/20261106_team_social_posts.sql`, `lib/teamSocialTargets.js`
+  pure + client-safe, `lib/teamSocialPosts.js`,
+  `app/admin/listings/TeamSocialShare.js`). Why: the team posts listings by
+  hand into ~25 Kinshasa property groups on Facebook, nothing recorded which
+  listing went where, and the same Gombe listing was nearly posted twice in a
+  group whose admins approve every post.
+  - The team dialog now opens from every row of `/admin/listings`' Approuvées
+    tab (share icon) as well as the listing page. Under the buttons:
+    "Où le publiez-vous ?" (our Facebook page, Instagram, the groups listed in
+    `TEAM_SOCIAL_TARGETS` with a link to each, or "Autre…" typed). Picking a
+    place swaps the caption's link for that place's own link
+    (`utm_medium=groupe|page`, `utm_campaign=<key>`, recorded by
+    lib/attribution.js) and asks Facebook to read THAT link — it caches per
+    URL. The URL is rebuilt server-side from the listing and the resolved
+    target (`teamSocialUrl`), never taken from the browser.
+  - "Marquer comme publié ici" (`recordTeamSocialPostAction`,
+    `listings.view`, audited `listing.social_post`) writes one row: public
+    listings only (gate in the INSERT), the same place within 24 h refused as
+    `duplicate`. A row is what someone SAID they posted, not proof it is up.
+  - The Approuvées tab shows "Publié sur" (places + date, newest first) and
+    two filters: Réseaux sociaux (pas encore / déjà publié) and "Pas encore
+    dans <groupe>" — the list to work through for one group.
+  - Before the migration: `hasTeamSocialPosts()` (to_regclass) gates every
+    read, the column shows "—", filters are ignored, the mark button is off
+    and says the migration is missing. `ListingQuickShare` stays free of admin
+    copy (it also renders for agents): the picker is the `teamSlot` prop.
+    Tests: `tests/unit/team-social-posts.test.js`; engine §78.
 
 ## Dashboard: WhatsApp clicks, split (2026-10-26)
 

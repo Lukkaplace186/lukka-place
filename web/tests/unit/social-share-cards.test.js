@@ -265,7 +265,9 @@ test('team: any agent’s live listing, behind requireAdmin, nothing recorded, t
 
   const page = read('app/admin/listings/[id]/page.js');
   assert.match(page, /\{!shareBlocker\(listing\) \? \(\s*<TeamSocialCardButton/);
-  assert.match(read('app/admin/listings/[id]/TeamSocialCardButton.js'), /audience="team"/);
+  // Since 2026-11-06 the button opens TeamSocialShare, which wraps the team dialog.
+  assert.match(read('app/admin/listings/[id]/TeamSocialCardButton.js'), /<TeamSocialShare listing=\{listing\}/);
+  assert.match(read('app/admin/listings/TeamSocialShare.js'), /audience="team"/);
   assert.match(read('app/admin/layout.js'), /const ADMIN_NAMESPACES = \[[^\]]*'agent'\]/);
   const en = JSON.parse(read('lib/i18n/en.json'));
   for (const messages of [fr, en]) {

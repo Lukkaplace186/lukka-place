@@ -21,14 +21,16 @@ const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const { normaliseOpsNumber } = require('./opsDesk');
 const locations = require('./locations');
 
-const MAX_TEXT = 12000;
-const MAX_ADVERTS = 30;
+const MAX_TEXT = 20000;
+const MAX_ADVERTS = 40;
 
 const KINDS = ['appartement', 'studio', 'maison', 'villa', 'duplex', 'penthouse', 'chambre', 'terrain', 'bureau', 'commercial', 'immeuble'];
 
 const SYSTEM_PROMPT = `Tu lis un texte collé par l'équipe de Lukka Place (Kinshasa) : une ou plusieurs annonces immobilières copiées d'un groupe Facebook, d'un site, d'un groupe WhatsApp.
 
-Rends UNE entrée par annonce distincte (un bien proposé). Ignore les commentaires, les demandes ("je cherche…") et le texte qui n'est pas une annonce.
+Les blocs sont séparés par « --- » ; la première ligne d'un bloc est souvent le nom du profil qui publie.
+
+Rends UNE entrée par annonce immobilière distincte (un bien proposé à louer ou à vendre). Une même annonce publiée plusieurs fois (même texte, même numéro) n'est rendue qu'une fois. Ignore tout ce qui n'est pas une annonce immobilière : actualités, téléphones et autres objets à vendre, demandes ("je cherche…"), commentaires.
 
 Pour chaque annonce, uniquement ce qui est écrit, jamais deviné :
 - purpose : "rent" (location) ou "sale" (vente), null si non dit.
@@ -38,7 +40,7 @@ Pour chaque annonce, uniquement ce qui est écrit, jamais deviné :
 - price_period : "mois", "an", "jour", "semaine" pour une location, "total" pour une vente.
 - furnished : true si meublé, false si "non meublé", sinon null.
 - commune et quartier : tels qu'écrits. Un repère (église, avenue, arrêt) n'est pas un quartier.
-- contact_name : le nom de la personne qui publie ou à contacter (nom du profil Facebook si collé avec l'annonce). null si absent.
+- contact_name : le nom de la personne qui publie ou à contacter (le nom du profil en tête du bloc). null si absent.
 - agency_name : le nom de l'agence ou de l'entreprise immobilière, si écrit. null sinon.
 - contact_phone : le numéro de téléphone ou WhatsApp écrit dans l'annonce, recopié tel quel. null si aucun.
 - posted_hint : la date ou l'ancienneté si elle est écrite ("il y a 3 j", "12 octobre"), sinon null.
@@ -167,7 +169,7 @@ async function parseMarketPaste(rawText, { client = null } = {}) {
   const completion = await (client || openai.getClient()).chat.completions.create({
     model: MODEL,
     temperature: 0,
-    max_completion_tokens: 6000,
+    max_completion_tokens: 9000,
     prompt_cache_key: 'lukka-market-paste',
     response_format: RESPONSE_FORMAT,
     messages: [

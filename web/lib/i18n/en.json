@@ -6992,7 +6992,7 @@
       "pastePlaceholder": "Paste one or more adverts here, with the name and number of the person posting them…",
       "readButton": "Read the adverts",
       "reading": "Reading…",
-      "readHint": "Up to 30 adverts per paste.",
+      "readHint": "Paste the whole page: links, \"Facebook\" lines and repeated adverts are removed. Up to 40 adverts per paste.",
       "readDone": {
         "one": "{count} advert read. Check it, then save.",
         "other": "{count} adverts read. Check them, then save."

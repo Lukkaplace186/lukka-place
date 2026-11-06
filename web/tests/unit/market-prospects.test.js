@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
-  advertToRow, formatProspectPhone, mergeSources, observationInput, pasteRefSeed, prospectPhone,
+  advertToRow, cleanPastedText, formatProspectPhone, mergeSources, observationInput, pasteRefSeed, prospectPhone,
   PROSPECT_CHANNELS, PROSPECT_STATUSES, validateProspect,
 } from '@/lib/marketProspectRules';
 import { validateManualObservation } from '@/lib/marketObservationRules';
@@ -133,6 +133,24 @@ test('the migration CHECKs match the rules, and RLS shuts the tables', () => {
   for (const c of PROSPECT_CHANNELS) assert.ok(sql.includes(`'${c}'`), c);
   assert.match(sql, /ALTER TABLE market_prospects ENABLE ROW LEVEL SECURITY/);
   assert.match(sql, /REVOKE ALL ON market_prospects FROM anon, authenticated/);
+});
+
+test('a Facebook group page pasted whole keeps each post once, with its poster, and no page furniture', () => {
+  const raw = readFileSync(path.join(process.cwd(), 'tests', 'fixtures', 'facebook-group-paste.txt'), 'utf8');
+  const clean = cleanPastedText(raw);
+  assert.ok(clean.length < raw.length / 2);
+  assert.doesNotMatch(clean, /https?:|facebook\.com|^Facebook$|See (more|less)|#ImmobilierRDC|Rejoindre|GROUPE 1/m);
+  assert.equal(clean.match(/MAGNIFIQUE MAISON/g).length, 1, 'the same post twice is read once');
+  assert.equal(clean.match(/CHEZ PAPA SOCIAL/g).length, 1, 'the cut-off "See more" copy is dropped');
+  assert.match(clean, /Loyer mensuel:400 \$/, 'the full copy is the one kept');
+  assert.match(clean, /Boulaut Palais\nMUSALA MBONGO/, 'the poster stays at the head of the post, once');
+  for (const phone of ['0819656738', '0858160264', '0985582739', '0816 663 134']) assert.ok(clean.includes(phone), phone);
+});
+
+test('a row whose price was not read is not sent to the guide, but its poster can still be kept', () => {
+  const row = advertToRow(advert({ price: null, price_unverified: false }), 0, { communes: COMMUNES });
+  assert.equal(row.keepPrice, false);
+  assert.equal(row.keepProspect, true);
 });
 
 test('every status and channel has its label in both languages', () => {

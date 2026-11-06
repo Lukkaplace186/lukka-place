@@ -22,8 +22,60 @@ export const PROSPECT_CHANNELS = ['whatsapp', 'phone', 'in_person', 'facebook', 
 /** Statuses still worth a call (the default filter). */
 export const OPEN_PROSPECT_STATUSES = ['todo', 'noanswer', 'callback', 'interested'];
 
-export const MAX_PASTE_CHARS = 12000;
-export const MAX_PASTE_ROWS = 30;
+/** What the reader is sent, after cleanPastedText (engine services/marketPaste.js MAX_TEXT). */
+export const MAX_PASTE_CHARS = 20000;
+/** What the box accepts raw: a whole Facebook group page copied with its links. */
+export const MAX_RAW_PASTE_CHARS = 300000;
+export const MAX_PASTE_ROWS = 40;
+
+/** Page furniture between two posts: it ends a block. */
+const SPLIT_LINE = /^(?:facebook|\*|see (?:more|less)|voir (?:plus|moins)|afficher (?:plus|moins))$/i;
+/** Furniture inside a post's header (poster · group · Follow): dropped, the block goes on. */
+const DROP_LINE = /^(?:·|follow|suivre|admin|posted to|a publié dans|is at .*|is feeling .*|accounts with a verified badge.*|les comptes avec un badge.*|kinshasa, democratic republic of the congo|━+|—+|-{3,}|"?rejoindre .*|lien du groupe.*|groupe \d+ —.*|cha[iî]ne whatsapp.*|rejoignez nos espaces.*)$/i;
+
+const fold = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+
+/**
+ * A Facebook (or any web) page copied whole → only the posts' own text, each
+ * once (2026-11-06: a group page pasted as-is was ~60,000 characters, most of
+ * it link targets, "Facebook" ×44 per post and the same post three times).
+ *  - `[Name](url)` keeps the name (the poster), bare links and hashtags go;
+ *  - furniture lines (Facebook, See more, Follow, *, ·) end a block;
+ *  - a block equal to another, or the cut-off "See more" start of a longer
+ *    one, is dropped, so a repost is read once.
+ * Phone numbers and prices are left exactly as written.
+ */
+export function cleanPastedText(raw) {
+  let text = String(raw || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\[([^\]\n]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/(^|\s)#[\p{L}\p{N}_]+/gu, '$1')
+    .replace(/\[\.\.\.\]/g, '')
+    .replace(/…\s*$/gm, '');
+  const blocks = [];
+  let current = [];
+  const flush = () => {
+    const block = current.join('\n').trim();
+    if (block) blocks.push(block);
+    current = [];
+  };
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/[ \t ]+/g, ' ').replace(/^[·\s]+|[·\s]+$/g, '').trim();
+    if (!line) continue;
+    if (SPLIT_LINE.test(line) || /^\*+$/.test(line)) { flush(); continue; }
+    if (DROP_LINE.test(line)) continue;
+    if (current[current.length - 1] === line) continue; // "Name · Name" headers
+    current.push(line);
+  }
+  flush();
+
+  const keyed = blocks.map((block) => ({ block, key: fold(block) })).filter((b) => b.key.length >= 3);
+  const kept = keyed.filter((b, i) => !keyed.some((o, j) => (
+    o.key.length > b.key.length ? o.key.includes(b.key) && b.key.length >= 30 : o.key === b.key && j < i
+  )));
+  return kept.map((b) => b.block).join('\n\n---\n\n');
+}
 
 /** Digits only, 7–15 (E.164 range). A local "0812…" was already made 243… by the engine. */
 export function prospectPhone(value) {
@@ -58,7 +110,8 @@ export function advertToRow(advert, index, { communes = [] } = {}) {
   const phone = prospectPhone(a.contact_phone);
   return {
     key: `r${index}`,
-    keepPrice: true,
+    // No price read → nothing for the guide; the poster can still be kept.
+    keepPrice: Number.isFinite(a.price) && a.price > 0,
     keepProspect: Boolean(phone),
     purpose: a.purpose === 'sale' ? 'sale' : 'rent',
     property_kind: kind,

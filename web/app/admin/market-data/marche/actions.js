@@ -10,7 +10,9 @@ import { knownPhones, saveMarketPasteBatch } from '@/lib/marketProspects';
 import {
   MAX_PASTE_CHARS,
   MAX_PASTE_ROWS,
+  MAX_RAW_PASTE_CHARS,
   advertToRow,
+  cleanPastedText,
   observationInput,
   validateProspect,
 } from '@/lib/marketProspectRules';
@@ -80,7 +82,10 @@ export async function readMarketPasteAction(text) {
   const t = await getT();
   try {
     await requireAdmin('market.manage');
-    const clean = String(text || '').trim();
+    const raw = String(text || '');
+    if (raw.length > MAX_RAW_PASTE_CHARS) return { ok: false, error: t('admin.marketPaste.errors.tooLong', { max: MAX_PASTE_CHARS }) };
+    // Links, "Facebook" lines and the same post pasted twice go before reading.
+    const clean = cleanPastedText(raw);
     if (clean.length < 15) return { ok: false, error: t('admin.marketObservations.errors.pasteShort') };
     if (clean.length > MAX_PASTE_CHARS) return { ok: false, error: t('admin.marketPaste.errors.tooLong', { max: MAX_PASTE_CHARS }) };
     const [result, hierarchy] = await Promise.all([parseMarketPaste(clean), getLocationHierarchyWithFallback({ city: 'all' })]);

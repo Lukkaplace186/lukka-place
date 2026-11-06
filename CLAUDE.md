@@ -2239,8 +2239,8 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
 - **"Coller des annonces" — one paste, prices AND prospects (2026-11-05,
   owner: "so I don't have to do the job twice").** `services/marketPaste.js`
   behind `POST /admin/parse-market-paste` reads a pasted page (Facebook,
-  Zwandako, a site, a WhatsApp group; ≤12,000 chars, ≤30 adverts, one gpt-4o
-  call, ~0.5 ¢) into adverts, each with its price facts and its poster's name,
+  Zwandako, a site, a WhatsApp group; ≤20,000 chars once cleaned, ≤40 adverts,
+  one gpt-4o call, ~0.5–1 ¢) into adverts, each with its price facts and its poster's name,
   agency and number. Kept only when literally in the text: the number (last 9
   digits) and the price; the commune only when `locations.js` resolves it to
   one Kinshasa commune or deduces it from a quartier; a buyer's "je cherche"
@@ -2253,7 +2253,13 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   advert, never touches the team's status or notes) in one transaction.
   `/admin/market-data/prospects` is the follow-up list that replaces the
   separate "Prospects agents" tracker page. §75; web
-  `tests/unit/market-prospects.test.js`.
+  `tests/unit/market-prospects.test.js`. **A whole Facebook group page can be
+  pasted (2026-11-06)**: web's `cleanPastedText` keeps only the posts — link
+  text kept (the poster's name), links, hashtags, "Facebook" / See more lines
+  and WhatsApp-group promo lines removed, a post repeated or cut off by "See
+  more" kept once (a 60,000-character page is mostly that). The box takes
+  300,000 raw characters; a row whose price was not read starts unticked for
+  the guide.
 
 ## Agent templates approved 2026-11-03 — switched on 2026-11-04
 

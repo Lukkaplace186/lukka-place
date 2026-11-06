@@ -6992,7 +6992,7 @@
       "pastePlaceholder": "Collez ici une ou plusieurs annonces, avec le nom et le numéro de la personne qui les publie…",
       "readButton": "Lire les annonces",
       "reading": "Lecture…",
-      "readHint": "Jusqu'à 30 annonces par collage.",
+      "readHint": "Collez la page entière : les liens, les mentions « Facebook » et les annonces en double sont retirés. Jusqu'à 40 annonces par collage.",
       "readDone": {
         "one": "{count} annonce lue. Vérifiez-la puis enregistrez.",
         "other": "{count} annonces lues. Vérifiez-les puis enregistrez."

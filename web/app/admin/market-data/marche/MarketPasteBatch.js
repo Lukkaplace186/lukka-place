@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
 import { PROPERTY_KINDS } from '@/lib/marketObservationRules';
-import { MAX_PASTE_CHARS, formatProspectPhone } from '@/lib/marketProspectRules';
+import { MAX_RAW_PASTE_CHARS, formatProspectPhone } from '@/lib/marketProspectRules';
 import { readMarketPasteAction, saveMarketPasteAction } from './actions';
 
 const INPUT = 'u-micro h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-ink focus:border-blue focus:outline-none';
@@ -85,7 +85,7 @@ export default function MarketPasteBatch({ communes, sources }) {
           value={paste}
           onChange={(event) => setPaste(event.target.value)}
           rows={7}
-          maxLength={MAX_PASTE_CHARS}
+          maxLength={MAX_RAW_PASTE_CHARS}
           className="u-micro w-full rounded-lg border border-line bg-surface p-3 text-ink focus:border-blue focus:outline-none"
           placeholder={t('admin.marketPaste.pastePlaceholder')}
         />

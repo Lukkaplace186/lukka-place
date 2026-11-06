@@ -15,11 +15,14 @@ const GROUP_LABEL_KEYS = {
   conversations: 'admin.search.groupConversations',
 };
 
+/** Fired by the sidebar's "Rechercher" button: focuses this box, like Ctrl/⌘+K. */
+export const ADMIN_SEARCH_EVENT = 'lukka:admin-search';
+
 /**
  * One box for the whole console: paste a phone number, a listing id or
- * reference, a name or an agency and jump straight to it. Ctrl/⌘+K focuses it
- * from anywhere. Results come from /admin/api/search, which only returns the
- * groups the signed-in role may open.
+ * reference, a name or an agency and jump straight to it. Ctrl/⌘+K (or the
+ * sidebar's search button) focuses it from anywhere. Results come from
+ * /admin/api/search, which only returns the groups the signed-in role may open.
  */
 export default function GlobalSearch() {
   const t = useT();
@@ -44,10 +47,16 @@ export default function GlobalSearch() {
     function onClick(event) {
       if (boxRef.current && !boxRef.current.contains(event.target)) setOpen(false);
     }
+    function onSearchRequest() {
+      inputRef.current?.focus();
+      setOpen(true);
+    }
     window.addEventListener('keydown', onKey);
+    window.addEventListener(ADMIN_SEARCH_EVENT, onSearchRequest);
     document.addEventListener('mousedown', onClick);
     return () => {
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener(ADMIN_SEARCH_EVENT, onSearchRequest);
       document.removeEventListener('mousedown', onClick);
     };
   }, []);

@@ -72,11 +72,20 @@ export function useQueueCounts() {
   return useSyncExternalStore(subscribe, () => snapshot, () => null);
 }
 
-export function QueueBadge({ count }) {
+/**
+ * A count pill for the royal sidebar. `urgent` (red) means someone is waiting
+ * on the team; `quiet` is work to look at when there is time
+ * (lib/adminNavState.js decides which is which).
+ */
+export function QueueBadge({ count, tone = 'urgent' }) {
   const value = Number(count) || 0;
   if (value <= 0) return null;
   return (
-    <span className="u-tabular ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[0.6875rem] font-bold leading-5 text-white">
+    <span
+      className={`u-tabular ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] font-bold leading-5 text-white ${
+        tone === 'quiet' ? 'bg-white/20' : 'bg-danger'
+      }`}
+    >
       {value > 999 ? '999+' : value}
     </span>
   );

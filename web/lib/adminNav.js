@@ -25,18 +25,20 @@ export const ADMIN_NAV_GROUPS = [
   },
   {
     labelKey: 'admin.nav.groups.network',
+    // Most-used first (2026-11-06): the people and checks the founders open
+    // daily, then the growth tools.
     items: [
       { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: 'User' },
-      { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: 'Building2' },
       { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: 'ShieldCheck' },
+      { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: 'Building2' },
+      { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: 'Users' },
       { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: 'Star' },
+      { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: 'HandCoins' },
       { href: '/admin/partenaires', labelKey: 'admin.nav.partners', icon: 'Megaphone' },
       // The agent announcement campaign: stop / restart, the message, who got it.
       { href: '/admin/campagne', labelKey: 'admin.nav.campaign', icon: 'Send' },
       { href: '/admin/liens', labelKey: 'admin.nav.links', icon: 'Link2' },
-      { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: 'Users' },
-      { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
     ],
   },
   {

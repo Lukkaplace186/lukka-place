@@ -1,7 +1,7 @@
 'use client';
 
 import { buildFlyerOps, buildReportOps } from '@/lib/marketing/layout';
-import { EXPORT_BYTE_BUDGET, EXPORT_JPEG_QUALITY } from '@/lib/marketing/formats';
+import { EXPORT_BYTE_BUDGET, EXPORT_JPEG_FALLBACK_QUALITY, EXPORT_JPEG_QUALITY } from '@/lib/marketing/formats';
 import { CHECK_PATH, CHECK_STROKE_WIDTH, LINE_ICONS, LINE_ICON_STROKE_WIDTH, WHATSAPP_PATH } from '@/lib/marketing/icons';
 
 /**
@@ -257,7 +257,7 @@ function exportJpeg(canvas) {
   const blob = toJpegBlob(canvas, EXPORT_JPEG_QUALITY);
   // Busy photos can push a browser encoder past the budget; one lower pass.
   if (blob.size <= EXPORT_BYTE_BUDGET) return blob;
-  return toJpegBlob(canvas, EXPORT_JPEG_QUALITY - 0.12);
+  return toJpegBlob(canvas, EXPORT_JPEG_FALLBACK_QUALITY);
 }
 
 async function render(build, family, images, markName) {

@@ -4,7 +4,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { calls, enqueue, reset } from '../support/fakePool.js';
-import { FORMATS, FORMAT_KEYS, REPORT_FORMAT, EXPORT_BYTE_BUDGET } from '@/lib/marketing/formats';
+import {
+  FORMATS, FORMAT_KEYS, REPORT_FORMAT, EXPORT_BYTE_BUDGET, EXPORT_JPEG_FALLBACK_QUALITY, EXPORT_JPEG_QUALITY,
+} from '@/lib/marketing/formats';
 import { buildFlyerOps, buildReportOps, baselineOffset, displayAmount, lineBox, wrapText, COLORS } from '@/lib/marketing/layout';
 import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl } from '@/lib/marketing/sharePackData';
 import {
@@ -58,13 +60,16 @@ const images = (ops) => ops.filter((op) => op.type === 'image');
 const texts = (ops) => ops.filter((op) => op.type === 'text');
 const textOp = (ops, text) => texts(ops).find((op) => op.text === text);
 
-test('formats are native sizes, not 2×, and the export budget is 150 KB', () => {
+test('formats are native sizes, not 2×; exported gently (0.92, 0.86 fallback) under 400 KB', () => {
   assert.deepEqual(
     FORMAT_KEYS.map((k) => [FORMATS[k].width, FORMATS[k].height]),
     [[1080, 1080], [1080, 1920], [1200, 675], [1080, 1350]],
   );
   assert.deepEqual([REPORT_FORMAT.width, REPORT_FORMAT.height], [1080, 1080]);
-  assert.equal(EXPORT_BYTE_BUDGET, 150 * 1024);
+  // Raised 2026-11-06: 0.82 under 150 KB (falling to 0.70) softened the lettering.
+  assert.equal(EXPORT_BYTE_BUDGET, 400 * 1024);
+  assert.equal(EXPORT_JPEG_QUALITY, 0.92);
+  assert.equal(EXPORT_JPEG_FALLBACK_QUALITY, 0.86);
 });
 
 test('text baselines follow the half-leading model with Plus Jakarta Sans metrics', () => {

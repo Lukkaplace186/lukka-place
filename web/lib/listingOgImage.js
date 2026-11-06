@@ -121,7 +121,7 @@ async function fetchPhoto(src) {
  *
  * @returns {Promise<Array<{src: string, left: number, top: number, width: number, height: number}>>}
  */
-export async function loadOgPhotos(srcs) {
+export async function loadOgPhotos(srcs, { scale = 1 } = {}) {
   const sharp = await loadSharp();
   if (!sharp) return [];
   const candidates = [...new Set((srcs || []).filter(Boolean))].slice(0, OG_PHOTO_CANDIDATES);
@@ -146,13 +146,16 @@ export async function loadOgPhotos(srcs) {
   for (let i = 0; i < chosen.length; i += 1) {
     const slot = slots[i];
     try {
+      // Cropped at the size the card is DRAWN at (slot × scale), so the
+      // renderer never enlarges it, and near-lossless: the card's own JPEG
+      // step is the one real compression (pngToJpeg).
       const jpeg = await sharp(chosen[i].buffer)
         .rotate()
-        .resize({ width: Math.round(slot.width), height: Math.round(slot.height), fit: 'cover', position: 'centre' })
+        .resize({ width: Math.round(slot.width * scale), height: Math.round(slot.height * scale), fit: 'cover', position: 'centre' })
         .modulate({ brightness: 1.04, saturation: 1.05 })
         .linear(1.06, -7.7)
         .recomb([[1.03, 0.02, 0], [0.01, 1.01, 0], [0, 0, 0.96]])
-        .jpeg({ quality: 88 })
+        .jpeg({ quality: 97, chromaSubsampling: '4:4:4' })
         .toBuffer();
       out.push({ ...slot, src: `data:image/jpeg;base64,${jpeg.toString('base64')}` });
     } catch {
@@ -284,12 +287,62 @@ async function fetchGoogleTtf(family, weights, name) {
  *
  * @returns {Promise<Buffer|null>}
  */
-export async function pngToJpeg(png) {
+export async function pngToJpeg(png, { quality = 82, fullColour = false } = {}) {
   const sharp = await loadSharp();
   if (!sharp) return null;
   try {
-    return await sharp(Buffer.from(png)).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+    return await sharp(Buffer.from(png))
+      .jpeg({ quality, mozjpeg: true, ...(fullColour ? { chromaSubsampling: '4:4:4' } : {}) })
+      .toBuffer();
   } catch {
     return null;
   }
+}
+
+/**
+ * The listing card's sizes, sharpest first (2026-11-06, "it is not HD"): the
+ * card is DRAWN at 2× (2400×1260) so its text, logo and rules are rendered
+ * at full resolution instead of being enlarged by Facebook on a phone screen,
+ * and saved once as a quality-90 JPEG with full colour detail (4:4:4: the
+ * default 4:2:0 left halos round the royal-blue text). If a listing's photos
+ * make that heavier than OG_MAX_BYTES — WhatsApp drops a link preview image
+ * that is too heavy — the next size down is tried, then the next.
+ */
+export const OG_SCALES = Object.freeze([2, 1.5, 1]);
+export const OG_MAX_BYTES = 300 * 1024;
+
+/**
+ * The tries, best first. At 2× the default colour subsampling is already
+ * finer than the old 1× card's full colour, so 2× saves at 4:2:0 and only the
+ * smaller sizes need 4:4:4 to keep the royal text free of halos. Measured on
+ * six live listings (2026-11-06): photo-heavy cards ran 180–300 KB at 1.5×
+ * full colour, so 2× needed the lighter encoding to stay under the budget.
+ */
+export const OG_ENCODINGS = Object.freeze([
+  Object.freeze({ scale: 2, quality: 88, fullColour: false }),
+  Object.freeze({ scale: 2, quality: 80, fullColour: false }),
+  Object.freeze({ scale: 1.5, quality: 86, fullColour: true }),
+  Object.freeze({ scale: 1.5, quality: 80, fullColour: false }),
+  Object.freeze({ scale: 1, quality: 90, fullColour: true }),
+]);
+
+/**
+ * The first encoding that fits OG_MAX_BYTES, else the last (smallest) one.
+ * `renderAt(scale)` returns the PNG bytes drawn at that scale; each scale is
+ * drawn once.
+ *
+ * @returns {Promise<{body: Buffer|ArrayBuffer, type: string, scale: number, quality: number}>}
+ */
+export async function encodeOgCard(renderAt) {
+  const drawn = new Map();
+  let last = null;
+  for (const { scale, quality, fullColour } of OG_ENCODINGS) {
+    if (!drawn.has(scale)) drawn.set(scale, await renderAt(scale));
+    const png = drawn.get(scale);
+    const jpeg = await pngToJpeg(png, { quality, fullColour });
+    if (!jpeg) return { body: png, type: 'image/png', scale, quality: null };
+    last = { body: jpeg, type: 'image/jpeg', scale, quality };
+    if (jpeg.length <= OG_MAX_BYTES) return last;
+  }
+  return last;
 }

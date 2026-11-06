@@ -5,7 +5,7 @@ import { createTranslator } from '@/lib/i18n/translate';
 import fr from '@/lib/i18n/fr.json';
 import { OG_PHOTO_BLOCK, ogCardModel } from '@/lib/listingOgCard';
 import {
-  loadOgFonts, loadOgPhotos, loadOgRoyalLogo, loadOgSerif, loadOgWordmark, pngToJpeg,
+  OG_SCALES, encodeOgCard, loadOgFonts, loadOgPhotos, loadOgRoyalLogo, loadOgSerif, loadOgWordmark,
 } from '@/lib/listingOgImage';
 import { LINE_ICONS } from '@/lib/marketing/icons';
 
@@ -43,7 +43,12 @@ import { LINE_ICONS } from '@/lib/marketing/icons';
  */
 
 export const alt = 'Annonce Lukka Place : photos, prix et caractéristiques du bien';
-export const size = { width: 1200, height: 630 };
+// Laid out on a 1200×630 grid, DRAWN at 2× (lib/listingOgImage.js OG_SCALES):
+// Facebook shows the preview on 2–3× phone screens, and a 1200px image was
+// being enlarged there, blurring the text. A listing whose photos make the 2×
+// file too heavy for WhatsApp is drawn at 1.5× or 1× instead (same 1.91:1).
+export const size = { width: 2400, height: 1260 };
+const BASE = { width: 1200, height: 630 };
 export const contentType = 'image/jpeg';
 export const revalidate = 600;
 
@@ -69,20 +74,26 @@ function Icon({ name, size: px, color, strokeWidth = 2 }) {
   );
 }
 
-function PhotoBlock({ photos, wordmark }) {
+/**
+ * Every length is written on the 1200×630 grid and multiplied by the scale
+ * the card is drawn at (`s`), so text, logo and rules are rendered at the
+ * final pixel size. A CSS transform on a wrapper was tried first: satori
+ * scaled the text but not the absolutely placed photos and logo.
+ */
+function PhotoBlock({ photos, wordmark, s }) {
   if (!photos.length) {
     return (
       <div
         style={{
-          position: 'absolute', left: 0, top: 0, width: OG_PHOTO_BLOCK.width, height: OG_PHOTO_BLOCK.height,
+          position: 'absolute', left: 0, top: 0, width: s(OG_PHOTO_BLOCK.width), height: s(OG_PHOTO_BLOCK.height),
           display: 'flex', alignItems: 'center', justifyContent: 'center', background: ROYAL,
         }}
       >
         {wordmark ? (
           // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text -- satori, not the DOM
-          <img src={wordmark} width={360} height={114} style={{ width: 360, height: 114 }} />
+          <img src={wordmark} width={s(360)} height={s(114)} style={{ width: s(360), height: s(114) }} />
         ) : (
-          <div style={{ display: 'flex', fontSize: 64, fontWeight: 800, color: '#FFFFFF' }}>Lukka Place</div>
+          <div style={{ display: 'flex', fontSize: s(64), fontWeight: 800, color: '#FFFFFF' }}>Lukka Place</div>
         )}
       </div>
     );
@@ -94,62 +105,64 @@ function PhotoBlock({ photos, wordmark }) {
         <img
           key={`${photo.left}-${photo.top}`}
           src={photo.src}
-          width={photo.width}
-          height={photo.height}
-          style={{ position: 'absolute', left: photo.left, top: photo.top, width: photo.width, height: photo.height }}
+          width={s(photo.width)}
+          height={s(photo.height)}
+          style={{ position: 'absolute', left: s(photo.left), top: s(photo.top), width: s(photo.width), height: s(photo.height) }}
         />
       ))}
     </>
   );
 }
 
-function OgCard({ model, photos, wordmark, royalLogo, serif }) {
+function OgCard({ model, photos, wordmark, royalLogo, serif, scale }) {
+  const s = (n) => n * scale;
   const priceFont = serif ? 'Serif' : 'Jakarta';
   const hasFacts = Boolean(model.typeText || model.roomsLine);
   return (
     <div
       style={{
-        width: 1200, height: 630, display: 'flex', position: 'relative', overflow: 'hidden',
+        width: s(BASE.width), height: s(BASE.height), display: 'flex', position: 'relative', overflow: 'hidden',
         background: IVORY, color: INK, fontFamily: 'Jakarta',
       }}
     >
-      <PhotoBlock photos={photos} wordmark={wordmark} />
+      <PhotoBlock photos={photos} wordmark={wordmark} s={s} />
 
       <div
         style={{
-          position: 'absolute', left: COLUMN_LEFT, top: 0, width: 1200 - COLUMN_LEFT, height: 630,
-          padding: '54px 54px 50px 50px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          position: 'absolute', left: s(COLUMN_LEFT), top: 0, width: s(BASE.width - COLUMN_LEFT), height: s(BASE.height),
+          paddingTop: s(54), paddingRight: s(54), paddingBottom: s(50), paddingLeft: s(50),
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', fontSize: 17, fontWeight: 700, letterSpacing: 3.7, lineHeight: 1.2, color: ROYAL }}>
+        <div style={{ display: 'flex', fontSize: s(17), fontWeight: 700, letterSpacing: s(3.7), lineHeight: 1.2, color: ROYAL }}>
           {model.line || ' '}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
-              display: 'flex', fontFamily: priceFont, fontWeight: serif ? 400 : 800, fontSize: model.priceSize,
-              lineHeight: 0.92, letterSpacing: -0.025 * model.priceSize, color: INK,
+              display: 'flex', fontFamily: priceFont, fontWeight: serif ? 400 : 800, fontSize: s(model.priceSize),
+              lineHeight: 0.92, letterSpacing: s(-0.025 * model.priceSize), color: INK,
             }}
           >
             {model.amount}
           </div>
           {model.periodWords ? (
-            <div style={{ display: 'flex', marginTop: 12, fontSize: 21, fontWeight: 500, color: MUTED }}>{model.periodWords}</div>
+            <div style={{ display: 'flex', marginTop: s(12), fontSize: s(21), fontWeight: 500, color: MUTED }}>{model.periodWords}</div>
           ) : null}
-          {hasFacts ? <div style={{ display: 'flex', height: 1, background: RULE, marginTop: 30, marginBottom: 22 }} /> : null}
+          {hasFacts ? <div style={{ display: 'flex', height: s(1), background: RULE, marginTop: s(30), marginBottom: s(22) }} /> : null}
           {model.typeText ? (
-            <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, color: INK }}>{model.typeText}</div>
+            <div style={{ display: 'flex', fontSize: s(22), fontWeight: 700, color: INK }}>{model.typeText}</div>
           ) : null}
           {model.roomsLine ? (
-            <div style={{ display: 'flex', marginTop: model.typeText ? 6 : 0, fontSize: 21, fontWeight: 500, lineHeight: 1.3, color: MUTED }}>
+            <div style={{ display: 'flex', marginTop: model.typeText ? s(6) : 0, fontSize: s(21), fontWeight: 500, lineHeight: 1.3, color: MUTED }}>
               {model.roomsLine}
             </div>
           ) : null}
           {model.verified ? (
-            <div style={{ display: 'flex', alignItems: 'center', marginTop: 14, fontSize: 17, fontWeight: 700, color: ROYAL }}>
-              <Icon name="badgeCheck" size={20} color={ROYAL} />
-              <div style={{ display: 'flex', marginLeft: 8 }}>Vérifié par Lukka Place</div>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: s(14), fontSize: s(17), fontWeight: 700, color: ROYAL }}>
+              <Icon name="badgeCheck" size={s(20)} color={ROYAL} />
+              <div style={{ display: 'flex', marginLeft: s(8) }}>Vérifié par Lukka Place</div>
             </div>
           ) : null}
         </div>
@@ -157,11 +170,11 @@ function OgCard({ model, photos, wordmark, royalLogo, serif }) {
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           {royalLogo ? (
             // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text -- satori, not the DOM
-            <img src={royalLogo} width={LOGO_WIDTH} height={LOGO_HEIGHT} style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }} />
+            <img src={royalLogo} width={s(LOGO_WIDTH)} height={s(LOGO_HEIGHT)} style={{ width: s(LOGO_WIDTH), height: s(LOGO_HEIGHT) }} />
           ) : (
-            <div style={{ display: 'flex', fontSize: 30, fontWeight: 800, color: ROYAL }}>Lukka Place</div>
+            <div style={{ display: 'flex', fontSize: s(30), fontWeight: 800, color: ROYAL }}>Lukka Place</div>
           )}
-          <div style={{ display: 'flex', fontSize: 18, fontWeight: 600, lineHeight: 1, paddingBottom: 3, color: MUTED }}>lukkaplace.com</div>
+          <div style={{ display: 'flex', fontSize: s(18), fontWeight: 600, lineHeight: 1, paddingBottom: s(3), color: MUTED }}>lukkaplace.com</div>
         </div>
       </div>
     </div>
@@ -177,18 +190,22 @@ export default async function Image({ params }) {
   const [fonts, serif, photos, wordmark, royalLogo] = await Promise.all([
     loadOgFonts(),
     loadOgSerif(),
-    loadOgPhotos(listingImages(listing)),
+    // Cropped once at the largest scale; a smaller rendering scales them down.
+    loadOgPhotos(listingImages(listing), { scale: OG_SCALES[0] }),
     loadOgWordmark(),
     loadOgRoyalLogo(),
   ]);
   const allFonts = [...fonts, ...serif];
-  const png = await new ImageResponse(
-    <OgCard model={model} photos={photos} wordmark={wordmark} royalLogo={royalLogo} serif={serif.length > 0} />,
-    { ...size, ...(allFonts.length ? { fonts: allFonts } : {}) },
-  ).arrayBuffer();
+  const { body, type, scale, quality } = await encodeOgCard((at) => new ImageResponse(
+    <OgCard model={model} photos={photos} wordmark={wordmark} royalLogo={royalLogo} serif={serif.length > 0} scale={at} />,
+    { width: BASE.width * at, height: BASE.height * at, ...(allFonts.length ? { fonts: allFonts } : {}) },
+  ).arrayBuffer());
 
-  const headers = { 'Cache-Control': 'public, max-age=600, s-maxage=600, stale-while-revalidate=86400' };
-  const jpeg = await pngToJpeg(png);
-  if (!jpeg) return new Response(png, { headers: { ...headers, 'Content-Type': 'image/png' } });
-  return new Response(jpeg, { headers: { ...headers, 'Content-Type': 'image/jpeg' } });
+  return new Response(body, {
+    headers: {
+      'Cache-Control': 'public, max-age=600, s-maxage=600, stale-while-revalidate=86400',
+      'Content-Type': type,
+      'X-Og-Scale': `${scale}x q${quality ?? 'png'}`,
+    },
+  });
 }

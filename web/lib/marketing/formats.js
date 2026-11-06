@@ -18,12 +18,16 @@ export const FORMAT_KEYS = Object.freeze(Object.keys(FORMATS));
 export const REPORT_FORMAT = Object.freeze({ key: 'report', width: 1080, height: 1080 });
 
 /**
- * Browsers' JPEG encoders are less efficient than mozjpeg, so the client
- * export runs a little lower than the server's 85 to stay inside the 150 KB
- * budget with the same photos.
+ * The exported card's JPEG quality and its byte budget. Raised 2026-11-06
+ * (owner: the cards "are not HD"): 0.82 under a 150 KB budget, falling to
+ * 0.70 on busy photos, softened the lettering before Instagram and Facebook
+ * re-compressed it again. The size stays NATIVE (1080 wide, above), which is
+ * what the platforms display; only the encoding is gentler. One lower pass
+ * (0.86) when a busy set of photos passes the budget.
  */
-export const EXPORT_JPEG_QUALITY = 0.82;
-export const EXPORT_BYTE_BUDGET = 150 * 1024;
+export const EXPORT_JPEG_QUALITY = 0.92;
+export const EXPORT_JPEG_FALLBACK_QUALITY = 0.86;
+export const EXPORT_BYTE_BUDGET = 400 * 1024;
 
 export function formatFileName(listingId, formatKey) {
   return `lukka-place-bien-${listingId}-${formatKey}.jpg`;

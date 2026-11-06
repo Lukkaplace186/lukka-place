@@ -3314,6 +3314,18 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   manager — leads. Two photos sit side by side, one fills the block, none
   draws the royal block with the white logo. The old rule that kept the price
   in the centre 630×630 is dropped: WhatsApp's square thumbnail is ~100px.
+  **Drawn at 2× since 2026-11-06** (owner: "not HD"): laid out on the
+  1200×630 grid, every length multiplied by the scale (`s(n)` in the route —
+  a CSS `transform: scale` wrapper was tried and satori left the photos and
+  logo unscaled), photos cropped at 2× and saved near-lossless, then ONE
+  JPEG step: `encodeOgCard` tries `OG_ENCODINGS` (2× q88, 2× q80, 1.5× q86
+  4:4:4, 1.5× q80, 1× q90 4:4:4) and keeps the first under `OG_MAX_BYTES`
+  (300 KB, WhatsApp drops heavier preview images). Six live listings: four at
+  2×, two busy outdoor ones at 1.5×, 200–280 KB. `X-Og-Scale` on the response
+  says which won. `size` declares 2400×1260. The 4:5 / square share cards stay
+  at their native 1080 width; only their export got gentler
+  (`EXPORT_JPEG_QUALITY` 0.92, fallback 0.86, budget 400 KB, was 0.82 / 0.70 /
+  150 KB).
   The earlier design, for the record: full-bleed cover, white logo top-left,
   a dark capsule with price + type + two counts in the centre, a white box
   with the page's own h1.

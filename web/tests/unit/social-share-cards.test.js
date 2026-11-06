@@ -11,7 +11,9 @@ import { FORMATS } from '@/lib/marketing/formats';
 import { COLORS, buildFlyerOps, feedHeading, feedListingPath } from '@/lib/marketing/layout';
 import { buildFlyerPack } from '@/lib/marketing/sharePackData';
 import { LINE_ICONS } from '@/lib/marketing/icons';
-import { OG_DARK_COVER, pickOgPhotos } from '@/lib/listingOgImage';
+import {
+  OG_DARK_COVER, OG_ENCODINGS, OG_MAX_BYTES, encodeOgCard, pickOgPhotos,
+} from '@/lib/listingOgImage';
 import { SHARE_SOURCES, TEAM_SOCIAL_SOURCE, buildListingSocialCopy, socialHashtags } from '@/lib/listingShareCopy';
 import { CHANNEL_FORMATS, SHARE_FORMATS, normaliseShareRecord } from '@/lib/listingShareRules';
 
@@ -154,18 +156,37 @@ test('éditorial card: photos are the listing’s own, never a stand-in', () => 
   assert.match(image, /optimisableImageSrc\(src/, 'only our own storage');
   assert.match(image, /ogPhotoSlots\(chosen\.length\)/);
   const route = read('app/(site)/listings/[id]/opengraph-image.js');
-  assert.match(route, /loadOgPhotos\(listingImages\(listing\)\)/);
+  assert.match(route, /loadOgPhotos\(listingImages\(listing\), \{ scale: OG_SCALES\[0\] \}\)/);
   assert.match(route, /if \(!photos\.length\)/, 'no photo: the blue block with the logo');
   assert.ok(readFileSync(path.join(ROOT, 'public/brand/logo-royal.png')).length > 1000);
+});
+
+test('og card: the sharpest encoding under the WhatsApp budget wins, each scale drawn once', async () => {
+  assert.equal(OG_MAX_BYTES, 300 * 1024);
+  assert.deepEqual(OG_ENCODINGS.map((e) => e.scale), [2, 2, 1.5, 1.5, 1]);
+  assert.equal(OG_ENCODINGS[0].quality >= 88, true);
+  // A tiny solid PNG encodes far under budget: the first try (2×) wins.
+  const sharp = (await import('sharp')).default;
+  const drawn = [];
+  const renderAt = async (scale) => {
+    drawn.push(scale);
+    return sharp({ create: { width: 1200 * scale, height: 630 * scale, channels: 3, background: '#F7F6F2' } }).png().toBuffer();
+  };
+  const result = await encodeOgCard(renderAt);
+  assert.equal(result.type, 'image/jpeg');
+  assert.equal(result.scale, 2);
+  assert.deepEqual(drawn, [2]);
 });
 
 test('og route: JPEG, behind the public gate, and the page no longer sets the raw photo', () => {
   const route = read('app/(site)/listings/[id]/opengraph-image.js');
   assert.match(route, /export const contentType = 'image\/jpeg'/);
-  assert.match(route, /export const size = \{ width: 1200, height: 630 \}/);
+  assert.match(route, /export const size = \{ width: 2400, height: 1260 \}/);
   assert.match(route, /getListingById\(id\)/, 'the same status = 1 AND approve_status = 1 read as the page');
   assert.match(route, /status: 404/);
-  assert.match(route, /pngToJpeg/);
+  assert.match(route, /encodeOgCard\(/);
+  assert.match(route, /fontSize: s\(model\.priceSize\)/, 'lengths are multiplied by the scale, not a CSS transform');
+  assert.doesNotMatch(route, /transform: `scale/);
   assert.match(read('app/(site)/listings/[id]/twitter-image.js'), /import Image from '\.\/opengraph-image'/);
 
   const page = read('app/(site)/listings/[id]/page.js');

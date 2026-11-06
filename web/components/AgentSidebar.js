@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2 } from 'lucide-react';
+import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, MessageCircle } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import { useT } from '@/lib/i18n/client';
@@ -43,6 +43,9 @@ const NAV = [
   { href: '/compte/agent', labelKey: 'agent.nav.overview', shortKey: 'agent.nav.overviewShort', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', labelKey: 'agent.nav.listings', shortKey: 'agent.nav.listingsShort', icon: Landmark, countKey: 'listings' },
   { href: '/compte/agent/demandes', labelKey: 'agent.nav.leads', shortKey: 'agent.nav.leadsShort', icon: Mail, countKey: 'leads' },
+  // Messagerie (web/CLAUDE.md): customers' conversations; the badge counts
+  // conversations with an unread message.
+  { href: '/compte/agent/messages', labelKey: 'agent.nav.messages', shortKey: 'agent.nav.messagesShort', icon: MessageCircle, countKey: 'messages' },
   // Hidden until FlexPaie payments are live (/admin/settings, lib/siteSettings.js).
   { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck, featureKey: 'agentSubscriptions' },
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
@@ -57,6 +60,7 @@ export default function AgentSidebar({
   agentInitials,
   listingsCount,
   waitingCount = 0,
+  unreadMessages = 0,
   completion,
   logoutAction,
   features = {},
@@ -65,7 +69,7 @@ export default function AgentSidebar({
   const pathname = usePathname();
   const nav = NAV.filter((item) => !item.featureKey || features[item.featureKey]);
   // The same number as every header bell (lib/agentDashboard.js waitingCount).
-  const counts = { listings: listingsCount, leads: waitingCount };
+  const counts = { listings: listingsCount, leads: waitingCount, messages: unreadMessages };
 
   return (
     <>
@@ -100,7 +104,11 @@ export default function AgentSidebar({
                 {!!count && (
                   <span
                     className={`u-tabular rounded-full px-2 py-0.5 text-xs font-bold ${
-                      active ? 'bg-white/[0.22] text-white' : 'bg-canvas-deep text-ink-70'
+                      active
+                        ? 'bg-white/[0.22] text-white'
+                        : item.countKey === 'messages'
+                          ? 'bg-blue text-white'
+                          : 'bg-canvas-deep text-ink-70'
                     }`}
                   >
                     {count}
@@ -191,7 +199,7 @@ export default function AgentSidebar({
                     // it counts what is waiting on the agent.
                     <span
                       className={`u-tabular absolute -right-3 -top-1.5 grid h-[1.125rem] min-w-[1.125rem] place-items-center rounded-full px-[5px] text-[0.65625rem] font-extrabold ring-2 ring-surface ${
-                        item.countKey === 'leads' ? 'bg-blue text-white' : 'bg-canvas-deep text-ink-70'
+                        item.countKey === 'leads' || item.countKey === 'messages' ? 'bg-blue text-white' : 'bg-canvas-deep text-ink-70'
                       }`}
                     >
                       {count}

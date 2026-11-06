@@ -56,6 +56,7 @@ export function buildShareKit(listing, { audience = 'agent', refCode = null, age
   const contactPhone = agentContactPhone(listing);
   const brand = agentBrandFields(listing);
   const sourceFor = (channel, source) => (channel === 'social' && audience === 'team' ? TEAM_SOCIAL_SOURCE : source);
+  const urlFor = (channel) => listingPublicUrl(listing.id, { source: sourceFor(channel, SHARE_SOURCES[channel]), ref });
   const copies = Object.fromEntries(
     Object.entries(SHARE_SOURCES).map(([channel, source]) => [
       channel,
@@ -63,7 +64,7 @@ export function buildShareKit(listing, { audience = 'agent', refCode = null, age
         typeText,
         contactPhone,
         contactName: brand.name,
-        url: listingPublicUrl(listing.id, { source: sourceFor(channel, source), ref }),
+        url: urlFor(channel),
         style: channel === 'social' ? 'social' : 'whatsapp',
         agentPage: channel === 'social' && agentPage ? agentPageUrl(agentId, { source, ref }) : null,
       }),
@@ -75,6 +76,9 @@ export function buildShareKit(listing, { audience = 'agent', refCode = null, age
     shareable: !blocker,
     blocker,
     url: listingPublicUrl(listing.id, { ref }),
+    // The link in the feed caption, exactly as posted: Facebook caches its
+    // preview per URL, query string included (lib/facebookPreview.js).
+    socialUrl: urlFor('social'),
     agentPage,
     copy: copies.copy,
     copies,

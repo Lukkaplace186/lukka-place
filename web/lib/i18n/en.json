@@ -132,7 +132,8 @@
     "findCta": "Find it for me",
     "projects": "New Homes",
     "agents": "Agents",
-    "blog": "Guides & News"
+    "blog": "Guides & News",
+    "messages": "Messages"
   },
   "footer": {
     "columns": {
@@ -1208,7 +1209,9 @@
       "listingsShort": "Listings",
       "leadsShort": "Leads",
       "subscriptionShort": "Plan",
-      "settingsShort": "Settings"
+      "settingsShort": "Settings",
+      "messages": "Messages",
+      "messagesShort": "Messages"
     },
     "overview": {
       "title": "Overview",
@@ -2712,6 +2715,10 @@
       "copyCaption": "Copy the caption",
       "captionCopiedShort": "Caption copied",
       "hintFeed": "The caption is copied at the same time: paste it under the photo. On Instagram the link does not open with a tap.",
+      "fbChecking": "Preparing the link’s Facebook preview…",
+      "fbReady": "Facebook preview ready: the photo will show under the link.",
+      "fbNotReady": "Facebook preview not checked. Before posting, open Facebook’s tool and tap “Scrape Again” until the photo shows:",
+      "fbDebugger": "Check the preview",
       "myPageTitle": "My Lukka Place Page",
       "myPageHint": "Put this link in your Instagram or TikTok bio: your followers find all your listings there and contact you.",
       "myPageCopy": "Copy",
@@ -7023,7 +7030,8 @@
         "visitRequest": "Visit requests",
         "profileEnquiry": "Profile requests",
         "projectEnquiry": "Project requests",
-        "teamIntroduction": "Introductions"
+        "teamIntroduction": "Introductions",
+        "siteChat": "Site messaging"
       },
       "channelHelp": {
         "whatsappDirect": "Taps on the agent’s WhatsApp button",
@@ -7032,7 +7040,8 @@
         "visitRequest": "“Request a visit” and the WhatsApp assistant",
         "profileEnquiry": "Form on the agent’s page",
         "projectEnquiry": "Requests about a new development",
-        "teamIntroduction": "Recorded by the team"
+        "teamIntroduction": "Recorded by the team",
+        "siteChat": "Conversations a customer opened on the site"
       },
       "short": {
         "whatsappDirect": "WhatsApp",
@@ -7041,7 +7050,8 @@
         "visitRequest": "Visits",
         "profileEnquiry": "Profile",
         "projectEnquiry": "Projects",
-        "teamIntroduction": "Team"
+        "teamIntroduction": "Team",
+        "siteChat": "Chat"
       },
       "perAgentTitle": "Per Agent",
       "perAgentNote": "Agents who received at least one interaction in the period, most contacted first.",
@@ -7839,6 +7849,149 @@
       "eyebrow": "New Homes",
       "title": "New Projects",
       "all": "All projects →"
+    }
+  },
+  "chat": {
+    "title": "Messages",
+    "metaTitle": "Messages — Lukka Place",
+    "lead": "Your conversations with agents, in one place.",
+    "verified": "Verified agent",
+    "customer": "Customer",
+    "agentFallback": "Agent",
+    "safety": "Never pay a deposit or an advance before you have visited the property. Verified agents carry the blue tick.",
+    "guest": {
+      "title": "Message Agents on Lukka Place",
+      "body": "Sign in to message an agent from a listing and find their replies here.",
+      "login": "Sign in",
+      "signup": "Create an account",
+      "whatsapp": "Message Lukka Place on WhatsApp"
+    },
+    "inbox": {
+      "countOne": "1 conversation",
+      "countMany": "{count} conversations",
+      "filtersLabel": "Filter conversations",
+      "filters": {
+        "all": "All",
+        "unread": "Unread",
+        "archived": "Archived"
+      },
+      "emptyTitle": "No Conversations Yet",
+      "emptyBody": "Open a listing and tap “Send a message”: the agent's reply will arrive here.",
+      "emptyCta": "Browse listings",
+      "emptyUnread": "You're all caught up.",
+      "emptyArchived": "No archived conversations.",
+      "you": "You: ",
+      "loadMore": "Show more",
+      "unreadLabel": "{count} unread",
+      "listingGone": "Listing no longer online",
+      "noListing": "General conversation",
+      "sharedListing": "Shared listing"
+    },
+    "thread": {
+      "back": "Back to messages",
+      "viewListing": "View listing",
+      "older": "Show earlier messages",
+      "newMessages": "New messages",
+      "read": "Read",
+      "sent": "Sent",
+      "sending": "Sending…",
+      "failed": "Not sent",
+      "retry": "Retry",
+      "sharedListing": "Shared listing",
+      "openListing": "Open the listing",
+      "blockedByMe": "You blocked this conversation.",
+      "blockedByOther": "This conversation is closed.",
+      "unblock": "Unblock",
+      "menu": "More actions",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "block": "Block",
+      "report": "Report",
+      "blockConfirm": "Block this conversation? Neither you nor the other person will be able to send messages.",
+      "archived": "Conversation archived."
+    },
+    "composer": {
+      "placeholder": "Write a message…",
+      "label": "Your message",
+      "send": "Send",
+      "counter": "{count} / {max}"
+    },
+    "report": {
+      "title": "Report This Conversation",
+      "lead": "The Lukka Place team will read this conversation to check it.",
+      "reasonLabel": "Reason",
+      "reasons": {
+        "scam": "Scam or request for money",
+        "harassment": "Inappropriate messages",
+        "spam": "Spam",
+        "other": "Other"
+      },
+      "note": "Details (optional)",
+      "submit": "Send report",
+      "cancel": "Cancel",
+      "done": "Thank you. The Lukka Place team will check this conversation."
+    },
+    "start": {
+      "title": "Message {name}",
+      "titleNoName": "Message the Agent",
+      "lead": "Your message goes to the agent's space. Their reply will appear in your messages.",
+      "suggestionsLabel": "Quick messages",
+      "suggestions": {
+        "available": "Hello, is this property still available?",
+        "visit": "Hello, when could I visit it?",
+        "terms": "Hello, what deposit and advance are asked for?",
+        "general": "Hello, I am looking for a property and would like your advice."
+      },
+      "unavailableTitle": "Messaging Is Not Available Here",
+      "unavailableBody": "This agent has not verified their number yet. You can request a visit from the listing or message Lukka Place on WhatsApp.",
+      "backToListing": "Back to the listing"
+    },
+    "cta": {
+      "message": "Send a message",
+      "messageShort": "Message"
+    },
+    "time": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "yesterdayShort": "yesterday"
+    },
+    "errors": {
+      "blocked": "This conversation is blocked.",
+      "rateLimited": "You are sending a lot of messages. Please wait a minute.",
+      "limit": "You have opened many conversations today. Try again tomorrow.",
+      "tooLong": "Message too long: 2,000 characters at most.",
+      "phoneUnverified": "Confirm your WhatsApp number first: sign in again to receive the code.",
+      "listingUnavailable": "This listing no longer accepts messages.",
+      "agentUnavailable": "This agent is not receiving messages at the moment.",
+      "self": "You cannot message yourself.",
+      "unavailable": "Messaging is briefly unavailable. Try again in a moment.",
+      "network": "No connection. Tap “Retry” when the network is back.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "agent": {
+      "lead": "Your customers' conversations on Lukka Place.",
+      "emptyTitle": "No Messages Yet",
+      "emptyBody": "When a customer writes to you from a listing or your profile, the conversation arrives here.",
+      "pickTitle": "Choose a Conversation",
+      "pickBody": "Your customers' messages show here, with the listing they are about.",
+      "waitingChip": "No reply · {time}",
+      "waitingBanner": "{name} has been waiting {time} for your reply.",
+      "shareTitle": "Share a Listing",
+      "shareLead": "Your online listings. Each one arrives as a card with photo, price and place ({max} at most).",
+      "shareSearch": "Search my listings",
+      "shareNone": "You have no online listing to share.",
+      "shareSend": {
+        "zero": "Send",
+        "one": "Send {count} listing",
+        "other": "Send {count} listings"
+      },
+      "clientSince": "Customer since {date}",
+      "verifiedPhone": "Verified number",
+      "aboutListing": "The Listing",
+      "editListing": "Edit the listing",
+      "fromProfile": "This customer wrote from your profile, about no particular listing.",
+      "openedOn": "Conversation opened on {date}",
+      "panelLabel": "Customer details"
     }
   }
 }

@@ -112,8 +112,10 @@ const NAV_COLUMNS = [
 ];
 
 // The signed-in customer's account (web/CLAUDE.md, "Espace Client") gets the
-// compact footer.
-const ACCOUNT_FOOTER_PATHS = ['/compte/client'];
+// compact footer, and so does the message inbox. A conversation
+// (/messages/12) gets none: it fills the screen down to its own composer.
+const ACCOUNT_FOOTER_PATHS = ['/compte/client', '/messages'];
+const NO_FOOTER_UNDER = ['/messages'];
 
 /**
  * The commune column is built from communes that actually have approved
@@ -167,7 +169,7 @@ export default async function Footer() {
   const whatsappHref = social.whatsapp || getCentralWhatsAppHref(t('footer.whatsappGreeting'));
 
   return (
-    <footer className="mt-auto border-t border-line bg-canvas-alt">
+    <footer className="mt-auto border-t border-line bg-canvas-alt empty:hidden">
       {/* Inside the customer's own account the full footer was a second
           navigation (listings, communes, the account links the tab bar
           already carries) plus the "become a partner agency" band — a
@@ -176,6 +178,7 @@ export default async function Footer() {
           the display preferences, the copyright and the terms link. */}
       <FooterByPath
         prefixes={ACCOUNT_FOOTER_PATHS}
+        hiddenUnder={NO_FOOTER_UNDER}
         compact={
           // pb clears the portal's fixed phone tab bar (58px + safe area).
           <div className="mx-auto flex max-w-[77.5rem] flex-col gap-4 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6 lg:px-8 lg:pb-6">

@@ -12,6 +12,7 @@ import { listingImages } from '@/lib/listingView';
 import { getListingShareCount, recordListingShares } from '@/lib/listingShares';
 import { MAX_IDS_PER_RECORD, normaliseShareRecord } from '@/lib/listingShareRules';
 import { ensureAgentPartnerCode } from '@/lib/partners';
+import { facebookDebuggerUrl, refreshFacebookPreview } from '@/lib/facebookPreview';
 
 function supabaseHost() {
   try {
@@ -49,6 +50,21 @@ export async function getSharePackAction(listingId) {
   const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
   return buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId), agentId });
+}
+
+/**
+ * Makes Facebook read the agent's feed caption link now (their partner code
+ * included — it is its own cache entry at Facebook), so their post shows the
+ * photo card (lib/facebookPreview.js). Same ownership query as the kit; the
+ * URL is rebuilt here, never taken from the browser.
+ */
+export async function refreshFacebookPreviewAction(listingId) {
+  const { listing, agentId, error } = await ownedListing(listingId);
+  if (error) return error;
+  const kit = buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId), agentId });
+  if (!kit.shareable) return { ok: false, reason: 'not_shareable' };
+  const result = await refreshFacebookPreview(kit.socialUrl);
+  return { ok: true, url: kit.socialUrl, debuggerUrl: facebookDebuggerUrl(kit.socialUrl), status: result.status };
 }
 
 /**

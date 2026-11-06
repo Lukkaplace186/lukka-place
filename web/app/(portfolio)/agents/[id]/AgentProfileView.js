@@ -204,6 +204,20 @@ function WhatsAppButton({ agent, labels, short = false, className = '' }) {
   );
 }
 
+function MessageButton({ agent, labels, short = false, className = '' }) {
+  if (!agent.messageHref) return null;
+  return (
+    <Link
+      href={agent.messageHref}
+      aria-label={short ? labels.messageCta : undefined}
+      className={`u-press flex items-center justify-center gap-2 rounded-lg font-semibold text-blue-deep ring-[1.5px] ring-inset ring-blue/40 transition-colors hover:bg-blue-tint ${className}`}
+    >
+      <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none" aria-hidden="true" />
+      {short ? null : labels.messageCta}
+    </Link>
+  );
+}
+
 function CallButton({ agent, labels, className = '' }) {
   if (!agent.telHref) return null;
   return (
@@ -365,6 +379,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             <div className="hidden w-[20rem] flex-none flex-col gap-2.5 pt-1 lg:flex">
               <WhatsAppButton agent={agent} labels={labels} className="h-[3.25rem] px-4 text-[0.9375rem]" />
               {agent.whatsappIsCentral ? <p className="text-[0.8125rem] leading-snug text-ink-45">{labels.centralNote}</p> : null}
+              <MessageButton agent={agent} labels={labels} className="h-12 px-4 text-sm" />
               <div className="flex gap-2.5">
                 <CallButton agent={agent} labels={labels} className="h-12 flex-1 text-sm" />
                 <button
@@ -599,6 +614,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             </span>
           )}
           <CallButton agent={agent} labels={labels} className="h-[3.25rem] flex-1 text-[0.9375rem]" />
+          <MessageButton agent={agent} labels={labels} short className="h-[3.25rem] w-[3.25rem] flex-none" />
         </div>
       </div>
 

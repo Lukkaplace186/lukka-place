@@ -1,11 +1,13 @@
 'use client';
 
-import { CalendarClock, Phone } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarClock, MessageCircle, Phone } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import Price from './Price';
 import { OPEN_VISIT_EVENT } from './EnquiryCard';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import { telHref } from '@/lib/phone';
+import { canMessageListing, chatStartHref } from '@/lib/chatRules';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -47,6 +49,10 @@ import { useT } from '@/lib/i18n/client';
 export default function MobileListingBar({ listing }) {
   const t = useT();
   const { href, routingType } = resolveWhatsAppRouting(listing);
+  // Messagerie: an icon beside the call one, for the same verified agents.
+  // With both icons the visit button keeps its icon only on the narrowest
+  // phones (< 400px), so the price keeps a readable column.
+  const canMessage = canMessageListing(listing);
 
   return (
     <div
@@ -74,9 +80,25 @@ export default function MobileListingBar({ listing }) {
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_VISIT_EVENT, { detail: { propertyId: listing.id } }))}
           className="u-press u-focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2.5 text-[0.8125rem] font-semibold text-ink transition-colors hover:border-blue"
         >
-          <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          {t('enquiry.visitShort')}
+          <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+          {canMessage ? (
+            <>
+              <span className="sr-only min-[400px]:not-sr-only">{t('enquiry.visitShort')}</span>
+            </>
+          ) : (
+            t('enquiry.visitShort')
+          )}
         </button>
+
+        {canMessage ? (
+          <Link
+            href={chatStartHref({ propertyId: listing.id })}
+            aria-label={t('chat.cta.message')}
+            className="u-press u-focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-blue-deep transition-colors hover:border-blue"
+          >
+            <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        ) : null}
 
         {listing.agent_phone ? (
           <a

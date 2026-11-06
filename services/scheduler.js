@@ -222,6 +222,17 @@ registerJob({
 }
 
 /**
+ * Messagerie: a WhatsApp alert to the agent or the customer when a site
+ * message has waited unread for a few minutes, once per unread run
+ * (services/chatNotify.js). Every 2 minutes, beside the other
+ * customer-facing sweeps.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./chatNotify').chatNotifyJob);
+}
+
+/**
  * Pushed operational alerts: every five minutes, compare the engine's own
  * health report with the open incidents and tell the desk what changed. Last,
  * so a slow Postgres probe never delays the SLA sweep. See services/opsAlerts.js.

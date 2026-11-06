@@ -3,6 +3,7 @@
 import { requireAdmin } from '@/lib/adminSession';
 import { getFlyerListingForTeam } from '@/lib/listingFlyer';
 import { buildShareKit } from '@/lib/marketing/shareKit';
+import { facebookDebuggerUrl, refreshFacebookPreview } from '@/lib/facebookPreview';
 
 /**
  * The share kit for Lukka Place's own social posts — the "Carte réseaux
@@ -26,4 +27,26 @@ export async function getTeamSharePackAction(listingId) {
   const listing = await getFlyerListingForTeam(Number.parseInt(listingId, 10));
   if (!listing) return { ok: false, reason: 'not_found' };
   return buildShareKit(listing, { audience: 'team' });
+}
+
+/**
+ * Makes Facebook read the feed caption's link now, so the post shows the
+ * photo card rather than a bare "lukkaplace.com" box (lib/facebookPreview.js).
+ * The URL is rebuilt here from the listing, never taken from the browser, so
+ * the app token is only ever spent on our own public listing links.
+ *
+ * @returns {Promise<{ok: true, url: string, debuggerUrl: string, status: string}|{ok: false, reason: string}>}
+ */
+export async function refreshTeamFacebookPreviewAction(listingId) {
+  try {
+    await requireAdmin('listings.view');
+  } catch {
+    return { ok: false, reason: 'auth' };
+  }
+  const listing = await getFlyerListingForTeam(Number.parseInt(listingId, 10));
+  if (!listing) return { ok: false, reason: 'not_found' };
+  const kit = buildShareKit(listing, { audience: 'team' });
+  if (!kit.shareable) return { ok: false, reason: 'not_shareable' };
+  const result = await refreshFacebookPreview(kit.socialUrl);
+  return { ok: true, url: kit.socialUrl, debuggerUrl: facebookDebuggerUrl(kit.socialUrl), status: result.status };
 }

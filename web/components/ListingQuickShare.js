@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Download, Share2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { buildListingShareMessage, buildWhatsAppShareLink } from '@/lib/whatsapp';
-import { recordListingSharesAction } from '@/app/compte/agent/shareActions';
+import { recordListingSharesAction, refreshFacebookPreviewAction } from '@/app/compte/agent/shareActions';
+import { refreshTeamFacebookPreviewAction } from '@/app/admin/listings/shareActions';
 import { formatFileName } from '@/lib/marketing/formats';
 import { prepareListingCard } from '@/lib/listingCardCache';
 import { WhatsAppIcon } from './WhatsAppCTA';
@@ -78,6 +79,33 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   const [pageCopied, setPageCopied] = useState(false);
   const urlRef = useRef(null);
   const feed = format === 'feed';
+  // Facebook's link preview for the caption's link (lib/facebookPreview.js):
+  // ready | not_ready | hidden for this listing, plus the Sharing Debugger
+  // link; "checking" until the answer for THIS listing arrives.
+  const [fbResult, setFbResult] = useState(null);
+  const fbKey = `${audience}:${listing.id}`;
+  const fbPreview = open && feed && !sold ? (fbResult?.key === fbKey ? fbResult : { status: 'checking' }) : null;
+
+  // The 4:5 caption is pasted on Facebook as a link post, and Facebook keeps
+  // whatever it read the first time — a failed read is a grey
+  // "lukkaplace.com" box for a month. Ask it to read the link NOW, while the
+  // card is being drawn, so the post shows the photo card.
+  useEffect(() => {
+    if (!open || !feed || sold) return undefined;
+    let cancelled = false;
+    (team ? refreshTeamFacebookPreviewAction : refreshFacebookPreviewAction)(listing.id)
+      .then((result) => {
+        if (cancelled) return;
+        if (!result?.ok) return setFbResult({ key: fbKey, status: 'hidden' });
+        setFbResult({ key: fbKey, status: result.status === 'ready' ? 'ready' : 'not_ready', debuggerUrl: result.debuggerUrl });
+      })
+      .catch(() => {
+        if (!cancelled) setFbResult({ key: fbKey, status: 'hidden' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, feed, sold, team, listing.id, fbKey]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -207,6 +235,7 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
       setState({ status: 'idle' });
       setCopied(false);
       setPageCopied(false);
+      setFbResult(null);
       setFormat(startFormat);
     }
     onOpenChange(next);
@@ -310,6 +339,25 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
           <p className="text-center text-[0.8125rem] leading-snug text-ink-45" role="status">
             {copied ? t('agent.share.captionCopied') : feed ? t('agent.quickShare.hintFeed') : t('agent.quickShare.hint')}
           </p>
+          {fbPreview && fbPreview.status !== 'hidden' ? (
+            <p className="text-center text-[0.8125rem] leading-snug text-ink-70" aria-live="polite">
+              {fbPreview.status === 'checking' ? t('agent.quickShare.fbChecking') : null}
+              {fbPreview.status === 'ready' ? (
+                <span className="inline-flex items-center gap-1 text-green-ink">
+                  <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {t('agent.quickShare.fbReady')}
+                </span>
+              ) : null}
+              {fbPreview.status === 'not_ready' ? (
+                <>
+                  {t('agent.quickShare.fbNotReady')}{' '}
+                  <a href={fbPreview.debuggerUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-deep underline">
+                    {t('agent.quickShare.fbDebugger')}
+                  </a>
+                </>
+              ) : null}
+            </p>
+          ) : null}
         </div>
 
         {feed && !team && kit?.agentPage ? (

@@ -341,7 +341,32 @@ export async function listMessages(viewer, threadId, { after, before, limit } = 
   return { messages: page.map((row) => messageShape(row, cards)), hasMore };
 }
 
-/** Conversations with at least one unread message, for the menu badges. Archived ones do not count. */
+/**
+ * The menu badges: unread MESSAGES (what the badge shows) and the
+ * conversations they sit in. Archived conversations do not count; a new
+ * message un-archives one anyway.
+ *
+ * @returns {Promise<{threads: number, messages: number}>}
+ */
+export async function countUnread(viewer) {
+  checkViewer(viewer);
+  try {
+    const { rows } = await getPool().query(
+      `SELECT COUNT(DISTINCT t.id)::int AS threads, COUNT(m.id)::int AS messages
+         FROM chat_threads t
+         JOIN chat_messages m ON m.thread_id = t.id AND m.id > t.${READ[viewer.role]}
+                             AND m.sender_role <> $2 AND m.deleted_at IS NULL
+        WHERE ${OWNER[viewer.role]} = $1 AND t.${ARCHIVE[viewer.role]} IS NULL`,
+      [viewer.id, viewer.role],
+    );
+    return { threads: Number(rows[0]?.threads || 0), messages: Number(rows[0]?.messages || 0) };
+  } catch (err) {
+    if (isMissingTable(err)) return { threads: 0, messages: 0 };
+    throw err;
+  }
+}
+
+/** Conversations with at least one unread message. Archived ones do not count. */
 export async function countUnreadThreads(viewer) {
   checkViewer(viewer);
   try {

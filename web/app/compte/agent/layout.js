@@ -12,7 +12,7 @@ import { getFeatureFlags } from '@/lib/siteSettings';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { agentLogoutAction } from './actions';
 import { getI18n, getT } from '@/lib/i18n/server';
-import { countUnreadThreads } from '@/lib/chat';
+import { countUnread } from '@/lib/chat';
 import { I18nProvider } from '@/lib/i18n/client';
 
 // generateMetadata rather than a static object, so the browser-tab title
@@ -65,11 +65,12 @@ export default async function AgentDashboardLayout({ children }) {
   // The rail's "Profil complété" is the same checklist Réglages shows and the
   // overview's "Profil incomplet" banner reads (profileChecklist), so the
   // three can no longer say 100 % here and "1 élément à compléter" there.
-  // Messagerie: conversations with a message the agent has not read (lib/chat.js).
+  // Messagerie: chat messages the agent has not read (lib/chat.js); the
+  // sidebar keeps it live from there.
   const [profileGaps, features, unreadMessages] = await Promise.all([
     getAgentProfileGaps(agent).catch(() => []),
     getFeatureFlags(),
-    countUnreadThreads({ role: 'agent', id: agentId }).catch(() => 0),
+    countUnread({ role: 'agent', id: agentId }).then((c) => c.messages).catch(() => 0),
   ]);
   const checklist = profileChecklist(completion, profileGaps);
   const railCompletion = completion && {

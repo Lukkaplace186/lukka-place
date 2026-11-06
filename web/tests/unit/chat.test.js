@@ -473,6 +473,42 @@ test('the agent portal carries Messages with its unread count, and the chat copy
   assert.ok(sidebar.includes("href: '/compte/agent/messages'"));
   assert.ok(sidebar.includes("countKey: 'messages'"));
   const layout = read('app/compte/agent/layout.js');
-  assert.ok(layout.includes("countUnreadThreads({ role: 'agent', id: agentId })"));
+  assert.ok(layout.includes("countUnread({ role: 'agent', id: agentId })"), 'the badge counts unread messages');
   assert.ok(/AGENT_NAMESPACES = \[[^\]]*'chat'/.test(layout), 'the agent screens render chat.* strings');
+});
+
+// ---------------------------------------------------------------------------
+// Unread badges (2026-11-06): how many unread MESSAGES, live
+// ---------------------------------------------------------------------------
+
+test('the badge counts unread messages from the other side, on the viewer’s own conversations', async () => {
+  const { countUnread } = await import('@/lib/chat');
+  enqueue([{ threads: 1, messages: 3 }]);
+  assert.deepEqual(await countUnread(customer(11)), { threads: 1, messages: 3 });
+  const sql = calls[0].sql;
+  assert.ok(sql.includes('COUNT(m.id)::int AS messages'));
+  assert.ok(sql.includes('m.id > t.customer_last_read_id AND m.sender_role <> $2'));
+  assert.ok(sql.includes('WHERE t.customer_id = $1 AND t.customer_archived_at IS NULL'));
+  assert.deepEqual(calls[0].values, [11, 'customer']);
+});
+
+test('a badge reads 1 to 99, then 99+', async () => {
+  const { unreadLabel } = await import('@/lib/chatRules');
+  assert.equal(unreadLabel(3), '3');
+  assert.equal(unreadLabel(99), '99');
+  assert.equal(unreadLabel(140), '99+');
+  assert.equal(unreadLabel(undefined), '0');
+});
+
+test('the header, the agent menu and the conversation are wired to the live count', () => {
+  const read = (rel) => readFileSync(path.join(WEB_ROOT, rel), 'utf8');
+  const header = read('components/Header.js');
+  assert.ok(header.includes("useChatUnread('customer', { enabled: loggedIn })"), 'nothing is asked when signed out');
+  assert.ok(header.includes('useUnreadTitle(unread)'));
+  assert.equal((header.match(/href === '\/messages' \? <UnreadBadge/g) || []).length, 2, 'both menus show it beside Messages');
+  const sidebar = read('components/AgentSidebar.js');
+  assert.ok(sidebar.includes("useChatUnread('agent', { initial: unreadMessages })"));
+  assert.ok(sidebar.includes('messages: liveUnread'));
+  assert.ok(read('app/compte/agent/layout.js').includes('countUnread({ role: \'agent\', id: agentId }).then((c) => c.messages)'));
+  assert.ok(read('components/chat/ChatThread.js').includes('if (result.ok) notifyChatUnreadChanged();'), 'reading drops the badge at once');
 });

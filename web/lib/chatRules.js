@@ -59,6 +59,12 @@ export function chatStartHref({ propertyId = null, agentId = null } = {}) {
   return '/messages';
 }
 
+/** A badge's text: "1" to "99", then "99+" so it never outgrows its circle. */
+export function unreadLabel(count) {
+  const n = Number(count) || 0;
+  return n > 99 ? '99+' : String(n);
+}
+
 /** 'customer' ↔ 'agent'. */
 export function otherRole(role) {
   return role === 'agent' ? 'customer' : 'agent';

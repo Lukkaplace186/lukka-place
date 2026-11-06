@@ -4359,6 +4359,15 @@ the agent's screens and the WhatsApp alerts. Tests: `tests/unit/chat.test.js`.
   conversations as the `siteChat` channel (`lib/agentInteractions.js`
   `CHATS_BY_AGENT_SQL`; "answered" = the agent replied). No lead is recorded
   per chat: it would duplicate the conversation in the agent's Demandes.
+- **Unread badges (2026-11-06)**: count unread MESSAGES (not conversations)
+  through `countUnread` / `GET /api/chat/unread` (`{messages, threads}`).
+  `lib/useChatUnread.js` keeps them live (every 30 s while visible, on return
+  to the tab, and at once when ChatThread records a read via
+  `notifyChatUnreadChanged`) and `useUnreadTitle` prefixes the tab title
+  "(3) …". Customer: on the header's account icon and beside "Messages" in
+  the account menu and the phone drawer (`components/chat/UnreadBadge.js`,
+  "99+" past 99), nothing asked when signed out. Agent: the sidebar / tab-bar
+  badge starts from the layout's server count, then follows the hook.
 - **Not done yet**: visit cards inside a conversation; `/admin/messages` and
   the reports queue; the privacy-policy sentence about reported
   conversations; photos in a conversation.

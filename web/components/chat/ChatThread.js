@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { chatErrorKey, chatRequest, newClientId } from '@/lib/chatClient';
+import { notifyChatUnreadChanged } from '@/lib/useChatUnread';
 import { chatClock, chatDayKey, chatDayLabel, chatWaitLabel } from '@/lib/chatTime';
 import { CHAT_POLL, CHAT_REPORT_NOTE_MAX, CHAT_REPORT_REASONS } from '@/lib/chatRules';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -102,7 +103,9 @@ export default function ChatThread({
     const upTo = lastIdRef.current;
     if (!upTo || upTo <= lastReadSentRef.current || document.visibilityState !== 'visible') return;
     lastReadSentRef.current = upTo;
-    await chatRequest(`/threads/${threadId}/read`, { method: 'POST', side, body: { upTo } });
+    const result = await chatRequest(`/threads/${threadId}/read`, { method: 'POST', side, body: { upTo } });
+    // The menu badge and the tab title drop now, not on the next page.
+    if (result.ok) notifyChatUnreadChanged();
   }, [threadId, side]);
 
   /** Server messages in; a pending copy with the same client id is replaced, never duplicated. */

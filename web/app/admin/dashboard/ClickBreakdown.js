@@ -92,8 +92,14 @@ function WeeklyBars({ weeks, locale, t }) {
   );
 }
 
-/** "Clics WhatsApp — détail": every split of the period's taps. */
-export default async function ClickBreakdown({ sinceDays }) {
+/** Every split this component can draw; a tab passes the ones it shows. */
+export const CLICK_PARTS = ['weekly', 'audience', 'routing', 'placement', 'source', 'type', 'price', 'commune', 'listings'];
+
+/**
+ * "Clics WhatsApp — détail": the period's taps, split. `parts` picks which
+ * splits a dashboard tab shows; `title` replaces the section heading.
+ */
+export default async function ClickBreakdown({ sinceDays, parts = CLICK_PARTS, title = null, showIntro = true }) {
   const t = await getT();
   const locale = t.locale;
   const data = await getWhatsAppClickBreakdown({ sinceDays });
@@ -112,75 +118,100 @@ export default async function ClickBreakdown({ sinceDays }) {
     return t.has(purposeKey) ? `${name} ${t(purposeKey)}` : name;
   };
 
+  const show = (part) => parts.includes(part);
+  const panel = (part, node) => (show(part) ? node : null);
+
   return (
     <section className="mt-8">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="u-title-section text-ink">{t(k('sectionTitle'))}</h2>
+        <h2 className="u-title-section text-ink">{title || t(k('sectionTitle'))}</h2>
         <Link href="/admin/telemetry" className="text-sm font-medium text-blue hover:underline">
           {t(k('seeEach'))} →
         </Link>
       </div>
-      <p className="mb-1 text-sm text-ink-45">{t(k('note'))}</p>
-      <p className="mb-4 text-xs text-ink-45">{t(k('peopleNote'))}</p>
+      {showIntro ? (
+        <>
+          <p className="mb-1 text-sm text-ink-45">{t(k('note'))}</p>
+          <p className="mb-4 text-xs text-ink-45">{t(k('peopleNote'))}</p>
+        </>
+      ) : null}
 
-      <div className="mb-6">
-        <DashboardPanel title={t(k('weeklyTitle'))} note={t(k('weeklyNote'))} isEmpty={data.weekly.length === 0}>
-          <WeeklyBars weeks={data.weekly} locale={locale} t={t} />
-        </DashboardPanel>
-      </div>
+      {show('weekly') ? (
+        <div className="mb-6">
+          <DashboardPanel title={t(k('weeklyTitle'))} note={t(k('weeklyNote'))} isEmpty={data.weekly.length === 0}>
+            <WeeklyBars weeks={data.weekly} locale={locale} t={t} />
+          </DashboardPanel>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <DashboardPanel title={t(k('audienceTitle'))} note={t(k('audienceNote'))} isEmpty={data.audience.length === 0}>
-          <SplitTable rows={data.audience} labelFor={labelIn('kind')} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('routingTitle'))} isEmpty={data.routing.length === 0}>
-          <SplitTable rows={data.routing} labelFor={labelIn('routing')} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('placementTitle'))} note={t(k('placementNote'))} isEmpty={data.placement.length === 0}>
-          <SplitTable rows={data.placement} labelFor={labelIn('placement')} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('sourceTitle'))} isEmpty={data.source.length === 0}>
-          <SplitTable rows={data.source} labelFor={sourceLabel} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('typeTitle'))} isEmpty={data.propertyType.length === 0}>
-          <SplitTable rows={data.propertyType} labelFor={typeLabel} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('priceTitle'))} note={t(k('priceNote'))} isEmpty={data.priceBand.length === 0}>
-          <SplitTable rows={data.priceBand} labelFor={labelIn('band')} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('communeTitle'))} isEmpty={data.commune.length === 0}>
-          <SplitTable rows={data.commune} labelFor={communeLabel} t={t} />
-        </DashboardPanel>
-        <DashboardPanel title={t(k('listingsTitle'))} note={t(k('listingsNote'))} isEmpty={data.topListings.length === 0}>
-          <table className="w-full min-w-[380px] text-left text-sm">
-            <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
-              <tr>
-                <th className={TH}>{t(k('colListing'))}</th>
-                <th className={`${TH} text-right`}>{t(k('colClicks'))}</th>
-                <th className={`${TH} text-right`}>{t(k('colViews'))}</th>
-                <th className={`${TH} text-right`}>{t(k('colRate'))}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.topListings.map((row) => (
-                <tr key={row.key} className="border-b border-line last:border-b-0">
-                  <td className={TD}>
-                    <Link href={`/admin/listings/${row.key}`} className="block max-w-[260px] truncate text-ink hover:underline">
-                      {row.title || t(k('listingNumber'), { id: row.key })}
-                    </Link>
-                    {row.commune ? <span className="text-xs text-ink-45">{row.commune}</span> : null}
-                  </td>
-                  <td className={`${TD} u-tabular text-right text-ink`}>{frNumber(row.clicks)}</td>
-                  <td className={`${TD} u-tabular text-right text-ink-70`}>{frNumber(row.views ?? 0)}</td>
-                  {/* null, not 0 %: a listing with clicks but no recorded view has no rate. */}
-                  <td className={`${TD} u-tabular text-right text-ink-70`}>
-                    {row.rate === null ? '—' : percent(row.rate)}
-                  </td>
+        {panel('audience', (
+          <DashboardPanel title={t(k('audienceTitle'))} note={t(k('audienceNote'))} isEmpty={data.audience.length === 0}>
+            <SplitTable rows={data.audience} labelFor={labelIn('kind')} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('routing', (
+          <DashboardPanel title={t(k('routingTitle'))} isEmpty={data.routing.length === 0}>
+            <SplitTable rows={data.routing} labelFor={labelIn('routing')} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('placement', (
+          <DashboardPanel title={t(k('placementTitle'))} note={t(k('placementNote'))} isEmpty={data.placement.length === 0}>
+            <SplitTable rows={data.placement} labelFor={labelIn('placement')} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('source', (
+          <DashboardPanel title={t(k('sourceTitle'))} isEmpty={data.source.length === 0}>
+            <SplitTable rows={data.source} labelFor={sourceLabel} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('type', (
+          <DashboardPanel title={t(k('typeTitle'))} isEmpty={data.propertyType.length === 0}>
+            <SplitTable rows={data.propertyType} labelFor={typeLabel} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('price', (
+          <DashboardPanel title={t(k('priceTitle'))} note={t(k('priceNote'))} isEmpty={data.priceBand.length === 0}>
+            <SplitTable rows={data.priceBand} labelFor={labelIn('band')} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('commune', (
+          <DashboardPanel title={t(k('communeTitle'))} isEmpty={data.commune.length === 0}>
+            <SplitTable rows={data.commune} labelFor={communeLabel} t={t} />
+          </DashboardPanel>
+        ))}
+        {panel('listings', (
+          <DashboardPanel title={t(k('listingsTitle'))} note={t(k('listingsNote'))} isEmpty={data.topListings.length === 0}>
+            <table className="w-full min-w-[380px] text-left text-sm">
+              <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
+                <tr>
+                  <th className={TH}>{t(k('colListing'))}</th>
+                  <th className={`${TH} text-right`}>{t(k('colClicks'))}</th>
+                  <th className={`${TH} text-right`}>{t(k('colViews'))}</th>
+                  <th className={`${TH} text-right`}>{t(k('colRate'))}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </DashboardPanel>
+              </thead>
+              <tbody>
+                {data.topListings.map((row) => (
+                  <tr key={row.key} className="border-b border-line last:border-b-0">
+                    <td className={TD}>
+                      <Link href={`/admin/listings/${row.key}`} className="block max-w-[260px] truncate text-ink hover:underline">
+                        {row.title || t(k('listingNumber'), { id: row.key })}
+                      </Link>
+                      {row.commune ? <span className="text-xs text-ink-45">{row.commune}</span> : null}
+                    </td>
+                    <td className={`${TD} u-tabular text-right text-ink`}>{frNumber(row.clicks)}</td>
+                    <td className={`${TD} u-tabular text-right text-ink-70`}>{frNumber(row.views ?? 0)}</td>
+                    {/* null, not 0 %: a listing with clicks but no recorded view has no rate. */}
+                    <td className={`${TD} u-tabular text-right text-ink-70`}>
+                      {row.rate === null ? '—' : percent(row.rate)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DashboardPanel>
+        ))}
       </div>
     </section>
   );

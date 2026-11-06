@@ -19,7 +19,7 @@ function waited(iso, t) {
  * count that links straight into the filtered queue where the work is done,
  * shown only to roles that may act on it. Urgent queues turn red when not empty.
  */
-export default async function WorkQueues({ role }) {
+export default async function WorkQueues({ role, only = null, title = null }) {
   const t = await getT();
   const counts = await getWorkQueueCounts({ fresh: true });
 
@@ -37,15 +37,21 @@ export default async function WorkQueues({ role }) {
     // Two WhatsApp "toujours disponible ?" in a row with no answer
     // (services/availabilityCheck.js) — a listing somebody should call about.
     { key: 'unansweredAvailability', icon: HelpCircle, href: '/admin/listings?status=approved&flag=availability_unanswered', permission: 'listings.moderate' },
-  ].filter((card) => can(role, card.permission));
+  ]
+    .filter((card) => can(role, card.permission))
+    // A tab shows its own queues only, in the order it lists them.
+    .filter((card) => !only || only.includes(card.key))
+    .sort((a, b) => (only ? only.indexOf(a.key) - only.indexOf(b.key) : 0));
+
+  if (cards.length === 0) return null;
 
   return (
     <section className="mb-8 flex flex-col gap-3">
-      <h2 className="u-title-section text-ink">{t('admin.queues.title')}</h2>
+      <h2 className="u-title-section text-ink">{title || t('admin.queues.title')}</h2>
       {counts.postgresError || counts.engineError ? (
         <ErrorNote>{t('admin.queues.partial', { error: counts.postgresError || counts.engineError })}</ErrorNote>
       ) : null}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {cards.map(({ key, icon: Icon, href, urgent, hint }) => {
           const value = counts[key];
           const hot = urgent && Number(value) > 0;
@@ -53,7 +59,7 @@ export default async function WorkQueues({ role }) {
             <Link
               key={key}
               href={href}
-              className={`u-card group flex flex-col gap-1 rounded-card border p-4 transition-colors ${
+              className={`u-card group flex min-w-0 flex-col gap-1 rounded-card border p-4 transition-colors ${
                 hot ? 'border-danger/40 bg-danger-tint hover:border-danger' : 'border-transparent bg-surface hover:border-blue'
               }`}
             >

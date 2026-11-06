@@ -4211,3 +4211,30 @@ tap takes, and fewer bytes. `tests/unit/navigation-speed.test.js` pins it.
   and making public pages cacheable (locale from the `/en/` URL instead of
   the cookie, account-dependent bits fetched in the browser) so a listing
   page could be prefetched in full from the grid.
+
+## Admin dashboard in four tabs (2026-11-06)
+
+`/admin/dashboard` was one scroll of 27 blocks. It is now a KPI row plus four
+tabs (`lib/adminDashboardTabs.js`, pure, `tests/unit/admin-dashboard-tabs.test.js`).
+
+- **URL-driven**: `?tab=apercu|demande|offre|marche`, `?periode=` applies to
+  every tab, `?chambres=` filters the rent index. Only the open tab's queries
+  run (each tab is its own Server Component under `app/admin/dashboard/tabs/`,
+  in a Suspense keyed on tab + period). A tab needs a permission (`marche` is
+  `market.view`, so a sales rep does not see it); with no `?tab=` a moderator
+  opens on Offre, support on Demande, everyone else on Aperçu.
+- **KPI row** (`KpiHeader.js`): live listings (top 3 communes under it),
+  WhatsApp clicks (people) with the change vs the period before, cost per
+  WhatsApp click, and unmet demand = distinct people whose searches found
+  nothing (`investorMetrics.getDemand`, `search_events.result_count = 0`).
+  **CPW is deliberately "—, not tracked"**: no ad spend is recorded anywhere,
+  and the test pins that it is never computed. Add a spend source first.
+- **What each tab holds**: Aperçu — urgent queues, traffic cards, 12-week
+  trend. Demande — visit/conversation queues, zero-result searches,
+  audience/routing/placement/source splits, devices, referrers. Offre —
+  listing/agent queues, the 5 oldest pending listings, top 10 agents by live
+  listings (scoped for a sales rep), most-clicked listings. Marché — median
+  rent index (same blended SQL as the public price guide, `queryPriceGuides`,
+  min 5 rents), interest by commune/type/price band, views by commune.
+- `WorkQueues` takes `only` (the tab's queue keys, `TAB_QUEUES`) and
+  `ClickBreakdown` takes `parts`; each preview links to its full, paginated page.

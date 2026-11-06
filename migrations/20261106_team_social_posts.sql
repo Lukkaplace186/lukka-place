@@ -38,7 +38,10 @@ CREATE TABLE IF NOT EXISTS team_social_posts (
 CREATE INDEX IF NOT EXISTS team_social_posts_property_idx ON team_social_posts (property_id, posted_at DESC);
 CREATE INDEX IF NOT EXISTS team_social_posts_target_idx ON team_social_posts (target_key, posted_at DESC);
 
--- Closed to PostgREST like every console table (CLAUDE.md, "New tables start closed").
+-- Closed to PostgREST like every console table (CLAUDE.md, "New tables start
+-- closed"): RLS on with no policy, and no grants to the API roles. The app
+-- connects as postgres (BYPASSRLS), so its own reads and writes are unaffected.
+ALTER TABLE team_social_posts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON team_social_posts FROM anon, authenticated;
 
 COMMIT;

@@ -114,6 +114,7 @@ test('the moderation queue filters on where the team posted, once the table exis
 test('the migration closes the table and matches the key pattern', () => {
   const sql = read('../migrations/20261106_team_social_posts.sql');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS team_social_posts/);
+  assert.match(sql, /ALTER TABLE team_social_posts ENABLE ROW LEVEL SECURITY;/);
   assert.match(sql, /REVOKE ALL ON team_social_posts FROM anon, authenticated/);
   assert.ok(sql.includes(TARGET_KEY_PATTERN.source));
 });

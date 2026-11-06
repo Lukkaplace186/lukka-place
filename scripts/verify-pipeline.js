@@ -14423,11 +14423,13 @@ console.log('\n2. services/openai.js');
   console.log('\n§78 team_social_posts migration is additive, closed to PostgREST, web-only');
   {
     const sql78 = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261106_team_social_posts.sql'), 'utf8');
-    check('the migration only creates (IF NOT EXISTS) and revokes; it drops or alters nothing', () => {
+    check('the migration only creates (IF NOT EXISTS), enables RLS and revokes; it drops nothing', () => {
       assert.match(sql78, /CREATE TABLE IF NOT EXISTS team_social_posts/);
       assert.match(sql78, /CREATE INDEX IF NOT EXISTS team_social_posts_property_idx/);
+      assert.match(sql78, /ALTER TABLE team_social_posts ENABLE ROW LEVEL SECURITY;/);
       assert.match(sql78, /REVOKE ALL ON team_social_posts FROM anon, authenticated/);
-      assert.ok(!/\b(DROP|ALTER|DELETE|UPDATE|TRUNCATE)\b/i.test(sql78.replace(/^--.*$/gm, '')));
+      const rest78 = sql78.replace(/^--.*$/gm, '').replace('ALTER TABLE team_social_posts ENABLE ROW LEVEL SECURITY;', '');
+      assert.ok(!/\b(DROP|ALTER|DELETE|UPDATE|TRUNCATE)\b/i.test(rest78));
     });
     check('no engine module names team_social_posts', () => {
       const offenders = [];

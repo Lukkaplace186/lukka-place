@@ -6,6 +6,7 @@ import { getFlyerListingForTeam } from '@/lib/listingFlyer';
 import { buildShareKit } from '@/lib/marketing/shareKit';
 import { facebookDebuggerUrl, refreshFacebookPreview } from '@/lib/facebookPreview';
 import { getTeamSocialPostsByListing, recordTeamSocialPost } from '@/lib/teamSocialPosts';
+import { prepareListingOgCard } from '@/lib/listingOgRender';
 import { resolveTeamSocialTarget, teamSocialUrl } from '@/lib/teamSocialTargets';
 
 /**
@@ -56,6 +57,10 @@ export async function refreshTeamFacebookPreviewAction(listingId, targetInput = 
   if (!kit.shareable) return { ok: false, reason: 'not_shareable' };
   const target = targetInput ? resolveTeamSocialTarget(targetInput) : null;
   const url = target ? teamSocialUrl(listing.id, target) : kit.socialUrl;
+  // Draw the link preview card first, so Facebook's crawler finds it ready
+  // (lib/listingOgRender.js: a fresh drawing outlasted its timeout and a
+  // group post showed a grey box).
+  await prepareListingOgCard(listing.id);
   const result = await refreshFacebookPreview(url);
   return { ok: true, url, debuggerUrl: facebookDebuggerUrl(url), status: result.status };
 }

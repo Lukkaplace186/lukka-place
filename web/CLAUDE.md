@@ -3326,6 +3326,18 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   at their native 1080 width; only their export got gentler
   (`EXPORT_JPEG_QUALITY` 0.92, fallback 0.86, budget 400 KB, was 0.82 / 0.70 /
   150 KB).
+  **Cached and drawn ahead** (same day): at 2× a card took 6–7 s on every
+  request and Facebook's crawler gave up first — a group post showed an empty
+  grey box. The drawing moved to `lib/listingOgRender.js`
+  (`renderListingOgCard`): the finished JPEG is kept in memory per listing
+  VERSION (`ogCacheKey`: price, title, photos, verified_at, updated_at…;
+  120 entries, 6 h), concurrent requests share one drawing, and both share
+  dialogs' "read the link now" actions `await prepareListingOgCard(id)`
+  BEFORE asking Facebook to fetch. Measured locally: first drawing ~4 s,
+  repeats 0.3 s (`X-Og-Scale: … cached`). Per process: a restart empties it.
+  The share dialog's `DialogContent` carries `auto-rows-max` — with the team's
+  "Où le publiez-vous ?" panel the grid squeezed the card's row and the card
+  spilled over the buttons.
   The earlier design, for the record: full-bleed cover, white logo top-left,
   a dark capsule with price + type + two counts in the centre, a white box
   with the page's own h1.

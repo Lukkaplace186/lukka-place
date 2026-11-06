@@ -155,9 +155,9 @@ test('éditorial card: photos are the listing’s own, never a stand-in', () => 
   assert.match(image, /const chosen = pickOgPhotos\(usable\)/);
   assert.match(image, /optimisableImageSrc\(src/, 'only our own storage');
   assert.match(image, /ogPhotoSlots\(chosen\.length\)/);
-  const route = read('app/(site)/listings/[id]/opengraph-image.js');
-  assert.match(route, /loadOgPhotos\(listingImages\(listing\), \{ scale: OG_SCALES\[0\] \}\)/);
-  assert.match(route, /if \(!photos\.length\)/, 'no photo: the blue block with the logo');
+  const render = read('lib/listingOgRender.js');
+  assert.match(render, /loadOgPhotos\(listingImages\(listing\), \{ scale: OG_SCALES\[0\] \}\)/);
+  assert.match(render, /if \(!photos\.length\)/, 'no photo: the blue block with the logo');
   assert.ok(readFileSync(path.join(ROOT, 'public/brand/logo-royal.png')).length > 1000);
 });
 
@@ -178,15 +178,38 @@ test('og card: the sharpest encoding under the WhatsApp budget wins, each scale 
   assert.deepEqual(drawn, [2]);
 });
 
+test('og card: drawn once per listing version and kept; the share dialogs draw it BEFORE pinging Facebook', () => {
+  const render = read('lib/listingOgRender.js');
+  assert.match(render, /const cache = new Map\(\)/);
+  assert.match(render, /export function ogCacheKey\(listing\)/);
+  for (const field of ['updated_at', 'price', 'title', 'verified_at', 'listingImages(listing)']) {
+    assert.ok(render.slice(render.indexOf('export function ogCacheKey')).split('\n').slice(0, 6).join('\n').includes(field), field);
+  }
+  assert.match(render, /inflight\.has\(key\)/, 'two requests for one version share one drawing');
+  for (const file of ['app/admin/listings/shareActions.js', 'app/compte/agent/shareActions.js']) {
+    const src = read(file);
+    const warm = src.indexOf('await prepareListingOgCard(listing.id)');
+    assert.ok(warm > 0, file);
+    assert.ok(warm < src.indexOf('await refreshFacebookPreview(', warm - 1), `${file}: card drawn before Facebook reads the link`);
+  }
+});
+
+test('the share dialog keeps its rows and scrolls, so the card never covers the buttons', () => {
+  assert.match(read('components/ListingQuickShare.js'), /<DialogContent className="max-h-\[92dvh\] auto-rows-max/);
+});
+
 test('og route: JPEG, behind the public gate, and the page no longer sets the raw photo', () => {
   const route = read('app/(site)/listings/[id]/opengraph-image.js');
   assert.match(route, /export const contentType = 'image\/jpeg'/);
   assert.match(route, /export const size = \{ width: 2400, height: 1260 \}/);
   assert.match(route, /getListingById\(id\)/, 'the same status = 1 AND approve_status = 1 read as the page');
   assert.match(route, /status: 404/);
-  assert.match(route, /encodeOgCard\(/);
-  assert.match(route, /fontSize: s\(model\.priceSize\)/, 'lengths are multiplied by the scale, not a CSS transform');
-  assert.doesNotMatch(route, /transform: `scale/);
+  assert.match(route, /renderListingOgCard\(listing\)/);
+  const render = read('lib/listingOgRender.js');
+  assert.match(render, /^import 'server-only';/);
+  assert.match(render, /encodeOgCard\(/);
+  assert.match(render, /fontSize: s\(model\.priceSize\)/, 'lengths are multiplied by the scale, not a CSS transform');
+  assert.doesNotMatch(render, /transform: `scale/);
   assert.match(read('app/(site)/listings/[id]/twitter-image.js'), /import Image from '\.\/opengraph-image'/);
 
   const page = read('app/(site)/listings/[id]/page.js');

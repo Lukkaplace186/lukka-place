@@ -13,6 +13,7 @@ import { getListingShareCount, recordListingShares } from '@/lib/listingShares';
 import { MAX_IDS_PER_RECORD, normaliseShareRecord } from '@/lib/listingShareRules';
 import { ensureAgentPartnerCode } from '@/lib/partners';
 import { facebookDebuggerUrl, refreshFacebookPreview } from '@/lib/facebookPreview';
+import { prepareListingOgCard } from '@/lib/listingOgRender';
 
 function supabaseHost() {
   try {
@@ -63,6 +64,9 @@ export async function refreshFacebookPreviewAction(listingId) {
   if (error) return error;
   const kit = buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId), agentId });
   if (!kit.shareable) return { ok: false, reason: 'not_shareable' };
+  // Draw the link preview card first, so Facebook's crawler finds it ready
+  // (lib/listingOgRender.js: a fresh drawing outlasted its timeout).
+  await prepareListingOgCard(listing.id);
   const result = await refreshFacebookPreview(kit.socialUrl);
   return { ok: true, url: kit.socialUrl, debuggerUrl: facebookDebuggerUrl(kit.socialUrl), status: result.status };
 }

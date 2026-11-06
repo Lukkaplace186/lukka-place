@@ -272,7 +272,11 @@ export default function ListingQuickShare({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[92dvh] gap-3 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-sm">
+      {/* auto-rows-max: rows keep their own height and the dialog scrolls.
+          Without it, once the team's "Où le publiez-vous ?" panel made the
+          dialog taller than the screen, the grid squeezed the card's row and
+          the card spilled over the Share / Download buttons (2026-11-06). */}
+      <DialogContent className="max-h-[92dvh] auto-rows-max gap-3 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{sold ? t('agent.soldShare.title') : feed ? t('agent.quickShare.titleFeed') : t('agent.quickShare.title')}</DialogTitle>
           <DialogDescription>

@@ -54,6 +54,8 @@ function rowsFromFile(file) {
       price_period: 'mois',
       commune_key: get('commune') || null,
       quartier: get('quartier') || null,
+      // Optional column: true only when the advert says furnished ("meublé").
+      furnished: 'furnished' in index ? get('furnished') === true : null,
       title: null,
     });
   });

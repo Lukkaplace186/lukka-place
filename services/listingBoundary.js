@@ -48,11 +48,18 @@ function fold(text) {
     .trim();
 }
 
-/** Coarse families, so "villa" vs "parcelle" (one classification question) is not a difference. */
+/**
+ * Coarse families, so "villa" vs "parcelle" (one classification question) is not a difference.
+ *
+ * A plot cut into lots is sold as "morcellement(s)" / "lotissement" and often
+ * never says "terrain" (2026-11-01: "Plusieurs Morcellements … 20m Sur 40m :
+ * prix 700 000$" named no family, so it was folded into the agent's
+ * published apartment as a correction and stored nowhere).
+ */
 const FAMILY_WORDS = [
   ['appartement', /\b(?:appartements?|apartements?|appart|studios?|flat)\b/],
   ['maison', /\b(?:villas?|maisons?|parcelles?|duplex|pavillon|complexe|type locataire|portes)\b/],
-  ['terrain', /\b(?:terrains?|lopin|concessions?)\b/],
+  ['terrain', /\b(?:terrains?|lopin|concessions?|morcellements?|lotissements?)\b/],
   ['commercial', /\b(?:bureaux?|boutiques?|entrepots?|magasins?|immeubles?|locaux commerciaux|local commercial|hangar)\b/],
 ];
 

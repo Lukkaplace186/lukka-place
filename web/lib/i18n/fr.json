@@ -6512,6 +6512,26 @@
       "errorVerifiedElsewhere": "Ce numéro est déjà vérifié sur un autre compte (#{id}).",
       "errorUnavailable": "Base de données indisponible, réessayez."
     },
+    "agentNumbers": {
+      "label": "Numéros WhatsApp d’envoi :",
+      "none": "aucun autre que le sien",
+      "add": "Ajouter un numéro WhatsApp",
+      "phoneLabel": "Autre numéro WhatsApp de l’agent",
+      "warning": "Vous confirmez que ce numéro appartient à cet agent. Les annonces envoyées depuis ce numéro lui seront rattachées automatiquement, y compris celles déjà reçues. Il n’est pas affiché sur le site : le numéro du compte reste celui des annonces.",
+      "submit": "Rattacher le numéro",
+      "adding": "Rattachement…",
+      "cancel": "Annuler",
+      "added": "{phone} rattaché à l’agent. {count} annonce(s) déjà reçue(s) de ce numéro lui sont rattachée(s).",
+      "addedClaimFailed": "{phone} rattaché. Les annonces déjà reçues de ce numéro n’ont pas pu être rattachées maintenant ; elles le seront à leur prochaine synchronisation.",
+      "remove": "Retirer {phone}",
+      "removeConfirm": "Retirer {phone} ? Les prochaines annonces envoyées depuis ce numéro ne seront plus rattachées à cet agent. Celles déjà rattachées le restent.",
+      "unavailable": "Numéros WhatsApp supplémentaires : la migration 20261103_agent_whatsapp_numbers.sql doit être appliquée.",
+      "errorOwn": "C’est déjà le numéro du compte de cet agent.",
+      "errorLinked": "Ce numéro est déjà rattaché à un autre agent (#{id}).",
+      "errorUnavailable": "La table des numéros WhatsApp n’existe pas encore : la migration 20261103_agent_whatsapp_numbers.sql doit être appliquée.",
+      "noteAdded": "Numéro WhatsApp {phone} rattaché à cet agent par {actor} : ses annonces lui sont attribuées.",
+      "noteRemoved": "Numéro WhatsApp {phone} retiré de cet agent par {actor}."
+    },
     "facebookProspects": {
       "title": "Coller une publication",
       "subtitle": "Collez une publication ou des commentaires d’un groupe Facebook dont vous êtes membre : les numéros congolais trouvés deviennent des prospects agents à inviter. Personne n’est contacté depuis cette page.",

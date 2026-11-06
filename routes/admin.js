@@ -1731,6 +1731,40 @@ router.post('/agents/:id/admin-verify', async (req, res) => {
   }
 });
 
+/**
+ * Extra WhatsApp numbers an agent sends listings from
+ * (services/agentNumbers.js). Adding one is the team vouching for it: same
+ * console-only posture as admin-verify, and it claims the number's listings.
+ */
+router.get('/agents/:id/whatsapp-numbers', async (req, res) => {
+  try {
+    const result = await require('../services/agentNumbers').listAgentNumbers(req.params.id);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, `agents/${req.params.id}/whatsapp-numbers`);
+  }
+});
+
+router.post('/agents/:id/whatsapp-numbers', async (req, res) => {
+  try {
+    const result = await require('../services/agentNumbers').addAgentNumber(req.params.id, req.body?.phone, {
+      addedBy: req.body?.added_by,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, `agents/${req.params.id}/whatsapp-numbers`);
+  }
+});
+
+router.delete('/agents/:id/whatsapp-numbers/:phone', async (req, res) => {
+  try {
+    const result = await require('../services/agentNumbers').removeAgentNumber(req.params.id, req.params.phone);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, `agents/${req.params.id}/whatsapp-numbers/${req.params.phone}`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Asking-price changes from web/ — one writer for both stores
 // ---------------------------------------------------------------------------

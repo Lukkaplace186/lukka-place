@@ -18,6 +18,7 @@
  */
 
 const { getPool, isConfigured } = require('./postgres');
+const agentNumbers = require('./agentNumbers');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 const UPGRADE_URL = `${SITE_URL}/compte/agent/abonnement`;
@@ -29,6 +30,33 @@ const FEATURES_SQL = "SELECT value FROM cms_settings WHERE key = 'site.features'
 
 const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL";
 
+/**
+ * The sender's verified agent and their plan. With `withExtra`, a number the
+ * team linked to the agent (services/agentNumbers.js) counts as theirs, the
+ * account's own phone first — the same match resolveAgentId makes.
+ */
+function senderQuotaSql(withExtra) {
+  return `
+  SELECT a.id, a.vendor_id, q.listing_limit, q.plan_title,
+         (SELECT COUNT(*)::int FROM properties p
+          WHERE ${QUOTA_COUNTED_SQL}
+            AND (p.agent_id = a.id
+                 OR (a.vendor_id IS NOT NULL AND a.vendor_id <> 0
+                     AND p.agent_id IN (SELECT o.id FROM agents o WHERE o.vendor_id = a.vendor_id)))) AS used
+  FROM agents a
+  LEFT JOIN LATERAL (
+    SELECT pk.number_of_property AS listing_limit, pk.title AS plan_title
+    FROM memberships m JOIN packages pk ON pk.id = m.package_id
+    WHERE m.vendor_id = a.vendor_id AND m.status = 1 AND m.expire_date > NOW() AND pk.number_of_property > 0
+    ORDER BY pk.number_of_property DESC, m.expire_date DESC
+    LIMIT 1
+  ) q ON true
+  WHERE ${agentNumbers.numberMatchSql('a.', '$1', withExtra)} AND a.phone_verified_at IS NOT NULL
+  ORDER BY ${agentNumbers.ownNumberFirstSql('a.', '$1', withExtra)}a.id
+  LIMIT 1`;
+}
+
+/** The phone-only form, as before the extra-numbers table (and what §35 pins). */
 const SENDER_QUOTA_SQL = `
   SELECT a.id, a.vendor_id, q.listing_limit, q.plan_title,
          (SELECT COUNT(*)::int FROM properties p
@@ -73,7 +101,9 @@ async function checkQuotaForSender(waId, adding = 1) {
   const digits = String(waId || '').replace(/\D/g, '');
   if (!digits) return null;
   try {
-    const { rows } = await getPool().query(SENDER_QUOTA_SQL, [digits]);
+    const pool = getPool();
+    const extra = await agentNumbers.extraNumbersAvailable(pool);
+    const { rows } = await pool.query(extra ? senderQuotaSql(true) : SENDER_QUOTA_SQL, [digits]);
     if (!rows[0]) return null;
     const verdict = quotaVerdict({ limit: rows[0].listing_limit, used: rows[0].used, planTitle: rows[0].plan_title }, adding);
     if (verdict.blocked) verdict.subscriptionsEnabled = await subscriptionsEnabled();
@@ -122,4 +152,5 @@ module.exports = {
   UPGRADE_URL,
   CONTACT_URL,
   SENDER_QUOTA_SQL,
+  senderQuotaSql,
 };

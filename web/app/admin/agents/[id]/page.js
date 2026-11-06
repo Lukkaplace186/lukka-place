@@ -8,7 +8,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { firstParam, parsePage } from '@/lib/adminPagination';
 import { listModerationQueue } from '@/lib/moderationQueue';
 import { getAgentListingStatusCounts, getAgentPerformanceSummary, listAgentPerformanceLogs } from '@/lib/adminAgentProfile';
-import { listLeadMatches, listViewingFeed } from '@/lib/adminApi';
+import { listAgentWhatsAppNumbers, listLeadMatches, listViewingFeed } from '@/lib/adminApi';
 import { ROUTING_TYPE_LABEL_KEYS, VIEWING_REQUEST_STATUS_LABEL_KEYS, LISTING_MODERATION_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { MODERATION_QUEUE_STATUSES } from '@/lib/moderation';
 import { listEntityAudit } from '@/lib/adminAudit';
@@ -23,6 +23,7 @@ import AgentRepControl from './AgentRepControl';
 import AgentDeleteButton from './AgentDeleteButton';
 import VerificationReminderButton from './VerificationReminderButton';
 import AdminVerifyAgentButton from './AdminVerifyAgentButton';
+import AgentWhatsAppNumbers from './AgentWhatsAppNumbers';
 import ImpersonateButton from '../../ImpersonateButton';
 import { getAgentSalesAssignment, listActiveRepOptions } from '@/lib/sales';
 import { getAgentAttribution } from '@/lib/salesLaunch';
@@ -87,10 +88,12 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   if (!(await agentInScope(await getSalesScope(), agent.id))) notFound();
   const base = `/admin/agents/${agent.id}`;
   const canManageSales = can(session?.role, 'sales.manage');
-  const [salesAssignment, repOptions, attribution] = await Promise.all([
+  const [salesAssignment, repOptions, attribution, whatsappNumbers] = await Promise.all([
     getAgentSalesAssignment(agent.id).catch(() => null),
     canManageSales ? listActiveRepOptions().catch(() => []) : Promise.resolve([]),
     can(session?.role, 'sales.view') ? getAgentAttribution(agent.id).catch(() => null) : Promise.resolve(null),
+    // The other numbers this agent WhatsApps listings from (engine, console only).
+    listAgentWhatsAppNumbers(agent.id).catch(() => null),
   ]);
 
   const displayName =
@@ -315,6 +318,15 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
             <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
           </Link>
         </div>
+
+        {!agent.deleted_at ? (
+          <AgentWhatsAppNumbers
+            agentId={agent.id}
+            numbers={whatsappNumbers?.numbers ?? null}
+            available={Boolean(whatsappNumbers?.available)}
+            canManage={can(session?.role, 'agents.manage')}
+          />
+        ) : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {can(session?.role, 'agents.manage') ? (

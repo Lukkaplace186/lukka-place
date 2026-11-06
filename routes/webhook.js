@@ -604,7 +604,7 @@ function adaptiveIdleMs(text, baseIdle) {
   // Names a property but states no money yet — the commonest way a listing
   // arrives in two halves.
   const namesProperty =
-    /(?:louer|location|vendre|vente|villa|appartement|apartement|parcelle|studio|maison|duplex|terrain|bureau|boutique|entrepot|chambre|piece)/
+    /(?:louer|location|vendre|vente|villa|appartement|apartement|parcelle|studio|maison|duplex|terrain|morcellement|lotissement|bureau|boutique|entrepot|chambre|piece)/
       .test(normalised);
   // Generous on purpose: a false "has price" costs only the ordinary wait,
   // while a false "no price" delays a finished listing.

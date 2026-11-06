@@ -36,6 +36,8 @@ async function engineFetch(path, options = {}) {
     const error = new Error(body?.error || `${options.method || 'GET'} ${path} failed: ${res.status}`);
     error.status = res.status;
     if (body?.code) error.code = body.code;
+    // The account a refusal names ("déjà un compte agent (#{id})").
+    if (body?.agentId != null) error.agentId = body.agentId;
     throw error;
   }
   return body;
@@ -516,6 +518,35 @@ export async function adminVerifyAgent(agentId, { issueLink = true } = {}) {
   return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/admin-verify`, {
     method: 'POST',
     body: JSON.stringify({ issue_link: issueLink }),
+  });
+}
+
+/**
+ * Extra WhatsApp numbers an agent sends listings from (console only; the
+ * engine's services/agentNumbers.js). `available: false` before the
+ * migration has run.
+ * @returns {Promise<{available: boolean, numbers: {phone: string, addedBy: string|null, createdAt: string}[]}>}
+ */
+export async function listAgentWhatsAppNumbers(agentId) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/whatsapp-numbers`);
+}
+
+/**
+ * Link a number: the team vouches for it, and the listings already sent from
+ * it are claimed. A refusal carries `error.code` (lib/adminAgentCreate.js).
+ * @returns {Promise<{agentId: number, phone: string, claimed: {linkedIds: number[], localStamped: number, error: string|null}}>}
+ */
+export async function addAgentWhatsAppNumber(agentId, phone, addedBy) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/whatsapp-numbers`, {
+    method: 'POST',
+    body: JSON.stringify({ phone, added_by: addedBy }),
+  });
+}
+
+/** Unlink a number. Listings already attributed stay where they are. */
+export async function removeAgentWhatsAppNumber(agentId, phone) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/whatsapp-numbers/${encodeURIComponent(phone)}`, {
+    method: 'DELETE',
   });
 }
 

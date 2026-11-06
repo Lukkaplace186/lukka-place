@@ -732,6 +732,14 @@ stands alone as a listing (`looks-like-listing`). This applies to everyone:
 it replaces the literal "a changed price/commune/type is a new listing" ask,
 which would have turned "non c'est 1100$" into a second listing. §61.
 
+The "names a kind of property" half is a word list (`FAMILY_WORDS`, copied in
+`group-reader/lib/prefilter.js`). A word missing from it costs a whole
+listing: on 2026-11-01 "Plusieurs Morcellements … prix 700 000$" (land, never
+saying "terrain") arrived while the agent's apartment was in the 7-day
+correction window, the model called it a correction, the boundary saw no
+property, and it was stored nowhere. *morcellement(s)* / *lotissement(s)* now
+count as land on both sides.
+
 **Drafts nobody confirms reach moderation** (`services/draftAutoSubmit.js`,
 job `draft-auto-submit`): a `pending_confirmation` draft with ≥1 photo is
 published (into the approval queue, `approve_status = 0`) after
@@ -833,6 +841,37 @@ signs up in person.
   magic link, only the SHA-256 stored) is returned to the console and sent by
   nobody: the admin copies it or opens their own WhatsApp with it.
 - §66 of verify-pipeline.
+
+### An agent's other WhatsApp numbers (2026-11-03)
+
+`services/agentNumbers.js`, Postgres `agent_whatsapp_numbers`
+(`migrations/20261103_agent_whatsapp_numbers.sql`). Agent #50 (Ayang
+services) holds +243 974 585 309 but WhatsApps every listing from
++243 910 314 309, whose only `agents` row was their own deleted first attempt
+(#49, the name-fold bug of 2026-10-20). Attribution matched the sender against
+`agents.phone` alone, so 15 listings arrived unattributed and were assigned by
+hand.
+
+- **The team links the number** on the console's agent page ("Numéros
+  WhatsApp d'envoi", `agents.manage`, audited + timeline note) →
+  `POST/DELETE /admin/agents/:id/whatsapp-numbers` (requireApiKey). Like
+  admin-verify, nobody proves the number: the team vouches. Linking claims the
+  listings already filed under it (`claimListingsForNumber`); unlinking moves
+  nothing back.
+- **The three lookups accept it**: `identifySender` (greeting, attribution
+  stamp, no onboarding ask), `resolveAgentId` (publish-time `agent_id`, and
+  the claim), the WhatsApp quota. The account's own phone wins when both
+  match, and every gate (`phone_verified_at`, `deleted_at`) is still the
+  AGENT's. Not covered on purpose: the number is never public, never dialled
+  by a CTA and never sent alerts (`agents.phone` stays that), and button taps
+  are authorised against the number the alert went to.
+- **Refused**: the agent's own phone, any live agent's phone, ours, one
+  already linked (UNIQUE), a deleted agent. A number held only by a deleted
+  account is allowed — that was this case.
+- **Before the migration** nothing 42P01s: `extraNumbersAvailable` asks
+  `to_regclass` (a yes is cached for the process, a no for a minute) and the
+  old phone-only SQL runs; the console says the migration is missing.
+- §68 of verify-pipeline; `web/tests/unit/agent-whatsapp-numbers.test.js`.
 
 ### Plan listing limit on WhatsApp
 

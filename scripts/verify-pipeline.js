@@ -12277,6 +12277,28 @@ console.log('\n2. services/openai.js');
       assert.strictEqual(boundary61.newListingReason({ text: 'Appartement Limete 800 USD', photoCount: 0, intent: 'listing', context: draft61 }), null, 'too short to be a description');
       assert.strictEqual(boundary61.newListingReason({ text: "non c'est un appartement à Limete, le loyer est 800 USD par mois, garantie 3 mois et 1 mois d'avance", intent: 'listing', context: draft61 }), null, 'correction wording');
     });
+    check('a plot sold as "morcellements" is land, and a new listing beside a published apartment (2026-11-01)', () => {
+      // The real message: it never says "terrain", so it named no family and
+      // was folded into the agent's apartment #185 as a correction.
+      const MORCEL61 = '*🇨🇩🇨🇩Plusieurs Morcellements Sont disponible à la Kin Oasis Bandal.*\n'
+        + '*Emplacement : Impeccable pour tout projets immobiliers.*\n'
+        + '*Dimensions : 20m Sur 40m: prix  700 000$ à discuté*\n'
+        + '*Morcellement a Quatre (4) Parties :*\n'
+        + '*1ère Partie : 10m Sur 20m = 175.000$ à débattre*\n'
+        + '*2eme Parties : 20m Sur 20m = 350.000$ à débattre*\n'
+        + '*3 ème Partie : 8m Sur 20m = 150.000$ à débattre*\n'
+        + "*Documents disponibles : Certificat d'Enregistrement*";
+      assert.deepStrictEqual(boundary61.familiesIn(MORCEL61), ['terrain']);
+      assert.deepStrictEqual(boundary61.familiesIn('Lotissement à Mont-Ngafula, lots de 15/20 à 12 000$'), ['terrain']);
+      assert.ok(boundary61.standsAloneAsListing(MORCEL61));
+      const apartment61 = { property_type: 'appartement', commune: 'Kintambo', price: 1000 };
+      const r = boundary61.newListingReason({ text: MORCEL61, photoCount: 0, intent: 'listing', context: apartment61 });
+      assert.strictEqual(r && r.reason, 'core-fields-differ');
+      assert.ok(r.differences.includes('property_type') && r.differences.includes('price'), r.differences.join(','));
+      // The group reader's copy of the word list must agree.
+      const prefilter61 = require('../group-reader/lib/prefilter');
+      assert.ok(prefilter61.standsAloneAsListing(MORCEL61), 'group-reader prefilter drops a morcellement post');
+    });
 
     await checkAsync('a listing sent as the answer to "your name?" is never stored as the name', async () => {
       const result = await onboarding.completeOnboarding('243850006101', OFFER61);
@@ -14212,6 +14234,186 @@ console.log('\n2. services/openai.js');
       if (before === undefined) delete process.env.AGENT_DIGEST; else process.env.AGENT_DIGEST = before;
     }
   });
+
+  // ===========================================================================
+  // 68. Extra WhatsApp numbers on an agent (2026-11-03)
+  // ===========================================================================
+  // Agent #50 holds +243 974 585 309 but WhatsApps every listing from
+  // +243 910 314 309, whose only agents row is their own deleted first
+  // attempt (#49). Nothing was attributed; the team assigned 15 by hand.
+
+  console.log('\n68. Extra WhatsApp numbers on an agent');
+
+  {
+    const numbers68 = require('../services/agentNumbers');
+    const onboarding68 = require('../services/agentOnboarding');
+    const postgres68 = require('../services/postgres');
+    const quota68 = require('../services/listingQuota');
+    const saved68 = { configured: postgres68.isConfigured, pool: postgres68.getPool, link: postgres68.linkListingsToAgent };
+
+    const OWN68 = '243974585309';
+    const SECOND68 = '243910314309';
+    const OTHER68 = '243999068068';
+    const digits68 = (p) => String(p || '').replace(/\D/g, '');
+    const agents68 = [
+      { id: 49, phone: SECOND68, phone_verified_at: 'T', deleted_at: 'T' },
+      { id: 50, phone: OWN68, phone_verified_at: 'T', deleted_at: null, agency_name: 'Ayang services' },
+      { id: 51, phone: OTHER68, phone_verified_at: 'T', deleted_at: null },
+    ];
+    let links68 = [];
+    let tableExists68 = true;
+    const answersTo = (a, n) => digits68(a.phone) === n || links68.some((l) => l.agent_id === a.id && l.phone === n);
+
+    // Only the statements these paths issue; anything else fails the check.
+    const client68 = {
+      async query(sql, params = []) {
+        if (/to_regclass/.test(sql)) return { rows: [{ available: tableExists68 }] };
+        if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql) || /pg_advisory_xact_lock/.test(sql)) return { rows: [] };
+        if (/AS digits, deleted_at FROM agents WHERE id = \$1/.test(sql)) {
+          const a = agents68.find((r) => r.id === params[0]);
+          return { rows: a ? [{ id: a.id, digits: digits68(a.phone), deleted_at: a.deleted_at }] : [] };
+        }
+        if (/FROM agent_infos ai/.test(sql)) {
+          // identifySender's lookup.
+          assert.ok(!tableExists68 || /agent_whatsapp_numbers/.test(sql), 'linked numbers are consulted');
+          const n = params[0];
+          const rows = agents68.filter((a) => (tableExists68 ? answersTo(a, n) : digits68(a.phone) === n))
+            .sort((x, y) => (Number(!y.deleted_at && digits68(y.phone) === n) - Number(!x.deleted_at && digits68(x.phone) === n))
+              || (Number(!y.deleted_at) - Number(!x.deleted_at)) || x.id - y.id);
+          return { rows: rows.slice(0, 1).map((a) => ({ ...a, first_name: null })) };
+        }
+        if (/SELECT id FROM agents\s+WHERE[\s\S]*phone_verified_at IS NOT NULL\s+AND deleted_at IS NULL/.test(sql)) {
+          // resolveAgentId: the agent's gates, own phone first.
+          assert.match(sql, /agent_whatsapp_numbers/);
+          assert.match(sql, /ORDER BY \(regexp_replace\(phone/);
+          const n = params[0];
+          const rows = agents68.filter((a) => answersTo(a, n) && a.phone_verified_at && !a.deleted_at)
+            .sort((x, y) => Number(digits68(y.phone) === n) - Number(digits68(x.phone) === n));
+          return { rows: rows.slice(0, 1).map((a) => ({ id: a.id })) };
+        }
+        if (/SELECT id FROM agents\s+WHERE regexp_replace\(phone[\s\S]*deleted_at IS NULL/.test(sql)) {
+          return { rows: agents68.filter((a) => digits68(a.phone) === params[0] && !a.deleted_at).slice(0, 1) };
+        }
+        if (/SELECT agent_id FROM agent_whatsapp_numbers WHERE phone = \$1/.test(sql)) {
+          return { rows: links68.filter((l) => l.phone === params[0]) };
+        }
+        if (/INSERT INTO agent_whatsapp_numbers/.test(sql)) {
+          links68.push({ agent_id: params[0], phone: params[1], added_by: params[2], created_at: new Date('2026-11-03T10:00:00Z') });
+          return { rowCount: 1 };
+        }
+        if (/DELETE FROM agent_whatsapp_numbers/.test(sql)) {
+          const before = links68.length;
+          links68 = links68.filter((l) => !(l.agent_id === params[0] && l.phone === params[1]));
+          return { rowCount: before - links68.length };
+        }
+        if (/SELECT phone, added_by, created_at FROM agent_whatsapp_numbers/.test(sql)) {
+          return { rows: links68.filter((l) => l.agent_id === params[0]) };
+        }
+        throw new Error(`unexpected SQL in §68: ${sql.slice(0, 90)}`);
+      },
+      release() {},
+    };
+    postgres68.isConfigured = () => true;
+    postgres68.getPool = () => ({ connect: async () => client68, query: (sql, params) => client68.query(sql, params) });
+    // The real linkListingsToAgent resolves the agent through resolveAgentId;
+    // the fake does exactly that, against the fake table.
+    const linkCalls68 = [];
+    postgres68.linkListingsToAgent = async (ids, waId) => {
+      linkCalls68.push({ ids, waId });
+      const agentId = await postgres68.resolveAgentId(client68, waId);
+      return agentId ? { agentId, linkedIds: ids } : { agentId: null, linkedIds: [] };
+    };
+
+    const sent68 = dbService.insertListing(
+      { is_listing: true, property_type: 'appartement', commune: 'Ngaliema', price: 900 },
+      SECOND68,
+      { wamid: 'wamid.EXTRA68', agentName: 'Ayang Services' },
+    );
+    dbService.db.prepare('UPDATE listings SET remote_property_id = 990680 WHERE id = ?').run(sent68.id);
+
+    async function refusal68(promise) {
+      try { await promise; } catch (err) { return err.code; }
+      return null;
+    }
+
+    try {
+      numbers68.resetAvailability();
+
+      check('without the table the match is exactly the old phone-only SQL', () => {
+        assert.strictEqual(numbers68.numberMatchSql('', '$1', false), "regexp_replace(phone, '\\D', '', 'g') = $1");
+        assert.strictEqual(numbers68.ownNumberFirstSql('a.', '$1', false), '');
+        assert.match(numbers68.numberMatchSql('a.', '$1', true), /a\.id IN \(SELECT w\.agent_id FROM agent_whatsapp_numbers w WHERE w\.phone = \$1\)/);
+        const quotaSql = quota68.senderQuotaSql(true);
+        assert.match(quotaSql, /agent_whatsapp_numbers/);
+        assert.match(quotaSql, /a\.phone_verified_at IS NOT NULL\s+ORDER BY \(regexp_replace\(a\.phone/);
+        assert.ok(!quota68.SENDER_QUOTA_SQL.includes('agent_whatsapp_numbers'));
+      });
+
+      await checkAsync('before linking, the second SIM is nobody (its only row is a deleted account)', async () => {
+        const identity = await onboarding68.identifySender(SECOND68);
+        assert.strictEqual(identity.registered, false);
+        assert.strictEqual(Number(identity.agent?.id), 49, 'the deleted owner still stops a second registration');
+      });
+
+      await checkAsync('refused: the agent\'s own number, another live agent\'s, ours, a malformed one, a deleted agent', async () => {
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(50, OWN68)), 'phone-own');
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(50, OTHER68)), 'phone-taken');
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(50, '243976321848')), 'phone-ours');
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(50, '12345')), 'phone-invalid');
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(49, '243812000068')), 'not-found');
+        assert.strictEqual(links68.length, 0);
+      });
+
+      await checkAsync('linking the second SIM claims the listings it already sent, in Postgres and SQLite', async () => {
+        const result = await numbers68.addAgentNumber(50, '+243 910 314 309', { addedBy: 'admin:test' });
+        assert.strictEqual(result.phone, SECOND68);
+        assert.deepStrictEqual(links68.map((l) => [l.agent_id, l.phone, l.added_by]), [[50, SECOND68, 'admin:test']]);
+        assert.deepStrictEqual(linkCalls68, [{ ids: [990680], waId: SECOND68 }]);
+        assert.deepStrictEqual(result.claimed.linkedIds, [990680]);
+        assert.strictEqual(dbService.getListing(sent68.id).agent_id, 50);
+      });
+
+      await checkAsync('a listing from the second SIM is now the agent\'s: recognised, attributed at publish', async () => {
+        const identity = await onboarding68.identifySender(SECOND68);
+        assert.strictEqual(identity.registered, true);
+        assert.strictEqual(identity.agentId, 50);
+        assert.strictEqual(await postgres68.resolveAgentId(client68, SECOND68), 50);
+        assert.strictEqual(await postgres68.resolveAgentId(client68, OWN68), 50, 'the account\'s own number still works');
+        assert.strictEqual(await postgres68.resolveAgentId(client68, OTHER68), 51);
+      });
+
+      await checkAsync('one number, one agent; unlinking stops attribution but moves nothing back', async () => {
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(51, SECOND68)), 'phone-linked');
+        const listed = await numbers68.listAgentNumbers(50);
+        assert.strictEqual(listed.available, true);
+        assert.deepStrictEqual(listed.numbers.map((n) => n.phone), [SECOND68]);
+        assert.deepStrictEqual(await numbers68.removeAgentNumber(50, SECOND68), { agentId: 50, phone: SECOND68, removed: true });
+        assert.strictEqual((await onboarding68.identifySender(SECOND68)).registered, false);
+        assert.strictEqual(dbService.getListing(sent68.id).agent_id, 50, 'an attribution already made stays');
+      });
+
+      await checkAsync('before the migration: no 42P01 anywhere, adding says so, listing says unavailable', async () => {
+        tableExists68 = false;
+        numbers68.resetAvailability();
+        assert.strictEqual(await refusal68(numbers68.addAgentNumber(50, SECOND68)), 'numbers-unavailable');
+        assert.deepStrictEqual(await numbers68.listAgentNumbers(50), { available: false, numbers: [] });
+        assert.strictEqual((await onboarding68.identifySender(OWN68)).agentId, 50, 'the phone-only match still works');
+      });
+
+      check('the console endpoints sit behind the admin router, never the webhook', () => {
+        const adminSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(adminSrc, /router\.post\('\/agents\/:id\/whatsapp-numbers'/);
+        assert.match(adminSrc, /router\.delete\('\/agents\/:id\/whatsapp-numbers\/:phone'/);
+        const webhookSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.ok(!/agentNumbers|addAgentNumber/.test(webhookSrc));
+      });
+    } finally {
+      postgres68.isConfigured = saved68.configured;
+      postgres68.getPool = saved68.pool;
+      postgres68.linkListingsToAgent = saved68.link;
+      numbers68.resetAvailability();
+    }
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

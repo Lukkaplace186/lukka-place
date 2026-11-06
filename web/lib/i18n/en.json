@@ -6512,6 +6512,26 @@
       "errorVerifiedElsewhere": "This number is already verified on another account (#{id}).",
       "errorUnavailable": "Database unavailable, try again."
     },
+    "agentNumbers": {
+      "label": "WhatsApp numbers they send from:",
+      "none": "none besides their own",
+      "add": "Add a WhatsApp number",
+      "phoneLabel": "The agent’s other WhatsApp number",
+      "warning": "You confirm this number belongs to this agent. Listings sent from it will be attached to them automatically, including those already received. It is not shown on the site: the account’s number stays the one on listings.",
+      "submit": "Link the number",
+      "adding": "Linking…",
+      "cancel": "Cancel",
+      "added": "{phone} linked to the agent. {count} listing(s) already received from it are now theirs.",
+      "addedClaimFailed": "{phone} linked. Listings already received from it could not be attached now; they will be at their next sync.",
+      "remove": "Remove {phone}",
+      "removeConfirm": "Remove {phone}? Future listings sent from this number will no longer be attached to this agent. Those already attached stay.",
+      "unavailable": "Extra WhatsApp numbers: migration 20261103_agent_whatsapp_numbers.sql must be applied.",
+      "errorOwn": "That is already this agent’s account number.",
+      "errorLinked": "This number is already linked to another agent (#{id}).",
+      "errorUnavailable": "The WhatsApp numbers table does not exist yet: migration 20261103_agent_whatsapp_numbers.sql must be applied.",
+      "noteAdded": "WhatsApp number {phone} linked to this agent by {actor}: their listings are attributed to them.",
+      "noteRemoved": "WhatsApp number {phone} removed from this agent by {actor}."
+    },
     "facebookProspects": {
       "title": "Paste a Post",
       "subtitle": "Paste a post or comments from a Facebook group you belong to: the Congolese numbers found become agent prospects to invite. Nobody is contacted from this page.",

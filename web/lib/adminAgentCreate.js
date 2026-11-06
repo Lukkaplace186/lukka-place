@@ -23,7 +23,25 @@ export const ADMIN_AGENT_ERROR_KEYS = {
   'phone-verified-elsewhere': 'admin.agentCreate.errorVerifiedElsewhere',
   'not-found': 'errors.agentNotFound',
   'postgres-unavailable': 'admin.agentCreate.errorUnavailable',
+  // Extra WhatsApp numbers (app/admin/agents/[id]/AgentWhatsAppNumbers.js).
+  'phone-own': 'admin.agentNumbers.errorOwn',
+  'phone-linked': 'admin.agentNumbers.errorLinked',
+  'numbers-unavailable': 'admin.agentNumbers.errorUnavailable',
 };
+
+/**
+ * The "Numéro WhatsApp supplémentaire" form: the PhoneField's number and
+ * country → digits, or the i18n key of why not.
+ *
+ * @param {FormData} formData
+ * @returns {{ok: true, phone: string} | {ok: false, errorKey: string}}
+ */
+export function parseAgentNumberForm(formData) {
+  const phone = normalizePhone(String(formData.get('phone') || ''), String(formData.get('phoneCountry') || ''));
+  if (!phone || !/^\d{7,15}$/.test(phone)) return { ok: false, errorKey: ADMIN_AGENT_ERROR_KEYS['phone-invalid'] };
+  if (BUSINESS_NUMBERS.includes(phone)) return { ok: false, errorKey: ADMIN_AGENT_ERROR_KEYS['phone-ours'] };
+  return { ok: true, phone };
+}
 
 /** An engine refusal in the console's words; anything else keeps its message. */
 export function adminAgentRefusal(t, err) {

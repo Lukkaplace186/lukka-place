@@ -4,11 +4,14 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createTranslator } from '@/lib/i18n/translate';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
-import { OG_HEADING_MAX, OG_SIZE, clipHeading, ogCardModel } from '@/lib/listingOgCard';
+import {
+  OG_HEADING_MAX, OG_PHOTO_BLOCK, OG_SIZE, clipHeading, ogCardModel, ogPhotoSlots, ogPriceSize,
+} from '@/lib/listingOgCard';
 import { FORMATS } from '@/lib/marketing/formats';
 import { COLORS, buildFlyerOps, feedHeading, feedListingPath } from '@/lib/marketing/layout';
 import { buildFlyerPack } from '@/lib/marketing/sharePackData';
 import { LINE_ICONS } from '@/lib/marketing/icons';
+import { OG_DARK_COVER, pickOgPhotos } from '@/lib/listingOgImage';
 import { SHARE_SOURCES, TEAM_SOCIAL_SOURCE, buildListingSocialCopy, socialHashtags } from '@/lib/listingShareCopy';
 import { CHANNEL_FORMATS, SHARE_FORMATS, normaliseShareRecord } from '@/lib/listingShareRules';
 
@@ -90,6 +93,70 @@ test('og card: a long heading is cut at a word with "…", within two lines', ()
   assert.ok(cut.endsWith('…'));
   assert.ok(long.startsWith(cut.slice(0, -1)));
   assert.equal(clipHeading('Court'), 'Court');
+});
+
+test('éditorial card: one line above the price, the period in words, full room words, two at most', () => {
+  const model = ogCardModel(LISTING, t);
+  assert.equal(model.line, 'À LOUER · NGALIEMA');
+  assert.equal(model.periodWords, 'par mois');
+  assert.equal(model.roomsLine, '3 chambres · 2 salles de bain');
+  assert.equal(model.priceSize, 106);
+
+  assert.equal(ogCardModel({ ...LISTING, price_period: 'an' }, t).periodWords, 'par an');
+  assert.equal(ogCardModel({ ...LISTING, purpose: 'sale', price: 250000 }, t).periodWords, null);
+  assert.equal(ogCardModel({ ...LISTING, commune: null }, t).line, 'À LOUER · KINSHASA');
+  assert.equal(ogCardModel({ ...LISTING, beds: null, bath: null }, t).roomsLine, null);
+  const many = ogCardModel({ ...LISTING, area: '450', units_count: 6 }, t);
+  assert.equal(many.roomsLine, '3 chambres · 2 salles de bain', 'two counts at most, beds and baths first');
+  assert.doesNotMatch(model.roomsLine, /[  ]/);
+});
+
+test('éditorial card: the serif price shrinks so it stays on one line', () => {
+  assert.equal(ogPriceSize('1 300 $'), 106);
+  assert.equal(ogPriceSize('250 000 $'), 84);
+  assert.equal(ogPriceSize('2 500 000 FC'), 50);
+  assert.equal(ogPriceSize('1 250 000 $'), 70);
+  assert.equal(ogPriceSize('Prix sur demande'), 50);
+});
+
+test('éditorial card: photo slots fill the 766×630 block with 6px gaps; none means no slot', () => {
+  const { width, height, gap } = OG_PHOTO_BLOCK;
+  const three = ogPhotoSlots(3);
+  assert.equal(three.length, 3);
+  assert.deepEqual(three[0], { left: 0, top: 0, width: 494, height: 630 });
+  assert.equal(three[1].left + three[1].width, width);
+  assert.equal(three[2].top + three[2].height, height);
+  assert.equal(three[2].top - (three[1].top + three[1].height), gap);
+  const two = ogPhotoSlots(2);
+  assert.equal(two[1].left - two[0].width, gap);
+  assert.equal(two[1].left + two[1].width, width);
+  assert.deepEqual(ogPhotoSlots(1), [{ left: 0, top: 0, width, height }]);
+  assert.deepEqual(ogPhotoSlots(0), []);
+  assert.equal(ogPhotoSlots(7).length, 3);
+});
+
+test('éditorial card: the cover leads unless too dark; the small slots are the brightest of the rest', () => {
+  const cover = { light: 150, cover: true };
+  const a = { light: 190, cover: false };
+  const b = { light: 170, cover: false };
+  const c = { light: 120, cover: false };
+  assert.deepEqual(pickOgPhotos([cover, c, a, b]), [cover, a, b]);
+  const dark = { light: 80, cover: true };
+  assert.deepEqual(pickOgPhotos([dark, c, a, b]), [a, b, c], 'a dark cover gives way to the brightest');
+  assert.deepEqual(pickOgPhotos([b]), [b]);
+  assert.deepEqual(pickOgPhotos([]), []);
+  assert.ok(OG_DARK_COVER > 0);
+});
+
+test('éditorial card: photos are the listing’s own, never a stand-in', () => {
+  const image = read('lib/listingOgImage.js');
+  assert.match(image, /const chosen = pickOgPhotos\(usable\)/);
+  assert.match(image, /optimisableImageSrc\(src/, 'only our own storage');
+  assert.match(image, /ogPhotoSlots\(chosen\.length\)/);
+  const route = read('app/(site)/listings/[id]/opengraph-image.js');
+  assert.match(route, /loadOgPhotos\(listingImages\(listing\)\)/);
+  assert.match(route, /if \(!photos\.length\)/, 'no photo: the blue block with the logo');
+  assert.ok(readFileSync(path.join(ROOT, 'public/brand/logo-royal.png')).length > 1000);
 });
 
 test('og route: JPEG, behind the public gate, and the page no longer sets the raw photo', () => {

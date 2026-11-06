@@ -3297,10 +3297,26 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
 `tests/unit/social-share-cards.test.js`.
 
 - **og:image is drawn per listing** (`app/(site)/listings/[id]/opengraph-image.js`,
-  `twitter-image.js` re-uses it). It replaced the bare cover photo:
-  full-bleed cover, white logo top-left, a dark capsule with price + type + two
-  counts in the CENTRE (a chat thumbnail keeps the middle 630×630), a white box
-  with the page's own h1 and "Vérifié par Lukka Place" only on `verified_at`.
+  `twitter-image.js` re-uses it). Since 2026-11-06 it is the **"Éditorial"
+  card** (design canvas "Aperçu lien prestige"; the owner judged the earlier
+  dark full-photo card with a centred capsule "typical AI template"): three
+  of the listing's photos on the left (one 494×630, two stacked 266×312,
+  6px ivory gaps), an ivory column on the right — "À LOUER · GOMBE" in royal,
+  the price in DM Serif Display (sized by `ogPriceSize` so "Prix sur demande"
+  and "170 000 $" fit), "par mois", a rule, the type and two room counts in
+  words, "Vérifié par Lukka Place" only on `verified_at`, and the one-colour
+  royal logo (`public/brand/logo-royal.png`, made from logo-dark.png's shape)
+  with lukkaplace.com. The large slot is the listing's COVER unless it is
+  darker than `OG_DARK_COVER` (then the brightest); the small slots are the
+  brightest of the rest (`pickOgPhotos`, `loadOgPhotos`: up to 6 fetched,
+  duplicates dropped, one warm grade on all). Brightness alone could not
+  find the best room, so the cover — which the team sets in the admin photo
+  manager — leads. Two photos sit side by side, one fills the block, none
+  draws the royal block with the white logo. The old rule that kept the price
+  in the centre 630×630 is dropped: WhatsApp's square thumbnail is ~100px.
+  The earlier design, for the record: full-bleed cover, white logo top-left,
+  a dark capsule with price + type + two counts in the centre, a white box
+  with the page's own h1.
   What it says is `lib/listingOgCard.js` (pure, French always); photo / logo /
   fonts / PNG→JPEG are `lib/listingOgImage.js`. Plus Jakarta Sans is fetched as
   TTF from Google Fonts once per process (satori reads no woff2), and the PNG

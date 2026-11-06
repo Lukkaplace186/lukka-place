@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { SITE_URL } from './constants';
 import { optimisableImageSrc } from './marketing/sharePackData';
-import { OG_SIZE } from './listingOgCard';
+import { OG_SIZE, ogPhotoSlots } from './listingOgCard';
 
 /**
  * The server half of the listing link preview (app/(site)/listings/[id]/
@@ -70,22 +70,166 @@ export async function loadOgPhoto(src) {
   }
 }
 
+/** How many of a listing's photos are fetched to choose the card's three from. */
+export const OG_PHOTO_CANDIDATES = 6;
+
+/**
+ * Below this mean luminance the cover is too dark to lead the card and the
+ * brightest photo takes the large slot instead. Listing 596's photos measured
+ * 161–177; a dim night shot is well under 110.
+ */
+export const OG_DARK_COVER = 110;
+
+/**
+ * Mean luminance (0–255) of an image, from a 64px thumbnail. Used to put the
+ * brightest photos on the card: agents upload in any order, and the first
+ * photo is often a dark corridor or an empty wall.
+ */
+async function brightness(sharp, buffer) {
+  const { channels } = await sharp(buffer).rotate().resize(64, 64, { fit: 'inside' }).removeAlpha().stats();
+  const [r, g, b] = channels.map((channel) => channel.mean);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * (b ?? g);
+}
+
+async function fetchPhoto(src) {
+  if (!optimisableImageSrc(src, { supabaseHost: supabaseHost() })) return null;
+  try {
+    const res = await fetch(new URL(src, SITE_URL), { signal: AbortSignal.timeout(6000), cache: 'no-store' });
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return buffer.length && buffer.length <= MAX_PHOTO_BYTES ? buffer : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The Éditorial card's photos (2026-11-06): up to OG_PHOTO_CANDIDATES of the
+ * listing's own photos are fetched (`srcs` is lib/listingView.js
+ * listingImages: the cover first), byte-identical copies dropped, and three
+ * (or fewer) cropped to the slots of lib/listingOgCard.js ogPhotoSlots.
+ *
+ * The large slot is the COVER — the photo a person chose (the agent, or the
+ * team in the admin photo manager) — unless it is darker than OG_DARK_COVER,
+ * then the brightest photo. The two small slots are the brightest of the
+ * rest: agents upload in any order, and a dark corridor shot often comes
+ * second. Brightness alone could not pick the best room (listing 596's eight
+ * photos measured within 16 points of each other), which is why a person's
+ * cover choice leads. Each photo gets the same light warm grade so three
+ * phone photos read as one set. Only the listing's own photos, from our
+ * storage: a photo that fails to load is skipped, never replaced.
+ *
+ * @returns {Promise<Array<{src: string, left: number, top: number, width: number, height: number}>>}
+ */
+export async function loadOgPhotos(srcs) {
+  const sharp = await loadSharp();
+  if (!sharp) return [];
+  const candidates = [...new Set((srcs || []).filter(Boolean))].slice(0, OG_PHOTO_CANDIDATES);
+  const buffers = await Promise.all(candidates.map(fetchPhoto));
+  const seen = new Set();
+  const usable = [];
+  for (let i = 0; i < buffers.length; i += 1) {
+    const buffer = buffers[i];
+    if (!buffer) continue;
+    const key = `${buffer.length}:${buffer.subarray(0, 64).toString('base64')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      usable.push({ buffer, light: await brightness(sharp, buffer), cover: i === 0 });
+    } catch {
+      // Undecodable: skipped.
+    }
+  }
+  const chosen = pickOgPhotos(usable);
+  const slots = ogPhotoSlots(chosen.length);
+  const out = [];
+  for (let i = 0; i < chosen.length; i += 1) {
+    const slot = slots[i];
+    try {
+      const jpeg = await sharp(chosen[i].buffer)
+        .rotate()
+        .resize({ width: Math.round(slot.width), height: Math.round(slot.height), fit: 'cover', position: 'centre' })
+        .modulate({ brightness: 1.04, saturation: 1.05 })
+        .linear(1.06, -7.7)
+        .recomb([[1.03, 0.02, 0], [0.01, 1.01, 0], [0, 0, 0.96]])
+        .jpeg({ quality: 88 })
+        .toBuffer();
+      out.push({ ...slot, src: `data:image/jpeg;base64,${jpeg.toString('base64')}` });
+    } catch {
+      // A photo that will not crop is left out; the layout was sized for it,
+      // so the slot stays ivory rather than borrowing another listing's photo.
+    }
+  }
+  return out;
+}
+
+/**
+ * The card's photos in slot order: the cover first unless it is too dark,
+ * then the brightest of the rest. Pure — exported for the unit tests.
+ *
+ * @param {Array<{light: number, cover: boolean}>} photos
+ */
+export function pickOgPhotos(photos) {
+  const byLight = [...photos].sort((a, b) => b.light - a.light);
+  const cover = photos.find((photo) => photo.cover);
+  const lead = cover && cover.light >= OG_DARK_COVER ? cover : byLight[0];
+  if (!lead) return [];
+  return [lead, ...byLight.filter((photo) => photo !== lead)].slice(0, 3);
+}
+
+function brandImage(file) {
+  return readFile(path.join(process.cwd(), 'public', 'brand', file))
+    .then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`);
+}
+
 /**
  * The supplied logo in solid white (public/brand/logo-dark.png, 2354×746),
- * read once per process. Sent at its own size; satori scales it.
+ * read once per process. Sent at its own size; satori scales it. Drawn on the
+ * blue block when a listing has no photo.
  */
 let wordmarkPromise = null;
 export function loadOgWordmark() {
   if (!wordmarkPromise) {
-    wordmarkPromise = readFile(path.join(process.cwd(), 'public', 'brand', 'logo-dark.png'))
-      .then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`)
-      .catch((err) => {
-        console.error(`[og-image] logo unreadable: ${err.message}`);
-        wordmarkPromise = null;
-        return null;
-      });
+    wordmarkPromise = brandImage('logo-dark.png').catch((err) => {
+      console.error(`[og-image] logo unreadable: ${err.message}`);
+      wordmarkPromise = null;
+      return null;
+    });
   }
   return wordmarkPromise;
+}
+
+/**
+ * The same logo in one colour, brand royal #144FC5 (public/brand/logo-royal.png,
+ * made from logo-dark.png's shape): the Éditorial card's ivory column.
+ */
+let royalPromise = null;
+export function loadOgRoyalLogo() {
+  if (!royalPromise) {
+    royalPromise = brandImage('logo-royal.png').catch((err) => {
+      console.error(`[og-image] royal logo unreadable: ${err.message}`);
+      royalPromise = null;
+      return null;
+    });
+  }
+  return royalPromise;
+}
+
+/**
+ * DM Serif Display (OFL), the site's display face, for the card's price —
+ * TrueType from Google Fonts like Jakarta below. [] on failure: the price
+ * then draws in Jakarta.
+ */
+let serifPromise = null;
+export function loadOgSerif() {
+  if (!serifPromise) {
+    serifPromise = fetchGoogleTtf('DM+Serif+Display', [400], 'Serif').catch((err) => {
+      console.error(`[og-image] serif fetch failed, price in Jakarta: ${err.message}`);
+      serifPromise = null;
+      return [];
+    });
+  }
+  return serifPromise;
 }
 
 /**
@@ -107,9 +251,13 @@ export function loadOgFonts() {
   return fontsPromise;
 }
 
-async function fetchJakarta() {
-  const weights = [600, 700, 800];
-  const cssRes = await fetch(`https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@${weights.join(';')}`, {
+function fetchJakarta() {
+  return fetchGoogleTtf('Plus+Jakarta+Sans', [500, 600, 700, 800], 'Jakarta');
+}
+
+async function fetchGoogleTtf(family, weights, name) {
+  const spec = weights.length === 1 && weights[0] === 400 ? family : `${family}:wght@${weights.join(';')}`;
+  const cssRes = await fetch(`https://fonts.googleapis.com/css2?family=${spec}`, {
     headers: { 'User-Agent': 'Mozilla/4.0' },
     signal: AbortSignal.timeout(5000),
   });
@@ -122,7 +270,7 @@ async function fetchJakarta() {
     if (!src) continue;
     const res = await fetch(src, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) continue;
-    fonts.push({ name: 'Jakarta', data: await res.arrayBuffer(), weight, style: 'normal' });
+    fonts.push({ name, data: await res.arrayBuffer(), weight, style: 'normal' });
   }
   if (!fonts.length) throw new Error('no TrueType faces in the stylesheet');
   return fonts;

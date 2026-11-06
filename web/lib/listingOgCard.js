@@ -2,6 +2,7 @@ import { formatPriceParts } from './format';
 import { placeLabel } from './placeLabel';
 import { specItems, typeLabel } from './listingView';
 import { cityOfListing, communeLabel } from './cities';
+import { roomSpecs } from './listingShareCopy';
 
 /**
  * What the link preview card says about a listing (app/(site)/listings/[id]/
@@ -82,6 +83,14 @@ export function ogCardModel(listing, t) {
     : null;
 
   const price = plainSpaces(period ? `${amount} ${period}` : amount);
+
+  // The "Éditorial" card (2026-11-06): one small line above the price
+  // ("À LOUER · GOMBE"), the period in words under it ("par mois"), the type
+  // and the counts in full words below a rule ("2 chambres · 2 salles de bain").
+  const place = commune || city;
+  const lineParts = [purpose ? purpose.toUpperCase() : null, place ? place.toUpperCase() : null].filter(Boolean);
+  const rooms = roomSpecs(listing).slice(0, 2);
+
   return {
     amount: plainSpaces(amount),
     period,
@@ -92,5 +101,52 @@ export function ogCardModel(listing, t) {
     eyebrow,
     verified: Boolean(listing.verified_at),
     alt: `${heading} — ${price}`,
+    line: lineParts.length ? lineParts.join(' · ') : null,
+    periodWords: period ? period.replace(/^\/\s*/, 'par ') : null,
+    roomsLine: rooms.length ? plainSpaces(rooms.join(' · ')) : null,
+    priceSize: ogPriceSize(plainSpaces(amount)),
   };
+}
+
+/**
+ * Where the photos go on the Éditorial card (the photo block is 766×630, the
+ * gaps 6px of the column's ivory): three photos = one tall on the left and two
+ * stacked on the right; two = side by side; one = the whole block; none = no
+ * slots (the card draws the blue block with the logo, never a stand-in photo).
+ * The first slot always takes the brightest photo.
+ */
+export const OG_PHOTO_BLOCK = Object.freeze({ width: 766, height: 630, gap: 6 });
+
+export function ogPhotoSlots(count) {
+  const { width, height, gap } = OG_PHOTO_BLOCK;
+  if (count >= 3) {
+    const small = { width: width - 494 - gap, height: (height - gap) / 2 };
+    return [
+      { left: 0, top: 0, width: 494, height },
+      { left: 494 + gap, top: 0, ...small },
+      { left: 494 + gap, top: small.height + gap, ...small },
+    ];
+  }
+  if (count === 2) {
+    const half = (width - gap) / 2;
+    return [
+      { left: 0, top: 0, width: half, height },
+      { left: half + gap, top: 0, width: half, height },
+    ];
+  }
+  if (count === 1) return [{ left: 0, top: 0, width, height }];
+  return [];
+}
+
+/**
+ * The serif price's size on the Éditorial card, so it stays on one line in
+ * the 340px text column: "1 300 $" at full size, "250 000 $" and
+ * "2 500 000 FC" smaller, "Prix sur demande" smallest.
+ */
+export function ogPriceSize(amount) {
+  const length = String(amount || '').length;
+  if (length <= 7) return 106;
+  if (length <= 9) return 84;
+  if (length <= 11) return 70;
+  return 50;
 }

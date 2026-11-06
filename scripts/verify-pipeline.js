@@ -14072,6 +14072,26 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §77 The agent morning digest can be paused (2026-11-06)
+  // ---------------------------------------------------------------------------
+  console.log('\n§77 AGENT_DIGEST=off pauses the morning digest');
+  check('with AGENT_DIGEST=off the digest never runs, even at its hour; unset it runs as before', () => {
+    const digest77 = require('../services/agentDigest');
+    const before = process.env.AGENT_DIGEST;
+    try {
+      process.env.AGENT_DIGEST = 'off';
+      assert.strictEqual(digest77.digestEnabled(), false);
+      for (let hour = 0; hour < 24; hour += 1) {
+        assert.strictEqual(digest77.digestDue(new Date(Date.UTC(2026, 10, 6, hour, 0))), false, `hour ${hour}`);
+      }
+      delete process.env.AGENT_DIGEST;
+      assert.strictEqual(digest77.digestEnabled(), true);
+    } finally {
+      if (before === undefined) delete process.env.AGENT_DIGEST; else process.env.AGENT_DIGEST = before;
+    }
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

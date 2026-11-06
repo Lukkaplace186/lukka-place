@@ -2295,3 +2295,9 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   `listing-availability-check` job never run (`availabilityCheck.checkEnabled`,
   read at call time); answers to questions already sent are still handled.
   Delete the line and restart to resume. §74.
+- **The agent morning digest is PAUSED (2026-11-06, owner).** `AGENT_DIGEST=off`
+  in production makes the `agent-daily-digest` job never run
+  (`agentDigest.digestEnabled`, read at call time) — no 08:00 "Votre journée
+  sur Lukka Place", no `visites_programme_agent`. Its "N biens à confirmer"
+  lines pointed at the availability check paused the day before. Delete the
+  line and restart to resume. §77.

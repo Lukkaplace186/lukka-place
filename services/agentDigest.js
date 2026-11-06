@@ -91,7 +91,17 @@ function kinshasaDayBoundsUtc(now = new Date()) {
   return [start.toISOString(), new Date(start.getTime() + 24 * 60 * 60 * 1000).toISOString()];
 }
 
+/**
+ * `AGENT_DIGEST=off` (read at call time) stops the whole morning message —
+ * the day template included. Owner, 2026-11-06: paused, the "à confirmer"
+ * lines pointed at the availability check that was paused the day before.
+ */
+function digestEnabled() {
+  return String(process.env.AGENT_DIGEST || '').trim().toLowerCase() !== 'off';
+}
+
 function digestDue(now = new Date()) {
+  if (!digestEnabled()) return false;
   if (now.getUTCHours() !== (DIGEST_HOUR_KINSHASA + 23) % 24) return false;
   return !db.prepare('SELECT 1 FROM agent_digest_runs WHERE day = ?').get(kinshasaDay(now));
 }
@@ -529,6 +539,7 @@ const OPT_OUT_REPLY =
 const agentDigestJob = { name: JOB_NAME, shouldRun: digestDue, run: () => runAgentDigest() };
 
 module.exports = {
+  digestEnabled,
   deliverDigest,
   dayTemplateParams,
   weeklyTemplateParams,

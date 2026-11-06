@@ -13,6 +13,8 @@ import LanguageToggle from './LanguageToggle';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { frenchPathOf, localizeHref } from '@/lib/localePaths';
 import { useIsLoggedIn, useIsAgentSignedIn } from '@/lib/customerClient';
+import { useChatUnread, useUnreadTitle } from '@/lib/useChatUnread';
+import UnreadBadge from './chat/UnreadBadge';
 import { logoutAction } from '@/app/(site)/compte/actions';
 
 // Keys, not text — see navItems.js on why a module-level constant cannot
@@ -160,6 +162,12 @@ export default function Header({ hiddenHrefs = [] }) {
   const loggedIn = useIsLoggedIn();
   const agentSignedIn = useIsAgentSignedIn();
   const t = useT();
+  // Messagerie: the signed-in customer's unread chat messages, live
+  // (lib/useChatUnread.js) — on the account icon, beside "Messages" in both
+  // menus, and as "(3) …" in the tab title. Nothing is asked when signed out.
+  const unread = useChatUnread('customer', { enabled: loggedIn });
+  useUnreadTitle(unread);
+  const unreadText = t('chat.inbox.unreadLabel', { count: unread });
 
   // Warm the three site destinations the moment the drawer opens, so the page
   // is usually already in the router cache by the time a row is tapped. The
@@ -222,6 +230,7 @@ export default function Header({ hiddenHrefs = [] }) {
                       >
                         <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
                         {t(labelKey)}
+                        {href === '/messages' ? <UnreadBadge count={unread} label={unreadText} className="ml-auto" /> : null}
                       </Link>
                     </SheetClose>
                   ))}
@@ -358,9 +367,10 @@ export default function Header({ hiddenHrefs = [] }) {
                 aria-label={t('nav.myAccount')}
                 // Where a saved listing's heart flies to (lib/flyToAccount.js).
                 data-fly-target="account"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
               >
                 <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                <UnreadBadge count={unread} label={unreadText} className="absolute -right-1 -top-1 ring-2 ring-surface" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {ACCOUNT_LINKS.map(({ href, labelKey, icon: Icon }) => (
@@ -368,6 +378,7 @@ export default function Header({ hiddenHrefs = [] }) {
                     <Link href={href} className="flex items-center gap-2.5">
                       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
                       {t(labelKey)}
+                      {href === '/messages' ? <UnreadBadge count={unread} label={unreadText} className="ml-auto" /> : null}
                     </Link>
                   </DropdownMenuItem>
                 ))}

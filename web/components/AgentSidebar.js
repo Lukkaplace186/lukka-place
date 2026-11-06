@@ -6,6 +6,7 @@ import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, Me
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import { useT } from '@/lib/i18n/client';
+import { useChatUnread, useUnreadTitle } from '@/lib/useChatUnread';
 import LanguageToggle from './LanguageToggle';
 
 /**
@@ -69,7 +70,11 @@ export default function AgentSidebar({
   const pathname = usePathname();
   const nav = NAV.filter((item) => !item.featureKey || features[item.featureKey]);
   // The same number as every header bell (lib/agentDashboard.js waitingCount).
-  const counts = { listings: listingsCount, leads: waitingCount, messages: unreadMessages };
+  // Unread chat MESSAGES: the server's count first, then live
+  // (lib/useChatUnread.js) — it drops as soon as a conversation is read.
+  const liveUnread = useChatUnread('agent', { initial: unreadMessages });
+  useUnreadTitle(liveUnread);
+  const counts = { listings: listingsCount, leads: waitingCount, messages: liveUnread };
 
   return (
     <>

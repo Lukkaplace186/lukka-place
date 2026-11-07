@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import Link from 'next/link';
 import { ArrowLeft, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
 import { getSavedSearches } from '@/lib/localFavorites';
+import SafeImage from '@/components/SafeImage';
 import SignupForm from '@/app/(site)/compte/inscription/SignupForm';
 import { CITIES, DEFAULT_CITY, communeLabel, communesOfCity } from '@/lib/cities';
 import {
@@ -22,14 +24,20 @@ import {
   MOVE_TIMELINES,
   MOVE_TRANSACTIONS,
   projectFromSearchQuery,
+  usd,
 } from '@/lib/moveProjectRules';
 
 /**
- * "Mon déménagement" — the card-by-card questions (2026-11-07). One question
- * per screen, big chips, a progress bar, swipe or "Suivant"; every card can
- * be skipped, and "Créer mon compte directement" jumps to the last card from
- * anywhere (the owner cut signup to three fields on 2026-11-06 because extra
- * steps lost customers — nothing here may become a wall).
+ * "Mon déménagement" — the card-by-card questions (2026-11-07). Five cards
+ * (owner, same day: ten felt excessive), each a screen of big chips, a
+ * progress bar, swipe or "Suivant"; every card can be skipped, and "Créer mon
+ * compte directement" jumps to the last card from anywhere (the owner cut
+ * signup to three fields on 2026-11-06 because extra steps lost customers —
+ * nothing here may become a wall).
+ *
+ *   reasons · search (rent/buy, bedrooms, household) · place (communes + the
+ *   place that matters) · budget (an adjustable range, with the homes it
+ *   finds, live) · details (timeline, priorities, current home)
  *
  * mode 'signup': the last card is the account form (SignupForm with
  *   `signupProps`, the answers in a hidden `moveProject` field), and answers
@@ -40,8 +48,8 @@ import {
  * everything (parseMoveProject).
  */
 
-const DRAFT_KEY = 'lukka_move_draft_v1';
-const SINGLE_ADVANCE_MS = 260;
+const DRAFT_KEY = 'lukka_move_draft_v2';
+const PREVIEW_DEBOUNCE_MS = 450;
 
 function readDraft() {
   try {
@@ -78,7 +86,7 @@ function beacon(payload) {
   }
 }
 
-function Chip({ selected, onClick, children, disabled = false }) {
+function Chip({ selected, onClick, children, disabled = false, small = false }) {
   return (
     <button
       type="button"
@@ -86,7 +94,8 @@ function Chip({ selected, onClick, children, disabled = false }) {
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'u-press inline-flex min-h-12 items-center gap-2 rounded-full border px-4 py-2.5 text-left text-[0.9375rem] font-semibold transition-colors',
+        'u-press inline-flex items-center gap-2 rounded-full border text-left font-semibold transition-colors',
+        small ? 'min-h-11 px-3.5 py-2 text-[0.875rem]' : 'min-h-12 px-4 py-2.5 text-[0.9375rem]',
         selected ? 'border-blue bg-blue text-white' : 'border-line bg-surface text-ink hover:border-blue',
         disabled && !selected ? 'opacity-45' : null,
       )}
@@ -97,14 +106,20 @@ function Chip({ selected, onClick, children, disabled = false }) {
   );
 }
 
+function Group({ label, children, className }) {
+  return (
+    <fieldset className={cn('flex flex-col gap-2', className)}>
+      <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-45">{label}</legend>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </fieldset>
+  );
+}
+
+const FIELD = 'u-focus-ring min-h-11 w-full rounded-md border border-line bg-white px-3 py-2 text-[0.9375rem] text-ink';
+
 function CommuneSelect({ id, value, onChange, placeholder }) {
   return (
-    <select
-      id={id}
-      value={value || ''}
-      onChange={(e) => onChange(e.target.value || null)}
-      className="u-focus-ring min-h-11 w-full rounded-md border border-line bg-white px-3 py-2 text-[0.9375rem] text-ink"
-    >
+    <select id={id} value={value || ''} onChange={(e) => onChange(e.target.value || null)} className={FIELD}>
       <option value="">{placeholder}</option>
       {CITIES.map((city) => (
         <optgroup key={city.name} label={city.name}>
@@ -130,10 +145,101 @@ function SaveButton({ label, pendingLabel }) {
   );
 }
 
+/** One home in the budget card's live preview, with why it is "close" when it is. */
+function PreviewRow({ item, t }) {
+  const tagText = (tag) => {
+    if (tag.kind === 'above') return t('account.move.matches.tags.above', { pct: tag.pct });
+    if (tag.kind === 'below') return t('account.move.matches.tags.below', { pct: tag.pct });
+    return t('account.move.matches.tags.nearby', { commune: tag.commune, km: tag.km });
+  };
+  return (
+    <Link href={item.href} target="_blank" className="u-press flex items-center gap-3 rounded-xl bg-surface p-2 shadow-[var(--hairline)]">
+      <span className="relative h-16 w-16 flex-none overflow-hidden rounded-lg bg-canvas-deep">
+        {item.image ? <SafeImage src={item.image} alt="" fill sizes="64px" className="object-cover" /> : null}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="u-tabular block text-[0.9375rem] font-extrabold text-ink">
+          {item.amount}
+          {item.period ? <span className="ml-1 text-[0.75rem] font-medium text-ink-45">{item.period}</span> : null}
+        </span>
+        {item.place ? <span className="block truncate text-[0.8125rem] text-ink-70">{item.place}</span> : null}
+        {item.tags?.length ? (
+          <span className="mt-0.5 flex flex-wrap gap-1">
+            {item.tags.map((tag) => (
+              <span key={`${tag.kind}-${tag.pct ?? tag.commune}`} className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.71875rem] font-bold text-amber-800">
+                {tagText(tag)}
+              </span>
+            ))}
+          </span>
+        ) : null}
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * Live answer to "what does this budget find?" (/api/move/matches): the count
+ * of exact matches and the first few, then — when few match — the closest
+ * homes, each saying why it is close. Never counted together.
+ */
+function BudgetPreview({ answers, t }) {
+  const [state, setState] = useState({ status: 'idle', data: null });
+  const key = JSON.stringify({
+    transaction: answers.transaction, city: answers.city, communes: answers.communes,
+    bedrooms: answers.bedrooms, budgetMin: answers.budgetMin, budgetMax: answers.budgetMax,
+  });
+
+  useEffect(() => {
+    const body = JSON.parse(key);
+    if (!body.transaction && !(body.communes || []).length) {
+      setState({ status: 'idle', data: null });
+      return undefined;
+    }
+    const controller = new AbortController();
+    setState((s) => ({ status: 'loading', data: s.data }));
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/move/matches', { method: 'POST', body: key, signal: controller.signal });
+        if (!res.ok) throw new Error(String(res.status));
+        setState({ status: 'ready', data: await res.json() });
+      } catch (err) {
+        if (err.name !== 'AbortError') setState({ status: 'error', data: null });
+      }
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [key]);
+
+  const { status, data } = state;
+  if (status === 'idle') return null;
+  return (
+    <section className="mt-5 flex flex-col gap-2" aria-live="polite">
+      {status === 'error' ? <p className="text-sm text-ink-70">{t('account.move.matches.error')}</p> : null}
+      {data ? (
+        <>
+          <p className={cn('text-[0.9375rem] font-bold', data.total ? 'text-green-deep' : 'text-ink')}>
+            {data.total ? t('account.move.matches.count', { count: data.total }) : t('account.move.matches.none')}
+          </p>
+          {data.exact.map((item) => <PreviewRow key={item.id} item={item} t={t} />)}
+          {data.close.length ? (
+            <>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-ink-45">{t('account.move.matches.closeTitle')}</p>
+              {data.close.map((item) => <PreviewRow key={item.id} item={item} t={t} />)}
+            </>
+          ) : null}
+        </>
+      ) : null}
+      {status === 'loading' ? <p className="text-[0.8125rem] text-ink-45">{t('account.move.matches.loading')}</p> : null}
+    </section>
+  );
+}
+
 const EMPTY = Object.freeze({
   reasons: [], reasonOther: '', transaction: null, household: null, bedrooms: null,
   anchorKind: null, anchorCommune: null, anchorNote: '', city: null, communes: [],
-  priorities: [], budgetMax: null, timeline: null, currentHomeType: null, currentCommune: null,
+  priorities: [], budgetMin: null, budgetMax: null, timeline: null, currentHomeType: null, currentCommune: null,
 });
 
 export default function MoveOnboarding({ mode = 'signup', initialAnswers = null, startAtEnd = false, signupProps = null, accountFooter = null, saveAction = null, saveError = false }) {
@@ -144,7 +250,6 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
   const [stepKey, setStepKey] = useState(startAtEnd ? 'end' : MOVE_STEPS[0]);
   const [communeLimitHit, setCommuneLimitHit] = useState(false);
   const touch = useRef(null);
-  const advanceTimer = useRef(null);
   const restored = useRef(false);
   // The drop-off beacon waits for the draft to be restored, or a reload would
   // log card 1 again before jumping back to where the customer was.
@@ -169,12 +274,14 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
     const fromSearch = projectFromSearchQuery(latest.query);
     if (!Object.keys(fromSearch).length) return;
     setAnswers((a) => ({ ...a, ...fromSearch }));
-    const skip = [];
-    if (fromSearch.communes?.length) skip.push('communes');
-    if (fromSearch.budgetMax) skip.push('budget');
-    setSkipped(skip);
-    const said = { transaction: 'transaction', communes: 'communes', bedrooms: 'bedrooms', budgetMax: 'budget' };
-    setAnswered(new Set(Object.keys(fromSearch).map((k) => said[k]).filter(Boolean)));
+    const said = new Set();
+    if (fromSearch.transaction || fromSearch.bedrooms) said.add('search');
+    if (fromSearch.communes?.length) said.add('place');
+    if (fromSearch.budgetMin || fromSearch.budgetMax) said.add('budget');
+    setAnswered(said);
+    // The search already says where: that card is skipped (budget stays —
+    // its live preview is the point of the card).
+    if (fromSearch.communes?.length) setSkipped(['place']);
   }, [mode, startAtEnd]);
 
   const steps = useMemo(() => {
@@ -200,50 +307,38 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
     if (ready) beacon({ mode, step: current, index: index + 1, total });
   }, [ready, mode, current, index, total]);
 
-  useEffect(() => () => clearTimeout(advanceTimer.current), []);
-
   function goTo(i) {
-    clearTimeout(advanceTimer.current);
     const nextIndex = Math.min(Math.max(i, 0), steps.length - 1);
     setStepKey(steps[nextIndex]);
     setCommuneLimitHit(false);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
   }
 
-  function markAnswered(step, isAnswered = true) {
-    setAnswered((prev) => {
-      const next = new Set(prev);
-      if (isAnswered) next.add(step);
-      else next.delete(step);
-      return next;
-    });
-  }
-
+  const mark = (step) => setAnswered((prev) => (prev.has(step) ? prev : new Set(prev).add(step)));
   const next = () => goTo(index + 1);
   const back = () => goTo(index - 1);
   const skip = () => {
-    if (current !== 'end') markAnswered(current, false);
+    if (current !== 'end') setAnswered((prev) => { const n = new Set(prev); n.delete(current); return n; });
     next();
   };
 
+  /** Single choice inside a card: tap again to clear. */
   function setOne(field, value, step) {
     setAnswers((a) => ({ ...a, [field]: a[field] === value ? null : value }));
-    markAnswered(step, true);
-    clearTimeout(advanceTimer.current);
-    advanceTimer.current = setTimeout(() => goTo(index + 1), SINGLE_ADVANCE_MS);
+    mark(step);
   }
 
   function toggleMany(field, value, step, max = Infinity) {
+    const list = answers[field] || [];
+    if (!list.includes(value) && list.length >= max) {
+      setCommuneLimitHit(true);
+      return;
+    }
     setAnswers((a) => {
-      const list = a[field] || [];
-      if (list.includes(value)) return { ...a, [field]: list.filter((v) => v !== value) };
-      if (list.length >= max) {
-        setCommuneLimitHit(true);
-        return a;
-      }
-      return { ...a, [field]: [...list, value] };
+      const l = a[field] || [];
+      return { ...a, [field]: l.includes(value) ? l.filter((v) => v !== value) : [...l, value] };
     });
-    markAnswered(step, true);
+    mark(step);
   }
 
   function onTouchStart(e) {
@@ -258,8 +353,8 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
     const dx = p.clientX - start.x;
     const dy = p.clientY - start.y;
     if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    // Never swipe away from a card with text fields mid-typing.
-    if (e.target.closest?.('input, select, textarea')) return;
+    // Never swipe away from a card while typing or scrolling a chip row.
+    if (e.target.closest?.('input, select, textarea, a')) return;
     if (dx < 0 && current !== 'end') next();
     if (dx > 0 && index > 0) back();
   }
@@ -271,24 +366,40 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
   const hiddenField = <input type="hidden" name="moveProject" value={hiddenValue} />;
   const lastReason = answers.reasons[answers.reasons.length - 1];
   const s = (key, vars) => t(`account.move.steps.${key}`, vars);
+  const budgetRules = MOVE_BUDGETS[answers.transaction];
 
-  // Entering the communes card: offer the anchor's commune when nothing is
-  // picked yet — a suggestion the customer sees selected and can untick.
-  useEffect(() => {
-    if (current !== 'communes' || answers.communes.length || !answers.anchorCommune) return;
-    const anchorCity = CITIES.find((c) => c.communes.some((x) => x.key === answers.anchorCommune));
-    if (!anchorCity) return;
-    setAnswers((a) => ({ ...a, city: anchorCity.name, communes: [a.anchorCommune] }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current]);
+  function setAnchorCommune(value) {
+    setAnswers((a) => {
+      const nextA = { ...a, anchorCommune: value };
+      // The place that matters, offered as a commune to search — visibly
+      // ticked on this same card, and the customer can untick it.
+      const inCity = value && communesOfCity(a.city || DEFAULT_CITY).includes(value);
+      if (inCity && !a.communes.includes(value) && a.communes.length < MAX_MOVE_COMMUNES) {
+        nextA.communes = [...a.communes, value];
+      }
+      return nextA;
+    });
+    mark('place');
+  }
+
+  function setBudget(min, max) {
+    setAnswers((a) => ({ ...a, budgetMin: min, budgetMax: max }));
+    mark('budget');
+  }
+
+  function budgetField(which, raw) {
+    const n = Math.round(Number(String(raw).replace(/[\s$,]/g, '')));
+    const value = Number.isFinite(n) && n > 0 ? Math.min(n, budgetRules.cap) : null;
+    setAnswers((a) => ({ ...a, [which]: value }));
+    mark('budget');
+  }
 
   let body = null;
-  let multi = false;
   switch (current) {
     case 'reasons':
-      multi = true;
       body = (
         <>
+          <p className="u-micro mb-3 text-ink-45">{t('account.move.multiHint')}</p>
           <div className="flex flex-wrap gap-2">
             {MOVE_REASONS.map((r) => (
               <Chip key={r} selected={answers.reasons.includes(r)} onClick={() => toggleMany('reasons', r, 'reasons')}>
@@ -304,7 +415,7 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
               onChange={(e) => setAnswers((a) => ({ ...a, reasonOther: e.target.value }))}
               placeholder={s('reasons.otherPlaceholder')}
               aria-label={s('reasons.otherPlaceholder')}
-              className="u-focus-ring mt-3 min-h-11 w-full rounded-md border border-line bg-white px-3 py-2 text-[0.9375rem] text-ink"
+              className={cn(FIELD, 'mt-3')}
             />
           ) : null}
           {lastReason ? (
@@ -315,75 +426,78 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
         </>
       );
       break;
-    case 'transaction':
+    case 'search':
       body = (
-        <div className="flex flex-col gap-2">
-          {MOVE_TRANSACTIONS.map((v) => (
-            <Chip key={v} selected={answers.transaction === v} onClick={() => setOne('transaction', v, 'transaction')}>
-              {s(`transaction.options.${v}`)}
-            </Chip>
-          ))}
+        <div className="flex flex-col gap-5">
+          <Group label={s('search.transactionLabel')}>
+            {MOVE_TRANSACTIONS.map((v) => (
+              <Chip key={v} small selected={answers.transaction === v} onClick={() => setOne('transaction', v, 'search')}>
+                {s(`transaction.options.${v}`)}
+              </Chip>
+            ))}
+          </Group>
+          <Group label={s('search.bedroomsLabel')}>
+            {MOVE_BEDROOMS.map((n) => (
+              <Chip key={n} small selected={answers.bedrooms === n} onClick={() => setOne('bedrooms', n, 'search')}>
+                {n === 5 ? s('bedrooms.max') : String(n)}
+              </Chip>
+            ))}
+          </Group>
+          <Group label={s('search.householdLabel')}>
+            {MOVE_HOUSEHOLDS.map((v) => (
+              <Chip key={v} small selected={answers.household === v} onClick={() => setOne('household', v, 'search')}>
+                {s(`household.options.${v}`)}
+              </Chip>
+            ))}
+          </Group>
         </div>
       );
       break;
-    case 'household':
-      body = (
-        <div className="flex flex-wrap gap-2">
-          {MOVE_HOUSEHOLDS.map((v) => (
-            <Chip key={v} selected={answers.household === v} onClick={() => setOne('household', v, 'household')}>
-              {s(`household.options.${v}`)}
-            </Chip>
-          ))}
-        </div>
-      );
-      break;
-    case 'bedrooms':
-      body = (
-        <div className="flex flex-wrap gap-2">
-          {MOVE_BEDROOMS.map((n) => (
-            <Chip key={n} selected={answers.bedrooms === n} onClick={() => setOne('bedrooms', n, 'bedrooms')}>
-              {n === 1 ? s('bedrooms.one') : n === 5 ? s('bedrooms.max') : s('bedrooms.many', { count: n })}
-            </Chip>
-          ))}
-          <Chip selected={false} onClick={() => { setAnswers((a) => ({ ...a, bedrooms: null })); markAnswered('bedrooms', true); next(); }}>
-            {s('bedrooms.unknown')}
-          </Chip>
-        </div>
-      );
-      break;
-    case 'anchor':
+    case 'place':
       body = (
         <>
+          <label htmlFor="move-city" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+            {s('communes.cityLabel')}
+          </label>
+          <select
+            id="move-city"
+            value={city}
+            onChange={(e) => { setAnswers((a) => ({ ...a, city: e.target.value, communes: [] })); mark('place'); }}
+            className={cn(FIELD, 'mb-4')}
+          >
+            {CITIES.map((c) => (
+              <option key={c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
           <div className="flex flex-wrap gap-2">
-            {MOVE_ANCHORS.map((v) => (
+            {cityCommunes.map((key) => (
               <Chip
-                key={v}
-                selected={answers.anchorKind === v}
-                onClick={() => {
-                  if (v === 'aucun') {
-                    setOne('anchorKind', v, 'anchor');
-                  } else {
-                    setAnswers((a) => ({ ...a, anchorKind: a.anchorKind === v ? null : v }));
-                    markAnswered('anchor', true);
-                  }
-                }}
+                key={key}
+                small
+                selected={answers.communes.includes(key)}
+                disabled={answers.communes.length >= MAX_MOVE_COMMUNES}
+                onClick={() => toggleMany('communes', key, 'place', MAX_MOVE_COMMUNES)}
               >
-                {s(`anchor.options.${v}`)}
+                {communeLabel(key)}
               </Chip>
             ))}
           </div>
+          {communeLimitHit ? <p className="mt-3 text-sm text-ink-70" role="status">{s('communes.limit')}</p> : null}
+
+          <Group label={s('place.anchorQuestion')} className="mt-6">
+            {MOVE_ANCHORS.map((v) => (
+              <Chip key={v} small selected={answers.anchorKind === v} onClick={() => setOne('anchorKind', v, 'place')}>
+                {s(`anchor.options.${v}`)}
+              </Chip>
+            ))}
+          </Group>
           {answers.anchorKind && answers.anchorKind !== 'aucun' ? (
-            <div className="u-reveal mt-4 flex flex-col gap-3">
+            <div className="u-reveal mt-3 flex flex-col gap-3">
               <div>
                 <label htmlFor="move-anchor-commune" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
                   {s('anchor.communeLabel')}
                 </label>
-                <CommuneSelect
-                  id="move-anchor-commune"
-                  value={answers.anchorCommune}
-                  onChange={(v) => setAnswers((a) => ({ ...a, anchorCommune: v }))}
-                  placeholder={s('anchor.communePlaceholder')}
-                />
+                <CommuneSelect id="move-anchor-commune" value={answers.anchorCommune} onChange={setAnchorCommune} placeholder={s('anchor.communePlaceholder')} />
               </div>
               <div>
                 <label htmlFor="move-anchor-note" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
@@ -395,117 +509,97 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
                   value={answers.anchorNote}
                   maxLength={MAX_MOVE_NOTE}
                   onChange={(e) => setAnswers((a) => ({ ...a, anchorNote: e.target.value }))}
-                  className="u-focus-ring min-h-11 w-full rounded-md border border-line bg-white px-3 py-2 text-[0.9375rem] text-ink"
+                  className={FIELD}
                 />
               </div>
             </div>
           ) : null}
         </>
       );
-      multi = Boolean(answers.anchorKind && answers.anchorKind !== 'aucun');
-      break;
-    case 'communes':
-      multi = true;
-      body = (
-        <>
-          <label htmlFor="move-city" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-            {s('communes.cityLabel')}
-          </label>
-          <select
-            id="move-city"
-            value={city}
-            onChange={(e) => setAnswers((a) => ({ ...a, city: e.target.value, communes: [] }))}
-            className="u-focus-ring mb-4 min-h-11 w-full rounded-md border border-line bg-white px-3 py-2 text-[0.9375rem] text-ink"
-          >
-            {CITIES.map((c) => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-          <div className="flex flex-wrap gap-2">
-            {cityCommunes.map((key) => (
-              <Chip
-                key={key}
-                selected={answers.communes.includes(key)}
-                disabled={answers.communes.length >= MAX_MOVE_COMMUNES}
-                onClick={() => toggleMany('communes', key, 'communes', MAX_MOVE_COMMUNES)}
-              >
-                {communeLabel(key)}
-              </Chip>
-            ))}
-          </div>
-          {communeLimitHit ? <p className="mt-3 text-sm text-ink-70" role="status">{s('communes.limit')}</p> : null}
-        </>
-      );
-      break;
-    case 'priorities':
-      multi = true;
-      body = (
-        <div className="flex flex-wrap gap-2">
-          {MOVE_PRIORITIES.map((v) => (
-            <Chip key={v} selected={answers.priorities.includes(v)} onClick={() => toggleMany('priorities', v, 'priorities')}>
-              {s(`priorities.options.${v}`)}
-            </Chip>
-          ))}
-        </div>
-      );
       break;
     case 'budget': {
-      const choices = MOVE_BUDGETS[answers.transaction] || [];
+      const presets = budgetRules?.presets || [];
+      const isPreset = (lo, hi) => (answers.budgetMin ?? null) === lo && (answers.budgetMax ?? null) === hi;
+      const presetLabel = (lo, hi) => {
+        if (lo == null) return s('budget.presetUnder', { amount: usd(hi) });
+        if (hi == null) return s('budget.presetOver', { amount: usd(lo) });
+        return s('budget.presetBetween', { min: usd(lo), max: usd(hi) });
+      };
       body = (
         <>
           <div className="flex flex-wrap gap-2">
-            {choices.map((amount) => (
-              <Chip key={amount} selected={answers.budgetMax === amount} onClick={() => setOne('budgetMax', amount, 'budget')}>
-                {s('budget.upTo', { amount: `$${amount.toLocaleString('en-US')}` })}
+            {presets.map(([lo, hi]) => (
+              <Chip key={`${lo}-${hi}`} small selected={isPreset(lo, hi)} onClick={() => setBudget(lo, hi)}>
+                {presetLabel(lo, hi)}
               </Chip>
             ))}
-            <Chip selected={false} onClick={() => { setAnswers((a) => ({ ...a, budgetMax: null })); markAnswered('budget', true); next(); }}>
+            <Chip small selected={false} onClick={() => setBudget(null, null)}>
               {s('budget.unknown')}
             </Chip>
           </div>
-          <a href="/combien-coute" target="_blank" rel="noopener" className="mt-4 inline-flex min-h-11 items-center text-sm font-bold text-blue hover:underline">
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {[['budgetMin', 'minLabel'], ['budgetMax', 'maxLabel']].map(([field, labelKey]) => (
+              <div key={field}>
+                <label htmlFor={`move-${field}`} className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+                  {s(`budget.${labelKey}`)}
+                </label>
+                <input
+                  id={`move-${field}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={budgetRules?.step}
+                  value={answers[field] ?? ''}
+                  onChange={(e) => budgetField(field, e.target.value)}
+                  className={cn(FIELD, 'u-tabular')}
+                />
+              </div>
+            ))}
+          </div>
+          <a href="/combien-coute" target="_blank" rel="noopener" className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-blue hover:underline">
             {s('budget.priceGuide')}
           </a>
+          <BudgetPreview answers={answers} t={t} />
         </>
       );
       break;
     }
-    case 'timeline':
+    case 'details':
       body = (
-        <div className="flex flex-col gap-2">
-          {MOVE_TIMELINES.map((v) => (
-            <Chip key={v} selected={answers.timeline === v} onClick={() => setOne('timeline', v, 'timeline')}>
-              {s(`timeline.options.${v}`)}
-            </Chip>
-          ))}
-        </div>
-      );
-      break;
-    case 'current':
-      multi = true;
-      body = (
-        <>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-5">
+          <Group label={s('details.timelineLabel')}>
+            {MOVE_TIMELINES.map((v) => (
+              <Chip key={v} small selected={answers.timeline === v} onClick={() => setOne('timeline', v, 'details')}>
+                {s(`timeline.options.${v}`)}
+              </Chip>
+            ))}
+          </Group>
+          <Group label={s('details.prioritiesLabel')}>
+            {MOVE_PRIORITIES.map((v) => (
+              <Chip key={v} small selected={answers.priorities.includes(v)} onClick={() => toggleMany('priorities', v, 'details')}>
+                {s(`priorities.options.${v}`)}
+              </Chip>
+            ))}
+          </Group>
+          <Group label={s('details.currentLabel')}>
             {MOVE_CURRENT_HOMES.map((v) => (
-              <Chip
-                key={v}
-                selected={answers.currentHomeType === v}
-                onClick={() => { setAnswers((a) => ({ ...a, currentHomeType: a.currentHomeType === v ? null : v })); markAnswered('current', true); }}
-              >
+              <Chip key={v} small selected={answers.currentHomeType === v} onClick={() => setOne('currentHomeType', v, 'details')}>
                 {s(`current.options.${v}`)}
               </Chip>
             ))}
+          </Group>
+          <div>
+            <label htmlFor="move-current-commune" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+              {s('current.communeLabel')}
+            </label>
+            <CommuneSelect
+              id="move-current-commune"
+              value={answers.currentCommune}
+              onChange={(v) => { setAnswers((a) => ({ ...a, currentCommune: v })); mark('details'); }}
+              placeholder={s('anchor.communePlaceholder')}
+            />
           </div>
-          <label htmlFor="move-current-commune" className="mb-1 mt-4 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-            {s('current.communeLabel')}
-          </label>
-          <CommuneSelect
-            id="move-current-commune"
-            value={answers.currentCommune}
-            onChange={(v) => { setAnswers((a) => ({ ...a, currentCommune: v })); markAnswered('current', true); }}
-            placeholder={s('anchor.communePlaceholder')}
-          />
-        </>
+        </div>
       );
       break;
     default:
@@ -564,7 +658,6 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
         <p className="u-eyebrow text-blue">{t('account.move.eyebrow')} · {t('account.move.progress', { current: index + 1, total })}</p>
         <h1 className="u-title-section mt-2 text-ink">{t(titleKey)}</h1>
         <p className="mt-1.5 text-[0.9375rem] text-ink-45">{leadText}</p>
-        {multi && current !== 'anchor' && current !== 'current' ? <p className="u-micro mt-1 text-ink-45">{t('account.move.multiHint')}</p> : null}
 
         <div className="mt-5">
           {!isEnd ? body : null}

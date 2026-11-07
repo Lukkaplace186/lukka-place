@@ -4508,3 +4508,26 @@ half: `docs/claude/leads-and-enquiries.md`, same heading.
   **`/admin/customers/[id]`** shows the project as the French brief.
 - `tests/unit/move-project.test.js`; `customer-easy-login.test.js` now pins the
   new redirect line.
+- **Five cards, a budget range, close homes (2026-11-07, later, owner: ten
+  cards felt excessive; the budget must be adjustable; show near matches).**
+  Cards are now `reasons · search` (rent/buy + bedrooms + household on one
+  card) `· place` (communes + the place that matters) `· budget · details`
+  (timeline + priorities + current home). The budget is a min–max range
+  (`cleanBudgetRange`: whole USD, capped per transaction, reversed ends
+  swapped) set from preset chips and adjusted in two fields; the search gets
+  `price_min` + `price_max`. **The budget card shows live what the range
+  finds** (`POST /api/move/matches`, public, rate-limited, nothing stored):
+  the exact count and first homes, and when fewer than 4 match,
+  `lib/moveMatches.js` adds close homes apart, never counted with the exact
+  ones: ±25 % around the range at the chosen communes (`MOVE_BUDGET_STRETCH`;
+  owner chose 25 % while listings are few, to narrow as they grow — /listings
+  keeps its own 15 %), then nearby communes
+  (`getNearbyExtras`, real commune centres, same rule as /listings). Each
+  close home carries its reason (`closeMatchTags`): "12 % au-dessus de votre
+  budget" only for a USD, monthly-comparable price; "À Lingwala, ≈ 3 km" only
+  when that distance was measured. A home with no reason it can show is left
+  out. `/compte/client/projet` shows the same two groups.
+  `customer_move_projects.budget_min` comes with
+  `migrations/20261107_move_project_budget_min.sql`; until it runs the
+  project saves without it (42703 retry). Draft key is `lukka_move_draft_v2`
+  (old drafts named the ten old cards).

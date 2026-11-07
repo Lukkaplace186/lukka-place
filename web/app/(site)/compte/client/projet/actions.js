@@ -75,6 +75,7 @@ export async function sendMoveRequestAction() {
       transactionType: project.transactionType,
       commune: project.communes[0],
       communes: project.communes,
+      priceMin: project.budgetMin,
       priceMax: project.budgetMax,
       bedrooms: project.bedroomsMin,
       moveStory: story || undefined,

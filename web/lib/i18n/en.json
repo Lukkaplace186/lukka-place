@@ -3544,8 +3544,6 @@
           }
         },
         "transaction": {
-          "title": "You Want To…",
-          "lead": "Rent, buy, or a short stay.",
           "options": {
             "location": "Rent",
             "vente": "Buy",
@@ -3553,8 +3551,6 @@
           }
         },
         "household": {
-          "title": "How Many of You Will Live There?",
-          "lead": "So the agent understands what you need.",
           "options": {
             "seul": "Just me",
             "deux": "Two of us",
@@ -3564,16 +3560,11 @@
           }
         },
         "bedrooms": {
-          "title": "How Many Bedrooms?",
-          "lead": "At least.",
           "one": "1 bedroom",
           "many": "{count} bedrooms",
-          "max": "5 or more",
-          "unknown": "Not sure yet"
+          "max": "5 or more"
         },
         "anchor": {
-          "title": "Which Place Matters Most to You?",
-          "lead": "To help choose the right communes.",
           "options": {
             "travail": "My work",
             "ecole": "The children’s school",
@@ -3585,14 +3576,10 @@
           "noteLabel": "Name of the place (optional)"
         },
         "communes": {
-          "title": "Which Communes Would You like to Live In?",
-          "lead": "Up to 5 communes.",
           "cityLabel": "City",
           "limit": "5 communes at most."
         },
         "priorities": {
-          "title": "What Matters Most to You?",
-          "lead": "We’ll tell the agencies.",
           "options": {
             "electricite": "Reliable electricity",
             "eau": "Water",
@@ -3604,15 +3591,20 @@
         },
         "budget": {
           "title": "What’s Your Budget?",
-          "leadRent": "Maximum rent per month.",
-          "leadBuy": "Maximum purchase price.",
+          "leadRent": "Rent per month: pick a range, then adjust it.",
+          "leadBuy": "Purchase price: pick a range, then adjust it.",
           "upTo": "Up to {amount}",
           "unknown": "Not sure yet",
-          "priceGuide": "See prices by commune"
+          "priceGuide": "See prices by commune",
+          "minLabel": "Minimum ($)",
+          "maxLabel": "Maximum ($)",
+          "presetUnder": "Under {amount}",
+          "presetBetween": "{min} – {max}",
+          "presetOver": "Over {amount}",
+          "between": "{min} – {max}",
+          "from": "From {amount}"
         },
         "timeline": {
-          "title": "When?",
-          "lead": "When would you like to move in?",
           "options": {
             "asap": "As soon as possible",
             "un_mois": "Within a month",
@@ -3621,8 +3613,6 @@
           }
         },
         "current": {
-          "title": "Where Do You Live Today?",
-          "lead": "Optional: it helps the agent understand your move.",
           "options": {
             "appartement": "An apartment",
             "maison": "A house",
@@ -3631,6 +3621,25 @@
             "famille": "With my family"
           },
           "communeLabel": "Commune (optional)"
+        },
+        "search": {
+          "title": "What Are You Looking For?",
+          "lead": "Three quick choices, all optional.",
+          "transactionLabel": "You want to",
+          "bedroomsLabel": "Bedrooms (at least)",
+          "householdLabel": "How many of you?"
+        },
+        "place": {
+          "title": "Where Would You like to Live?",
+          "lead": "Up to 5 communes.",
+          "anchorQuestion": "Does one place matter most?"
+        },
+        "details": {
+          "title": "A Few Details",
+          "lead": "Optional: it helps the agent understand your move.",
+          "timelineLabel": "When?",
+          "prioritiesLabel": "What matters to you",
+          "currentLabel": "Where do you live today?"
         }
       },
       "account": {
@@ -3703,6 +3712,21 @@
         "inviteTitle": "Tell Us About Your Move",
         "inviteLead": "One minute, so we can show you the right homes.",
         "inviteCta": "Start"
+      },
+      "matches": {
+        "loading": "Looking for homes…",
+        "count": {
+          "one": "{count} home matches your move",
+          "other": "{count} homes match your move"
+        },
+        "none": "No home matches exactly yet.",
+        "closeTitle": "Close to Your Move",
+        "error": "Homes could not be loaded.",
+        "tags": {
+          "above": "{pct}% above your budget",
+          "below": "{pct}% below your budget",
+          "nearby": "In {commune}, ≈ {km} km"
+        }
       }
     }
   },

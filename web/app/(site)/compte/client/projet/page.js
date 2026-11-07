@@ -5,10 +5,9 @@ import { Bell, CalendarClock, ChevronRight, Home, MapPin, Pencil } from 'lucide-
 import ClientMiniListingCard from '@/components/ClientMiniListingCard';
 import { getPortalCustomer } from '@/lib/customerPortal';
 import { listSavedSearches } from '@/lib/customers';
-import { getListings } from '@/lib/listings';
-import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { getMoveProject } from '@/lib/moveProjects';
-import { MOVE_RESEND_AFTER_MS, moveRequestBlocker, moveSearchQuery, moveStoryParts } from '@/lib/moveProjectRules';
+import { getMoveMatches } from '@/lib/moveMatches';
+import { MOVE_RESEND_AFTER_MS, budgetRangeText, moveRequestBlocker, moveSearchQuery, moveStoryParts } from '@/lib/moveProjectRules';
 import { firstName } from '@/lib/clientPortalView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocale, getT } from '@/lib/i18n/server';
@@ -29,41 +28,66 @@ function bedroomsLabel(n, t) {
   return t('account.move.steps.bedrooms.many', { count: n >= 5 ? '5+' : n });
 }
 
-/** The homes that match the project's search, newest first — never widened. */
-async function ResultsSection({ query, t }) {
+function closeTagText(tag, t) {
+  if (tag.kind === 'above') return t('account.move.matches.tags.above', { pct: tag.pct });
+  if (tag.kind === 'below') return t('account.move.matches.tags.below', { pct: tag.pct });
+  return t('account.move.matches.tags.nearby', { commune: tag.commune, km: tag.km });
+}
+
+const RAIL = '-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0';
+
+/**
+ * The homes the project finds (lib/moveMatches.js): exact matches, newest
+ * first; then, when few match, the closest ones apart, each saying why it is
+ * close (a little over/under the budget, or a nearby commune).
+ */
+async function ResultsSection({ project, t }) {
   let result;
   try {
-    result = await getListings({ ...parseListingsSearchParams(new URLSearchParams(query)), sort: 'newest', limit: RESULTS_LIMIT });
+    result = await getMoveMatches(project, { exactLimit: RESULTS_LIMIT });
   } catch (err) {
     console.error(`[move-project] results failed: ${err.message}`);
     return <p className="text-sm text-ink-70">{t('account.move.page.results.error')}</p>;
   }
-  const { data = [], total = 0 } = result || {};
-  if (!data.length) {
-    const wider = new URLSearchParams(query);
-    for (const key of ['commune', 'communes', 'beds_min', 'price_max']) wider.delete(key);
-    return (
-      <div className={`flex flex-col gap-2 p-4 ${CARD}`}>
-        <p className="text-[0.9375rem] font-semibold text-ink">{t('account.move.page.results.none')}</p>
-        <p className="text-sm text-ink-45">{t('account.move.page.results.noneHint')}</p>
-        <Link href={`/listings?${wider.toString()}`} className="inline-flex min-h-11 items-center text-sm font-bold text-blue hover:underline">
-          {t('account.move.page.results.widen')}
-        </Link>
-      </div>
-    );
-  }
+  if (!result) return null;
+  const { query, total, exact, close } = result;
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[0.8125rem] text-ink-45">{t('account.move.page.results.count', { count: total })}</p>
-      <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
-        {data.map((listing) => (
-          <ClientMiniListingCard key={listing.id} listing={listing} t={t} />
-        ))}
-      </div>
-      <Link href={`/listings?${query}`} className="inline-flex min-h-11 items-center gap-0.5 self-start text-sm font-bold text-blue hover:underline">
-        {t('account.move.page.results.seeAll')}
-        <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-      </Link>
+      {exact.length ? (
+        <>
+          <p className="text-[0.8125rem] text-ink-45">{t('account.move.page.results.count', { count: total })}</p>
+          <div className={RAIL}>
+            {exact.map((listing) => (
+              <ClientMiniListingCard key={listing.id} listing={listing} t={t} />
+            ))}
+          </div>
+          <Link href={`/listings?${query}`} className="inline-flex min-h-11 items-center gap-0.5 self-start text-sm font-bold text-blue hover:underline">
+            {t('account.move.page.results.seeAll')}
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </>
+      ) : (
+        <p className={`p-4 text-[0.9375rem] font-semibold text-ink ${CARD}`}>{t('account.move.page.results.none')}</p>
+      )}
+      {close.length ? (
+        <section className="mt-2 flex flex-col gap-2" aria-labelledby="move-close">
+          <h3 id="move-close" className="u-title-sub text-ink">{t('account.move.matches.closeTitle')}</h3>
+          <div className={RAIL}>
+            {close.map(({ listing, tags }) => (
+              <div key={listing.id} className="flex flex-none snap-start flex-col gap-1.5">
+                <ClientMiniListingCard listing={listing} t={t} />
+                <div className="flex w-[15.625rem] flex-wrap gap-1">
+                  {tags.map((tag) => (
+                    <span key={`${tag.kind}-${tag.pct ?? tag.commune}`} className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.75rem] font-bold text-amber-800">
+                      {closeTagText(tag, t)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -133,7 +157,11 @@ export default async function MoveProjectPage({ searchParams }) {
     tx,
     project.bedroomsMin ? bedroomsLabel(project.bedroomsMin, t) : null,
     story.to?.communes?.length ? story.to.communes.join(', ') : null,
-    project.budgetMax ? t('account.move.steps.budget.upTo', { amount: `$${project.budgetMax.toLocaleString('en-US')}` }) : null,
+    budgetRangeText(project.budgetMin, project.budgetMax, {
+      between: (min, max) => t('account.move.steps.budget.between', { min, max }),
+      from: (amount) => t('account.move.steps.budget.from', { amount }),
+      upTo: (amount) => t('account.move.steps.budget.upTo', { amount }),
+    }),
   ].filter(Boolean).join(' · ');
   const whenLine = story.when ? t(`account.move.steps.timeline.options.${story.when}`) : null;
   const sentDate = project.lastLeadAt
@@ -201,7 +229,7 @@ export default async function MoveProjectPage({ searchParams }) {
         <h2 id="move-results" className="u-title-card text-ink">{t('account.move.page.results.title')}</h2>
         {query ? (
           <Suspense fallback={<ResultsSkeleton />}>
-            <ResultsSection query={query} t={t} />
+            <ResultsSection project={project} t={t} />
           </Suspense>
         ) : (
           <p className="text-sm text-ink-45">{t('account.move.page.results.noQuery')}</p>

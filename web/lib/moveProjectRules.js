@@ -32,14 +32,43 @@ export const MOVE_TIMELINES = Object.freeze(['asap', 'un_mois', 'trois_mois', 'r
 export const MOVE_CURRENT_HOMES = Object.freeze(['appartement', 'maison', 'studio', 'chambre', 'famille']);
 
 /**
- * Budget ceilings offered as chips, in USD. Monthly for a rental, total for a
- * purchase. None for a short stay: those listings are priced per day OR per
- * week (`price_period`), and one `price_max` cannot mean both.
+ * The budget is a range the customer sets (min and/or max, USD): monthly for
+ * a rental, total for a purchase. None for a short stay: those listings are
+ * priced per day OR per week (`price_period`), and one range cannot mean both.
+ *
+ * `presets` are starting points the customer can then adjust; `cap` refuses
+ * a typo of an extra zero or three; `step` is the field's increment.
  */
 export const MOVE_BUDGETS = Object.freeze({
-  location: Object.freeze([200, 400, 700, 1000, 2000]),
-  vente: Object.freeze([30000, 60000, 100000, 200000, 500000]),
+  location: Object.freeze({
+    presets: Object.freeze([[null, 200], [200, 400], [400, 700], [700, 1000], [1000, 2000], [2000, null]]),
+    cap: 100_000,
+    step: 50,
+  }),
+  vente: Object.freeze({
+    presets: Object.freeze([[null, 30000], [30000, 60000], [60000, 100000], [100000, 200000], [200000, 500000], [500000, null]]),
+    cap: 50_000_000,
+    step: 5000,
+  }),
 });
+
+/**
+ * A budget range from free input: whole USD within the cap, 0/blank = not
+ * said, min > max swapped (the customer meant the range, not an error).
+ * @returns {{budgetMin: number|null, budgetMax: number|null}}
+ */
+export function cleanBudgetRange(transaction, min, max) {
+  const rules = MOVE_BUDGETS[transaction];
+  if (!rules) return { budgetMin: null, budgetMax: null };
+  const one = (v) => {
+    const n = Math.round(Number(String(v ?? '').replace(/[\s$,]/g, '')));
+    return Number.isFinite(n) && n > 0 && n <= rules.cap ? n : null;
+  };
+  let lo = one(min);
+  let hi = one(max);
+  if (lo != null && hi != null && lo > hi) [lo, hi] = [hi, lo];
+  return { budgetMin: lo, budgetMax: hi };
+}
 
 export const MAX_MOVE_COMMUNES = 5;
 /** `leads.source` of a request sent from "Mon déménagement". A search request, so it shows among the customer's requests. */
@@ -49,10 +78,13 @@ export const MOVE_RESEND_AFTER_MS = 20 * 60 * 60 * 1000;
 export const MAX_MOVE_NOTE = 80;
 
 /**
- * The cards, in order. `key` is what `answered_steps` records; the account
- * card is the signup flow's last and is not a project step.
+ * The cards, in order (five since 2026-11-07, owner: ten felt excessive).
+ * `reasons` why · `search` rent/buy + bedrooms + household · `place` communes
+ * + the place that matters · `budget` the range, with the homes it finds ·
+ * `details` timeline + priorities + current home. `answered_steps` records
+ * these keys; the account card is the signup flow's last and is not one.
  */
-export const MOVE_STEPS = Object.freeze(['reasons', 'transaction', 'household', 'bedrooms', 'anchor', 'communes', 'priorities', 'budget', 'timeline', 'current']);
+export const MOVE_STEPS = Object.freeze(['reasons', 'search', 'place', 'budget', 'details']);
 
 const pick = (list, value) => (list.includes(value) ? value : null);
 
@@ -94,8 +126,7 @@ export function parseMoveProject(raw = {}) {
   const city = cityRecord ? cityRecord.name : null;
   const cityCommunes = communesOfCity(city || DEFAULT_CITY);
   const communes = pickMany(cityCommunes, input.communes, MAX_MOVE_COMMUNES);
-  const budgetChoices = MOVE_BUDGETS[transaction] || [];
-  const budget = Number(input.budgetMax);
+  const { budgetMin, budgetMax } = cleanBudgetRange(transaction, input.budgetMin, input.budgetMax);
   const anchorKind = pick(MOVE_ANCHORS, input.anchorKind);
   const beds = Number(input.bedrooms);
 
@@ -113,7 +144,8 @@ export function parseMoveProject(raw = {}) {
     city: communes.length ? city || DEFAULT_CITY : city,
     communes,
     priorities: pickMany(MOVE_PRIORITIES, input.priorities),
-    budgetMax: budgetChoices.includes(budget) ? budget : null,
+    budgetMin,
+    budgetMax,
     timeline: pick(MOVE_TIMELINES, input.timeline),
     currentHomeType: pick(MOVE_CURRENT_HOMES, input.currentHomeType),
     currentCommune: knownCommune(input.currentCommune),
@@ -122,8 +154,8 @@ export function parseMoveProject(raw = {}) {
 
   const hasAnswers = Boolean(
     project.reasons.length || project.transactionType || project.household || project.bedroomsMin
-      || project.anchorKind || project.communes.length || project.priorities.length || project.budgetMax
-      || project.timeline || project.currentHomeType || project.currentCommune,
+      || project.anchorKind || project.communes.length || project.priorities.length || project.budgetMin
+      || project.budgetMax || project.timeline || project.currentHomeType || project.currentCommune,
   );
   return { project, hasAnswers };
 }
@@ -153,6 +185,7 @@ export function moveSearchQuery(project) {
   if (communes.length) params.set('commune', communes[0]);
   if (communes.length > 1) params.set('communes', communes.join(','));
   if (project.bedroomsMin) params.set('beds_min', String(project.bedroomsMin));
+  if (project.budgetMin) params.set('price_min', String(project.budgetMin));
   if (project.budgetMax) params.set('price_max', String(project.budgetMax));
   return params.toString();
 }
@@ -214,8 +247,30 @@ export function moveCriteriaFr(project) {
   else if (project.transactionType === 'location') parts.push('Location');
   if (project.communes?.length) parts.push(project.communes.map(communeLabel).join(', '));
   if (project.bedroomsMin) parts.push(`${project.bedroomsMin}${project.bedroomsMin >= 5 ? '+' : ''} chambres`);
-  if (project.budgetMax) parts.push(`Budget jusqu'à $${project.budgetMax.toLocaleString('en-US')}`);
+  const budget = budgetRangeText(project.budgetMin, project.budgetMax, {
+    between: (lo, hi) => `Budget ${lo} – ${hi}`,
+    from: (lo) => `Budget à partir de ${lo}`,
+    upTo: (hi) => `Budget jusqu'à ${hi}`,
+  });
+  if (budget) parts.push(budget);
   return parts.join(' · ');
+}
+
+/** "$1,000" — the one way a budget amount is written (USD, en-US grouping, like the rest of the site). */
+export function usd(n) {
+  return `$${Number(n).toLocaleString('en-US')}`;
+}
+
+/**
+ * A budget range as words, through three phrasings the caller supplies
+ * (French for agencies, the dictionary for the customer). null when neither
+ * end is set.
+ */
+export function budgetRangeText(min, max, { between, from, upTo }) {
+  if (min && max) return between(usd(min), usd(max));
+  if (min) return from(usd(min));
+  if (max) return upTo(usd(max));
+  return null;
 }
 
 /**
@@ -247,6 +302,54 @@ export function moveStoryParts(project) {
   };
 }
 
+/**
+ * Why a "close" home is close, from real fields only — what the customer sees
+ * next to it ("12 % au-dessus de votre budget", "À Lingwala, ≈ 3 km").
+ *
+ * - Price: only for a USD price (a CDF price is a different number) and, for
+ *   a rental, a monthly one (an `an` / `jour` price is not comparable to a
+ *   monthly budget). Rounded whole percent, never 0.
+ * - Place: only when the listing's commune is not one the customer chose and
+ *   lib/listings.js's nearby search measured it (`places`: commune → km,
+ *   centre to centre, already rounded and never below 1).
+ *
+ * @returns {Array<{kind: 'above'|'below', pct: number}|{kind: 'nearby', commune: string, km: number}>}
+ */
+export function closeMatchTags(listing, project, places = []) {
+  const tags = [];
+  if (!listing || !project) return tags;
+  const price = Number(listing.price);
+  const usdPrice = Number.isFinite(price) && price > 0 && (!listing.currency || String(listing.currency).toUpperCase() === 'USD');
+  const monthly = listing.purpose !== 'rent' || !listing.price_period || ['mois', 'total'].includes(listing.price_period);
+  if (usdPrice && monthly) {
+    if (project.budgetMax && price > project.budgetMax) {
+      tags.push({ kind: 'above', pct: Math.max(1, Math.round(((price - project.budgetMax) / project.budgetMax) * 100)) });
+    } else if (project.budgetMin && price < project.budgetMin) {
+      tags.push({ kind: 'below', pct: Math.max(1, Math.round(((project.budgetMin - price) / project.budgetMin) * 100)) });
+    }
+  }
+  const commune = listing.commune || null;
+  if (commune && !(project.communes || []).includes(commune)) {
+    const place = places.find((p) => p.commune === commune);
+    if (place) tags.push({ kind: 'nearby', commune: communeLabel(commune), km: place.km });
+  }
+  return tags;
+}
+
+/**
+ * How far a budget stretches for "close" homes: 25 % either way (owner,
+ * 2026-11-07: few listings yet, so a wider net; narrow it as listings grow).
+ * Deliberately not /listings' own 15 % (lib/listings.js BUDGET_STRETCH).
+ */
+export const MOVE_BUDGET_STRETCH = 0.25;
+
+/** The stretched range the close-by-budget search runs on (null ends stay open). */
+export function stretchedBudget(project) {
+  const lo = project?.budgetMin ? Math.round(project.budgetMin * (1 - MOVE_BUDGET_STRETCH)) : null;
+  const hi = project?.budgetMax ? Math.round(project.budgetMax * (1 + MOVE_BUDGET_STRETCH)) : null;
+  return { priceMin: lo, priceMax: hi };
+}
+
 /** Cities offered on the communes card, Kinshasa first (lib/cities.js order). */
 export function moveCityOptions() {
   return CITIES.map((c) => ({ name: c.name, slug: c.slug }));
@@ -274,8 +377,11 @@ export function projectFromSearchQuery(query) {
   }
   const beds = Number.parseInt(params.get('beds_min'), 10);
   if (MOVE_BEDROOMS.includes(beds)) out.bedrooms = beds;
-  const budget = Number(params.get('price_max'));
-  if (out.transaction && (MOVE_BUDGETS[out.transaction] || []).includes(budget)) out.budgetMax = budget;
+  if (out.transaction) {
+    const { budgetMin, budgetMax } = cleanBudgetRange(out.transaction, params.get('price_min'), params.get('price_max'));
+    if (budgetMin) out.budgetMin = budgetMin;
+    if (budgetMax) out.budgetMax = budgetMax;
+  }
   return out;
 }
 
@@ -294,6 +400,7 @@ export function answersFromProject(project) {
     city: project.city,
     communes: project.communes || [],
     priorities: project.priorities || [],
+    budgetMin: project.budgetMin ?? null,
     budgetMax: project.budgetMax,
     timeline: project.timeline,
     currentHomeType: project.currentHomeType,

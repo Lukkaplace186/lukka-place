@@ -31,6 +31,8 @@ function fromRow(row) {
     city: row.city,
     communes: row.communes || [],
     priorities: row.priorities || [],
+    // SELECT * — absent (undefined) before migrations/20261107_move_project_budget_min.sql.
+    budgetMin: row.budget_min ?? null,
     budgetMax: row.budget_max,
     timeline: row.timeline,
     currentHomeType: row.current_home_type,
@@ -60,32 +62,48 @@ export const getMoveProject = cache(async (customerId) => {
  *
  * @returns {Promise<{saved: boolean}>}
  */
-export async function saveMoveProject(customerId, project) {
-  const p = project;
-  try {
-    await getPool().query(
-      `INSERT INTO customer_move_projects (
+function upsertSql(withBudgetMin) {
+  const minCol = withBudgetMin ? ', budget_min' : '';
+  const minVal = withBudgetMin ? ', $19' : '';
+  const minSet = withBudgetMin ? ' budget_min = EXCLUDED.budget_min,' : '';
+  return `INSERT INTO customer_move_projects (
          customer_id, reasons, reason_other, transaction_type, lease_term, household, bedrooms_min,
          anchor_kind, anchor_commune, anchor_note, city, communes, priorities, budget_max, timeline,
-         current_home_type, current_commune, answered_steps)
-       VALUES ($1, $2::text[], $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::text[], $13::text[], $14, $15, $16, $17, $18::text[])
+         current_home_type, current_commune, answered_steps${minCol})
+       VALUES ($1, $2::text[], $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::text[], $13::text[], $14, $15, $16, $17, $18::text[]${minVal})
        ON CONFLICT (customer_id) DO UPDATE SET
          reasons = EXCLUDED.reasons, reason_other = EXCLUDED.reason_other,
          transaction_type = EXCLUDED.transaction_type, lease_term = EXCLUDED.lease_term,
          household = EXCLUDED.household, bedrooms_min = EXCLUDED.bedrooms_min,
          anchor_kind = EXCLUDED.anchor_kind, anchor_commune = EXCLUDED.anchor_commune, anchor_note = EXCLUDED.anchor_note,
          city = EXCLUDED.city, communes = EXCLUDED.communes, priorities = EXCLUDED.priorities,
-         budget_max = EXCLUDED.budget_max, timeline = EXCLUDED.timeline,
+         budget_max = EXCLUDED.budget_max,${minSet} timeline = EXCLUDED.timeline,
          current_home_type = EXCLUDED.current_home_type, current_commune = EXCLUDED.current_commune,
-         answered_steps = EXCLUDED.answered_steps, updated_at = NOW()`,
-      [
-        customerId, p.reasons, p.reasonOther, p.transactionType, p.leaseTerm, p.household, p.bedroomsMin,
-        p.anchorKind, p.anchorCommune, p.anchorNote, p.city, p.communes, p.priorities, p.budgetMax, p.timeline,
-        p.currentHomeType, p.currentCommune, p.answeredSteps,
-      ],
-    );
+         answered_steps = EXCLUDED.answered_steps, updated_at = NOW()`;
+}
+
+export async function saveMoveProject(customerId, project) {
+  const p = project;
+  const values = [
+    customerId, p.reasons, p.reasonOther, p.transactionType, p.leaseTerm, p.household, p.bedroomsMin,
+    p.anchorKind, p.anchorCommune, p.anchorNote, p.city, p.communes, p.priorities, p.budgetMax, p.timeline,
+    p.currentHomeType, p.currentCommune, p.answeredSteps,
+  ];
+  try {
+    await getPool().query(upsertSql(true), [...values, p.budgetMin ?? null]);
     return { saved: true };
   } catch (err) {
+    // budget_min arrives with its own migration; until then the rest saves.
+    if (err.code === '42703') {
+      try {
+        await getPool().query(upsertSql(false), values);
+        console.warn('[move-project] budget_min missing, saved without it (run migrations/20261107_move_project_budget_min.sql)');
+        return { saved: true };
+      } catch (retryErr) {
+        if (MISSING.has(retryErr.code)) return { saved: false };
+        throw retryErr;
+      }
+    }
     if (MISSING.has(err.code)) {
       console.warn('[move-project] table missing, project not saved (run migrations/20261107_customer_move_projects.sql)');
       return { saved: false };

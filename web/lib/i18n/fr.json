@@ -3544,8 +3544,6 @@
           }
         },
         "transaction": {
-          "title": "Vous voulez…",
-          "lead": "Louer, acheter, ou un court séjour.",
           "options": {
             "location": "Louer",
             "vente": "Acheter",
@@ -3553,8 +3551,6 @@
           }
         },
         "household": {
-          "title": "Vous serez combien à la maison ?",
-          "lead": "Pour que l’agent comprenne vos besoins.",
           "options": {
             "seul": "Seul(e)",
             "deux": "À deux",
@@ -3564,16 +3560,11 @@
           }
         },
         "bedrooms": {
-          "title": "Combien de chambres ?",
-          "lead": "Au minimum.",
           "one": "1 chambre",
           "many": "{count} chambres",
-          "max": "5 et plus",
-          "unknown": "Je ne sais pas encore"
+          "max": "5 et plus"
         },
         "anchor": {
-          "title": "Quel lieu compte le plus pour vous ?",
-          "lead": "Pour choisir les bonnes communes.",
           "options": {
             "travail": "Mon travail",
             "ecole": "L’école des enfants",
@@ -3585,14 +3576,10 @@
           "noteLabel": "Nom du lieu (facultatif)"
         },
         "communes": {
-          "title": "Dans quelles communes aimeriez-vous vivre ?",
-          "lead": "Jusqu’à 5 communes.",
           "cityLabel": "Ville",
           "limit": "5 communes au maximum."
         },
         "priorities": {
-          "title": "Qu’est-ce qui compte le plus pour vous ?",
-          "lead": "Nous le dirons aux agences.",
           "options": {
             "electricite": "Électricité stable",
             "eau": "Eau",
@@ -3604,15 +3591,20 @@
         },
         "budget": {
           "title": "Quel est votre budget ?",
-          "leadRent": "Loyer maximum par mois.",
-          "leadBuy": "Prix d’achat maximum.",
+          "leadRent": "Loyer par mois : choisissez une fourchette, puis ajustez-la.",
+          "leadBuy": "Prix d’achat : choisissez une fourchette, puis ajustez-la.",
           "upTo": "Jusqu’à {amount}",
           "unknown": "Je ne sais pas encore",
-          "priceGuide": "Voir les prix par commune"
+          "priceGuide": "Voir les prix par commune",
+          "minLabel": "Minimum ($)",
+          "maxLabel": "Maximum ($)",
+          "presetUnder": "Moins de {amount}",
+          "presetBetween": "{min} – {max}",
+          "presetOver": "Plus de {amount}",
+          "between": "{min} – {max}",
+          "from": "À partir de {amount}"
         },
         "timeline": {
-          "title": "Pour quand ?",
-          "lead": "Quand aimeriez-vous emménager ?",
           "options": {
             "asap": "Dès que possible",
             "un_mois": "Dans le mois",
@@ -3621,8 +3613,6 @@
           }
         },
         "current": {
-          "title": "Où vivez-vous aujourd’hui ?",
-          "lead": "Facultatif : pour que l’agent comprenne votre projet.",
           "options": {
             "appartement": "Un appartement",
             "maison": "Une maison",
@@ -3631,6 +3621,25 @@
             "famille": "Chez ma famille"
           },
           "communeLabel": "Commune (facultatif)"
+        },
+        "search": {
+          "title": "Que cherchez-vous ?",
+          "lead": "Trois choix rapides, tous facultatifs.",
+          "transactionLabel": "Vous voulez",
+          "bedroomsLabel": "Chambres (au minimum)",
+          "householdLabel": "Vous serez combien ?"
+        },
+        "place": {
+          "title": "Où aimeriez-vous vivre ?",
+          "lead": "Jusqu’à 5 communes.",
+          "anchorQuestion": "Un lieu compte particulièrement ?"
+        },
+        "details": {
+          "title": "Quelques précisions",
+          "lead": "Facultatif : pour que l’agent comprenne votre projet.",
+          "timelineLabel": "Pour quand ?",
+          "prioritiesLabel": "Ce qui compte pour vous",
+          "currentLabel": "Où vivez-vous aujourd’hui ?"
         }
       },
       "account": {
@@ -3703,6 +3712,21 @@
         "inviteTitle": "Parlez-nous de votre déménagement",
         "inviteLead": "Une minute pour que nous vous montrions les bons biens.",
         "inviteCta": "Commencer"
+      },
+      "matches": {
+        "loading": "Recherche des biens…",
+        "count": {
+          "one": "{count} bien correspond à votre projet",
+          "other": "{count} biens correspondent à votre projet"
+        },
+        "none": "Aucun bien ne correspond exactement pour l’instant.",
+        "closeTitle": "Proches de votre projet",
+        "error": "Les biens n’ont pas pu être chargés.",
+        "tags": {
+          "above": "{pct} % au-dessus de votre budget",
+          "below": "{pct} % en dessous de votre budget",
+          "nearby": "À {commune}, ≈ {km} km"
+        }
       }
     }
   },

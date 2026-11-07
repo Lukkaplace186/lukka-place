@@ -3744,7 +3744,8 @@
         "limit": "You have {max} moves, the maximum. Edit or delete one to start another.",
         "untitled": "Move {n}",
         "noneYet": "No home matches exactly yet",
-        "back": "My moves"
+        "back": "My moves",
+        "edit": "Edit"
       },
       "delete": {
         "cta": "Delete this move",

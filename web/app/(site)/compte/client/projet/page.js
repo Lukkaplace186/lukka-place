@@ -131,7 +131,7 @@ export default async function MoveProjectsPage({ searchParams }) {
                     className="u-press inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-line bg-surface px-3 text-sm font-bold text-ink hover:border-blue"
                   >
                     <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                    {t('account.move.page.edit')}
+                    {t('account.move.list.edit')}
                   </Link>
                 </div>
               </li>

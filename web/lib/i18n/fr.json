@@ -3744,7 +3744,8 @@
         "limit": "Vous avez {max} projets, le maximum. Modifiez ou supprimez-en un pour en commencer un autre.",
         "untitled": "Projet {n}",
         "noneYet": "Aucun bien ne correspond exactement pour l’instant",
-        "back": "Mes projets"
+        "back": "Mes projets",
+        "edit": "Modifier"
       },
       "delete": {
         "cta": "Supprimer ce projet",

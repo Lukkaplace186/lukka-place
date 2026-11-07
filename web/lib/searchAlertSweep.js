@@ -54,7 +54,7 @@ export function alertMessageText({ label, count, topLine, link, manageLink }) {
     clip(topLine, 200),
     link,
     '',
-    `Gérer ou arrêter cette alerte : ${manageLink}`,
+    ...(count > 1 ? [`Tous les nouveaux biens et l'arrêt de l'alerte : ${manageLink}`] : [`Gérer ou arrêter cette alerte : ${manageLink}`]),
   ].join('\n').slice(0, WHATSAPP_TEXT_MAX);
 }
 
@@ -135,11 +135,11 @@ export async function runAlertSweepChunk({
       if (fresh.length === 0) continue;
 
       const top = fresh[0];
-      // `ids` makes the page agree with the number in the message; the saved
-      // query rides along so clearing that chip leaves a working search.
-      const params = new URLSearchParams(search.query);
-      params.set('ids', fresh.map((l) => l.id).join(','));
-      const link = `${base}/listings?${params.toString()}`;
+      // The link opens the home the message names ({{3}}), its own page
+      // (owner, 2026-11-07: "when the customer opens the link it is the
+      // listing in question"), tagged so the visit is counted as an alert.
+      // The others are on the customer's Alertes tab (manageLink).
+      const link = `${base}/listings/${top.id}?utm_source=alerte_whatsapp`;
       const topLine = `${top.title} — ${formatPrice(top.price, top.purpose, top.price_period)}`;
 
       await deps.send(search.phone, {

@@ -61,7 +61,9 @@ test('a search is matched against the new listings only, and alerted once', asyn
   const result = await runAlertSweepChunk({ now: NOW, deps: h.deps, siteUrl: 'https://lukkaplace.com' });
   assert.deepEqual(asked.ids, [11], 'listing 12 was published before the search was saved');
   assert.equal(h.sent.length, 1);
-  assert.match(h.sent[0].text, /ids=11/);
+  // The link opens the home the alert names, its own page (2026-11-07).
+  assert.match(h.sent[0].text, /https:\/\/lukkaplace\.com\/listings\/11\?utm_source=alerte_whatsapp/);
+  assert.equal(h.sent[0].bodyParams[3], 'https://lukkaplace.com/listings/11?utm_source=alerte_whatsapp', 'the template link {{4}} too');
   assert.match(h.sent[0].text, /compte\/client\/favoris\?tab=alertes/, 'every alert says how to stop it');
   assert.deepEqual(h.recorded, [{ id: 1, ids: [11] }]);
   assert.deepEqual(h.marked, [1]);

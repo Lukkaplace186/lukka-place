@@ -1903,7 +1903,7 @@ router.post('/send-whatsapp', async (req, res) => {
     const result = await chakra.sendWhatsAppMessage(phone, message);
     console.log(
       `[admin] send-whatsapp to ${phone} accepted by Meta: ${JSON.stringify({
-        messageId: result?.messages?.[0]?.id ?? null,
+        messageId: chakra.sentMessageId(result),
         messageStatus: result?.messages?.[0]?.message_status ?? null,
         contactWaId: result?.contacts?.[0]?.wa_id ?? null,
         contactInput: result?.contacts?.[0]?.input ?? null,
@@ -1959,7 +1959,7 @@ router.post('/send-whatsapp-template', async (req, res) => {
     });
     console.log(
       `[admin] send-whatsapp-template '${template}' to ${phone} accepted by Meta: ${JSON.stringify({
-        messageId: result?.messages?.[0]?.id ?? null,
+        messageId: chakra.sentMessageId(result),
         messageStatus: result?.messages?.[0]?.message_status ?? null,
       })}`,
     );

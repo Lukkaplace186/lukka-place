@@ -251,3 +251,18 @@ The conversations themselves live in Postgres and on the site (web/CLAUDE.md,
   conversation. web's `/admin/interactions` counts conversations straight
   from `chat_threads` instead (channel `siteChat`, "answered" =
   `agent_first_reply_at`).
+
+## Send logs carry the wamid; the OTP template delivers (2026-11-07)
+
+- **Chakra answers a send with `{ _data: { whatsappMessageId } }`**, not Meta's
+  `{ messages: [{ id }] }`. The "[admin] send-whatsapp(-template) … accepted by
+  Meta" lines read only Meta's shape, so every send printed `messageId: null`
+  and a delivered message looked like a lost one. `chakra.sentMessageId()`
+  reads both; give Chakra support the wamid when a message never arrived.
+  verify-pipeline §79.
+- **No delivery receipts reach the webhook** (`[chakra] N status event(s)` has
+  never been logged in production): only the receiving phone proves delivery.
+- **`agent_auth_otp` works.** Authentication, fr, intake account, switched on
+  as `AGENT_OTP_TEMPLATE` in web `.env.local`. A send with its copy-code
+  button was delivered to the owner's phone on 2026-11-07, so password-reset
+  codes reach cold numbers. The 2026-11-04 non-delivery did not reproduce.

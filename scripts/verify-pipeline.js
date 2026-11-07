@@ -14445,6 +14445,26 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §79 The WhatsApp message id of a send is logged (2026-11-07)
+  // ---------------------------------------------------------------------------
+  console.log('\n§79 the wamid Chakra returns is what the send logs print');
+  {
+    const chakra79 = require('../services/chakra');
+    check('Chakra\'s answer shape gives its wamid', () => {
+      assert.strictEqual(chakra79.sentMessageId({ _data: { whatsappMessageId: 'wamid.ABC' } }), 'wamid.ABC');
+    });
+    check('Meta\'s own Cloud API shape still works, and an empty answer is null', () => {
+      assert.strictEqual(chakra79.sentMessageId({ messages: [{ id: 'wamid.XYZ' }] }), 'wamid.XYZ');
+      assert.strictEqual(chakra79.sentMessageId(null), null);
+      assert.strictEqual(chakra79.sentMessageId({}), null);
+    });
+    check('both admin send routes log it through the helper', () => {
+      const src79 = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.strictEqual((src79.match(/messageId: chakra\.sentMessageId\(result\)/g) || []).length, 2);
+      assert.doesNotMatch(src79, /messageId: result\?\.messages/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

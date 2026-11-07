@@ -725,7 +725,21 @@ async function downloadVideo(ref) {
   throw new Error(`downloadVideo ${ref.id || 'url'}: ${lastError?.message || 'failed'}`);
 }
 
+/**
+ * The WhatsApp message id (wamid) of a send, or null. Chakra's plugin answers
+ * `{ _data: { whatsappMessageId } }`; Meta's own Cloud API (a sender with its
+ * own access token) answers `{ messages: [{ id }] }`. Until 2026-11-07 the
+ * logs read only the second shape, so every send through Chakra printed
+ * `messageId: null` and a delivered code looked exactly like a lost one.
+ * The id is what Chakra support needs to trace a message that never arrived
+ * (no delivery receipts reach our webhook).
+ */
+function sentMessageId(result) {
+  return result?._data?.whatsappMessageId ?? result?.messages?.[0]?.id ?? null;
+}
+
 module.exports = {
+  sentMessageId,
   sendWhatsAppMessage,
   downloadVideo,
   safeText,

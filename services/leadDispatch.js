@@ -194,6 +194,10 @@ function fallbackText(lead, agent, link) {
     '',
     `Nouvelle demande client à ${communesLabel(lead, agent)} :`,
   ];
+  // "Mon déménagement": why the customer is moving, in their answers' words
+  // (web lib/moveProjectRules.js moveStoryFr). The template has no slot for
+  // it; the dashboard card shows it either way (requirements_summary).
+  if (lead.move_story) lines.push(`• ${lead.move_story}`);
   if (lead.transaction_type) lines.push(`• Type : ${lead.transaction_type === 'vente' ? 'Achat' : 'Location'}`);
   if (lead.bedrooms != null) lines.push(`• Chambres : ${lead.bedrooms}`);
   const budget = budgetLabel(lead);

@@ -269,3 +269,25 @@ system by construction, so it is only ever counted if somebody records it.
   agencies) and not `listing-visit-request` leads (counted once, through their
   viewing request). Web adds the storefront taps and names the agents.
 - §71 of verify-pipeline.
+
+## "Mon déménagement" requests carry the customer's story (2026-11-07)
+
+Web's card-by-card signup (web/CLAUDE.md, same heading) asks why the customer
+is moving. Nothing is sent to agencies from the cards; only the customer's
+"Envoyer ma demande aux agences" tap on `/compte/client/projet` creates a lead,
+`source = 'move-project'`, through the same `POST /admin/leads` and
+`dispatchLead` as "Trouver pour moi".
+
+- **`leads.move_story`** (TEXT, idempotent ALTER): the story in French, built
+  by web's `moveStoryFr` from the answers ("Projet : nouveau travail · 5–6
+  personnes · quitte un appartement à Lingwala · entrée : dans le mois").
+  Whitespace-folded and capped at 500 characters by the route. NULL on every
+  other lead.
+- **The plain-text agency alert prints it** (`fallbackText`, one `•` line). The
+  approved template has no slot for it, so a template send does not carry it;
+  the agent's dashboard card does either way, because the story also opens the
+  lead's `requirements_summary` (AgentLeadCard shows three lines).
+- Why the questions are on the web account and not WhatsApp: a WhatsApp
+  question only reaches someone inside the 24-hour window, and a cold customer
+  needs a template for every one.
+- §80 of verify-pipeline.

@@ -1731,6 +1731,12 @@ const LEADS_EXTENDED_COLUMNS = [
   // other) and which console user recorded it. NULL on every other lead.
   ['contact_channel', 'TEXT'],
   ['recorded_by', 'TEXT'],
+  // "Mon déménagement" (2026-11-07): the customer's own story in French
+  // ("Projet : nouveau travail · 5–6 personnes · …"), built by web's
+  // lib/moveProjectRules.js moveStoryFr from what they answered. Shown to
+  // agencies in the lead alert (services/leadDispatch.js). NULL on every
+  // lead that did not come from a move project.
+  ['move_story', 'TEXT'],
 ];
 
 function migrateLeads() {
@@ -2112,6 +2118,7 @@ const LEAD_FIELDS = [
   'conversation_id', 'wa_id', 'name', 'source', 'property_id', 'transaction_type',
   'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
   'status', 'assigned_agent', 'communes', 'development_id', 'contact_channel', 'recorded_by',
+  'move_story',
 ];
 
 /**

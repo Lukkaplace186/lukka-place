@@ -7,6 +7,7 @@ import { getT } from '@/lib/i18n/server';
 import { partnerCodePrefill } from '@/lib/partnerPrefill';
 import { whatsappSignupLink } from '@/lib/whatsappSignup';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
+import MoveOnboarding from '@/components/MoveOnboarding';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -32,6 +33,49 @@ export default async function CustomerSignupPage({ searchParams }) {
   const initialCountry = typeof params.country === 'string' ? params.country : await getRequestCountry();
   const partnerCode = await partnerCodePrefill(typeof params.code === 'string' ? params.code : null);
   const whatsappHref = whatsappSignupLink(partnerCode || null);
+
+  // "Mon déménagement" (2026-11-07): the questions first, card by card, and
+  // the account form as the last card (components/MoveOnboarding.js). The
+  // plain form stays at ?direct=1 for links that want it. An error redirect
+  // reopens on the account card with the answers restored from the draft.
+  if (params.direct !== '1') {
+    return (
+      <MoveOnboarding
+        mode="signup"
+        startAtEnd={Boolean(error)}
+        signupProps={{
+          action: signupAction,
+          next,
+          error,
+          initialPhone,
+          initialCountry,
+          partnerCode,
+          phoneHintKey: 'auth.signup.phoneHint',
+        }}
+        accountFooter={
+          <>
+            {whatsappHref ? (
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="u-press mt-4 flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-bold text-ink hover:border-green"
+              >
+                <WhatsAppIcon className="h-[1.125rem] w-[1.125rem] text-green" />
+                {t('auth.whatsappSignup.cta')}
+              </a>
+            ) : null}
+            <p className="mt-5 text-center text-sm text-ink-45">
+              Déjà un compte ?{' '}
+              <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
+                {t('admin.login.submit')}
+              </Link>
+            </p>
+          </>
+        }
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">

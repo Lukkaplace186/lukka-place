@@ -361,7 +361,7 @@ export async function moderateAgentReview(id, commentStatus) {
  */
 export async function createLead({
   waId, name, source, propertyId, assignedAgent, requirementsSummary,
-  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId,
+  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId, moveStory,
 }) {
   return engineFetch('/admin/leads', {
     method: 'POST',
@@ -383,6 +383,8 @@ export async function createLead({
       price_min: priceMin,
       price_max: priceMax,
       bedrooms,
+      // "Mon déménagement" story, French (lib/moveProjectRules.js moveStoryFr).
+      move_story: moveStory,
     }),
   });
 }

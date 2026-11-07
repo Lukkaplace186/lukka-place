@@ -14465,6 +14465,43 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §80 "Mon déménagement": the customer's move story reaches agencies (2026-11-07)
+  // ---------------------------------------------------------------------------
+  console.log('\n§80 a lead carries the customer\'s move story to the agency alert');
+  {
+    const dispatch80 = require('../services/leadDispatch');
+    check('leads has a move_story column (idempotent ALTER list)', () => {
+      const cols80 = dbService.db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
+      assert.ok(cols80.includes('move_story'));
+    });
+    check('createLead stores the story, and leads without one keep NULL', () => {
+      const withStory = dbService.createLead({ wa_id: '243900000080', source: 'move-project', commune: 'Gombe', move_story: 'Projet : nouveau travail · 2 personnes' });
+      assert.strictEqual(withStory.move_story, 'Projet : nouveau travail · 2 personnes');
+      const without = dbService.createLead({ wa_id: '243900000081', source: 'guest-search-request', commune: 'Gombe' });
+      assert.strictEqual(without.move_story, null);
+    });
+    check('the plain-text agency alert prints the story; a lead without one is unchanged', () => {
+      const agent80 = { display_name: 'Agence Test' };
+      const text = dispatch80.fallbackText({ id: 1, commune: 'Gombe', transaction_type: 'location', move_story: 'Projet : la famille s’agrandit' }, agent80, 'https://x');
+      assert.match(text, /• Projet : la famille s’agrandit/);
+      const plain = dispatch80.fallbackText({ id: 2, commune: 'Gombe', transaction_type: 'location' }, agent80, 'https://x');
+      assert.doesNotMatch(plain, /Projet/);
+    });
+    check('POST /admin/leads accepts move_story, whitespace-folded and capped', () => {
+      const src80 = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(src80, /move_story: moveStoryRaw/);
+      assert.match(src80, /\.slice\(0, MAX_MOVE_STORY\)/);
+    });
+    check('the customer_move_projects migration is additive and closed to PostgREST', () => {
+      const sql80 = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261107_customer_move_projects.sql'), 'utf8');
+      assert.match(sql80, /CREATE TABLE IF NOT EXISTS customer_move_projects/);
+      assert.match(sql80, /REFERENCES customers \(id\) ON DELETE CASCADE/);
+      assert.match(sql80, /ENABLE ROW LEVEL SECURITY/);
+      assert.match(sql80, /REVOKE ALL ON customer_move_projects FROM anon, authenticated/);
+      assert.doesNotMatch(sql80.replace(/ON DELETE CASCADE/g, ''), /\bDROP\b|\bDELETE\b|\bUPDATE\b/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

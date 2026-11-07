@@ -4454,3 +4454,57 @@ tabs (`lib/adminDashboardTabs.js`, pure, `tests/unit/admin-dashboard-tabs.test.j
   min 5 rents), interest by commune/type/price band, views by commune.
 - `WorkQueues` takes `only` (the tab's queue keys, `TAB_QUEUES`) and
   `ClickBreakdown` takes `parts`; each preview links to its full, paginated page.
+
+## "Mon déménagement" — the move project and the card signup (2026-11-07)
+
+Marketing direction (2026-11-06): every move has its own story (a fourth child,
+a new job), and the product only ever asked "3 chambres à Ngaliema". Engine
+half: `docs/claude/leads-and-enquiries.md`, same heading.
+
+- **`/compte/inscription` is now the card flow** (`components/MoveOnboarding.js`):
+  one question per screen, chips, progress bar, swipe or "Suivant", then the
+  unchanged `SignupForm` as the last card (answers in a hidden `moveProject`
+  field). Cards: reasons (multi), transaction, household, bedrooms, the place
+  that matters + its commune, communes (city first, up to 5), priorities
+  (multi), budget (chips per transaction; none for a short stay), timeline,
+  current home. **Every card has "Passer" and "Créer mon compte directement"
+  jumps to the account card**: the owner cut signup to three fields on
+  2026-11-06 because steps lost customers. The old form is `?direct=1`.
+- **Drop-off is measured from day one**: each card reached beacons
+  `/api/telemetry/onboarding`, one `[onboarding] {mode,step,index,total}` log
+  line (no table). `pm2 logs lukka-place-web --lines 20000 --nostream | grep
+  '\[onboarding\]'`, count per step. If one card loses people, cut it.
+- **Answers survive** a reload or an error redirect (`lukka_move_draft_v1` in
+  localStorage, try/catch; cleared on submit). A visitor sent here by the
+  save-search prompt starts from their latest device-saved search
+  (`projectFromSearchQuery`), and the communes/budget cards are skipped when
+  that search already says them.
+- **Rules are `lib/moveProjectRules.js`** (pure, shared with the tests):
+  codes, `parseMoveProject` (unknown values dropped, never an error; NULL / []
+  = not said), `moveSearchQuery`, `moveStoryFr` / `moveCriteriaFr` (French,
+  for agencies), `moveRequestBlocker`. **Nothing is deduced**: household size
+  never becomes a bedroom count, the anchor place never becomes a commune
+  (the communes card only pre-ticks it, visibly). **Priorities are not search
+  filters** — few listings carry the utility tags, so they would hide most
+  real homes; they go to agencies in the story.
+- **Storage**: `customer_move_projects` (engine
+  `migrations/20261107_customer_move_projects.sql`, one row per customer, RLS
+  on, cascade on customer delete), `lib/moveProjects.js`. Before the migration
+  runs, reads are "no project" and writes `saved: false`; signup never fails
+  over it (`saveProjectAndAlert` never throws).
+- **On signup** the project is saved after the account exists, plus a saved
+  search from `moveSearchQuery` (alerts and Accueil's counts run on it), and
+  the customer lands on `/compte/client/projet?nouveau=1` — unless a gate sent
+  them with another `next`.
+- **`/compte/client/projet`**: the story (reasons, "Aujourd'hui", "Vous
+  cherchez", "Quand"), whether the alert is on, up to 8 matching homes
+  (`getListings`, newest, never widened; none → an honest line and a wider
+  /listings link), and **"Envoyer ma demande aux agences" — the only thing
+  that contacts anyone**: a `move-project` lead with the story, once per 20 h
+  (`MOVE_RESEND_AFTER_MS`). `/compte/client/projet/modifier` reopens the cards
+  on the stored answers and saves through `saveMoveProjectAction`.
+- **Accueil** opens with a "Mon déménagement" card (the story in one line, or
+  "Parlez-nous de votre déménagement" for an account without a project).
+  **`/admin/customers/[id]`** shows the project as the French brief.
+- `tests/unit/move-project.test.js`; `customer-easy-login.test.js` now pins the
+  new redirect line.

@@ -320,6 +320,9 @@ router.get('/demand-report', (req, res) => {
   }
 });
 
+// A move story is a few short phrases; anything longer is not one.
+const MAX_MOVE_STORY = 500;
+
 router.post('/leads', (req, res) => {
   const {
     wa_id: waId,
@@ -344,6 +347,8 @@ router.post('/leads', (req, res) => {
     bedrooms,
     // The agent a profile enquiry is addressed to (web's agents/[id] form).
     agent_id: agentIdRaw,
+    // The customer's move story (web "Mon déménagement"), French text.
+    move_story: moveStoryRaw,
   } = req.body || {};
   if (!waId) {
     return res.status(400).json({ success: false, error: 'wa_id is required.' });
@@ -368,6 +373,9 @@ router.post('/leads', (req, res) => {
       price_min: priceMin ?? null,
       price_max: priceMax ?? null,
       bedrooms: bedrooms ?? null,
+      move_story: typeof moveStoryRaw === 'string' && moveStoryRaw.trim()
+        ? moveStoryRaw.replace(/\s+/g, ' ').trim().slice(0, MAX_MOVE_STORY)
+        : null,
     });
 
     // AUTOMATED AGENT MATCHING — the event trigger.

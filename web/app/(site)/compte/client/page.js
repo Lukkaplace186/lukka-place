@@ -2,7 +2,9 @@ import { Suspense } from 'react';
 import NewSinceLastVisit from '@/components/NewSinceLastVisit';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Bell, ChevronRight, Heart, Map as MapIcon, Search, ShieldCheck, Target } from 'lucide-react';
+import { Bell, ChevronRight, Heart, Map as MapIcon, Search, ShieldCheck, Target, Truck } from 'lucide-react';
+import { getMoveProject } from '@/lib/moveProjects';
+import { communeLabel } from '@/lib/cities';
 import ClientMiniListingCard from '@/components/ClientMiniListingCard';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
@@ -166,6 +168,51 @@ async function AlertsRail({ customerId }) {
   );
 }
 
+/**
+ * "Mon déménagement" (2026-11-07): the customer's move in one line, linking
+ * to the project page — or, for someone who has not told us yet (WhatsApp
+ * signup, skipped every card, older account), an invitation to the cards.
+ */
+async function MoveProjectCard({ customerId }) {
+  const t = await getT();
+  let project = null;
+  try {
+    project = await getMoveProject(customerId);
+  } catch (err) {
+    console.warn('[compte/client] move project unavailable:', err.message);
+    return null;
+  }
+  if (!project) {
+    return (
+      <Link href="/compte/client/projet/modifier" className={`u-press flex items-center gap-3 p-4 ${CARD}`}>
+        <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-blue text-white">
+          <Truck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[0.9375rem] font-bold text-ink">{t('account.move.home.inviteTitle')}</span>
+          <span className="text-[0.8125rem] text-ink-45">{t('account.move.home.inviteLead')}</span>
+        </span>
+        <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none text-ink-35" aria-hidden="true" />
+      </Link>
+    );
+  }
+  const reasons = (project.reasons || []).filter((r) => r !== 'autre').map((r) => t(`account.move.steps.reasons.options.${r}`));
+  const where = (project.communes || []).map(communeLabel).join(', ');
+  const line = [reasons.join(' · '), where].filter(Boolean).join(' — ');
+  return (
+    <Link href="/compte/client/projet" className={`u-press flex items-center gap-3 p-4 ${CARD}`}>
+      <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-blue-tint text-blue">
+        <Truck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[0.9375rem] font-bold text-ink">{t('account.move.home.title')}</span>
+        <span className="block truncate text-[0.8125rem] text-ink-45">{line || t('account.move.home.cta')}</span>
+      </span>
+      <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none text-ink-35" aria-hidden="true" />
+    </Link>
+  );
+}
+
 /** Where the customer's "Trouver pour moi" requests stand. */
 async function RequestsSection({ customerId }) {
   const t = await getT();
@@ -236,6 +283,10 @@ export default async function EspaceClientHome({ searchParams }) {
           </p>
         ) : null}
       </div>
+
+      <Suspense fallback={<Block className="h-[4.5rem]" />}>
+        <MoveProjectCard customerId={customerId} />
+      </Suspense>
 
       {/* "N nouveaux biens depuis votre dernière visite" (client-only). */}
       <NewSinceLastVisit />

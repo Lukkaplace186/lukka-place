@@ -3506,6 +3506,204 @@
         "visits": "Visites",
         "requests": "Recherches"
       }
+    },
+    "move": {
+      "eyebrow": "Mon déménagement",
+      "skip": "Passer",
+      "next": "Suivant",
+      "back": "Retour",
+      "direct": "Créer mon compte directement",
+      "progress": "Étape {current} sur {total}",
+      "multiHint": "Plusieurs réponses possibles",
+      "steps": {
+        "reasons": {
+          "title": "Qu’est-ce qui vous amène à déménager ?",
+          "lead": "Chaque déménagement a son histoire. Racontez-nous la vôtre.",
+          "options": {
+            "famille": "La famille s’agrandit",
+            "travail": "Nouveau travail",
+            "couple": "Mariage / vie à deux",
+            "premier": "Premier logement",
+            "budget": "Réduire mon budget",
+            "achat": "Acheter au lieu de louer",
+            "retour": "Retour au pays / nouvelle ville",
+            "etudes": "Études",
+            "autre": "Autre raison"
+          },
+          "otherPlaceholder": "En quelques mots (facultatif)",
+          "cheers": {
+            "famille": "Félicitations pour la famille qui s’agrandit ! 🎉",
+            "travail": "Félicitations pour le nouveau travail ! 🎉",
+            "couple": "Tous nos vœux de bonheur ! 💍",
+            "premier": "Un premier chez-soi, quel beau moment ! 🔑",
+            "budget": "Bonne idée : nous vous aidons à trouver mieux pour moins.",
+            "achat": "Devenir propriétaire, un grand pas ! 🏡",
+            "retour": "Bienvenue ! Nous vous aidons à vous installer.",
+            "etudes": "Bonne réussite pour vos études ! 📚",
+            "autre": "Merci de nous le dire."
+          }
+        },
+        "transaction": {
+          "title": "Vous voulez…",
+          "lead": "Louer, acheter, ou un court séjour.",
+          "options": {
+            "location": "Louer",
+            "vente": "Acheter",
+            "courte": "Louer pour quelques jours"
+          }
+        },
+        "household": {
+          "title": "Vous serez combien à la maison ?",
+          "lead": "Pour que l’agent comprenne vos besoins.",
+          "options": {
+            "seul": "Seul(e)",
+            "deux": "À deux",
+            "trois_quatre": "3 à 4",
+            "cinq_six": "5 à 6",
+            "sept_plus": "7 et plus"
+          }
+        },
+        "bedrooms": {
+          "title": "Combien de chambres ?",
+          "lead": "Au minimum.",
+          "one": "1 chambre",
+          "many": "{count} chambres",
+          "max": "5 et plus",
+          "unknown": "Je ne sais pas encore"
+        },
+        "anchor": {
+          "title": "Quel lieu compte le plus pour vous ?",
+          "lead": "Pour choisir les bonnes communes.",
+          "options": {
+            "travail": "Mon travail",
+            "ecole": "L’école des enfants",
+            "famille": "La famille",
+            "aucun": "Peu importe"
+          },
+          "communeLabel": "Dans quelle commune ?",
+          "communePlaceholder": "Choisir une commune",
+          "noteLabel": "Nom du lieu (facultatif)"
+        },
+        "communes": {
+          "title": "Dans quelles communes aimeriez-vous vivre ?",
+          "lead": "Jusqu’à 5 communes.",
+          "cityLabel": "Ville",
+          "limit": "5 communes au maximum."
+        },
+        "priorities": {
+          "title": "Qu’est-ce qui compte le plus pour vous ?",
+          "lead": "Nous le dirons aux agences.",
+          "options": {
+            "electricite": "Électricité stable",
+            "eau": "Eau",
+            "securite": "Sécurité",
+            "acces": "Accès facile",
+            "cour": "Une cour",
+            "parking": "Parking"
+          }
+        },
+        "budget": {
+          "title": "Quel est votre budget ?",
+          "leadRent": "Loyer maximum par mois.",
+          "leadBuy": "Prix d’achat maximum.",
+          "upTo": "Jusqu’à {amount}",
+          "unknown": "Je ne sais pas encore",
+          "priceGuide": "Voir les prix par commune"
+        },
+        "timeline": {
+          "title": "Pour quand ?",
+          "lead": "Quand aimeriez-vous emménager ?",
+          "options": {
+            "asap": "Dès que possible",
+            "un_mois": "Dans le mois",
+            "trois_mois": "Dans 1 à 3 mois",
+            "regarde": "Je regarde seulement"
+          }
+        },
+        "current": {
+          "title": "Où vivez-vous aujourd’hui ?",
+          "lead": "Facultatif : pour que l’agent comprenne votre projet.",
+          "options": {
+            "appartement": "Un appartement",
+            "maison": "Une maison",
+            "studio": "Un studio",
+            "chambre": "Une chambre",
+            "famille": "Chez ma famille"
+          },
+          "communeLabel": "Commune (facultatif)"
+        }
+      },
+      "account": {
+        "title": "Créez votre espace",
+        "lead": "Votre projet sera enregistré, et vous recevrez les nouveaux biens qui y correspondent.",
+        "noAnswers": "Vous pourrez raconter votre projet plus tard, depuis votre espace.",
+        "summary": {
+          "one": "{count} réponse enregistrée",
+          "other": "{count} réponses enregistrées"
+        }
+      },
+      "edit": {
+        "title": "Votre projet est prêt",
+        "lead": "Enregistrez-le : nous préparons les biens et l’alerte qui y correspondent.",
+        "save": "Enregistrer mon projet",
+        "saving": "Enregistrement…",
+        "error": "Le projet n’a pas pu être enregistré. Réessayez dans un instant."
+      },
+      "page": {
+        "metaTitle": "Mon déménagement — Lukka Place",
+        "title": "Mon déménagement",
+        "welcome": "Bienvenue {name} ! Votre espace est prêt.",
+        "storyTitle": "Votre projet",
+        "from": "Aujourd’hui : {place}",
+        "to": "Vous cherchez : {what}",
+        "when": "Quand : {when}",
+        "anywhere": "commune à choisir",
+        "edit": "Modifier mon projet",
+        "empty": {
+          "title": "Racontez-nous votre déménagement",
+          "lead": "Quelques questions, une minute : nous préparons les biens et les alertes qui vous correspondent.",
+          "cta": "Commencer"
+        },
+        "results": {
+          "title": "Biens qui correspondent",
+          "count": {
+            "one": "{count} bien en ligne",
+            "other": "{count} biens en ligne"
+          },
+          "seeAll": "Voir tous les résultats",
+          "none": "Aucun bien en ligne ne correspond exactement à votre projet pour l’instant.",
+          "noneHint": "Envoyez votre demande aux agences, ou élargissez la recherche.",
+          "widen": "Élargir la recherche",
+          "noQuery": "Dites-nous si vous voulez louer ou acheter, ou choisissez une commune, pour voir des biens.",
+          "error": "Les biens n’ont pas pu être chargés. Réessayez dans un instant."
+        },
+        "alertOn": "Alerte active : nous vous prévenons des nouveaux biens qui correspondent à votre projet.",
+        "request": {
+          "title": "Laissez les agences vous proposer des biens",
+          "lead": "Nous envoyons votre projet aux agences des communes choisies. Elles vous écriront sur WhatsApp.",
+          "cta": "Envoyer ma demande aux agences",
+          "sending": "Envoi…",
+          "sent": "Demande envoyée le {date}. Les propositions des agences arrivent dans vos messages.",
+          "sentNow": "Demande envoyée. Les propositions des agences arriveront dans vos messages.",
+          "seeMessages": "Voir mes messages",
+          "privacy": "Votre numéro est transmis aux agences qui reçoivent votre demande et à l’équipe Lukka Place, et à personne d’autre.",
+          "missing": {
+            "transaction": "Pour envoyer votre demande, dites-nous si vous voulez louer ou acheter.",
+            "communes": "Pour envoyer votre demande, choisissez au moins une commune."
+          },
+          "errors": {
+            "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant.",
+            "recent": "Votre demande a déjà été envoyée aujourd’hui. Les agences vous répondront dans vos messages."
+          }
+        }
+      },
+      "home": {
+        "title": "Mon déménagement",
+        "cta": "Voir mon projet",
+        "inviteTitle": "Parlez-nous de votre déménagement",
+        "inviteLead": "Une minute pour que nous vous montrions les bons biens.",
+        "inviteCta": "Commencer"
+      }
     }
   },
   "admin": {
@@ -4534,7 +4732,10 @@
       "delete": "Supprimer le compte",
       "deleteTitle": "Supprimer ce compte client ?",
       "deleteBody": "Le compte, ses favoris et ses alertes sont supprimés définitivement et la personne est déconnectée. Ses demandes et visites restent dans Prospects et Visites.",
-      "deleted": "Compte client supprimé."
+      "deleted": "Compte client supprimé.",
+      "moveTitle": "Projet de déménagement",
+      "moveNone": "Aucun projet raconté.",
+      "moveUpdated": "Mis à jour le {date}"
     },
     "benchmarks": {
       "title": "Prix de référence",

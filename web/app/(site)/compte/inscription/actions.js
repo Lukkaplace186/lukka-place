@@ -13,10 +13,24 @@ import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 import { normalisePartnerCode } from '@/lib/partnerRules';
 import { findActivePartnerByCode } from '@/lib/partners';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { parseMoveProject } from '@/lib/moveProjectRules';
+import { saveProjectAndAlert } from '@/lib/moveProjects';
+import { getT } from '@/lib/i18n/server';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
   return next.startsWith('/') && !next.startsWith('//') ? next : '/compte/client';
+}
+
+/** The hidden `moveProject` field (components/MoveOnboarding.js), validated. */
+function parseMoveProjectField(value) {
+  let raw = {};
+  try {
+    raw = JSON.parse(String(value || '{}'));
+  } catch {
+    raw = {};
+  }
+  return parseMoveProject(raw);
 }
 
 function parseAnonymousData(formData) {
@@ -97,6 +111,15 @@ export async function signupAction(formData) {
     await mergeAnonymousData(customer.id, { favoriteIds, savedSearches });
   }
 
+  // "Mon déménagement" (2026-11-07): what the customer said on the cards
+  // before this one becomes their project and an alert. Never blocks the
+  // account (saveProjectAndAlert never throws).
+  const { project, hasAnswers } = parseMoveProjectField(formData.get('moveProject'));
+  if (hasAnswers) {
+    const { saved, alert } = await saveProjectAndAlert(Number(customer.id), project, await getT());
+    console.log(`[move-project] signup customer #${customer.id} saved=${saved} alert=${alert || 'none'} steps=${project.answeredSteps.length}`);
+  }
+
   // Signed in, done: number + password is the whole signup (2026-11-06,
   // owner decision). No code is sent and no verification page follows.
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
@@ -105,5 +128,7 @@ export async function signupAction(formData) {
   // which no longer exists: an account created is a registration completed.
   await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone });
 
-  redirect(next);
+  // Someone who told us about their move lands on it, with the homes that
+  // match — unless a gate sent them here from somewhere they want to return to.
+  redirect(hasAnswers && next === '/compte/client' ? '/compte/client/projet?nouveau=1' : next);
 }

@@ -33,6 +33,8 @@ export default function SignupForm({
   // whether a code is actually sent depends on a server-only flag
   // (lib/otpBypass.js) that a client component cannot read.
   phoneHintKey = 'auth.signup.phoneHint',
+  // Extra hidden fields from the caller — MoveOnboarding's `moveProject`.
+  children = null,
 }) {
   const t = useT();
   const locale = useLocale();
@@ -50,6 +52,7 @@ export default function SignupForm({
       <input type="hidden" name="next" value={next} />
       <input type="hidden" name="favoriteIds" />
       <input type="hidden" name="savedSearches" />
+      {children}
 
       <div>
         <label htmlFor="fullName" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">

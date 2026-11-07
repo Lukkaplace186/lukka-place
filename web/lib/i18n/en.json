@@ -3506,6 +3506,204 @@
         "visits": "Viewings",
         "requests": "Searches"
       }
+    },
+    "move": {
+      "eyebrow": "My Move",
+      "skip": "Skip",
+      "next": "Next",
+      "back": "Back",
+      "direct": "Just create my account",
+      "progress": "Step {current} of {total}",
+      "multiHint": "Pick as many as apply",
+      "steps": {
+        "reasons": {
+          "title": "What’s Behind Your Move?",
+          "lead": "Every move has its own story. Tell us yours.",
+          "options": {
+            "famille": "Our family is growing",
+            "travail": "A new job",
+            "couple": "Marriage / moving in together",
+            "premier": "My first home",
+            "budget": "Spending less on housing",
+            "achat": "Buying instead of renting",
+            "retour": "Coming home / a new city",
+            "etudes": "Studies",
+            "autre": "Another reason"
+          },
+          "otherPlaceholder": "In a few words (optional)",
+          "cheers": {
+            "famille": "Congratulations on your growing family! 🎉",
+            "travail": "Congratulations on the new job! 🎉",
+            "couple": "Wishing you every happiness! 💍",
+            "premier": "A first home of your own, what a moment! 🔑",
+            "budget": "Good call: we’ll help you find better for less.",
+            "achat": "Becoming an owner is a big step! 🏡",
+            "retour": "Welcome! We’ll help you settle in.",
+            "etudes": "Good luck with your studies! 📚",
+            "autre": "Thank you for telling us."
+          }
+        },
+        "transaction": {
+          "title": "You Want To…",
+          "lead": "Rent, buy, or a short stay.",
+          "options": {
+            "location": "Rent",
+            "vente": "Buy",
+            "courte": "Rent for a few days"
+          }
+        },
+        "household": {
+          "title": "How Many of You Will Live There?",
+          "lead": "So the agent understands what you need.",
+          "options": {
+            "seul": "Just me",
+            "deux": "Two of us",
+            "trois_quatre": "3 to 4",
+            "cinq_six": "5 to 6",
+            "sept_plus": "7 or more"
+          }
+        },
+        "bedrooms": {
+          "title": "How Many Bedrooms?",
+          "lead": "At least.",
+          "one": "1 bedroom",
+          "many": "{count} bedrooms",
+          "max": "5 or more",
+          "unknown": "Not sure yet"
+        },
+        "anchor": {
+          "title": "Which Place Matters Most to You?",
+          "lead": "To help choose the right communes.",
+          "options": {
+            "travail": "My work",
+            "ecole": "The children’s school",
+            "famille": "Family",
+            "aucun": "Doesn’t matter"
+          },
+          "communeLabel": "In which commune?",
+          "communePlaceholder": "Choose a commune",
+          "noteLabel": "Name of the place (optional)"
+        },
+        "communes": {
+          "title": "Which Communes Would You like to Live In?",
+          "lead": "Up to 5 communes.",
+          "cityLabel": "City",
+          "limit": "5 communes at most."
+        },
+        "priorities": {
+          "title": "What Matters Most to You?",
+          "lead": "We’ll tell the agencies.",
+          "options": {
+            "electricite": "Reliable electricity",
+            "eau": "Water",
+            "securite": "Security",
+            "acces": "Easy access",
+            "cour": "A yard",
+            "parking": "Parking"
+          }
+        },
+        "budget": {
+          "title": "What’s Your Budget?",
+          "leadRent": "Maximum rent per month.",
+          "leadBuy": "Maximum purchase price.",
+          "upTo": "Up to {amount}",
+          "unknown": "Not sure yet",
+          "priceGuide": "See prices by commune"
+        },
+        "timeline": {
+          "title": "When?",
+          "lead": "When would you like to move in?",
+          "options": {
+            "asap": "As soon as possible",
+            "un_mois": "Within a month",
+            "trois_mois": "In 1 to 3 months",
+            "regarde": "Just looking"
+          }
+        },
+        "current": {
+          "title": "Where Do You Live Today?",
+          "lead": "Optional: it helps the agent understand your move.",
+          "options": {
+            "appartement": "An apartment",
+            "maison": "A house",
+            "studio": "A studio",
+            "chambre": "A room",
+            "famille": "With my family"
+          },
+          "communeLabel": "Commune (optional)"
+        }
+      },
+      "account": {
+        "title": "Create Your Space",
+        "lead": "Your move will be saved, and we’ll send you new homes that match it.",
+        "noAnswers": "You can tell us about your move later, from your space.",
+        "summary": {
+          "one": "{count} answer saved",
+          "other": "{count} answers saved"
+        }
+      },
+      "edit": {
+        "title": "Your Move Is Ready",
+        "lead": "Save it: we’ll prepare the homes and the alert that match it.",
+        "save": "Save My Move",
+        "saving": "Saving…",
+        "error": "Your move could not be saved. Please try again in a moment."
+      },
+      "page": {
+        "metaTitle": "My Move — Lukka Place",
+        "title": "My Move",
+        "welcome": "Welcome {name}! Your space is ready.",
+        "storyTitle": "Your Move",
+        "from": "Today: {place}",
+        "to": "Looking for: {what}",
+        "when": "When: {when}",
+        "anywhere": "commune to choose",
+        "edit": "Edit my move",
+        "empty": {
+          "title": "Tell Us About Your Move",
+          "lead": "A few questions, one minute: we’ll prepare the homes and alerts that suit you.",
+          "cta": "Start"
+        },
+        "results": {
+          "title": "Homes That Match",
+          "count": {
+            "one": "{count} home online",
+            "other": "{count} homes online"
+          },
+          "seeAll": "See all results",
+          "none": "No home online matches your move exactly yet.",
+          "noneHint": "Send your request to the agencies, or widen the search.",
+          "widen": "Widen the search",
+          "noQuery": "Tell us whether you want to rent or buy, or pick a commune, to see homes.",
+          "error": "Homes could not be loaded. Please try again in a moment."
+        },
+        "alertOn": "Alert on: we’ll tell you about new homes that match your move.",
+        "request": {
+          "title": "Let Agencies Suggest Homes",
+          "lead": "We send your move to the agencies in the communes you chose. They’ll write to you on WhatsApp.",
+          "cta": "Send my request to agencies",
+          "sending": "Sending…",
+          "sent": "Request sent on {date}. Agencies’ suggestions arrive in your messages.",
+          "sentNow": "Request sent. Agencies’ suggestions will arrive in your messages.",
+          "seeMessages": "See my messages",
+          "privacy": "Your number goes to the agencies that receive your request and to the Lukka Place team, and nobody else.",
+          "missing": {
+            "transaction": "To send your request, tell us whether you want to rent or buy.",
+            "communes": "To send your request, pick at least one commune."
+          },
+          "errors": {
+            "send": "Your request could not be sent. Please try again in a moment.",
+            "recent": "Your request was already sent today. Agencies will answer in your messages."
+          }
+        }
+      },
+      "home": {
+        "title": "My Move",
+        "cta": "See my move",
+        "inviteTitle": "Tell Us About Your Move",
+        "inviteLead": "One minute, so we can show you the right homes.",
+        "inviteCta": "Start"
+      }
     }
   },
   "admin": {
@@ -4534,7 +4732,10 @@
       "delete": "Delete account",
       "deleteTitle": "Delete This Customer Account?",
       "deleteBody": "The account, its saved listings and alerts are deleted for good and the person is signed out. Their requests and visits stay in Leads and Viewings.",
-      "deleted": "Customer account deleted."
+      "deleted": "Customer account deleted.",
+      "moveTitle": "Move Project",
+      "moveNone": "No move described.",
+      "moveUpdated": "Updated {date}"
     },
     "benchmarks": {
       "title": "Benchmark Pricing",

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, CalendarClock, Heart, Mail, MessageCircle, Search } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Heart, Mail, MessageCircle, Search, Truck } from 'lucide-react';
+import { getMoveProject } from '@/lib/moveProjects';
+import { moveCriteriaFr, moveStoryFr } from '@/lib/moveProjectRules';
 import { adminGetCustomerProfile, listSavedSearches } from '@/lib/customers';
 import { listConversations, listLeads, listViewingFeed } from '@/lib/adminApi';
 import { getListingLabels } from '@/lib/adminLeadRouting';
@@ -54,6 +56,7 @@ export default async function AdminCustomerDetailPage({ params }) {
   const conversations = conversationsResult.status === 'fulfilled' ? conversationsResult.value.data.filter((row) => row.wa_id === phone) : [];
   const engineError = [leadsResult, viewingsResult, conversationsResult].some((r) => r.status === 'rejected');
   const favoriteLabels = await getListingLabels(customer.favorite_ids.slice(0, 30)).catch(() => new Map());
+  const moveProject = await getMoveProject(customer.id).catch(() => null);
 
   const activity = [
     ...leads.map((lead) => ({
@@ -120,6 +123,24 @@ export default async function AdminCustomerDetailPage({ params }) {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex flex-col gap-5">
+          {/* "Mon déménagement" — the customer's own answers, in the French
+              brief agencies receive (lib/moveProjectRules.js). */}
+          <section className="u-card flex flex-col gap-2 rounded-card bg-surface p-5">
+            <h2 className="u-title-card flex items-center gap-2 text-ink">
+              <Truck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-35" />
+              {t('admin.customers.moveTitle')}
+            </h2>
+            {moveProject && (moveStoryFr(moveProject) || moveCriteriaFr(moveProject)) ? (
+              <>
+                {moveStoryFr(moveProject) ? <p className="u-micro text-ink">{moveStoryFr(moveProject)}</p> : null}
+                {moveCriteriaFr(moveProject) ? <p className="u-micro text-ink-70">{moveCriteriaFr(moveProject)}</p> : null}
+                <p className="u-micro text-ink-45">{t('admin.customers.moveUpdated', { date: formatKinshasa(moveProject.updatedAt) })}</p>
+              </>
+            ) : (
+              <p className="u-micro text-ink-45">{t('admin.customers.moveNone')}</p>
+            )}
+          </section>
+
           <section className="u-card flex flex-col gap-3 rounded-card bg-surface p-5">
             <h2 className="u-title-card text-ink">{t('admin.customerProfile.activityTitle')}</h2>
             {activity.length === 0 ? (

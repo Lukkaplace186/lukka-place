@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
@@ -29,12 +29,29 @@ const PILL = 'flex flex-none items-center gap-1.5 rounded-full px-3 text-[0.7812
 export default function ProjectStepper({ view, projectId, status, stageAction }) {
   const t = useT();
   const router = useRouter();
-  const { showToast } = useToast();
+  const { showToast, dismissToast } = useToast();
+  // One stage message at a time (owner, 2026-11-07: two "Étape mise à jour"
+  // toasts stacked read as two changes). A new one replaces the last.
+  const lastToast = useRef(null);
+  const toast = (opts) => {
+    if (lastToast.current != null) dismissToast(lastToast.current);
+    lastToast.current = showToast(opts);
+  };
+  const strip = useRef(null);
   const [, startTransition] = useTransition();
   const [local, setLocal] = useState({ current: view.current, manual: view.manual });
   const found = status === 'found';
   const currentIndex = MOVE_STAGES.indexOf(local.current);
   const label = (stage) => t(`account.move.stages.${stage}`);
+
+  // The current step stays in view on a narrow phone (the strip scrolls
+  // sideways; "Plan" was cut off at the left edge). Horizontal only.
+  useEffect(() => {
+    const ol = strip.current;
+    const el = ol?.querySelector('[data-current="true"]');
+    if (!ol || !el) return;
+    ol.scrollTo({ left: Math.max(0, el.offsetLeft - (ol.clientWidth - el.offsetWidth) / 2), behavior: 'smooth' });
+  }, [local.current]);
 
   async function save(stage) {
     try {
@@ -53,11 +70,11 @@ export default function ProjectStepper({ view, projectId, status, stageAction })
       const result = await save(stage);
       if (!result?.ok) {
         setLocal(previous);
-        showToast({ type: 'error', message: t('account.move.stages.saveError') });
+        toast({ type: 'error', message: t('account.move.stages.saveError') });
         return;
       }
       router.refresh();
-      showToast({
+      toast({
         message: t('account.move.stages.updated', { stage: label(stage) }),
         action: {
           label: t('account.move.stages.undo'),
@@ -78,12 +95,12 @@ export default function ProjectStepper({ view, projectId, status, stageAction })
     startTransition(async () => {
       const result = await save('auto');
       if (!result?.ok) {
-        showToast({ type: 'error', message: t('account.move.stages.saveError') });
+        toast({ type: 'error', message: t('account.move.stages.saveError') });
         return;
       }
       setLocal({ current: view.proven[view.proven.length - 1] || 'projet', manual: false });
       router.refresh();
-      showToast({
+      toast({
         message: t('account.move.stages.backToAutoDone'),
         action: {
           label: t('account.move.stages.undo'),
@@ -101,7 +118,7 @@ export default function ProjectStepper({ view, projectId, status, stageAction })
 
   return (
     <div className="flex flex-col gap-1.5">
-      <ol className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label={t('account.move.stages.label')}>
+      <ol ref={strip} className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label={t('account.move.stages.label')}>
         {MOVE_STAGES.map((stage, i) => {
           const reached = i <= currentIndex;
           const isCurrent = i === currentIndex;
@@ -113,7 +130,7 @@ export default function ProjectStepper({ view, projectId, status, stageAction })
               : 'border border-dashed border-blue/50 font-semibold text-blue-deep';
           const mark = reached
             ? <Check strokeWidth={2.5} className={cn('h-3.5 w-3.5', !proven && 'rounded-full outline-1 outline-dashed outline-offset-1')} aria-hidden="true" />
-            : <span aria-hidden="true">{i + 1}</span>;
+            : <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full border-2 border-current opacity-60" />;
           const content = (
             <>
               {mark}
@@ -124,7 +141,7 @@ export default function ProjectStepper({ view, projectId, status, stageAction })
           if (settable) {
             return (
               <li key={stage} className="flex-none">
-                <button type="button" onClick={() => choose(stage)} aria-label={t('account.move.stages.markAs', { stage: label(stage) })} className={cn('u-press', PILL, tone)}>
+                <button type="button" onClick={() => choose(stage)} aria-label={t('account.move.stages.markAs', { stage: label(stage) })} data-current={isCurrent || undefined} className={cn('u-press', PILL, tone)}>
                   {content}
                 </button>
               </li>
@@ -133,19 +150,19 @@ export default function ProjectStepper({ view, projectId, status, stageAction })
           if (stage === 'trouve' && !found) {
             return (
               <li key={stage} className="flex-none">
-                <Link href={`/compte/client/projet/${projectId}?confirmer=trouve#statut`} className={cn('u-press', PILL, tone)}>{content}</Link>
+                <Link href={`/compte/client/projet/${projectId}?confirmer=trouve#statut`} data-current={isCurrent || undefined} className={cn('u-press', PILL, tone)}>{content}</Link>
               </li>
             );
           }
           if (stage === 'installe' && found && !reached) {
             return (
               <li key={stage} className="flex-none">
-                <Link href={`/compte/client/projet/${projectId}?installe=1#checkin`} className={cn('u-press', PILL, tone)}>{content}</Link>
+                <Link href={`/compte/client/projet/${projectId}?installe=1#checkin`} data-current={isCurrent || undefined} className={cn('u-press', PILL, tone)}>{content}</Link>
               </li>
             );
           }
           return (
-            <li key={stage} aria-current={isCurrent ? 'step' : undefined} className={cn(PILL, tone)}>{content}</li>
+            <li key={stage} aria-current={isCurrent ? 'step' : undefined} data-current={isCurrent || undefined} className={cn(PILL, tone)}>{content}</li>
           );
         })}
       </ol>

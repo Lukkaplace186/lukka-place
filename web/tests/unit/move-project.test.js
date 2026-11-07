@@ -399,6 +399,12 @@ test('the customer sets their stage forward or back; events become proof and hin
   assert.match(stepper, /\?installe=1#checkin/, '"Installé" opens the check-in');
   assert.match(stepper, /label: t\('account\.move\.stages\.undo'\)/, 'every change offers Annuler');
   assert.match(stepper, /if \(found \|\| stage === local\.current \|\| !MOVE_MANUAL_STAGES\.includes\(stage\)\) return;/, 'tapping the current step does nothing');
+  // "3 Demande envoyée" read as "3 requests sent" (owner, 2026-11-07): no
+  // step numbers, an empty circle marks a step ahead; one toast at a time;
+  // the current step scrolled into view.
+  assert.doesNotMatch(stepper, /\{i \+ 1\}/);
+  assert.match(stepper, /if \(lastToast\.current != null\) dismissToast\(lastToast\.current\);/);
+  assert.match(stepper, /querySelector\('\[data-current="true"\]'\)/);
   const page = read('app/(site)/compte/client/projet/[id]/page.js');
   assert.match(page, /if \(lead && at\(lead\.created_at\) >= since\) hasRequest = true;/, 'any request since the project counts');
 });

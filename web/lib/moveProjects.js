@@ -3,22 +3,34 @@ import { cache } from 'react';
 import { getPool } from './db';
 import { addSavedSearch } from './customers';
 import { buildSearchLabel } from './searchLabel';
-import { moveSearchQuery } from './moveProjectRules';
+import { MAX_MOVE_PROJECTS, moveSearchQuery } from './moveProjectRules';
 
 /**
- * customer_move_projects (engine migrations/20261107_customer_move_projects.sql),
- * one row per customer. Rules and shapes: lib/moveProjectRules.js.
+ * customer_move_projects — up to MAX_MOVE_PROJECTS (5) per customer since
+ * migrations/20261107_move_projects_multiple.sql (owner, 2026-11-07). Rules
+ * and shapes: lib/moveProjectRules.js.
  *
- * Survives running before the migration: a missing table (42P01) reads as
- * "no project" and a write reports `saved: false` — signup itself never
- * fails because of it.
+ * Every statement is scoped `customer_id = $1` from the session — a project
+ * id alone never reaches another customer's row.
+ *
+ * Survives running before its migrations:
+ *  - no table (42P01): no projects; writes report `saved: false`;
+ *  - before the multiple-projects migration (no `id` / `title`, 42703): one
+ *    project per customer, addressed as id 0, saved with the old upsert;
+ *  - before the budget_min migration: saved without the lower budget end.
+ * Signup never fails over any of it (saveProjectAndAlert never throws).
  */
 
-const MISSING = new Set(['42P01', '42703']);
+const MISSING_TABLE = '42P01';
+const MISSING_COLUMN = '42703';
+/** The id a pre-migration (one-per-customer) row is addressed by. */
+export const LEGACY_PROJECT_ID = 0;
 
 function fromRow(row) {
   if (!row) return null;
   return {
+    id: row.id != null ? Number(row.id) : LEGACY_PROJECT_ID,
+    title: row.title ?? null,
     reasons: row.reasons || [],
     reasonOther: row.reason_other,
     transactionType: row.transaction_type,
@@ -31,7 +43,6 @@ function fromRow(row) {
     city: row.city,
     communes: row.communes || [],
     priorities: row.priorities || [],
-    // SELECT * — absent (undefined) before migrations/20261107_move_project_budget_min.sql.
     budgetMin: row.budget_min ?? null,
     budgetMax: row.budget_max,
     timeline: row.timeline,
@@ -45,91 +56,165 @@ function fromRow(row) {
   };
 }
 
-export const getMoveProject = cache(async (customerId) => {
+/** The customer's projects, oldest first (the order they were told). */
+export const listMoveProjects = cache(async (customerId) => {
   try {
-    const { rows } = await getPool().query(`SELECT * FROM customer_move_projects WHERE customer_id = $1`, [customerId]);
-    return fromRow(rows[0]);
+    const { rows } = await getPool().query(
+      // created_at only: `id` does not exist before the multiple-projects migration.
+      `SELECT * FROM customer_move_projects WHERE customer_id = $1 ORDER BY created_at`,
+      [customerId],
+    );
+    return rows.map(fromRow);
   } catch (err) {
-    if (MISSING.has(err.code)) return null;
+    if (err.code === MISSING_TABLE) return [];
     throw err;
   }
 });
 
-/**
- * Upserts the whole project (a re-run of the cards replaces every answer, so
- * an answer the customer cleared is cleared here too). `project` must come
- * from parseMoveProject.
- *
- * @returns {Promise<{saved: boolean}>}
- */
-function upsertSql(withBudgetMin) {
-  const minCol = withBudgetMin ? ', budget_min' : '';
-  const minVal = withBudgetMin ? ', $19' : '';
-  const minSet = withBudgetMin ? ' budget_min = EXCLUDED.budget_min,' : '';
-  return `INSERT INTO customer_move_projects (
-         customer_id, reasons, reason_other, transaction_type, lease_term, household, bedrooms_min,
-         anchor_kind, anchor_commune, anchor_note, city, communes, priorities, budget_max, timeline,
-         current_home_type, current_commune, answered_steps${minCol})
-       VALUES ($1, $2::text[], $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::text[], $13::text[], $14, $15, $16, $17, $18::text[]${minVal})
-       ON CONFLICT (customer_id) DO UPDATE SET
-         reasons = EXCLUDED.reasons, reason_other = EXCLUDED.reason_other,
-         transaction_type = EXCLUDED.transaction_type, lease_term = EXCLUDED.lease_term,
-         household = EXCLUDED.household, bedrooms_min = EXCLUDED.bedrooms_min,
-         anchor_kind = EXCLUDED.anchor_kind, anchor_commune = EXCLUDED.anchor_commune, anchor_note = EXCLUDED.anchor_note,
-         city = EXCLUDED.city, communes = EXCLUDED.communes, priorities = EXCLUDED.priorities,
-         budget_max = EXCLUDED.budget_max,${minSet} timeline = EXCLUDED.timeline,
-         current_home_type = EXCLUDED.current_home_type, current_commune = EXCLUDED.current_commune,
-         answered_steps = EXCLUDED.answered_steps, updated_at = NOW()`;
+/** One of the customer's own projects, or null (someone else's id reads as missing). */
+export async function getMoveProject(customerId, projectId) {
+  const id = Number(projectId);
+  if (!Number.isInteger(id) || id < 0) return null;
+  return (await listMoveProjects(customerId)).find((p) => p.id === id) || null;
 }
 
-export async function saveMoveProject(customerId, project) {
-  const p = project;
-  const values = [
-    customerId, p.reasons, p.reasonOther, p.transactionType, p.leaseTerm, p.household, p.bedroomsMin,
+// Column list shared by every write, in this order: $2.. of the values below.
+const COLUMNS = [
+  'reasons', 'reason_other', 'transaction_type', 'lease_term', 'household', 'bedrooms_min',
+  'anchor_kind', 'anchor_commune', 'anchor_note', 'city', 'communes', 'priorities', 'budget_max', 'timeline',
+  'current_home_type', 'current_commune', 'answered_steps', 'budget_min', 'title',
+];
+const ARRAY_COLUMNS = new Set(['reasons', 'communes', 'priorities', 'answered_steps']);
+
+function projectValues(p, title) {
+  return [
+    p.reasons, p.reasonOther, p.transactionType, p.leaseTerm, p.household, p.bedroomsMin,
     p.anchorKind, p.anchorCommune, p.anchorNote, p.city, p.communes, p.priorities, p.budgetMax, p.timeline,
-    p.currentHomeType, p.currentCommune, p.answeredSteps,
+    p.currentHomeType, p.currentCommune, p.answeredSteps, p.budgetMin ?? null, title ?? null,
   ];
-  try {
-    await getPool().query(upsertSql(true), [...values, p.budgetMin ?? null]);
-    return { saved: true };
-  } catch (err) {
-    // budget_min arrives with its own migration; until then the rest saves.
-    if (err.code === '42703') {
-      try {
-        await getPool().query(upsertSql(false), values);
-        console.warn('[move-project] budget_min missing, saved without it (run migrations/20261107_move_project_budget_min.sql)');
-        return { saved: true };
-      } catch (retryErr) {
-        if (MISSING.has(retryErr.code)) return { saved: false };
-        throw retryErr;
-      }
+}
+
+/** Columns and values without the ones a pre-migration table lacks. */
+function writable({ withTitle, withBudgetMin }) {
+  return COLUMNS.map((c, i) => ({ c, i })).filter(({ c }) => (c !== 'title' || withTitle) && (c !== 'budget_min' || withBudgetMin));
+}
+
+const cast = (c, n) => (ARRAY_COLUMNS.has(c) ? `$${n}::text[]` : `$${n}`);
+
+/**
+ * The one-row-per-customer upsert, used only before the multiple-projects
+ * migration (the table's key is still customer_id then).
+ */
+async function legacyUpsert(customerId, project) {
+  const values = projectValues(project, null);
+  for (const withBudgetMin of [true, false]) {
+    const cols = writable({ withTitle: false, withBudgetMin });
+    const sql = `INSERT INTO customer_move_projects (customer_id, ${cols.map(({ c }) => c).join(', ')})
+       VALUES ($1, ${cols.map(({ c }, k) => cast(c, k + 2)).join(', ')})
+       ON CONFLICT (customer_id) DO UPDATE SET
+       ${cols.map(({ c }) => `${c} = EXCLUDED.${c}`).join(', ')}, updated_at = NOW()`;
+    try {
+      await getPool().query(sql, [customerId, ...cols.map(({ i }) => values[i])]);
+      return { saved: true, id: LEGACY_PROJECT_ID };
+    } catch (err) {
+      if (err.code === MISSING_COLUMN && withBudgetMin) continue;
+      if (err.code === MISSING_TABLE) return { saved: false, id: null };
+      throw err;
     }
-    if (MISSING.has(err.code)) {
+  }
+  return { saved: false, id: null };
+}
+
+/**
+ * A new project, refused past MAX_MOVE_PROJECTS by a COUNT guard in the same
+ * INSERT (soft by design, like favourites and saved searches).
+ * @returns {Promise<{saved: boolean, id: number|null, limit?: boolean}>}
+ */
+export async function createMoveProject(customerId, project, title = null) {
+  const values = projectValues(project, title);
+  const cols = writable({ withTitle: true, withBudgetMin: true });
+  const n = cols.length + 2;
+  try {
+    const { rows } = await getPool().query(
+      `INSERT INTO customer_move_projects (customer_id, ${cols.map(({ c }) => c).join(', ')})
+       SELECT $1, ${cols.map(({ c }, k) => cast(c, k + 2)).join(', ')}
+        WHERE (SELECT COUNT(*) FROM customer_move_projects WHERE customer_id = $1) < $${n}
+       RETURNING id`,
+      [customerId, ...cols.map(({ i }) => values[i]), MAX_MOVE_PROJECTS],
+    );
+    if (!rows.length) return { saved: false, id: null, limit: true };
+    return { saved: true, id: Number(rows[0].id) };
+  } catch (err) {
+    if (err.code === MISSING_COLUMN) return legacyUpsert(customerId, project);
+    if (err.code === MISSING_TABLE) {
       console.warn('[move-project] table missing, project not saved (run migrations/20261107_customer_move_projects.sql)');
-      return { saved: false };
+      return { saved: false, id: null };
     }
     throw err;
   }
 }
 
 /**
- * What the answers do on save: the project row, plus a saved search (the
- * daily alerts and Accueil's "N nouveaux" run on it) when the project names
- * a transaction or a commune. The search label is built like every other
- * saved search's (lib/searchLabel.js), in the customer's language.
+ * Replaces every answer of one of the customer's projects (an answer the
+ * customer cleared is cleared here too).
+ * @returns {Promise<{saved: boolean, id: number|null}>}
+ */
+export async function updateMoveProject(customerId, projectId, project, title = null) {
+  const id = Number(projectId);
+  if (id === LEGACY_PROJECT_ID) return legacyUpsert(customerId, project);
+  const values = projectValues(project, title);
+  const cols = writable({ withTitle: true, withBudgetMin: true });
+  try {
+    const { rowCount } = await getPool().query(
+      `UPDATE customer_move_projects
+          SET ${cols.map(({ c }, k) => `${c} = ${cast(c, k + 3)}`).join(', ')}, updated_at = NOW()
+        WHERE customer_id = $1 AND id = $2`,
+      [customerId, id, ...cols.map(({ i }) => values[i])],
+    );
+    return rowCount ? { saved: true, id } : { saved: false, id: null };
+  } catch (err) {
+    if (err.code === MISSING_COLUMN) return legacyUpsert(customerId, project);
+    if (err.code === MISSING_TABLE) return { saved: false, id: null };
+    throw err;
+  }
+}
+
+/** Deletes one of the customer's projects. Its alert stays (managed on the Alertes tab). */
+export async function deleteMoveProject(customerId, projectId) {
+  const id = Number(projectId);
+  try {
+    const sql = id === LEGACY_PROJECT_ID
+      ? { text: 'DELETE FROM customer_move_projects WHERE customer_id = $1', values: [customerId] }
+      : { text: 'DELETE FROM customer_move_projects WHERE customer_id = $1 AND id = $2', values: [customerId, id] };
+    const { rowCount } = await getPool().query(sql.text, sql.values);
+    return rowCount > 0;
+  } catch (err) {
+    if (err.code === MISSING_TABLE || err.code === MISSING_COLUMN) return false;
+    throw err;
+  }
+}
+
+/**
+ * What the answers do on save: the project row (new, or `projectId`'s), plus
+ * a saved search (the daily alerts and Accueil's "N nouveaux" run on it)
+ * when the project names a transaction or a commune. The search label is
+ * built like every other saved search's (lib/searchLabel.js), in the
+ * customer's language.
  *
  * Never throws — a failure here must not cost the customer their account.
- * @returns {Promise<{saved: boolean, alert: 'added'|'exists'|'limit'|null}>}
+ * @returns {Promise<{saved: boolean, id: number|null, limit: boolean, alert: 'added'|'exists'|'limit'|null}>}
  */
-export async function saveProjectAndAlert(customerId, project, t) {
-  let saved = false;
-  let alert = null;
+export async function saveProjectAndAlert(customerId, project, t, { projectId = null, title = null } = {}) {
+  let result = { saved: false, id: null, limit: false };
   try {
-    ({ saved } = await saveMoveProject(customerId, project));
+    result = { limit: false, ...(projectId == null
+      ? await createMoveProject(customerId, project, title)
+      : await updateMoveProject(customerId, projectId, project, title)) };
   } catch (err) {
     console.error(`[move-project] save failed for customer #${customerId}: ${err.message}`);
   }
-  const query = moveSearchQuery(project);
+  let alert = null;
+  const query = result.saved ? moveSearchQuery(project) : null;
   if (query) {
     try {
       const label = buildSearchLabel(new URLSearchParams(query), t);
@@ -138,16 +223,24 @@ export async function saveProjectAndAlert(customerId, project, t) {
       console.error(`[move-project] saved search failed for customer #${customerId}: ${err.message}`);
     }
   }
-  return { saved, alert };
+  return { ...result, alert };
 }
 
-/** Records the lead "Envoyer ma demande aux agences" created. Never throws. */
-export async function markMoveProjectSent(customerId, leadId) {
+/** Records the lead "Envoyer ma demande aux agences" created for one project. Never throws. */
+export async function markMoveProjectSent(customerId, projectId, leadId) {
+  const id = Number(projectId);
   try {
-    await getPool().query(
-      `UPDATE customer_move_projects SET last_lead_id = $2, last_lead_at = NOW() WHERE customer_id = $1`,
-      [customerId, leadId],
-    );
+    if (id === LEGACY_PROJECT_ID) {
+      await getPool().query(
+        `UPDATE customer_move_projects SET last_lead_id = $2, last_lead_at = NOW() WHERE customer_id = $1`,
+        [customerId, leadId],
+      );
+    } else {
+      await getPool().query(
+        `UPDATE customer_move_projects SET last_lead_id = $3, last_lead_at = NOW() WHERE customer_id = $1 AND id = $2`,
+        [customerId, id, leadId],
+      );
+    }
   } catch (err) {
     console.warn(`[move-project] could not record lead #${leadId}: ${err.message}`);
   }

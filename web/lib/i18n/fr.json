@@ -2979,7 +2979,8 @@
         "requests": "Demandes",
         "profile": "Profil",
         "activity": "Activité",
-        "priceDropDot": "Baisse de prix sur un bien enregistré"
+        "priceDropDot": "Baisse de prix sur un bien enregistré",
+        "projects": "Projets"
       }
     },
     "limits": {
@@ -3631,8 +3632,12 @@
         },
         "place": {
           "title": "Où aimeriez-vous vivre ?",
-          "lead": "Jusqu’à 5 communes.",
-          "anchorQuestion": "Un lieu compte particulièrement ?"
+          "lead": "D’abord la ville, puis jusqu’à 5 communes.",
+          "anchorQuestion": "Un lieu compte particulièrement ?",
+          "cityQuestion": "Dans quelle ville ?",
+          "communesQuestion": "Dans quelles communes ?",
+          "communesPicked": "{count} sur {max} choisies",
+          "noCommunes": "Pas encore de communes enregistrées pour {city} : nous chercherons dans toute la ville."
         },
         "details": {
           "title": "Quelques précisions",
@@ -3656,7 +3661,10 @@
         "lead": "Enregistrez-le : nous préparons les biens et l’alerte qui y correspondent.",
         "save": "Enregistrer mon projet",
         "saving": "Enregistrement…",
-        "error": "Le projet n’a pas pu être enregistré. Réessayez dans un instant."
+        "error": "Le projet n’a pas pu être enregistré. Réessayez dans un instant.",
+        "titleLabel": "Nom du projet (facultatif)",
+        "titlePlaceholder": "Par exemple : Maison pour la famille",
+        "cancel": "Annuler et revenir au projet"
       },
       "page": {
         "metaTitle": "Mon déménagement — Lukka Place",
@@ -3727,6 +3735,24 @@
           "below": "{pct} % en dessous de votre budget",
           "nearby": "À {commune}, ≈ {km} km"
         }
+      },
+      "list": {
+        "title": "Mes projets de déménagement",
+        "count": "{count} projet(s) sur {max}",
+        "new": "Nouveau projet",
+        "open": "Voir les biens",
+        "limit": "Vous avez {max} projets, le maximum. Modifiez ou supprimez-en un pour en commencer un autre.",
+        "untitled": "Projet {n}",
+        "noneYet": "Aucun bien ne correspond exactement pour l’instant",
+        "back": "Mes projets"
+      },
+      "delete": {
+        "cta": "Supprimer ce projet",
+        "confirm": "Supprimer ce projet ?",
+        "alertKept": "Son alerte reste active : vous pouvez l’arrêter dans Enregistrés › Alertes.",
+        "yes": "Supprimer",
+        "no": "Annuler",
+        "deleting": "Suppression…"
       }
     }
   },

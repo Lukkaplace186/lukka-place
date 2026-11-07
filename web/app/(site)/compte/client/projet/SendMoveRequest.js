@@ -4,7 +4,6 @@ import { useActionState } from 'react';
 import Link from 'next/link';
 import { Send } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-import { sendMoveRequestAction } from './actions';
 
 const ERROR_KEYS = {
   transaction: 'account.move.page.request.missing.transaction',
@@ -13,10 +12,13 @@ const ERROR_KEYS = {
   send: 'account.move.page.request.errors.send',
 };
 
-/** The one button that contacts agencies — never pressed for the customer. */
-export default function SendMoveRequest() {
+/**
+ * The one button that contacts agencies — never pressed for the customer.
+ * `action` is sendMoveRequestAction bound to this project's id by the page.
+ */
+export default function SendMoveRequest({ action }) {
   const t = useT();
-  const [state, formAction, pending] = useActionState(sendMoveRequestAction, null);
+  const [state, formAction, pending] = useActionState(action, null);
 
   if (state?.status === 'sent') {
     return (

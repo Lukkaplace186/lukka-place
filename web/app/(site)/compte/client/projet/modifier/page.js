@@ -1,36 +1,17 @@
 import { redirect } from 'next/navigation';
-import MoveOnboarding from '@/components/MoveOnboarding';
 import { getPortalCustomer } from '@/lib/customerPortal';
-import { getMoveProject } from '@/lib/moveProjects';
-import { answersFromProject } from '@/lib/moveProjectRules';
-import { getT } from '@/lib/i18n/server';
-import { saveMoveProjectAction } from '../actions';
-
-export async function generateMetadata() {
-  const t = await getT();
-  return { title: t('account.move.page.metaTitle'), robots: { index: false, follow: false } };
-}
+import { listMoveProjects } from '@/lib/moveProjects';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The same cards as signup, for a customer who has an account: reopened on
- * their stored answers ("Modifier mon projet"), or empty for one who signed
- * up without answering, through WhatsApp, or before this existed
- * (Accueil's "Parlez-nous de votre déménagement").
+ * The single-project edit link from before several projects existed
+ * (2026-11-07, live for a few hours): the customer's first project's edit
+ * page, or a new project when they have none.
  */
-export default async function EditMoveProjectPage({ searchParams }) {
-  const params = await searchParams;
+export default async function LegacyEditMoveProject() {
   const session = await getPortalCustomer();
-  if (!session) redirect('/compte/connexion?next=/compte/client/projet/modifier');
-  const project = await getMoveProject(session.customerId);
-  return (
-    <MoveOnboarding
-      mode="edit"
-      initialAnswers={answersFromProject(project)}
-      saveAction={saveMoveProjectAction}
-      saveError={params?.error === 'save'}
-      startAtEnd={params?.error === 'save'}
-    />
-  );
+  if (!session) redirect('/compte/connexion?next=/compte/client/projet');
+  const [first] = await listMoveProjects(session.customerId);
+  redirect(first ? `/compte/client/projet/${first.id}/modifier` : '/compte/client/projet/nouveau');
 }

@@ -112,9 +112,9 @@ test('old ?tab= links still land on Enregistrés', () => {
   assert.match(read('lib/searchAlertSweep.js'), /\/compte\/client\/favoris\?tab=alertes/, 'the link in every WhatsApp alert');
 });
 
-test('four tabs, a phone bottom bar, counts as grey totals', () => {
+test('five tabs (Projets since 2026-11-07), a phone bottom bar, counts as grey totals', () => {
   const tabs = read('app/(site)/compte/client/ClientPortalTabs.js');
-  assert.match(tabs, /grid-cols-4/);
+  assert.match(tabs, /grid-cols-5/);
   assert.match(tabs, /lg:hidden/);
   assert.doesNotMatch(tabs, /bg-blue[^-\w].*\{count\}/, 'a total is not an alert');
   assert.match(read('components/Footer.js'), /pb-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]/, 'the portal footer clears the fixed bar');

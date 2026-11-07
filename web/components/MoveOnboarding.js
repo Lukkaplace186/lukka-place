@@ -13,6 +13,7 @@ import { CITIES, DEFAULT_CITY, communeLabel, communesOfCity } from '@/lib/cities
 import {
   MAX_MOVE_COMMUNES,
   MAX_MOVE_NOTE,
+  MAX_MOVE_TITLE,
   MOVE_ANCHORS,
   MOVE_BEDROOMS,
   MOVE_BUDGETS,
@@ -102,6 +103,26 @@ function Chip({ selected, onClick, children, disabled = false, small = false }) 
     >
       {selected ? <Check strokeWidth={2.5} aria-hidden="true" className="h-4 w-4 flex-none" /> : null}
       {children}
+    </button>
+  );
+}
+
+/** A tappable box in a grid — a city, or a commune of that city. */
+function Box({ selected, onClick, children, disabled = false }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      disabled={disabled && !selected}
+      onClick={onClick}
+      className={cn(
+        'u-press relative flex min-h-[3.25rem] items-center justify-center rounded-xl border px-2 py-2 text-center text-[0.875rem] font-semibold leading-tight transition-colors',
+        selected ? 'border-blue bg-blue text-white' : 'border-line bg-surface text-ink hover:border-blue',
+        disabled && !selected ? 'opacity-45' : null,
+      )}
+    >
+      {selected ? <Check strokeWidth={2.5} aria-hidden="true" className="absolute right-1.5 top-1.5 h-3.5 w-3.5" /> : null}
+      <span className="px-2">{children}</span>
     </button>
   );
 }
@@ -242,7 +263,12 @@ const EMPTY = Object.freeze({
   priorities: [], budgetMin: null, budgetMax: null, timeline: null, currentHomeType: null, currentCommune: null,
 });
 
-export default function MoveOnboarding({ mode = 'signup', initialAnswers = null, startAtEnd = false, signupProps = null, accountFooter = null, saveAction = null, saveError = false }) {
+export default function MoveOnboarding({
+  mode = 'signup', initialAnswers = null, startAtEnd = false, signupProps = null, accountFooter = null,
+  saveAction = null, saveError = false,
+  // Edit mode: the project being edited (null = a new one) and its name.
+  projectId = null, initialTitle = '',
+}) {
   const t = useT();
   const [answers, setAnswers] = useState(() => ({ ...EMPTY, ...(initialAnswers || {}) }));
   const [answered, setAnswered] = useState(() => new Set(initialAnswers?.answeredSteps || []));
@@ -359,8 +385,25 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
     if (dx > 0 && index > 0) back();
   }
 
-  const city = answers.city || DEFAULT_CITY;
-  const cityCommunes = communesOfCity(city);
+  // The communes card lists only the chosen city's communes (lib/cities.js,
+  // generated from the engine's location files); none before a city is picked.
+  const cityCommunes = answers.city ? communesOfCity(answers.city) : [];
+
+  /** Picking a city: communes and the anchor's commune from another city are cleared, never carried over. */
+  function chooseCity(name) {
+    setAnswers((a) => {
+      if (a.city === name) return a;
+      const inCity = communesOfCity(name);
+      return {
+        ...a,
+        city: name,
+        communes: a.communes.filter((c) => inCity.includes(c)),
+        anchorCommune: inCity.includes(a.anchorCommune) ? a.anchorCommune : null,
+      };
+    });
+    setCommuneLimitHit(false);
+    mark('place');
+  }
   const answeredCount = [...answered].filter((s) => MOVE_STEPS.includes(s)).length;
   const hiddenValue = JSON.stringify({ ...answers, answeredSteps: MOVE_STEPS.filter((s) => answered.has(s)) });
   const hiddenField = <input type="hidden" name="moveProject" value={hiddenValue} />;
@@ -453,70 +496,99 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
         </div>
       );
       break;
-    case 'place':
+    case 'place': {
+      // 1. the city, as boxes · 2. the place that matters (its commune comes
+      // pre-ticked below) · 3. every commune of that city, as boxes, up to 5.
+      const chosenCity = answers.city;
       body = (
         <>
-          <label htmlFor="move-city" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-            {s('communes.cityLabel')}
-          </label>
-          <select
-            id="move-city"
-            value={city}
-            onChange={(e) => { setAnswers((a) => ({ ...a, city: e.target.value, communes: [] })); mark('place'); }}
-            className={cn(FIELD, 'mb-4')}
-          >
-            {CITIES.map((c) => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-          <div className="flex flex-wrap gap-2">
-            {cityCommunes.map((key) => (
-              <Chip
-                key={key}
-                small
-                selected={answers.communes.includes(key)}
-                disabled={answers.communes.length >= MAX_MOVE_COMMUNES}
-                onClick={() => toggleMany('communes', key, 'place', MAX_MOVE_COMMUNES)}
-              >
-                {communeLabel(key)}
-              </Chip>
-            ))}
-          </div>
-          {communeLimitHit ? <p className="mt-3 text-sm text-ink-70" role="status">{s('communes.limit')}</p> : null}
+          <fieldset>
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-45">{s('place.cityQuestion')}</legend>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {CITIES.map((c) => (
+                <Box key={c.name} selected={chosenCity === c.name} onClick={() => chooseCity(c.name)}>
+                  {c.name}
+                </Box>
+              ))}
+            </div>
+          </fieldset>
 
-          <Group label={s('place.anchorQuestion')} className="mt-6">
-            {MOVE_ANCHORS.map((v) => (
-              <Chip key={v} small selected={answers.anchorKind === v} onClick={() => setOne('anchorKind', v, 'place')}>
-                {s(`anchor.options.${v}`)}
-              </Chip>
-            ))}
-          </Group>
-          {answers.anchorKind && answers.anchorKind !== 'aucun' ? (
-            <div className="u-reveal mt-3 flex flex-col gap-3">
+          {chosenCity ? (
+            <div className="u-reveal mt-6 flex flex-col gap-6">
               <div>
-                <label htmlFor="move-anchor-commune" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                  {s('anchor.communeLabel')}
-                </label>
-                <CommuneSelect id="move-anchor-commune" value={answers.anchorCommune} onChange={setAnchorCommune} placeholder={s('anchor.communePlaceholder')} />
+                <Group label={s('place.anchorQuestion')}>
+                  {MOVE_ANCHORS.map((v) => (
+                    <Chip key={v} small selected={answers.anchorKind === v} onClick={() => setOne('anchorKind', v, 'place')}>
+                      {s(`anchor.options.${v}`)}
+                    </Chip>
+                  ))}
+                </Group>
+                {answers.anchorKind && answers.anchorKind !== 'aucun' ? (
+                  <div className="u-reveal mt-3 flex flex-col gap-3">
+                    <div>
+                      <label htmlFor="move-anchor-commune" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+                        {s('anchor.communeLabel')}
+                      </label>
+                      <select
+                        id="move-anchor-commune"
+                        value={cityCommunes.includes(answers.anchorCommune) ? answers.anchorCommune : ''}
+                        onChange={(e) => setAnchorCommune(e.target.value || null)}
+                        className={FIELD}
+                      >
+                        <option value="">{s('anchor.communePlaceholder')}</option>
+                        {cityCommunes.map((key) => (
+                          <option key={key} value={key}>{communeLabel(key)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="move-anchor-note" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+                        {s('anchor.noteLabel')}
+                      </label>
+                      <input
+                        id="move-anchor-note"
+                        type="text"
+                        value={answers.anchorNote}
+                        maxLength={MAX_MOVE_NOTE}
+                        onChange={(e) => setAnswers((a) => ({ ...a, anchorNote: e.target.value }))}
+                        className={FIELD}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              <div>
-                <label htmlFor="move-anchor-note" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                  {s('anchor.noteLabel')}
-                </label>
-                <input
-                  id="move-anchor-note"
-                  type="text"
-                  value={answers.anchorNote}
-                  maxLength={MAX_MOVE_NOTE}
-                  onChange={(e) => setAnswers((a) => ({ ...a, anchorNote: e.target.value }))}
-                  className={FIELD}
-                />
-              </div>
+
+              <fieldset>
+                <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-45">{s('place.communesQuestion')}</legend>
+                {cityCommunes.length ? (
+                  <>
+                    <p className="u-micro mb-2 text-ink-45" aria-live="polite">
+                      {s('place.communesPicked', { count: answers.communes.length, max: MAX_MOVE_COMMUNES })}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-3">
+                      {cityCommunes.map((key) => (
+                        <Box
+                          key={key}
+                          selected={answers.communes.includes(key)}
+                          disabled={answers.communes.length >= MAX_MOVE_COMMUNES}
+                          onClick={() => toggleMany('communes', key, 'place', MAX_MOVE_COMMUNES)}
+                        >
+                          {communeLabel(key)}
+                        </Box>
+                      ))}
+                    </div>
+                    {communeLimitHit ? <p className="mt-3 text-sm text-ink-70" role="status">{s('communes.limit')}</p> : null}
+                  </>
+                ) : (
+                  <p className="rounded-xl bg-canvas-deep px-4 py-3 text-sm text-ink-70">{s('place.noCommunes', { city: chosenCity })}</p>
+                )}
+              </fieldset>
             </div>
           ) : null}
         </>
       );
       break;
+    }
     case 'budget': {
       const presets = budgetRules?.presets || [];
       const isPreset = (lo, hi) => (answers.budgetMin ?? null) === lo && (answers.budgetMax ?? null) === hi;
@@ -626,15 +698,26 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
       onTouchEnd={onTouchEnd}
     >
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={back}
-          disabled={index === 0}
-          aria-label={t('account.move.back')}
-          className="u-press grid h-11 w-11 flex-none place-items-center rounded-full text-ink disabled:invisible"
-        >
-          <ArrowLeft strokeWidth={2} className="h-5 w-5" aria-hidden="true" />
-        </button>
+        {mode === 'edit' && index === 0 ? (
+          // Leaving the edit without saving: back to the project (or the list).
+          <Link
+            href={projectId != null ? `/compte/client/projet/${projectId}` : '/compte/client/projet'}
+            aria-label={t('account.move.edit.cancel')}
+            className="u-press grid h-11 w-11 flex-none place-items-center rounded-full text-ink"
+          >
+            <ArrowLeft strokeWidth={2} className="h-5 w-5" aria-hidden="true" />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={back}
+            disabled={index === 0}
+            aria-label={t('account.move.back')}
+            className="u-press grid h-11 w-11 flex-none place-items-center rounded-full text-ink disabled:invisible"
+          >
+            <ArrowLeft strokeWidth={2} className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
         <div
           className="h-1.5 flex-1 overflow-hidden rounded-full bg-line"
           role="progressbar"
@@ -680,6 +763,21 @@ export default function MoveOnboarding({ mode = 'signup', initialAnswers = null,
           {isEnd && mode === 'edit' ? (
             <form action={saveAction} className="flex flex-col gap-3">
               {hiddenField}
+              {projectId != null ? <input type="hidden" name="projectId" value={projectId} /> : null}
+              <div>
+                <label htmlFor="move-title" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+                  {t('account.move.edit.titleLabel')}
+                </label>
+                <input
+                  id="move-title"
+                  type="text"
+                  name="title"
+                  defaultValue={initialTitle}
+                  maxLength={MAX_MOVE_TITLE}
+                  placeholder={t('account.move.edit.titlePlaceholder')}
+                  className={FIELD}
+                />
+              </div>
               {saveError ? <p className="text-sm text-red-600" role="alert">{t('account.move.edit.error')}</p> : null}
               <SaveButton label={t('account.move.edit.save')} pendingLabel={t('account.move.edit.saving')} />
             </form>

@@ -24,7 +24,7 @@ export const CLOSE_WHEN_FEWER_THAN = 4;
  * @param {object} project parseMoveProject's shape
  * @returns {Promise<null | {query: string, total: number, exact: object[], close: Array<{listing: object, tags: object[]}>}>}
  */
-export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6 } = {}) {
+export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6, withClose = true } = {}) {
   const query = moveSearchQuery(project);
   if (!query) return null;
   const base = parseListingsSearchParams(new URLSearchParams(query));
@@ -32,7 +32,7 @@ export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6 }
   const seen = new Set(exact.data.map((l) => Number(l.id)));
   const close = [];
 
-  if (exact.total < CLOSE_WHEN_FEWER_THAN) {
+  if (withClose && exact.total < CLOSE_WHEN_FEWER_THAN) {
     if (project.budgetMin || project.budgetMax) {
       const s = stretchedBudget(project);
       const wider = await getListings({

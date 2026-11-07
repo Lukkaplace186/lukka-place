@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClipboardList, Heart, House, UserRound } from 'lucide-react';
+import { ClipboardList, Heart, House, Truck, UserRound } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
@@ -39,6 +39,9 @@ import { useT } from '@/lib/i18n/client';
 // Keys, not text — see components/navItems.js.
 export const PORTAL_TABS = [
   { href: '/compte/client', labelKey: 'account.portal.nav.home', icon: House, match: (p) => p === '/compte/client' },
+  // "Mon déménagement" (2026-11-07): the customer's moves, up to five — a
+  // tab of its own so a project is always one tap from being edited.
+  { href: '/compte/client/projet', labelKey: 'account.portal.nav.projects', icon: Truck, match: (p) => p.startsWith('/compte/client/projet') },
   {
     href: '/compte/client/favoris',
     labelKey: 'account.portal.nav.saved',
@@ -112,7 +115,7 @@ export default function ClientPortalTabs({ counts = {} }) {
       {/* Phone and tablet: the bottom bar. */}
       <nav
         aria-label={t('account.portal.title')}
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         {PORTAL_TABS.map(({ href, labelKey, icon: Icon, countKey, dotKey, match }) => {
           const active = match(pathname);

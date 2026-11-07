@@ -25,7 +25,7 @@ test('signup signs in and goes straight on: no code, no verify page', () => {
   assert.match(src, /name: 'CompleteRegistration'/, 'the ad event moved here from the removed code step');
   // Ends on `next`, or on the move project for someone who answered the
   // "Mon déménagement" cards (2026-11-07) — never a verify step.
-  assert.match(src, /redirect\(hasAnswers && next === '\/compte\/client' \? '\/compte\/client\/projet\?nouveau=1' : next\);\r?\n\}/);
+  assert.match(src, /redirect\(projectHref && next === '\/compte\/client' \? projectHref : next\);\r?\n\}/);
 });
 
 test('login signs in on the right password, without any code step', () => {

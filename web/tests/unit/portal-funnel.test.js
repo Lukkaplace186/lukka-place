@@ -44,6 +44,7 @@ function declaredTabOrder() {
 test('the portal tabs follow the customer journey, not an arbitrary order', () => {
   assert.deepEqual(declaredTabOrder(), [
     '/compte/client', // Accueil — what waits on the customer
+    '/compte/client/projet', // Projets — the moves they are planning (2026-11-07)
     '/compte/client/favoris', // Enregistrés — what they saved while browsing
     '/compte/client/visites', // Activité — visits and requests, one tab (2026-10-10)
     '/compte/client/parametres', // not part of the funnel; stays last

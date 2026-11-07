@@ -2,9 +2,9 @@ import { Suspense } from 'react';
 import NewSinceLastVisit from '@/components/NewSinceLastVisit';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Bell, ChevronRight, Heart, Map as MapIcon, Search, ShieldCheck, Target, Truck } from 'lucide-react';
-import { getMoveProject } from '@/lib/moveProjects';
-import { communeLabel } from '@/lib/cities';
+import { Bell, ChevronRight, Heart, Map as MapIcon, Pencil, Plus, Search, ShieldCheck, Target, Truck } from 'lucide-react';
+import { listMoveProjects } from '@/lib/moveProjects';
+import { MAX_MOVE_PROJECTS, projectDisplayName } from '@/lib/moveProjectRules';
 import ClientMiniListingCard from '@/components/ClientMiniListingCard';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
@@ -169,22 +169,24 @@ async function AlertsRail({ customerId }) {
 }
 
 /**
- * "Mon déménagement" (2026-11-07): the customer's move in one line, linking
- * to the project page — or, for someone who has not told us yet (WhatsApp
- * signup, skipped every card, older account), an invitation to the cards.
+ * "Mon déménagement" (2026-11-07): each of the customer's moves (up to five)
+ * as a row that opens it, with its own "Modifier" — so editing a project is
+ * always one tap from Accueil — and "Nouveau projet" while there is room. For
+ * someone who has not told us yet (WhatsApp signup, skipped every card,
+ * older account), an invitation to the cards.
  */
 async function MoveProjectCard({ customerId }) {
   const t = await getT();
-  let project = null;
+  let projects = [];
   try {
-    project = await getMoveProject(customerId);
+    projects = await listMoveProjects(customerId);
   } catch (err) {
-    console.warn('[compte/client] move project unavailable:', err.message);
+    console.warn('[compte/client] move projects unavailable:', err.message);
     return null;
   }
-  if (!project) {
+  if (!projects.length) {
     return (
-      <Link href="/compte/client/projet/modifier" className={`u-press flex items-center gap-3 p-4 ${CARD}`}>
+      <Link href="/compte/client/projet/nouveau" className={`u-press flex items-center gap-3 p-4 ${CARD}`}>
         <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-blue text-white">
           <Truck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
         </span>
@@ -196,20 +198,47 @@ async function MoveProjectCard({ customerId }) {
       </Link>
     );
   }
-  const reasons = (project.reasons || []).filter((r) => r !== 'autre').map((r) => t(`account.move.steps.reasons.options.${r}`));
-  const where = (project.communes || []).map(communeLabel).join(', ');
-  const line = [reasons.join(' · '), where].filter(Boolean).join(' — ');
   return (
-    <Link href="/compte/client/projet" className={`u-press flex items-center gap-3 p-4 ${CARD}`}>
-      <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-blue-tint text-blue">
-        <Truck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[0.9375rem] font-bold text-ink">{t('account.move.home.title')}</span>
-        <span className="block truncate text-[0.8125rem] text-ink-45">{line || t('account.move.home.cta')}</span>
-      </span>
-      <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none text-ink-35" aria-hidden="true" />
-    </Link>
+    <section className={`flex flex-col p-4 ${CARD}`} aria-labelledby="home-move">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="home-move" className="u-title-card flex items-center gap-2 text-ink">
+          <Truck strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] text-blue" aria-hidden="true" />
+          {t('account.move.home.title')}
+        </h2>
+        <Link href="/compte/client/projet" className="inline-flex min-h-11 items-center text-[0.8125rem] font-bold text-blue hover:underline">
+          {t('account.home.seeAll')}
+        </Link>
+      </div>
+      <ul className="flex flex-col divide-y divide-line">
+        {projects.map((project, index) => {
+          const name = projectDisplayName(project, {
+            reasonLabel: (r) => t(`account.move.steps.reasons.options.${r}`),
+            fallback: t('account.move.list.untitled', { n: index + 1 }),
+          });
+          return (
+            <li key={project.id} className="flex items-center gap-2">
+              <Link href={`/compte/client/projet/${project.id}`} className="flex min-h-12 min-w-0 flex-1 items-center gap-2 py-2">
+                <span className="block min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-ink">{name}</span>
+                <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 flex-none text-ink-35" aria-hidden="true" />
+              </Link>
+              <Link
+                href={`/compte/client/projet/${project.id}/modifier`}
+                aria-label={`${t('account.move.page.edit')} — ${name}`}
+                className="grid h-11 w-11 flex-none place-items-center rounded-full text-blue hover:bg-blue-tint"
+              >
+                <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {projects.length < MAX_MOVE_PROJECTS ? (
+        <Link href="/compte/client/projet/nouveau" className="mt-1 inline-flex min-h-11 items-center gap-1.5 self-start text-[0.875rem] font-bold text-blue hover:underline">
+          <Plus strokeWidth={2.5} className="h-4 w-4" aria-hidden="true" />
+          {t('account.move.list.new')}
+        </Link>
+      ) : null}
+    </section>
   );
 }
 

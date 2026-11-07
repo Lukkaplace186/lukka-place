@@ -4531,3 +4531,32 @@ half: `docs/claude/leads-and-enquiries.md`, same heading.
   `migrations/20261107_move_project_budget_min.sql`; until it runs the
   project saves without it (42703 retry). Draft key is `lukka_move_draft_v2`
   (old drafts named the ten old cards).
+- **Up to five projects per account, always editable (2026-11-07, owner).**
+  `migrations/20261107_move_projects_multiple.sql` gives each row its own
+  `id` (identity; the primary key moves off `customer_id`) and an optional
+  `title`. `MAX_MOVE_PROJECTS` (5) is a COUNT guard in the INSERT
+  (`createMoveProject`), like favourites. Every read and write is scoped
+  `customer_id = $1` from the session; another customer's project id is a
+  404. Routes: `/compte/client/projet` the list ("Mes projets", each with its
+  exact-match count, "Voir les biens" and "Modifier", "Nouveau projet" while
+  under five, `?limite=1` explains the ceiling) · `/projet/nouveau` ·
+  `/projet/[id]` (story, matches exact + close, alert, request to agencies,
+  edit, delete with an in-place confirmation; the alert is kept) ·
+  `/projet/[id]/modifier` (the cards plus an optional name; the back arrow on
+  card 1 leaves without saving). `/projet/modifier` (the single-project link)
+  redirects to the first project's edit, or to `nouveau`. **A project is
+  always one tap from being edited**: the portal has a fifth tab, "Projets"
+  (`grid-cols-5`), and Accueil lists every project with a pencil. Signup
+  lands on the new project's own page. Before the migration runs, the code
+  keeps one project per customer, addressed as id 0 (`LEGACY_PROJECT_ID`,
+  the old `ON CONFLICT (customer_id)` upsert on 42703). The admin customer
+  profile lists every project.
+- **The "Où" card: city first, then communes as boxes (2026-11-07, owner).**
+  "Dans quelle ville ?" is a grid of boxes, one per city in lib/cities.js
+  (Kinshasa first); nothing else on the card shows until one is picked. Then
+  "Un lieu compte particulièrement ?" (its commune select lists only that
+  city's communes, and the commune picked is pre-ticked below) and "Dans
+  quelles communes ?": every commune of that city as a box, up to 5, with a
+  "N sur 5 choisies" count; the rest grey out at five. Changing city drops
+  communes (and the anchor's commune) from the old city. A city with no
+  communes on file (Muanda) says so and searches the whole city.

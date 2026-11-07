@@ -115,9 +115,11 @@ export async function signupAction(formData) {
   // before this one becomes their project and an alert. Never blocks the
   // account (saveProjectAndAlert never throws).
   const { project, hasAnswers } = parseMoveProjectField(formData.get('moveProject'));
+  let projectHref = null;
   if (hasAnswers) {
-    const { saved, alert } = await saveProjectAndAlert(Number(customer.id), project, await getT());
-    console.log(`[move-project] signup customer #${customer.id} saved=${saved} alert=${alert || 'none'} steps=${project.answeredSteps.length}`);
+    const { saved, id, alert } = await saveProjectAndAlert(Number(customer.id), project, await getT());
+    console.log(`[move-project] signup customer #${customer.id} saved=${saved} project=${id ?? 'none'} alert=${alert || 'none'} steps=${project.answeredSteps.length}`);
+    if (saved && id != null) projectHref = `/compte/client/projet/${id}?nouveau=1`;
   }
 
   // Signed in, done: number + password is the whole signup (2026-11-06,
@@ -130,5 +132,5 @@ export async function signupAction(formData) {
 
   // Someone who told us about their move lands on it, with the homes that
   // match — unless a gate sent them here from somewhere they want to return to.
-  redirect(hasAnswers && next === '/compte/client' ? '/compte/client/projet?nouveau=1' : next);
+  redirect(projectHref && next === '/compte/client' ? projectHref : next);
 }

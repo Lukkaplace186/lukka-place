@@ -71,6 +71,28 @@ export function cleanBudgetRange(transaction, min, max) {
 }
 
 export const MAX_MOVE_COMMUNES = 5;
+/** Projects one account can hold (owner, 2026-11-07): a family can be planning more than one move. */
+export const MAX_MOVE_PROJECTS = 5;
+export const MAX_MOVE_TITLE = 60;
+
+/** The customer's own name for a project, cleaned; null when left empty. */
+export function cleanProjectTitle(value) {
+  const text = String(value ?? '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, MAX_MOVE_TITLE) : null;
+}
+
+/**
+ * What a project is called on screen: the customer's own title, else its
+ * first reason and communes ("Nouveau travail · Gombe, Ngaliema"), else
+ * "Projet N". `reasonLabel` translates a reason code.
+ */
+export function projectDisplayName(project, { reasonLabel, fallback }) {
+  if (project?.title) return project.title;
+  const reason = (project?.reasons || []).find((r) => r !== 'autre');
+  const where = (project?.communes || []).map(communeLabel).join(', ');
+  const parts = [reason ? reasonLabel(reason) : project?.reasonOther || null, where || null].filter(Boolean);
+  return parts.length ? parts.join(' · ') : fallback;
+}
 /** `leads.source` of a request sent from "Mon déménagement". A search request, so it shows among the customer's requests. */
 export const MOVE_LEAD_SOURCE = 'move-project';
 /** One push to agencies per project per day: each agency gets one alert, not a stream. */

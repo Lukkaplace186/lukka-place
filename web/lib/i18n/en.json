@@ -2979,7 +2979,8 @@
         "requests": "Requests",
         "profile": "Profile",
         "activity": "Activity",
-        "priceDropDot": "Price cut on a saved listing"
+        "priceDropDot": "Price cut on a saved listing",
+        "projects": "Moves"
       }
     },
     "limits": {
@@ -3631,8 +3632,12 @@
         },
         "place": {
           "title": "Where Would You like to Live?",
-          "lead": "Up to 5 communes.",
-          "anchorQuestion": "Does one place matter most?"
+          "lead": "First the city, then up to 5 communes.",
+          "anchorQuestion": "Does one place matter most?",
+          "cityQuestion": "Which city?",
+          "communesQuestion": "Which communes?",
+          "communesPicked": "{count} of {max} chosen",
+          "noCommunes": "No communes on file for {city} yet: we will search the whole city."
         },
         "details": {
           "title": "A Few Details",
@@ -3656,7 +3661,10 @@
         "lead": "Save it: we’ll prepare the homes and the alert that match it.",
         "save": "Save My Move",
         "saving": "Saving…",
-        "error": "Your move could not be saved. Please try again in a moment."
+        "error": "Your move could not be saved. Please try again in a moment.",
+        "titleLabel": "Name of this move (optional)",
+        "titlePlaceholder": "For example: A house for the family",
+        "cancel": "Cancel and go back to the move"
       },
       "page": {
         "metaTitle": "My Move — Lukka Place",
@@ -3727,6 +3735,24 @@
           "below": "{pct}% below your budget",
           "nearby": "In {commune}, ≈ {km} km"
         }
+      },
+      "list": {
+        "title": "My Moves",
+        "count": "{count} of {max} moves",
+        "new": "New move",
+        "open": "See homes",
+        "limit": "You have {max} moves, the maximum. Edit or delete one to start another.",
+        "untitled": "Move {n}",
+        "noneYet": "No home matches exactly yet",
+        "back": "My moves"
+      },
+      "delete": {
+        "cta": "Delete this move",
+        "confirm": "Delete this move?",
+        "alertKept": "Its alert stays on: you can stop it under Saved › Alerts.",
+        "yes": "Delete",
+        "no": "Cancel",
+        "deleting": "Deleting…"
       }
     }
   },

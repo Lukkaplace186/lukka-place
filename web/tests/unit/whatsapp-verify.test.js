@@ -57,7 +57,9 @@ test('a login finishes a proof the verify page never collected (customers #35 an
     const src = read(file);
     const check = src.indexOf('consumeProofAtLogin({');
     assert.ok(check > 0, `${file}: checks for a proof`);
-    assert.ok(check > src.indexOf('verifyPasswordAgainstHash(password'), `${file}: only after the password matched`);
+    const passwordCheck = src.search(/verifyPasswordAgainstHash(?:Async)?\(password/);
+    assert.ok(passwordCheck > 0, `${file}: checks the password`);
+    assert.ok(check > passwordCheck, `${file}: only after the password matched`);
     // Agents: before the verify step is chosen. Customers have no verify step
     // at login any more (2026-11-06): the proof is simply taken if present.
     if (gate) assert.ok(check < src.indexOf(`!agent.phone_verified_at && ${gate}`), `${file}: before the verify step is chosen`);

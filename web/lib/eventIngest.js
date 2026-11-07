@@ -11,22 +11,39 @@
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_EVENTS = 60;
+/**
+ * Endpoints a real customer calls many times a minute, behind an IP that
+ * Kinshasa's mobile operators share between many customers (carrier-grade
+ * NAT): the "Mon déménagement" live results and the card drop-off beacon.
+ * 60 a minute per IP would refuse ordinary customers during a campaign
+ * (2026-11-07); this still stops a loop.
+ */
+export const SHARED_IP_MAX_EVENTS = 600;
+const SWEEP_EVERY_MS = 1_000;
 const hits = new Map();
+let lastSweep = 0;
 
-export function rateLimited(key) {
+export function rateLimited(key, max = RATE_LIMIT_MAX_EVENTS) {
   const now = Date.now();
   const cutoff = now - RATE_LIMIT_WINDOW_MS;
 
-  // Sweep on write rather than on a timer: a timer would keep this module
-  // alive and grow unboundedly between ticks under a burst.
-  for (const [k, timestamps] of hits) {
-    const kept = timestamps.filter((t) => t > cutoff);
-    if (kept.length) hits.set(k, kept);
-    else hits.delete(k);
+  // Sweep on write rather than on a timer (a timer would keep this module
+  // alive), but at most once a second: with higher limits, re-filtering
+  // every stored timestamp on every request would itself cost CPU in a rush.
+  if (now - lastSweep >= SWEEP_EVERY_MS) {
+    lastSweep = now;
+    for (const [k, timestamps] of hits) {
+      const kept = timestamps.filter((t) => t > cutoff);
+      if (kept.length) hits.set(k, kept);
+      else hits.delete(k);
+    }
   }
 
-  const recent = hits.get(key) || [];
-  if (recent.length >= RATE_LIMIT_MAX_EVENTS) return true;
+  const recent = (hits.get(key) || []).filter((t) => t > cutoff);
+  if (recent.length >= max) {
+    hits.set(key, recent);
+    return true;
+  }
   recent.push(now);
   hits.set(key, recent);
   return false;

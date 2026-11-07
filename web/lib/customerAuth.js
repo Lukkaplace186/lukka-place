@@ -1,5 +1,5 @@
 import 'server-only';
-import { hashToStoredForm, verifyAgainstStoredForm, safeEqualHex, hmacSign } from './authCrypto';
+import { hashToStoredForm, hashToStoredFormAsync, verifyAgainstStoredForm, verifyAgainstStoredFormAsync, safeEqualHex, hmacSign } from './authCrypto';
 
 /**
  * Phone + password auth for customer accounts. Extends adminAuth.js's proven
@@ -45,6 +45,16 @@ export function verifyPasswordAgainstHash(candidate, storedHash) {
   return verifyAgainstStoredForm(candidate, storedHash);
 }
 
+// Non-blocking twins for the customer sign-up and login hot paths (a
+// campaign rush): same hash, computed off the web process's main thread.
+export function hashPasswordAsync(password) {
+  return hashToStoredFormAsync(String(password ?? ''));
+}
+
+export function verifyPasswordAgainstHashAsync(candidate, storedHash) {
+  return verifyAgainstStoredFormAsync(candidate, storedHash);
+}
+
 // A fixed dummy hash, computed once, to run against when a phone number
 // isn't found at all — so "phone doesn't exist" and "phone exists, wrong
 // password" cost the same scrypt CPU time and don't leak which case
@@ -52,6 +62,10 @@ export function verifyPasswordAgainstHash(candidate, storedHash) {
 const DUMMY_HASH = hashToStoredForm('lukka-customer-auth-dummy-comparison-value');
 export function burnConstantTime(candidate) {
   verifyAgainstStoredForm(candidate, DUMMY_HASH);
+}
+
+export async function burnConstantTimeAsync(candidate) {
+  await verifyAgainstStoredFormAsync(candidate, DUMMY_HASH);
 }
 
 function sign(value) {

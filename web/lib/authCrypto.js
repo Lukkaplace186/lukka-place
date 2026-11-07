@@ -32,6 +32,33 @@ export function verifyAgainstStoredForm(candidate, stored) {
   return safeEqualHex(scryptHex(String(candidate ?? ''), salt), expectedHash);
 }
 
+/**
+ * The same scrypt (same parameters, same 64-byte key, same output) without
+ * blocking: crypto.scrypt runs on libuv's thread pool, so the web process
+ * keeps serving pages while a password is hashed. scryptSync costs ~51 ms of
+ * the single web process per call on the VPS (measured 2026-11-07), which a
+ * sign-up rush turns into a slow site for everyone. A stored hash from either
+ * form verifies with either form.
+ */
+function scryptHexAsync(value, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(value, salt, 64, (err, key) => (err ? reject(err) : resolve(key.toString('hex'))));
+  });
+}
+
+export async function hashToStoredFormAsync(value) {
+  const salt = randomSaltHex();
+  return `${salt}:${await scryptHexAsync(value, salt)}`;
+}
+
+/** @returns {Promise<boolean>} */
+export async function verifyAgainstStoredFormAsync(candidate, stored) {
+  if (!stored || typeof stored !== 'string') return false;
+  const [salt, expectedHash] = stored.split(':');
+  if (!salt || !expectedHash) return false;
+  return safeEqualHex(await scryptHexAsync(String(candidate ?? ''), salt), expectedHash);
+}
+
 /** Constant-time hex-string compare — a length mismatch is already a mismatch. */
 export function safeEqualHex(a, b) {
   const left = Buffer.from(a, 'hex');

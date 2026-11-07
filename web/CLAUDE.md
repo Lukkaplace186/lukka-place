@@ -4595,3 +4595,38 @@ half: `docs/claude/leads-and-enquiries.md`, same heading.
   check-ins); the agent client book reason (the book is hidden from agents
   since 2026-09-22) and an agent "Mon parcours" page (the agent space is
   limited to Biens / Demandes / Abonnement / Réglages by product decision).
+
+## Sign-up under a rush (2026-11-07, before the content campaign)
+
+An audit of the sign-up path found two bugs and three load risks; all five
+are fixed, `tests/unit/signup-rush.test.js`.
+
+- **A refused sign-up lost the move answers.** The draft was cleared on
+  submit, so an error redirect (number already registered, invalid number)
+  came back to an empty project. The draft (`lib/moveDraft.js`) now stays
+  until the account exists and is cleared by `components/ClearMoveDraft.js`
+  in the signed-in client layout. Checked in a browser: the answers survive.
+- **A double tap could crash.** The button now locks while sending
+  ("Création du compte…", `useFormStatus`), and a duplicate phone that
+  slips past the "exists" check (UNIQUE `customers.phone`, 23505) redirects
+  to `error=exists` instead of the error page.
+- **Password hashing blocked the single web process ~51 ms per sign-up or
+  login** (scryptSync, measured on the VPS). Customer sign-up and login use
+  `hashPasswordAsync` / `verifyPasswordAgainstHashAsync` /
+  `burnConstantTimeAsync` (`lib/authCrypto.js` `*Async`, crypto.scrypt on
+  the thread pool, same parameters and output — either form verifies the
+  other). Admin, agent and reset paths still use the sync forms.
+- **Shared mobile IPs.** Kinshasa's operators put many customers behind few
+  IPs (carrier-grade NAT), so the default 60/min per IP would refuse
+  ordinary customers. `/api/move/matches` and `/api/telemetry/onboarding`
+  allow `SHARED_IP_MAX_EVENTS` (600/min); everything else keeps 60. The
+  limiter sweeps at most once a second.
+- **Database load.** `/api/move/matches` answers identical searches (same
+  `moveSearchQuery`) from a 60-second in-memory cache (500 entries; public
+  approved listings only, so shared answers reveal nothing). The pg pool is
+  10 (was 5), `DB_POOL_MAX` overrides; Supabase's transaction pooler on 6543
+  multiplexes them.
+- **Not changed, worth knowing:** new customers' alerts are WhatsApp session
+  messages until `SEARCH_ALERT_TEMPLATE` is approved, so customers who never
+  wrote to us may not receive them; the 24 h move follow-up can send the desk
+  up to 20 alerts per 15 minutes in a rush.

@@ -7832,7 +7832,8 @@
       "alerts": "A WhatsApp alert when a new property matches your search",
       "favorites": "Your saved properties on every device",
       "priceDrops": "A message when a saved property's price drops"
-    }
+    },
+    "creatingAccount": "Creating your account…"
   },
   "updates": {
     "title": "Updates",

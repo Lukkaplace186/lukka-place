@@ -4,6 +4,7 @@ import { countUnseenFavoritePriceDrops } from '@/lib/favoritePriceDrops';
 import { FAVORITES_SEEN_COOKIE, favoritesSeenAt } from '@/lib/favoriteSeen';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { ToastProvider } from '@/components/Toast';
+import ClearMoveDraft from '@/components/ClearMoveDraft';
 import ClientPortalTabs from './ClientPortalTabs';
 import { getT } from '@/lib/i18n/server';
 
@@ -58,6 +59,8 @@ export default async function ClientPortalLayout({ children }) {
     <div className="min-h-screen bg-page">
       <ClientPortalTabs counts={tabCounts} />
 
+      {/* Signed in = the account exists: the signup cards' draft is done (lib/moveDraft.js). */}
+      <ClearMoveDraft />
       <ToastProvider>
         {/* The phone's fixed bottom bar is cleared by the compact footer
             below the page (components/Footer.js), not by this padding. */}

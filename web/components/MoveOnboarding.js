@@ -7,6 +7,7 @@ import { ArrowLeft, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
 import { getSavedSearches } from '@/lib/localFavorites';
+import { readMoveDraft as readDraft, writeMoveDraft as writeDraft } from '@/lib/moveDraft';
 import SafeImage from '@/components/SafeImage';
 import SignupForm from '@/app/(site)/compte/inscription/SignupForm';
 import { CITIES, DEFAULT_CITY, communeLabel, communesOfCity } from '@/lib/cities';
@@ -49,33 +50,7 @@ import {
  * everything (parseMoveProject).
  */
 
-const DRAFT_KEY = 'lukka_move_draft_v2';
 const PREVIEW_DEBOUNCE_MS = 450;
-
-function readDraft() {
-  try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeDraft(value) {
-  try {
-    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(value));
-  } catch {
-    // Private window / blocked storage: the flow still works, it just won't resume.
-  }
-}
-
-export function clearMoveDraft() {
-  try {
-    window.localStorage.removeItem(DRAFT_KEY);
-  } catch {
-    // ignore
-  }
-}
 
 /** Fire-and-forget "card reached" beacon — the drop-off measure. */
 function beacon(payload) {
@@ -752,11 +727,10 @@ export default function MoveOnboarding({
                   {t('account.move.account.summary', { count: answeredCount })}
                 </p>
               ) : null}
-              {/* Clearing the draft on submit: an error redirect re-renders
-                  the page and the draft is written again from state. */}
-              <div onSubmitCapture={() => clearMoveDraft()}>
-                {signupProps ? <SignupForm {...signupProps}>{hiddenField}</SignupForm> : null}
-              </div>
+              {/* The draft is NOT cleared here: a refused sign-up re-renders
+                  this page and must find the answers again. It is cleared
+                  once the account exists (components/ClearMoveDraft.js). */}
+              {signupProps ? <SignupForm {...signupProps}>{hiddenField}</SignupForm> : null}
               {accountFooter}
             </>
           ) : null}

@@ -31,7 +31,8 @@ test('signup signs in and goes straight on: no code, no verify page', () => {
 test('login signs in on the right password, without any code step', () => {
   const src = read('app/(site)/compte/connexion/actions.js');
   assert.doesNotMatch(src, /\/compte\/inscription\/verifier|sendCustomerOtp|setVerifyAttemptCookie/);
-  const check = src.indexOf('verifyPasswordAgainstHash(password');
+  // Non-blocking scrypt since 2026-11-07 (verifyPasswordAgainstHashAsync).
+  const check = src.search(/verifyPasswordAgainstHash(?:Async)?\(password/);
   const session = src.indexOf('establishCustomerSession(');
   assert.ok(check > 0 && session > check, 'the session still comes only after the password check');
   assert.match(src, /rememberCustomerPhone\(phone\)/);

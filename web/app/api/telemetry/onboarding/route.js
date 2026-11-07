@@ -1,4 +1,4 @@
-import { clientKey, rateLimited } from '@/lib/eventIngest';
+import { SHARED_IP_MAX_EVENTS, clientKey, rateLimited } from '@/lib/eventIngest';
 import { MOVE_STEPS } from '@/lib/moveProjectRules';
 
 /**
@@ -27,7 +27,7 @@ export function sanitizeOnboardingEvent(body) {
 }
 
 export async function POST(request) {
-  if (rateLimited(`onboarding:${clientKey(request)}`)) {
+  if (rateLimited(`onboarding:${clientKey(request)}`, SHARED_IP_MAX_EVENTS)) {
     return new Response(null, { status: 429 });
   }
   let body;

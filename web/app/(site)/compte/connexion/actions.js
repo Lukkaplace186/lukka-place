@@ -10,8 +10,8 @@ import {
   consumeCustomerOtp,
 } from '@/lib/customers';
 import {
-  verifyPasswordAgainstHash,
-  burnConstantTime,
+  verifyPasswordAgainstHashAsync,
+  burnConstantTimeAsync,
   MAX_FAILED_LOGIN_ATTEMPTS,
   LOCKOUT_MS,
 } from '@/lib/customerAuth';
@@ -54,7 +54,7 @@ export async function loginAction(formData) {
   const customer = await getCustomerByPhone(phone);
 
   if (!customer) {
-    burnConstantTime(password);
+    await burnConstantTimeAsync(password);
     redirect(`/compte/connexion?error=1&next=${encodeURIComponent(next)}`);
   }
 
@@ -62,7 +62,7 @@ export async function loginAction(formData) {
     redirect(`/compte/connexion?error=locked&next=${encodeURIComponent(next)}`);
   }
 
-  if (!verifyPasswordAgainstHash(password, customer.password_hash)) {
+  if (!(await verifyPasswordAgainstHashAsync(password, customer.password_hash))) {
     const failedCount = customer.failed_login_count + 1;
     const shouldLock = failedCount >= MAX_FAILED_LOGIN_ATTEMPTS;
     await recordFailedLogin(customer.id, { lockUntil: shouldLock ? new Date(Date.now() + LOCKOUT_MS) : null });

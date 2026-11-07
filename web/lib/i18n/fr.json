@@ -7832,7 +7832,8 @@
       "alerts": "Une alerte WhatsApp quand un nouveau bien correspond à votre recherche",
       "favorites": "Vos favoris sur tous vos appareils",
       "priceDrops": "Un message quand le prix d'un bien enregistré baisse"
-    }
+    },
+    "creatingAccount": "Création du compte…"
   },
   "updates": {
     "title": "Actualités",

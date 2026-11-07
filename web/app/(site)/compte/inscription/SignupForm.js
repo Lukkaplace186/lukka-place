@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { useFormStatus } from 'react-dom';
 import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
 import PhoneField from '@/components/PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
@@ -16,6 +17,24 @@ const ERROR_MESSAGE_KEYS = {
   expired_attempt: 'auth.errors.expiredAttempt',
   ref: 'auth.errors.partnerCodeUnknown',
 };
+
+/**
+ * Locked while the account is being created: on a slow connection a second
+ * tap would send the same number again (2026-11-07, before the campaign).
+ */
+function CreateAccountButton({ label, pendingLabel }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-disabled={pending}
+      className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep disabled:opacity-60 u-btn-primary"
+    >
+      {pending ? pendingLabel : label}
+    </button>
+  );
+}
 
 /**
  * Same reasoning as LoginForm.js: reads the current visitor's anonymous
@@ -122,12 +141,7 @@ export default function SignupForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
-      >
-        {t('auth.createMyAccount')}
-      </button>
+      <CreateAccountButton label={t('auth.createMyAccount')} pendingLabel={t('auth.creatingAccount')} />
     </form>
   );
 }

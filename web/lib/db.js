@@ -25,7 +25,12 @@ export function getPool() {
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       ssl: { rejectUnauthorized: false },
-      max: 5,
+      // 10 since 2026-11-07 (was 5), ahead of a sign-up campaign: one web
+      // process, pages that run several queries, and the live move preview.
+      // Supabase's transaction pooler (port 6543) multiplexes these, so the
+      // database itself does not hold 10 connections per process.
+      // DB_POOL_MAX overrides, read once when the pool is created.
+      max: Number.parseInt(process.env.DB_POOL_MAX, 10) || 10,
     });
   }
   return pool;

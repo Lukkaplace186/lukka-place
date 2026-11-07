@@ -7,7 +7,7 @@ import {
   createCustomer,
   mergeAnonymousData,
 } from '@/lib/customers';
-import { hashPassword } from '@/lib/customerAuth';
+import { hashPasswordAsync } from '@/lib/customerAuth';
 import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerSession';
 import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 import { normalisePartnerCode } from '@/lib/partnerRules';
@@ -98,7 +98,16 @@ export async function signupAction(formData) {
     }
   }
 
-  const customer = await createCustomer({ phone, passwordHash: hashPassword(password), fullName });
+  // Two taps, or two tabs, can both pass the "exists" check above; the
+  // UNIQUE phone column refuses the second, which reads as "account exists"
+  // rather than an error page (2026-11-07, before the campaign).
+  let customer;
+  try {
+    customer = await createCustomer({ phone, passwordHash: await hashPasswordAsync(password), fullName });
+  } catch (err) {
+    if (err.code === '23505') redirect(`/compte/inscription?error=exists&next=${encodeURIComponent(next)}`);
+    throw err;
+  }
 
   // Where the account came from and which partner's link brought it
   // (lib/accountAcquisition.js). Never throws.

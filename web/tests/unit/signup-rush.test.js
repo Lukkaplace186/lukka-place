@@ -57,7 +57,7 @@ test('shared mobile IPs: the live results and the beacon allow 600 a minute; oth
 test('identical live searches are answered from a one-minute memory; the pool is 10', () => {
   const route = read('app/api/move/matches/route.js');
   assert.match(route, /const CACHE_TTL_MS = 60_000;/);
-  assert.match(route, /const key = moveSearchQuery\(project\);/);
+  assert.match(route, /const query = moveSearchQuery\(project\);/);
   assert.match(route, /const hit = cached\(key\);/);
   assert.match(route, /remember\(key, payload\);/);
   assert.match(read('lib/db.js'), /max: Number\.parseInt\(process\.env\.DB_POOL_MAX, 10\) \|\| 10,/);

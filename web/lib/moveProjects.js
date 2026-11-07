@@ -59,6 +59,8 @@ function fromRow(row) {
     settledAnswer: row.settled_answer ?? null,
     storyText: row.story_text ?? null,
     storyConsentAt: row.story_consent_at ?? null,
+    // migrations/20261107_move_project_manual_stage.sql — absent before it runs.
+    manualStage: row.manual_stage ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -248,6 +250,23 @@ export async function setMoveProjectStatus(customerId, projectId, status) {
       `UPDATE customer_move_projects SET status = $3${stamp}, updated_at = NOW()
         WHERE customer_id = $1 AND id = $2`,
       [customerId, id, status],
+    );
+    return rowCount > 0;
+  } catch (err) {
+    if (err.code === MISSING_COLUMN || err.code === MISSING_TABLE) return false;
+    throw err;
+  }
+}
+
+/**
+ * The stage the customer set by tapping a pill (MOVE_MANUAL_STAGES only).
+ * `false` before the migration or for a project that is not theirs.
+ */
+export async function setMoveProjectManualStage(customerId, projectId, stage) {
+  try {
+    const { rowCount } = await getPool().query(
+      `UPDATE customer_move_projects SET manual_stage = $3, updated_at = NOW() WHERE customer_id = $1 AND id = $2`,
+      [customerId, Number(projectId), stage],
     );
     return rowCount > 0;
   } catch (err) {

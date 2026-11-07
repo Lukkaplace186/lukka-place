@@ -180,10 +180,16 @@ function PreviewRow({ item, t }) {
  */
 function BudgetPreview({ answers, t }) {
   const [state, setState] = useState({ status: 'idle', data: null });
+  // "Voir aussi" (owner, 2026-11-07): even when homes match, the customer can
+  // ask for homes close by price or by place. 'auto' = only when few match.
+  const [closeMode, setCloseMode] = useState('auto');
   const key = JSON.stringify({
     transaction: answers.transaction, city: answers.city, communes: answers.communes,
-    bedrooms: answers.bedrooms, budgetMin: answers.budgetMin, budgetMax: answers.budgetMax,
+    bedrooms: answers.bedrooms, budgetMin: answers.budgetMin, budgetMax: answers.budgetMax, closeMode,
   });
+  const canPrice = Boolean(answers.budgetMin || answers.budgetMax);
+  const canPlace = Boolean(answers.communes?.length);
+  const toggle = (mode) => setCloseMode((m) => (m === mode ? 'auto' : mode));
 
   useEffect(() => {
     const body = JSON.parse(key);
@@ -219,6 +225,20 @@ function BudgetPreview({ answers, t }) {
             {data.total ? t('account.move.matches.count', { count: data.total }) : t('account.move.matches.none')}
           </p>
           {data.exact.map((item) => <PreviewRow key={item.id} item={item} t={t} />)}
+          {canPrice || canPlace ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-45">{t('account.move.matches.seeAlso')}</span>
+              {canPrice ? (
+                <Chip small selected={closeMode === 'price'} onClick={() => toggle('price')}>{t('account.move.matches.closePrice')}</Chip>
+              ) : null}
+              {canPlace ? (
+                <Chip small selected={closeMode === 'place'} onClick={() => toggle('place')}>{t('account.move.matches.closePlace')}</Chip>
+              ) : null}
+            </div>
+          ) : null}
+          {closeMode !== 'auto' && !data.close.length && status === 'ready' ? (
+            <p className="text-[0.8125rem] text-ink-45">{t('account.move.matches.noneClose')}</p>
+          ) : null}
           {data.close.length ? (
             <>
               <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-ink-45">{t('account.move.matches.closeTitle')}</p>
@@ -759,7 +779,15 @@ export default function MoveOnboarding({
         </div>
 
         {!isEnd ? (
-          <div className="mt-auto flex flex-col gap-2 pt-8">
+          // Pinned to the bottom of the screen (owner, 2026-11-07: on a phone
+          // "Suivant" sat below the fold on the longer cards). In the account
+          // it sits above the portal's fixed tab bar (phones only, < lg).
+          <div
+            className={cn(
+              'sticky z-20 -mx-4 mt-auto flex flex-col gap-1 border-t border-line bg-page px-4 pb-3 pt-3 lg:bg-page/95 lg:backdrop-blur-sm',
+              mode === 'edit' ? 'bottom-[calc(3.75rem+env(safe-area-inset-bottom))] lg:bottom-0' : 'bottom-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))]',
+            )}
+          >
             <button
               type="button"
               onClick={next}

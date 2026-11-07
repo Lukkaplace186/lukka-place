@@ -3530,7 +3530,13 @@
             "achat": "Buying instead of renting",
             "retour": "Coming home / a new city",
             "etudes": "Studies",
-            "autre": "Another reason"
+            "autre": "Another reason",
+            "fin_bail": "Lease ending / landlord taking the house back",
+            "securite": "A safer neighbourhood",
+            "inondation": "Flooding or erosion",
+            "famille_proche": "Living closer to family",
+            "commerce": "Opening a shop or an office",
+            "confort": "More comfort (water, power)"
           },
           "otherPlaceholder": "In a few words (optional)",
           "cheers": {
@@ -3542,7 +3548,13 @@
             "achat": "Becoming an owner is a big step! 🏡",
             "retour": "Welcome! We’ll help you settle in.",
             "etudes": "Good luck with your studies! 📚",
-            "autre": "Thank you for telling us."
+            "autre": "Thank you for telling us.",
+            "fin_bail": "We’ll help you find a new home quickly.",
+            "securite": "Your peace of mind first. Let’s look together.",
+            "inondation": "Hang in there! Let’s find somewhere dry.",
+            "famille_proche": "Good idea, family first! 👨‍👩‍👧",
+            "commerce": "Good luck with your business! 💼",
+            "confort": "You deserve better. Let’s look together."
           }
         },
         "transaction": {
@@ -3570,13 +3582,13 @@
           "options": {
             "travail": "My work",
             "ecole": "The children’s school",
-            "famille": "Family",
-            "aucun": "Doesn’t matter",
-            "eglise": "Church"
+            "famille": "My family",
+            "aucun": "No preference",
+            "eglise": "My church"
           },
-          "communeLabel": "In which commune?",
+          "communeLabel": "In which commune is it?",
           "communePlaceholder": "Choose a commune",
-          "noteLabel": "Name of the place (optional)"
+          "noteLabel": "Its name or a landmark (optional)"
         },
         "communes": {
           "cityLabel": "City",
@@ -3584,12 +3596,16 @@
         },
         "priorities": {
           "options": {
-            "electricite": "Reliable electricity",
-            "eau": "Water",
-            "securite": "Security",
-            "acces": "Easy access",
-            "cour": "A yard",
-            "parking": "Parking"
+            "electricite": "Reliable power (SNEL, generator, solar)",
+            "eau": "Running water (REGIDESO or borehole)",
+            "securite": "Security (guard, wall, gate)",
+            "acces": "Road usable in the rainy season",
+            "cour": "A yard / plot",
+            "parking": "Car parking",
+            "inondation": "No flooding or erosion",
+            "transport": "Near taxis and buses",
+            "marche": "Near a market",
+            "calme": "Quiet neighbourhood"
           }
         },
         "budget": {
@@ -3635,7 +3651,7 @@
         "place": {
           "title": "Where Would You like to Live?",
           "lead": "First the city, then up to 5 communes.",
-          "anchorQuestion": "Does one place matter most?",
+          "anchorQuestion": "What do you want to live close to?",
           "cityQuestion": "Which city?",
           "communesQuestion": "Which communes?",
           "communesPicked": "{count} of {max} chosen",
@@ -3737,7 +3753,11 @@
           "above": "{pct}% above your budget",
           "below": "{pct}% below your budget",
           "nearby": "In {commune}, ≈ {km} km"
-        }
+        },
+        "seeAlso": "See also",
+        "closePrice": "Similar prices (± 25%)",
+        "closePlace": "Nearby communes",
+        "noneClose": "Nothing close yet."
       },
       "list": {
         "title": "My Moves",
@@ -3766,7 +3786,9 @@
         "demande": "Request sent",
         "visites": "Visits",
         "trouve": "Found",
-        "installe": "Settled in"
+        "installe": "Settled in",
+        "hint": "A step not ticked? Tap it to say where you are.",
+        "markAs": "Mark that I am at: {stage}"
       },
       "status": {
         "found": "This is the one! I found it",

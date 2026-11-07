@@ -10,6 +10,9 @@ import {
   MAX_MOVE_PROJECTS,
   MOVE_ANCHORS,
   MOVE_STAGES,
+  MOVE_MANUAL_STAGES,
+  MOVE_REASONS,
+  MOVE_PRIORITIES,
   MOVE_BUDGETS,
   MOVE_BUDGET_STRETCH,
   MOVE_STEPS,
@@ -358,13 +361,42 @@ test('"Bien installés ?" is due 30 days after "C\'est le bon !", once', () => {
   assert.equal(checkinDue({ ...found(40), status: 'active' }, now), false);
 });
 
-test('the stages are reached by real events only', () => {
+test('stages cascade: the furthest real event ticks every stage before it', () => {
   const base = parseMoveProject({ transaction: 'location', city: 'Kinshasa', communes: ['Gombe'] }).project;
+  const story = parseMoveProject({ reasons: ['travail'] }).project;
   assert.deepEqual(moveStagesReached({ ...base, status: 'active' }), ['projet', 'recherche']);
-  assert.deepEqual(moveStagesReached({ ...base, status: 'active', lastLeadAt: '2026-11-07' }, { hasVisit: true }), ['projet', 'recherche', 'demande', 'visites']);
-  assert.deepEqual(moveStagesReached({ ...base, status: 'found', settledAnswer: 'settled' }), ['projet', 'recherche', 'trouve', 'installe']);
-  assert.deepEqual(moveStagesReached({ ...parseMoveProject({ reasons: ['travail'] }).project, status: 'active' }), ['projet']);
+  // A visit confirmed outside the usual path still shows the earlier stages done.
+  assert.deepEqual(moveStagesReached({ ...story, status: 'active' }, { hasVisit: true }), ['projet', 'recherche', 'demande', 'visites']);
+  assert.deepEqual(moveStagesReached({ ...story, status: 'active' }, { hasRequest: true }), ['projet', 'recherche', 'demande']);
+  assert.deepEqual(moveStagesReached({ ...story, status: 'found', settledAnswer: 'settled' }), [...MOVE_STAGES]);
+  assert.deepEqual(moveStagesReached({ ...story, status: 'active' }), ['projet']);
   assert.deepEqual([...MOVE_STAGES], ['projet', 'recherche', 'demande', 'visites', 'trouve', 'installe']);
+});
+
+test('the customer can move their stage forward by hand, never past "found" without confirming', () => {
+  const story = parseMoveProject({ reasons: ['travail'] }).project;
+  assert.deepEqual([...MOVE_MANUAL_STAGES], ['recherche', 'demande', 'visites']);
+  assert.deepEqual(moveStagesReached({ ...story, status: 'active', manualStage: 'visites' }), ['projet', 'recherche', 'demande', 'visites']);
+  assert.deepEqual(moveStagesReached({ ...story, status: 'active', manualStage: 'trouve' }), ['projet'], 'not a manual stage');
+  // A manual stage never moves a real event back.
+  assert.deepEqual(moveStagesReached({ ...story, status: 'active', manualStage: 'recherche' }, { hasVisit: true }).at(-1), 'visites');
+  const action = read('app/(site)/compte/client/projet/actions.js');
+  assert.match(action, /MOVE_MANUAL_STAGES\.includes\(stage\) && \(await setMoveProjectManualStage\(customerId, project\.id, stage\)\)/);
+  const pills = read('app/(site)/compte/client/projet/ProjectJourney.js');
+  assert.match(pills, /\?confirmer=trouve#statut/, '"Trouvé" opens the confirmation');
+  assert.match(pills, /\?installe=1#checkin/, '"Installé" opens the check-in');
+  const page = read('app/(site)/compte/client/projet/[id]/page.js');
+  assert.match(page, /if \(lead && at\(lead\.created_at\) >= since\) hasRequest = true;/, 'any request since the project counts');
+});
+
+test('close homes by price or by place on request, even when homes match', () => {
+  const src = read('lib/moveMatches.js');
+  assert.match(src, /const wantPrice = auto \|\| closeMode === 'price';/);
+  assert.match(src, /const wantPlace = auto \|\| closeMode === 'place';/);
+  const route = read('app/api/move/matches/route.js');
+  assert.match(route, /const key = `\$\{closeMode\}\|\$\{query\}`;/, 'the cache keeps the modes apart');
+  assert.ok(MOVE_REASONS.includes('inondation') && MOVE_REASONS.includes('fin_bail'));
+  assert.ok(MOVE_PRIORITIES.includes('acces') && MOVE_PRIORITIES.includes('transport'));
 });
 
 test('a listing fits a project only on fields both state; the wrong kind of home gets no line', () => {

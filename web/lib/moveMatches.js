@@ -24,7 +24,10 @@ export const CLOSE_WHEN_FEWER_THAN = 4;
  * @param {object} project parseMoveProject's shape
  * @returns {Promise<null | {query: string, total: number, exact: object[], close: Array<{listing: object, tags: object[]}>}>}
  */
-export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6, withClose = true } = {}) {
+/** `closeMode`: 'auto' (close homes only when few match), or the customer's own ask, 'price' / 'place' (owner, 2026-11-07). */
+export const CLOSE_MODES = Object.freeze(['auto', 'price', 'place']);
+
+export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6, withClose = true, closeMode = 'auto' } = {}) {
   const query = moveSearchQuery(project);
   if (!query) return null;
   const base = parseListingsSearchParams(new URLSearchParams(query));
@@ -32,8 +35,12 @@ export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6, 
   const seen = new Set(exact.data.map((l) => Number(l.id)));
   const close = [];
 
-  if (withClose && exact.total < CLOSE_WHEN_FEWER_THAN) {
-    if (project.budgetMin || project.budgetMax) {
+  // Auto: both kinds when few match. Asked for: that kind, however many match.
+  const auto = withClose && closeMode === 'auto' && exact.total < CLOSE_WHEN_FEWER_THAN;
+  const wantPrice = auto || closeMode === 'price';
+  const wantPlace = auto || closeMode === 'place';
+  if (wantPrice || wantPlace) {
+    if (wantPrice && (project.budgetMin || project.budgetMax)) {
       const s = stretchedBudget(project);
       const wider = await getListings({
         ...base,
@@ -50,7 +57,7 @@ export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6, 
         close.push({ listing, tags });
       }
     }
-    if (close.length < closeLimit && base.commune) {
+    if (wantPlace && close.length < closeLimit && base.commune) {
       const extras = await getNearbyExtras(base, [...seen]).catch((err) => {
         console.warn(`[move-matches] nearby unavailable: ${err.message}`);
         return null;
@@ -65,7 +72,7 @@ export async function getMoveMatches(project, { exactLimit = 8, closeLimit = 6, 
     }
   }
 
-  return { query, total: exact.total, exact: exact.data, close: close.slice(0, closeLimit) };
+  return { query, total: exact.total, exact: exact.data, close: close.slice(0, closeLimit), closeMode };
 }
 
 /** What the live preview sends to the browser for one home — nothing but what its card shows. */

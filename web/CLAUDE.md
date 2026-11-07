@@ -4630,3 +4630,21 @@ are fixed, `tests/unit/signup-rush.test.js`.
   messages until `SEARCH_ALERT_TEMPLATE` is approved, so customers who never
   wrote to us may not receive them; the 24 h move follow-up can send the desk
   up to 20 alerts per 15 minutes in a rush.
+- **Owner feedback, round 3 (2026-11-07).** Fifteen "why" options (added:
+  fin de bail, quartier plus sûr, inondations/érosion, se rapprocher de la
+  famille, commerce/bureau, plus de confort); "Ce qui compte" in Kinshasa's
+  terms (courant SNEL/groupe/solaire, eau REGIDESO/forage, route praticable
+  en saison des pluies, zone non inondable, taxis/bus, marché, calme…); the
+  place question reads "Près de quoi voulez-vous vivre ?" / "Dans quelle
+  commune se trouve ce lieu ?". **Suivant is pinned** to the bottom of the
+  screen (above the portal tab bar in edit mode; no blur on phones).
+  **"Voir aussi : Prix proches · Communes proches"** asks for close homes even
+  when homes match (`getMoveMatches` `closeMode` 'price'|'place'; API body
+  `closeMode`, cached per mode; project page `?proches=prix|lieu`).
+  **Stages cascade** (`moveStagesReached`): the furthest event — any request
+  of the customer since the project began, any visit, found, settled — ticks
+  every earlier stage. **Pills are tappable**: Recherche / Demande / Visites
+  save `customer_move_projects.manual_stage`
+  (`migrations/20261107_move_project_manual_stage.sql`, forward only);
+  "Trouvé" opens the "C'est le bon !" confirmation (`?confirmer=trouve`),
+  "Installé" the check-in (`?installe=1`).

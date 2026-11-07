@@ -20,14 +20,24 @@
  */
 import { CITIES, DEFAULT_CITY, cityOfCommune, communeLabel, communesOfCity, findCity } from './cities';
 
-export const MOVE_REASONS = Object.freeze(['famille', 'travail', 'couple', 'premier', 'budget', 'achat', 'retour', 'etudes', 'autre']);
+export const MOVE_REASONS = Object.freeze([
+  'famille', 'travail', 'couple', 'premier', 'budget', 'achat', 'retour', 'etudes',
+  // Owner, 2026-11-07: more of the reasons people in Kinshasa actually move for.
+  'fin_bail', 'securite', 'inondation', 'famille_proche', 'commerce', 'confort',
+  'autre',
+]);
 /** "Location courte durée" is a rental with lease_term 'short' (lib/leaseTerm.js). */
 export const MOVE_TRANSACTIONS = Object.freeze(['location', 'vente', 'courte']);
 export const MOVE_HOUSEHOLDS = Object.freeze(['seul', 'deux', 'trois_quatre', 'cinq_six', 'sept_plus']);
 /** 5 means "5 or more" — a minimum, like `beds_min`. */
 export const MOVE_BEDROOMS = Object.freeze([1, 2, 3, 4, 5]);
 export const MOVE_ANCHORS = Object.freeze(['travail', 'ecole', 'famille', 'eglise', 'aucun']);
-export const MOVE_PRIORITIES = Object.freeze(['electricite', 'eau', 'securite', 'acces', 'cour', 'parking']);
+/**
+ * What matters, in Kinshasa's terms (owner, 2026-11-07): power that holds,
+ * running water, a road usable in the rainy season, no flooding or erosion…
+ * Told to agencies; never a search filter (few listings carry the tags).
+ */
+export const MOVE_PRIORITIES = Object.freeze(['electricite', 'eau', 'securite', 'acces', 'inondation', 'transport', 'marche', 'calme', 'cour', 'parking']);
 export const MOVE_TIMELINES = Object.freeze(['asap', 'un_mois', 'trois_mois', 'regarde']);
 export const MOVE_CURRENT_HOMES = Object.freeze(['appartement', 'maison', 'studio', 'chambre', 'famille']);
 
@@ -226,10 +236,19 @@ const REASON_FR = {
   achat: 'acheter au lieu de louer',
   retour: 'retour au pays / nouvelle ville',
   etudes: 'études',
+  fin_bail: 'fin de bail / le bailleur reprend la maison',
+  securite: 'un quartier plus sûr',
+  inondation: 'inondations ou érosion là où il vit',
+  famille_proche: 'se rapprocher de sa famille',
+  commerce: 'ouvrir un commerce ou un bureau',
+  confort: 'plus de confort (eau, courant)',
 };
 const HOUSEHOLD_FR = { seul: '1 personne', deux: '2 personnes', trois_quatre: '3–4 personnes', cinq_six: '5–6 personnes', sept_plus: '7 personnes ou plus' };
 const ANCHOR_FR = { travail: 'son travail', ecole: 'l’école des enfants', famille: 'sa famille', eglise: 'son église' };
-const PRIORITY_FR = { electricite: 'électricité stable', eau: 'eau', securite: 'sécurité', acces: 'accès facile', cour: 'une cour', parking: 'parking' };
+const PRIORITY_FR = {
+  electricite: 'courant stable', eau: 'eau courante', securite: 'sécurité (gardien, clôture)', acces: 'route praticable en saison des pluies',
+  inondation: 'zone non inondable', transport: 'proche des taxis et bus', marche: 'proche d’un marché', calme: 'quartier calme', cour: 'une cour', parking: 'parking',
+};
 const TIMELINE_FR = { asap: 'dès que possible', un_mois: 'dans le mois', trois_mois: 'dans 1 à 3 mois', regarde: 'regarde seulement pour l’instant' };
 const CURRENT_FR = { appartement: 'un appartement', maison: 'une maison', studio: 'un studio', chambre: 'une chambre', famille: 'chez sa famille' };
 
@@ -468,16 +487,33 @@ export function checkinDue(project, now = new Date()) {
  * `hasVisit` comes from the customer's real viewing requests.
  */
 export const MOVE_STAGES = Object.freeze(['projet', 'recherche', 'demande', 'visites', 'trouve', 'installe']);
+/** Stages a customer may set by tapping a pill; "trouvé" and "installé" go through their own confirmations. */
+export const MOVE_MANUAL_STAGES = Object.freeze(['recherche', 'demande', 'visites']);
 
-export function moveStagesReached(project, { hasVisit = false } = {}) {
+/**
+ * The stages this project has reached, CASCADING (owner, 2026-11-07): the
+ * furthest stage any real event proves — or the customer set by hand —
+ * marks every stage before it, so a visit confirmed outside the usual path
+ * still shows "Recherche" and "Demande envoyée" done.
+ *
+ * Events: a search (the project names one) · a request (`lastLeadAt`, or
+ * `hasRequest`: any request of the customer since the project began — a
+ * "Trouver pour moi", a listing enquiry, a visit request) · a visit
+ * (`hasVisit`: any viewing request since then, confirmed or not) · found ·
+ * settled in. `project.manualStage` (one of MOVE_MANUAL_STAGES) is the
+ * customer's own say and only ever moves the stage forward.
+ */
+export function moveStagesReached(project, { hasVisit = false, hasRequest = false } = {}) {
   if (!project) return [];
-  const reached = ['projet'];
-  if (moveSearchQuery(project)) reached.push('recherche');
-  if (project.lastLeadAt) reached.push('demande');
-  if (hasVisit) reached.push('visites');
-  if (project.status === 'found') reached.push('trouve');
-  if (project.status === 'found' && project.settledAnswer === 'settled') reached.push('installe');
-  return reached;
+  let furthest = 0;
+  const reach = (stage) => { furthest = Math.max(furthest, MOVE_STAGES.indexOf(stage)); };
+  if (moveSearchQuery(project)) reach('recherche');
+  if (project.lastLeadAt || hasRequest) reach('demande');
+  if (hasVisit) reach('visites');
+  if (MOVE_MANUAL_STAGES.includes(project.manualStage)) reach(project.manualStage);
+  if (project.status === 'found') reach('trouve');
+  if (project.status === 'found' && project.settledAnswer === 'settled') reach('installe');
+  return MOVE_STAGES.slice(0, furthest + 1);
 }
 
 /**

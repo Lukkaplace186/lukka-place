@@ -3530,7 +3530,13 @@
             "achat": "Acheter au lieu de louer",
             "retour": "Retour au pays / nouvelle ville",
             "etudes": "Études",
-            "autre": "Autre raison"
+            "autre": "Autre raison",
+            "fin_bail": "Fin de bail / le bailleur reprend la maison",
+            "securite": "Un quartier plus sûr",
+            "inondation": "Inondations ou érosion",
+            "famille_proche": "Me rapprocher de ma famille",
+            "commerce": "Ouvrir un commerce ou un bureau",
+            "confort": "Plus de confort (eau, courant)"
           },
           "otherPlaceholder": "En quelques mots (facultatif)",
           "cheers": {
@@ -3542,7 +3548,13 @@
             "achat": "Devenir propriétaire, un grand pas ! 🏡",
             "retour": "Bienvenue ! Nous vous aidons à vous installer.",
             "etudes": "Bonne réussite pour vos études ! 📚",
-            "autre": "Merci de nous le dire."
+            "autre": "Merci de nous le dire.",
+            "fin_bail": "Nous vous aidons à retrouver vite un logement.",
+            "securite": "Votre tranquillité d’abord. Cherchons ensemble.",
+            "inondation": "Courage ! Cherchons un endroit au sec.",
+            "famille_proche": "Bonne idée, la famille d’abord ! 👨‍👩‍👧",
+            "commerce": "Bonne chance pour votre activité ! 💼",
+            "confort": "Vous méritez mieux. Cherchons ensemble."
           }
         },
         "transaction": {
@@ -3570,13 +3582,13 @@
           "options": {
             "travail": "Mon travail",
             "ecole": "L’école des enfants",
-            "famille": "La famille",
-            "aucun": "Peu importe",
-            "eglise": "L’église"
+            "famille": "Ma famille",
+            "aucun": "Pas de préférence",
+            "eglise": "Mon église"
           },
-          "communeLabel": "Dans quelle commune ?",
+          "communeLabel": "Dans quelle commune se trouve ce lieu ?",
           "communePlaceholder": "Choisir une commune",
-          "noteLabel": "Nom du lieu (facultatif)"
+          "noteLabel": "Son nom ou une référence (facultatif)"
         },
         "communes": {
           "cityLabel": "Ville",
@@ -3584,12 +3596,16 @@
         },
         "priorities": {
           "options": {
-            "electricite": "Électricité stable",
-            "eau": "Eau",
-            "securite": "Sécurité",
-            "acces": "Accès facile",
-            "cour": "Une cour",
-            "parking": "Parking"
+            "electricite": "Courant stable (SNEL, groupe, solaire)",
+            "eau": "Eau courante (REGIDESO ou forage)",
+            "securite": "Sécurité (gardien, clôture, portail)",
+            "acces": "Route praticable en saison des pluies",
+            "cour": "Une cour / parcelle",
+            "parking": "Parking pour voiture",
+            "inondation": "Zone non inondable, sans érosion",
+            "transport": "Proche des taxis et bus",
+            "marche": "Proche d’un marché",
+            "calme": "Quartier calme"
           }
         },
         "budget": {
@@ -3635,7 +3651,7 @@
         "place": {
           "title": "Où aimeriez-vous vivre ?",
           "lead": "D’abord la ville, puis jusqu’à 5 communes.",
-          "anchorQuestion": "Un lieu compte particulièrement ?",
+          "anchorQuestion": "Près de quoi voulez-vous vivre ?",
           "cityQuestion": "Dans quelle ville ?",
           "communesQuestion": "Dans quelles communes ?",
           "communesPicked": "{count} sur {max} choisies",
@@ -3737,7 +3753,11 @@
           "above": "{pct} % au-dessus de votre budget",
           "below": "{pct} % en dessous de votre budget",
           "nearby": "À {commune}, ≈ {km} km"
-        }
+        },
+        "seeAlso": "Voir aussi",
+        "closePrice": "Prix proches (± 25 %)",
+        "closePlace": "Communes proches",
+        "noneClose": "Rien de proche pour l’instant."
       },
       "list": {
         "title": "Mes projets de déménagement",
@@ -3766,7 +3786,9 @@
         "demande": "Demande envoyée",
         "visites": "Visites",
         "trouve": "Trouvé",
-        "installe": "Installé"
+        "installe": "Installé",
+        "hint": "Une étape n’est pas cochée ? Touchez-la pour indiquer où vous en êtes.",
+        "markAs": "Indiquer que j’en suis à : {stage}"
       },
       "status": {
         "found": "C’est le bon ! J’ai trouvé",

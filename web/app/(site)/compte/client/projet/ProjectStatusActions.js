@@ -23,9 +23,10 @@ const SECONDARY = 'u-press inline-flex min-h-11 items-center justify-center gap-
  * pause" and "Reprendre" are one tap. Each `*Action` is bound to the project
  * id by the page.
  */
-export default function ProjectStatusActions({ status, foundAction, pauseAction, resumeAction }) {
+export default function ProjectStatusActions({ status, foundAction, pauseAction, resumeAction, askFound = false }) {
   const t = useT();
-  const [asking, setAsking] = useState(false);
+  // `askFound`: opened from the "Trouvé" stage pill — the confirmation shows at once.
+  const [asking, setAsking] = useState(askFound);
   const pending = t('account.move.status.saving');
 
   if (status === 'found' || status === 'paused') {

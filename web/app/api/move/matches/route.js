@@ -1,6 +1,6 @@
 import { SHARED_IP_MAX_EVENTS, clientKey, rateLimited } from '@/lib/eventIngest';
 import { moveSearchQuery, parseMoveProject } from '@/lib/moveProjectRules';
-import { getMoveMatches, previewCard } from '@/lib/moveMatches';
+import { CLOSE_MODES, getMoveMatches, previewCard } from '@/lib/moveMatches';
 
 /**
  * The budget card's live preview ("Mon déménagement", components/MoveOnboarding.js):
@@ -56,13 +56,15 @@ export async function POST(request) {
     return Response.json({ error: 'body' }, { status: 400 });
   }
   const { project } = parseMoveProject(body);
-  const key = moveSearchQuery(project);
-  if (!key) return Response.json({ total: 0, exact: [], close: [], query: null });
+  const closeMode = CLOSE_MODES.includes(body?.closeMode) ? body.closeMode : 'auto';
+  const query = moveSearchQuery(project);
+  if (!query) return Response.json({ total: 0, exact: [], close: [], query: null });
+  const key = `${closeMode}|${query}`;
   const headers = { 'Cache-Control': 'private, no-store' };
   const hit = cached(key);
   if (hit) return Response.json(hit, { headers });
   try {
-    const result = await getMoveMatches(project, { exactLimit: PREVIEW_EXACT, closeLimit: PREVIEW_CLOSE });
+    const result = await getMoveMatches(project, { exactLimit: PREVIEW_EXACT, closeLimit: PREVIEW_CLOSE, closeMode });
     const payload = result
       ? {
         total: result.total,

@@ -1,39 +1,77 @@
+import Link from 'next/link';
 import { Check, ClipboardCheck } from 'lucide-react';
-import { MAX_MOVE_STORY, MOVE_STAGES } from '@/lib/moveProjectRules';
+import { MAX_MOVE_STORY, MOVE_MANUAL_STAGES, MOVE_STAGES } from '@/lib/moveProjectRules';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 const CARD = 'rounded-card bg-surface shadow-[var(--hairline),var(--shadow-card)]';
 
+const PILL = 'flex flex-none items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.78125rem]';
+
 /**
  * Where the move stands, as a strip of its stages (lib/moveProjectRules.js
- * moveStagesReached): each one reached by a real event, the last reached one
- * highlighted, the ones ahead greyed. Server-rendered, no state.
+ * moveStagesReached — cascading, so a later event ticks every earlier
+ * stage). Stages not reached yet are TAPPABLE (owner, 2026-11-07), for when
+ * the tracker missed something: "Recherche", "Demande envoyée" and "Visites"
+ * save the customer's own stage (`stageAction`, setManualStageAction bound
+ * to the project); "Trouvé" opens the "C'est le bon !" confirmation and
+ * "Installé" the check-in, because those stop the alert or ask for consent.
  */
-export function ProjectStages({ reached, t }) {
+export function ProjectStages({ reached, t, projectId, status, stageAction }) {
   const current = reached[reached.length - 1];
+  const searching = status === 'active';
   return (
-    <ol className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label={t('account.move.stages.label')}>
-      {MOVE_STAGES.map((stage, i) => {
-        const done = reached.includes(stage);
-        const isCurrent = stage === current;
-        return (
-          <li
-            key={stage}
-            aria-current={isCurrent ? 'step' : undefined}
-            className={
-              isCurrent
-                ? 'flex flex-none items-center gap-1.5 rounded-full bg-blue px-3 py-1.5 text-[0.78125rem] font-bold text-white'
-                : done
-                  ? 'flex flex-none items-center gap-1.5 rounded-full bg-blue-tint px-3 py-1.5 text-[0.78125rem] font-bold text-blue-deep'
-                  : 'flex flex-none items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[0.78125rem] font-semibold text-ink-45'
-            }
-          >
-            {done ? <Check strokeWidth={2.5} className="h-3.5 w-3.5" aria-hidden="true" /> : <span aria-hidden="true">{i + 1}</span>}
-            {t(`account.move.stages.${stage}`)}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="flex flex-col gap-1">
+      <ol className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label={t('account.move.stages.label')}>
+        {MOVE_STAGES.map((stage, i) => {
+          const done = reached.includes(stage);
+          const label = t(`account.move.stages.${stage}`);
+          if (done) {
+            const isCurrent = stage === current;
+            return (
+              <li key={stage} aria-current={isCurrent ? 'step' : undefined}
+                className={`${PILL} font-bold ${isCurrent ? 'bg-blue text-white' : 'bg-blue-tint text-blue-deep'}`}>
+                <Check strokeWidth={2.5} className="h-3.5 w-3.5" aria-hidden="true" />
+                {label}
+              </li>
+            );
+          }
+          const tappable = `${PILL} min-h-9 border border-dashed border-blue/50 font-semibold text-blue-deep hover:bg-blue-tint`;
+          const inner = (
+            <>
+              <span aria-hidden="true">{i + 1}</span>
+              {label}
+            </>
+          );
+          if (searching && MOVE_MANUAL_STAGES.includes(stage) && stageAction) {
+            return (
+              <li key={stage} className="flex-none">
+                <form action={stageAction.bind(null, stage)}>
+                  <button type="submit" className={tappable} aria-label={t('account.move.stages.markAs', { stage: label })}>{inner}</button>
+                </form>
+              </li>
+            );
+          }
+          if (stage === 'trouve' && searching) {
+            return (
+              <li key={stage} className="flex-none">
+                <Link href={`/compte/client/projet/${projectId}?confirmer=trouve#statut`} className={tappable}>{inner}</Link>
+              </li>
+            );
+          }
+          if (stage === 'installe' && status === 'found') {
+            return (
+              <li key={stage} className="flex-none">
+                <Link href={`/compte/client/projet/${projectId}?installe=1#checkin`} className={tappable}>{inner}</Link>
+              </li>
+            );
+          }
+          return (
+            <li key={stage} className={`${PILL} border border-line font-semibold text-ink-45`}>{inner}</li>
+          );
+        })}
+      </ol>
+      {searching ? <p className="text-[0.75rem] text-ink-45">{t('account.move.stages.hint')}</p> : null}
+    </div>
   );
 }
 

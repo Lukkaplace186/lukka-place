@@ -9,6 +9,7 @@ import { getT } from '@/lib/i18n/server';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import {
   MOVE_LEAD_SOURCE,
+  MOVE_MANUAL_STAGES,
   MOVE_RESEND_AFTER_MS,
   cleanProjectTitle,
   cleanStory,
@@ -25,6 +26,7 @@ import {
   markMoveProjectSent,
   recordSettledCheckin,
   saveProjectAndAlert,
+  setMoveProjectManualStage,
   setMoveProjectStatus,
 } from '@/lib/moveProjects';
 
@@ -173,6 +175,23 @@ export async function settleCheckinAction(projectId, formData) {
   console.log(`[move-project] check-in project #${project.id}: ${answer}, story=${story ? 'yes' : 'no'}, consent=${consent}`);
   revalidateProjects(project.id);
   redirect(`/compte/client/projet/${project.id}?merci=1`);
+}
+
+/**
+ * A tapped stage pill (owner, 2026-11-07): the customer says where their
+ * move stands when the tracker missed it — "Demande envoyée", "Visites".
+ * Only MOVE_MANUAL_STAGES; "trouvé" and "installé" have their own
+ * confirmations because they stop the alert and close the request.
+ */
+export async function setManualStageAction(projectId, stage) {
+  const customerId = await getCurrentCustomerId();
+  if (!customerId) redirect('/compte/connexion?next=/compte/client/projet');
+  const project = await getMoveProject(customerId, projectIdOf(projectId));
+  if (!project) redirect('/compte/client/projet');
+  const ok = MOVE_MANUAL_STAGES.includes(stage) && (await setMoveProjectManualStage(customerId, project.id, stage));
+  if (ok) console.log(`[move-project] project #${project.id}: customer set stage ${stage}`);
+  revalidateProjects(project.id);
+  redirect(`/compte/client/projet/${project.id}${ok ? '' : '?error=status'}`);
 }
 
 /** "Supprimer ce projet" (after the customer confirmed in the dialog). */

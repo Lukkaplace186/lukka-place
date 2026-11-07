@@ -14,7 +14,7 @@ import { getLocale, getT } from '@/lib/i18n/server';
 import SendMoveRequest from '../SendMoveRequest';
 import DeleteMoveProject from '../DeleteMoveProject';
 import { storyLines } from '../storyLines';
-import { deleteMoveProjectAction, markProjectFoundAction, pauseProjectAction, resumeProjectAction, sendMoveRequestAction, settleCheckinAction } from '../actions';
+import { deleteMoveProjectAction, setManualStageAction, markProjectFoundAction, pauseProjectAction, resumeProjectAction, sendMoveRequestAction, settleCheckinAction } from '../actions';
 import ProjectStatusActions from '../ProjectStatusActions';
 import { CheckinCard, ProjectStages, SigningChecklist } from '../ProjectJourney';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
@@ -43,10 +43,10 @@ const RAIL = '-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-au
  * first; then, when few match, the closest ones apart, each saying why it is
  * close (a little over/under the budget, or a nearby commune).
  */
-async function ResultsSection({ project, t }) {
+async function ResultsSection({ project, t, closeMode = 'auto' }) {
   let result;
   try {
-    result = await getMoveMatches(project, { exactLimit: RESULTS_LIMIT });
+    result = await getMoveMatches(project, { exactLimit: RESULTS_LIMIT, closeMode });
   } catch (err) {
     console.error(`[move-project] results failed: ${err.message}`);
     return <p className="text-sm text-ink-70">{t('account.move.page.results.error')}</p>;
@@ -71,6 +71,26 @@ async function ResultsSection({ project, t }) {
       ) : (
         <p className={`p-4 text-[0.9375rem] font-semibold text-ink ${CARD}`}>{t('account.move.page.results.none')}</p>
       )}
+      {/* "Voir aussi" (owner, 2026-11-07): homes close by price or by place,
+          on request, even when homes match exactly. Tap again to go back. */}
+      {project.budgetMin || project.budgetMax || project.communes?.length ? (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-45">{t('account.move.matches.seeAlso')}</span>
+          {[['price', 'prix', project.budgetMin || project.budgetMax, 'closePrice'], ['place', 'lieu', project.communes?.length, 'closePlace']]
+            .filter(([, , ok]) => ok)
+            .map(([mode, param, , labelKey]) => (
+              <Link
+                key={mode}
+                href={closeMode === mode ? `/compte/client/projet/${project.id}#move-results` : `/compte/client/projet/${project.id}?proches=${param}#move-results`}
+                aria-pressed={closeMode === mode}
+                className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-[0.875rem] font-semibold ${closeMode === mode ? 'border-blue bg-blue text-white' : 'border-line bg-surface text-ink hover:border-blue'}`}
+              >
+                {t(`account.move.matches.${labelKey}`)}
+              </Link>
+            ))}
+        </div>
+      ) : null}
+      {closeMode !== 'auto' && !close.length ? <p className="text-[0.8125rem] text-ink-45">{t('account.move.matches.noneClose')}</p> : null}
       {close.length ? (
         <section className="mt-2 flex flex-col gap-2" aria-labelledby="move-close">
           <h3 id="move-close" className="u-title-sub text-ink">{t('account.move.matches.closeTitle')}</h3>
@@ -140,16 +160,29 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
   // Same window as sendMoveRequestAction's refusal: one push to agencies a day.
   const recentlySent = Boolean(project.lastLeadAt) && Date.now() - new Date(project.lastLeadAt).getTime() < MOVE_RESEND_AFTER_MS;
   const active = project.status === 'active';
-  // "Visites" is reached by a real viewing request made since this project began.
+  // Every action of the customer since this project began feeds its stages
+  // (owner, 2026-11-07): any request they sent (here, "Trouver pour moi", a
+  // listing enquiry, a visit request) and any visit — and moveStagesReached
+  // cascades, so a confirmed visit ticks "Demande envoyée" and "Recherche"
+  // even when those were never tracked.
   let hasVisit = false;
+  let hasRequest = false;
   try {
     const since = new Date(project.createdAt).getTime();
-    hasVisit = (await getCustomerInquiries(customerId)).some(({ viewings = [] }) =>
-      viewings.some((v) => v.created_at && new Date(v.created_at).getTime() >= since));
+    const at = (value) => {
+      if (!value) return 0;
+      const text = String(value);
+      const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(text) || text.includes('T') ? text : `${text.replace(' ', 'T')}Z`;
+      return new Date(iso).getTime() || 0;
+    };
+    for (const { lead, viewings = [] } of await getCustomerInquiries(customerId)) {
+      if (lead && at(lead.created_at) >= since) hasRequest = true;
+      if (viewings.some((v) => at(v.created_at) >= since)) hasVisit = true;
+    }
   } catch {
     hasVisit = false;
   }
-  const stages = moveStagesReached(project, { hasVisit });
+  const stages = moveStagesReached(project, { hasVisit, hasRequest });
   const foundDate = project.foundAt
     ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long', timeZone: 'Africa/Kinshasa' }).format(new Date(project.foundAt))
     : null;
@@ -170,7 +203,7 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         <h1 className="u-title-page mt-1 text-ink">{projectName}</h1>
       </div>
 
-      <ProjectStages reached={stages} t={t} />
+      <ProjectStages reached={stages} t={t} projectId={project.id} status={project.status} stageAction={setManualStageAction.bind(null, project.id)} />
 
       {params?.trouve === '1' || project.status === 'found' ? (
         <p className="rounded-xl bg-green-tint px-4 py-3 text-[0.9375rem] font-semibold text-green-deep" role="status">
@@ -186,7 +219,7 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
       {params?.error === 'status' ? (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{t('account.move.status.error')}</p>
       ) : null}
-      {checkinDue(project) ? <CheckinCard action={settleCheckinAction.bind(null, project.id)} t={t} /> : null}
+      {checkinDue(project) || (params?.installe === '1' && project.status === 'found' && !project.settledAt) ? <CheckinCard action={settleCheckinAction.bind(null, project.id)} t={t} /> : null}
 
       <section className={`relative overflow-hidden p-4 sm:p-5 ${CARD}`} aria-labelledby="move-story">
         <div className="flex items-start justify-between gap-3">
@@ -237,7 +270,7 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         <h2 id="move-results" className="u-title-card text-ink">{t('account.move.page.results.title')}</h2>
         {query ? (
           <Suspense fallback={<ResultsSkeleton />}>
-            <ResultsSection project={project} t={t} />
+            <ResultsSection project={project} t={t} closeMode={{ prix: 'price', lieu: 'place' }[params?.proches] || 'auto'} />
           </Suspense>
         ) : (
           <p className="text-sm text-ink-45">{t('account.move.page.results.noQuery')}</p>
@@ -266,12 +299,15 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
 
       {active ? <SigningChecklist t={t} /> : null}
 
+      <div id="statut" className="scroll-mt-24">
       <ProjectStatusActions
         status={project.status}
+        askFound={params?.confirmer === 'trouve'}
         foundAction={markProjectFoundAction.bind(null, project.id)}
         pauseAction={pauseProjectAction.bind(null, project.id)}
         resumeAction={resumeProjectAction.bind(null, project.id)}
       />
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link

@@ -8,12 +8,16 @@ import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
 import {
   MAX_MOVE_COMMUNES,
   MAX_MOVE_PROJECTS,
+  MOVE_ANCHORS,
+  MOVE_STAGES,
   MOVE_BUDGETS,
   MOVE_BUDGET_STRETCH,
   MOVE_STEPS,
   answersFromProject,
   cleanBudgetRange,
   cleanProjectTitle,
+  cleanStory,
+  checkinDue,
   closeMatchTags,
   stretchedBudget,
   moveCriteriaFr,
@@ -22,6 +26,8 @@ import {
   moveStoryFr,
   parseMoveProject,
   projectDisplayName,
+  projectFit,
+  moveStagesReached,
   projectFromSearchQuery,
 } from '@/lib/moveProjectRules';
 import { createMoveProject, deleteMoveProject, getMoveProject, updateMoveProject } from '@/lib/moveProjects';
@@ -317,4 +323,65 @@ test('the place card: the city first, as boxes, then every commune of that city 
   // The place that matters pre-ticks its commune, visibly, on the same card.
   assert.match(src, /if \(inCity && !a\.communes\.includes\(value\) && a\.communes\.length < MAX_MOVE_COMMUNES\)/);
   assert.equal(MAX_MOVE_COMMUNES, 5);
+});
+
+test('"C\'est le bon !" marks the request CONVERTED and stops the alert, unless another search shares it', () => {
+  const src = read('app/(site)/compte/client/projet/actions.js');
+  const found = src.slice(src.indexOf('export async function markProjectFoundAction'), src.indexOf('export async function pauseProjectAction'));
+  assert.match(found, /setMoveProjectStatus\(customerId, project\.id, 'found'\)/);
+  assert.match(found, /stopProjectAlert\(customerId, project\)/);
+  assert.match(found, /updateLeadStatus\(project\.lastLeadId, 'CONVERTED'\)/);
+  assert.match(src, /p\.id !== project\.id && p\.status === 'active'/, 'a shared alert is kept for the other project');
+  // A found or paused move never reaches agencies again.
+  assert.match(src, /if \(project\.status !== 'active'\) return \{ status: 'error', code: 'send' \};/);
+});
+
+test('the story is shared only with explicit consent, and only when there is a story', () => {
+  const src = read('app/(site)/compte/client/projet/actions.js');
+  assert.match(src, /const consent = formData\.get\('consent'\) === 'on' && Boolean\(story\);/);
+  const sql = read('lib/moveProjects.js');
+  assert.match(sql, /story_consent_at = CASE WHEN \$5::boolean AND \$4::text IS NOT NULL THEN NOW\(\) ELSE NULL END/);
+  // The team sees a story only when its consent is recorded.
+  assert.match(read('app/admin/customers/[id]/page.js'), /project\.storyText && project\.storyConsentAt \?/);
+  assert.match(read('lib/moveProjectStats.js'), /WHERE to_jsonb\(p\) ->> 'story_consent_at' IS NOT NULL AND to_jsonb\(p\) ->> 'story_text' IS NOT NULL/);
+  assert.equal(cleanStory('  a\r\nb\u0001 '), 'a\nb');
+  assert.equal(cleanStory('   '), null);
+  assert.equal(cleanStory('x'.repeat(2000)).length, 1000);
+});
+
+test('"Bien installés ?" is due 30 days after "C\'est le bon !", once', () => {
+  const found = (days, extra = {}) => ({ status: 'found', foundAt: new Date(Date.parse('2026-12-31T00:00:00Z') - days * 86_400_000).toISOString(), settledAt: null, ...extra });
+  const now = new Date('2026-12-31T00:00:00Z');
+  assert.equal(checkinDue(found(29), now), false);
+  assert.equal(checkinDue(found(30), now), true);
+  assert.equal(checkinDue(found(40, { settledAt: '2026-12-20' }), now), false, 'answered once');
+  assert.equal(checkinDue({ ...found(40), status: 'active' }, now), false);
+});
+
+test('the stages are reached by real events only', () => {
+  const base = parseMoveProject({ transaction: 'location', city: 'Kinshasa', communes: ['Gombe'] }).project;
+  assert.deepEqual(moveStagesReached({ ...base, status: 'active' }), ['projet', 'recherche']);
+  assert.deepEqual(moveStagesReached({ ...base, status: 'active', lastLeadAt: '2026-11-07' }, { hasVisit: true }), ['projet', 'recherche', 'demande', 'visites']);
+  assert.deepEqual(moveStagesReached({ ...base, status: 'found', settledAnswer: 'settled' }), ['projet', 'recherche', 'trouve', 'installe']);
+  assert.deepEqual(moveStagesReached({ ...parseMoveProject({ reasons: ['travail'] }).project, status: 'active' }), ['projet']);
+  assert.deepEqual([...MOVE_STAGES], ['projet', 'recherche', 'demande', 'visites', 'trouve', 'installe']);
+});
+
+test('a listing fits a project only on fields both state; the wrong kind of home gets no line', () => {
+  const project = parseMoveProject({ transaction: 'location', city: 'Kinshasa', communes: ['Gombe'], bedrooms: 3, budgetMax: 700 }).project;
+  const rent = (extra) => ({ purpose: 'rent', price: 600, currency: 'USD', price_period: 'mois', beds: 3, commune: 'Gombe', ...extra });
+  assert.deepEqual(projectFit(rent({}), project).checks.map((c) => [c.kind, c.ok]), [['bedrooms', true], ['commune', true], ['budget', true]]);
+  const off = projectFit(rent({ beds: 2, commune: 'Lingwala', price: 840 }), project);
+  assert.deepEqual(off.checks.map((c) => [c.kind, c.ok]), [['bedrooms', false], ['commune', false], ['above', false]]);
+  assert.equal(off.score, 0);
+  assert.equal(projectFit(rent({ purpose: 'sale' }), project), null, 'a sale is not a rental search');
+  assert.deepEqual(projectFit(rent({ beds: null, commune: null, currency: 'CDF' }), project), null, 'nothing comparable, no line');
+  assert.ok(MOVE_ANCHORS.includes('eglise'));
+});
+
+test('the guest form tells agencies the situation, through the same French brief', () => {
+  const src = read('app/(site)/trouver-pour-moi/actions.js');
+  assert.match(src, /parseMoveProject\(\{ reasons: String\(formData\.get\('reasons'\) \|\| ''\)\.split\(','\) \}\)/);
+  assert.match(src, /moveStory: story \|\| undefined/);
+  assert.match(read('components/GuestRequestForm.js'), /name="reasons"/);
 });

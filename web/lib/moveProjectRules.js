@@ -26,7 +26,7 @@ export const MOVE_TRANSACTIONS = Object.freeze(['location', 'vente', 'courte']);
 export const MOVE_HOUSEHOLDS = Object.freeze(['seul', 'deux', 'trois_quatre', 'cinq_six', 'sept_plus']);
 /** 5 means "5 or more" — a minimum, like `beds_min`. */
 export const MOVE_BEDROOMS = Object.freeze([1, 2, 3, 4, 5]);
-export const MOVE_ANCHORS = Object.freeze(['travail', 'ecole', 'famille', 'aucun']);
+export const MOVE_ANCHORS = Object.freeze(['travail', 'ecole', 'famille', 'eglise', 'aucun']);
 export const MOVE_PRIORITIES = Object.freeze(['electricite', 'eau', 'securite', 'acces', 'cour', 'parking']);
 export const MOVE_TIMELINES = Object.freeze(['asap', 'un_mois', 'trois_mois', 'regarde']);
 export const MOVE_CURRENT_HOMES = Object.freeze(['appartement', 'maison', 'studio', 'chambre', 'famille']);
@@ -228,7 +228,7 @@ const REASON_FR = {
   etudes: 'études',
 };
 const HOUSEHOLD_FR = { seul: '1 personne', deux: '2 personnes', trois_quatre: '3–4 personnes', cinq_six: '5–6 personnes', sept_plus: '7 personnes ou plus' };
-const ANCHOR_FR = { travail: 'son travail', ecole: 'l’école des enfants', famille: 'sa famille' };
+const ANCHOR_FR = { travail: 'son travail', ecole: 'l’école des enfants', famille: 'sa famille', eglise: 'son église' };
 const PRIORITY_FR = { electricite: 'électricité stable', eau: 'eau', securite: 'sécurité', acces: 'accès facile', cour: 'une cour', parking: 'parking' };
 const TIMELINE_FR = { asap: 'dès que possible', un_mois: 'dans le mois', trois_mois: 'dans 1 à 3 mois', regarde: 'regarde seulement pour l’instant' };
 const CURRENT_FR = { appartement: 'un appartement', maison: 'une maison', studio: 'un studio', chambre: 'une chambre', famille: 'chez sa famille' };
@@ -429,4 +429,86 @@ export function answersFromProject(project) {
     currentCommune: project.currentCommune,
     answeredSteps: project.answeredSteps || [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Where a move stands (migrations/20261107_move_project_journey.sql). Every
+// stage is reached by a real event — the customer's own tap or a row that
+// exists — never by time passing or a guess.
+// ---------------------------------------------------------------------------
+
+/** 'active' searching · 'paused' (alert stopped) · 'found' ("C'est le bon !"). */
+export const MOVE_STATUSES = Object.freeze(['active', 'paused', 'found']);
+/** "Bien installés ?" is asked this many days after "C'est le bon !". */
+export const CHECKIN_AFTER_DAYS = 30;
+export const MAX_MOVE_STORY = 1000;
+
+export function cleanStory(value) {
+  const text = String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ')
+    .trim();
+  return text ? text.slice(0, MAX_MOVE_STORY) : null;
+}
+
+/** True when a found project's check-in is due and not yet answered. */
+export function checkinDue(project, now = new Date()) {
+  if (!project || project.status !== 'found' || !project.foundAt || project.settledAt) return false;
+  return now.getTime() - new Date(project.foundAt).getTime() >= CHECKIN_AFTER_DAYS * 86_400_000;
+}
+
+/**
+ * The stages of a move, in order, and which ones this project has reached:
+ *   projet    — it exists (the customer told us)
+ *   recherche — it names a search (an alert can run on it)
+ *   demande   — it was sent to agencies
+ *   visites   — the customer asked to visit a home since the project began
+ *   trouve    — "C'est le bon !"
+ *   installe  — "Bien installés ?" answered "Oui"
+ * `hasVisit` comes from the customer's real viewing requests.
+ */
+export const MOVE_STAGES = Object.freeze(['projet', 'recherche', 'demande', 'visites', 'trouve', 'installe']);
+
+export function moveStagesReached(project, { hasVisit = false } = {}) {
+  if (!project) return [];
+  const reached = ['projet'];
+  if (moveSearchQuery(project)) reached.push('recherche');
+  if (project.lastLeadAt) reached.push('demande');
+  if (hasVisit) reached.push('visites');
+  if (project.status === 'found') reached.push('trouve');
+  if (project.status === 'found' && project.settledAnswer === 'settled') reached.push('installe');
+  return reached;
+}
+
+/**
+ * How one listing fits one project (listing pages, "Pour votre projet"),
+ * from fields both sides really state — nothing checked that either is
+ * silent on. null when the listing is not even the right kind (a rental for
+ * a buyer): no line rather than a list of crosses.
+ *
+ * @returns {null | {score: number, checks: Array<{kind: string, ok: boolean, vars?: object}>}}
+ */
+export function projectFit(listing, project) {
+  if (!listing || !project) return null;
+  const purpose = listing.purpose === 'sale' ? 'vente' : listing.purpose === 'rent' ? 'location' : null;
+  if (project.transactionType && purpose && project.transactionType !== purpose) return null;
+  const checks = [];
+  const beds = Number(listing.beds);
+  if (project.bedroomsMin && Number.isFinite(beds) && beds > 0) {
+    checks.push({ kind: 'bedrooms', ok: beds >= project.bedroomsMin, vars: { beds, min: project.bedroomsMin } });
+  }
+  if (project.communes?.length && listing.commune) {
+    checks.push({ kind: 'commune', ok: project.communes.includes(listing.commune), vars: { commune: communeLabel(listing.commune) } });
+  }
+  if (project.budgetMin || project.budgetMax) {
+    const tag = closeMatchTags(listing, project).find((t) => t.kind === 'above' || t.kind === 'below');
+    const price = Number(listing.price);
+    const comparable = Number.isFinite(price) && price > 0
+      && (!listing.currency || String(listing.currency).toUpperCase() === 'USD')
+      && (listing.purpose !== 'rent' || !listing.price_period || ['mois', 'total'].includes(listing.price_period));
+    if (tag) checks.push({ kind: tag.kind, ok: false, vars: { pct: tag.pct } });
+    else if (comparable) checks.push({ kind: 'budget', ok: true });
+  }
+  if (!checks.length) return null;
+  return { score: checks.filter((c) => c.ok).length, checks };
 }

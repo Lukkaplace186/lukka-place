@@ -137,6 +137,20 @@ export default async function AdminCustomerDetailPage({ params }) {
                     {project.title ? <p className="u-micro-strong text-ink">{project.title}</p> : null}
                     {moveStoryFr(project) ? <p className="u-micro text-ink">{moveStoryFr(project)}</p> : null}
                     {moveCriteriaFr(project) ? <p className="u-micro text-ink-70">{moveCriteriaFr(project)}</p> : null}
+                    <p className="u-micro text-ink-70">
+                      {t(`admin.customers.moveStatus.${project.status}`)}
+                      {project.foundAt ? ` · ${formatKinshasa(project.foundAt)}` : ''}
+                      {project.settledAnswer ? ` · ${t(`admin.customers.moveSettled.${project.settledAnswer}`)}` : ''}
+                    </p>
+                    {/* The customer's story is shown to the team only with their consent. */}
+                    {project.storyText && project.storyConsentAt ? (
+                      <blockquote className="u-micro mt-1 border-l-2 border-green pl-2 italic text-ink">
+                        « {project.storyText} »
+                        <span className="block not-italic text-ink-45">{t('admin.customers.moveStoryConsent', { date: formatKinshasa(project.storyConsentAt) })}</span>
+                      </blockquote>
+                    ) : project.storyText ? (
+                      <p className="u-micro text-ink-45">{t('admin.customers.moveStoryPrivate')}</p>
+                    ) : null}
                     <p className="u-micro text-ink-45">{t('admin.customers.moveUpdated', { date: formatKinshasa(project.updatedAt) })}</p>
                   </li>
                 ))}

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Bell, ChevronRight, Heart, Map as MapIcon, Pencil, Plus, Search, ShieldCheck, Target, Truck } from 'lucide-react';
 import { listMoveProjects } from '@/lib/moveProjects';
-import { MAX_MOVE_PROJECTS, projectDisplayName } from '@/lib/moveProjectRules';
+import { MAX_MOVE_PROJECTS, checkinDue, projectDisplayName } from '@/lib/moveProjectRules';
 import ClientMiniListingCard from '@/components/ClientMiniListingCard';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
@@ -198,7 +198,18 @@ async function MoveProjectCard({ customerId }) {
       </Link>
     );
   }
+  const checkin = projects.find((p) => checkinDue(p));
   return (
+    <>
+    {checkin ? (
+      <Link href={`/compte/client/projet/${checkin.id}#checkin`} className="u-press flex items-center gap-3 rounded-card bg-green-tint p-4">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[0.9375rem] font-bold text-green-deep">{t('account.move.checkin.title')}</span>
+          <span className="text-[0.8125rem] text-ink-70">{t('account.move.checkin.homePrompt')}</span>
+        </span>
+        <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none text-green-deep" aria-hidden="true" />
+      </Link>
+    ) : null}
     <section className={`flex flex-col p-4 ${CARD}`} aria-labelledby="home-move">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="home-move" className="u-title-card flex items-center gap-2 text-ink">
@@ -219,6 +230,11 @@ async function MoveProjectCard({ customerId }) {
             <li key={project.id} className="flex items-center gap-2">
               <Link href={`/compte/client/projet/${project.id}`} className="flex min-h-12 min-w-0 flex-1 items-center gap-2 py-2">
                 <span className="block min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-ink">{name}</span>
+                {project.status !== 'active' ? (
+                  <span className={`flex-none rounded-full px-2 py-0.5 text-[0.71875rem] font-bold ${project.status === 'found' ? 'bg-green-tint text-green-deep' : 'bg-canvas-deep text-ink-70'}`}>
+                    {t(`account.move.status.chip.${project.status}`)}
+                  </span>
+                ) : null}
                 <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 flex-none text-ink-35" aria-hidden="true" />
               </Link>
               <Link
@@ -239,6 +255,7 @@ async function MoveProjectCard({ customerId }) {
         </Link>
       ) : null}
     </section>
+    </>
   );
 }
 

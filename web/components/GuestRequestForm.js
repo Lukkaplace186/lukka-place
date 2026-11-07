@@ -6,6 +6,7 @@ import PhoneField from './PhoneField';
 import SignupFunnelTracker from './SignupFunnelTracker';
 import { submitGuestRequestAction } from '@/app/(site)/trouver-pour-moi/actions';
 import { GUEST_REQUEST_TYPES, MAX_GUEST_BEDROOMS } from '@/lib/guestRequestRules';
+import { MOVE_REASONS } from '@/lib/moveProjectRules';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -27,6 +28,7 @@ export default function GuestRequestForm({ communes = [], prefill = {}, formId =
   const locale = useLocale();
   const [state, action, pending] = useActionState(submitGuestRequestAction, null);
   const [transactionType, setTransactionType] = useState(prefill.transactionType || 'location');
+  const [reasons, setReasons] = useState([]);
   const [formKey, setFormKey] = useState(0);
   // useActionState cannot be reset: "another request" remembers which result
   // it dismissed, and a new submission produces a new state object.
@@ -69,6 +71,28 @@ export default function GuestRequestForm({ communes = [], prefill = {}, formId =
         <label htmlFor={`${formId}-website`}>Website</label>
         <input id={`${formId}-website`} type="text" name="website" tabIndex={-1} autoComplete="off" />
       </div>
+
+      {/* "Votre situation" (2026-11-07): why they are moving, optional,
+          multi — told to the agencies in the request, never deduced. */}
+      <input type="hidden" name="reasons" value={reasons.join(',')} />
+      <fieldset>
+        <legend className={LABEL}>{t('listings.guestRequest.situation')}</legend>
+        <div className="flex flex-wrap gap-1.5">
+          {MOVE_REASONS.filter((r) => r !== 'autre').map((r) => (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={reasons.includes(r)}
+              onClick={() => setReasons((list) => (list.includes(r) ? list.filter((x) => x !== r) : [...list, r]))}
+              className={`min-h-9 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors ${
+                reasons.includes(r) ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-white text-ink-70'
+              }`}
+            >
+              {t(`account.move.steps.reasons.options.${r}`)}
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       <fieldset>
         <legend className={LABEL}>{t('listings.guestRequest.transaction')}</legend>

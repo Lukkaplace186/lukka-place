@@ -1069,7 +1069,8 @@
         "limit": "Vous avez déjà envoyé plusieurs demandes. Réessayez plus tard.",
         "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant."
       },
-      "jump": "Ou décrivez ce que vous cherchez : nous transmettons aux agences ↓"
+      "jump": "Ou décrivez ce que vous cherchez : nous transmettons aux agences ↓",
+      "situation": "Votre situation (facultatif)"
     },
     "similarAlert": {
       "title": "Pas tout à fait ça ?",
@@ -3570,7 +3571,8 @@
             "travail": "Mon travail",
             "ecole": "L’école des enfants",
             "famille": "La famille",
-            "aucun": "Peu importe"
+            "aucun": "Peu importe",
+            "eglise": "L’église"
           },
           "communeLabel": "Dans quelle commune ?",
           "communePlaceholder": "Choisir une commune",
@@ -3711,7 +3713,8 @@
           "errors": {
             "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant.",
             "recent": "Votre demande a déjà été envoyée aujourd’hui. Les agences vous répondront dans vos messages."
-          }
+          },
+          "followUp": "Si aucune agence ne vous a écrit sous 24 h, l’équipe Lukka Place vous contacte."
         }
       },
       "home": {
@@ -3754,6 +3757,71 @@
         "yes": "Supprimer",
         "no": "Annuler",
         "deleting": "Suppression…"
+      },
+      "profileSub": "Vos projets, leurs biens et leurs alertes",
+      "stages": {
+        "label": "Où en est votre déménagement",
+        "projet": "Projet",
+        "recherche": "Recherche",
+        "demande": "Demande envoyée",
+        "visites": "Visites",
+        "trouve": "Trouvé",
+        "installe": "Installé"
+      },
+      "status": {
+        "found": "C’est le bon ! J’ai trouvé",
+        "foundConfirm": "Vous avez trouvé votre logement ?",
+        "foundEffect": "Nous arrêtons l’alerte de ce projet et notons que votre demande a abouti.",
+        "foundYes": "Oui, c’est le bon !",
+        "pause": "Mettre en pause",
+        "resume": "Reprendre la recherche",
+        "notTheOne": "Ce n’était pas le bon : reprendre la recherche",
+        "saving": "Un instant…",
+        "foundBanner": "🎉 Félicitations ! Vous avez trouvé votre logement le {date}.",
+        "foundBannerNow": "🎉 Félicitations ! Vous avez trouvé votre logement.",
+        "pausedBanner": "Projet en pause : son alerte est arrêtée. Reprenez quand vous voulez.",
+        "error": "Le changement n’a pas pu être enregistré. Réessayez dans un instant.",
+        "chip": {
+          "active": "En recherche",
+          "paused": "En pause",
+          "found": "Trouvé"
+        }
+      },
+      "checkin": {
+        "title": "Bien installés ?",
+        "lead": "Cela fait un mois que vous avez trouvé votre logement. Comment ça se passe ?",
+        "answers": {
+          "settled": "Oui, tout va bien",
+          "not_yet": "Pas encore"
+        },
+        "storyLabel": "Racontez-nous votre déménagement (facultatif)",
+        "storyPlaceholder": "Votre histoire, en quelques mots",
+        "consent": "J’accepte que Lukka Place partage mon histoire, sans mon numéro de téléphone.",
+        "submit": "Envoyer",
+        "thanks": "Merci ! Votre réponse est enregistrée.",
+        "homePrompt": "Dites-nous comment se passe votre nouveau logement."
+      },
+      "checklist": {
+        "title": "Avant de signer",
+        "lead": "Quelques vérifications avant de payer quoi que ce soit.",
+        "items": {
+          "visit": "Visitez le logement en personne, si possible à l’heure où vous y vivrez (eau, électricité, bruit).",
+          "costs": "Demandez le montant de chaque frais séparément : garantie, avance de loyer et commission.",
+          "contract": "Lisez le contrat avant de signer : loyer, durée, préavis, et qui paie les réparations.",
+          "condition": "Faites un état des lieux écrit, avec des photos, le jour de l’entrée.",
+          "documents": "Vérifiez l’identité du bailleur et qu’il a bien le droit de louer ou de vendre le bien.",
+          "receipt": "Ne payez qu’avec un reçu signé pour chaque somme."
+        }
+      },
+      "fit": {
+        "for": "Pour votre projet « {name} »",
+        "bedroomsOk": "{beds} chambres",
+        "bedroomsNo": "{beds} chambres (vous en cherchez {min})",
+        "communeOk": "{commune}",
+        "communeNo": "{commune}, hors de vos communes",
+        "budget": "Dans votre budget",
+        "above": "{pct} % au-dessus de votre budget",
+        "below": "{pct} % en dessous de votre budget"
       }
     }
   },
@@ -3814,7 +3882,8 @@
       "blog": "Guides & Actualités",
       "campaign": "Campagne",
       "interactions": "Interactions",
-      "seo": "SEO & Google"
+      "seo": "SEO & Google",
+      "moveProjects": "Projets de déménagement"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -4786,7 +4855,18 @@
       "deleted": "Compte client supprimé.",
       "moveTitle": "Projet de déménagement",
       "moveNone": "Aucun projet raconté.",
-      "moveUpdated": "Mis à jour le {date}"
+      "moveUpdated": "Mis à jour le {date}",
+      "moveStatus": {
+        "active": "En recherche",
+        "paused": "En pause",
+        "found": "Logement trouvé"
+      },
+      "moveSettled": {
+        "settled": "bien installé(e)",
+        "not_yet": "pas encore installé(e)"
+      },
+      "moveStoryConsent": "Partage accepté le {date}",
+      "moveStoryPrivate": "Histoire racontée sans accord de partage : non affichée."
     },
     "benchmarks": {
       "title": "Prix de référence",
@@ -7494,6 +7574,34 @@
       "filterUnposted": "Pas encore publié",
       "filterPosted": "Déjà publié",
       "notInLabel": "Pas encore dans"
+    },
+    "moveProjects": {
+      "title": "Projets de déménagement",
+      "subtitle": "Ce que les clients racontent de leur déménagement, compté tel quel.",
+      "loadError": "Les chiffres n’ont pas pu être chargés.",
+      "noTable": "Aucun projet pour l’instant (la table n’existe pas encore).",
+      "northStar": "Déménagements aboutis",
+      "northStarHint": "{settled} bien installé(s) · {rate} des projets",
+      "projects": "Projets",
+      "customers": "{count} client(s)",
+      "searching": "En recherche",
+      "paused": "{count} en pause",
+      "medianDays": "Délai médian jusqu’au logement",
+      "days": "{count} jours",
+      "sent": "{count} envoyé(s) aux agences",
+      "byReason": "Pourquoi ils déménagent",
+      "byCommune": "Où ils veulent vivre",
+      "reason": "Raison",
+      "commune": "Commune",
+      "foundCol": "Trouvé",
+      "otherReason": "Autre raison",
+      "none": "Rien pour l’instant.",
+      "pairs": "Raisons et communes les plus fréquentes",
+      "pairsHint": "Les histoires à raconter, là où elles se passent.",
+      "stories": "Histoires partagées",
+      "storiesHint": "Seulement les histoires dont le client a accepté le partage.",
+      "noStories": "Aucune histoire partagée pour l’instant.",
+      "customer": "Voir le client"
     }
   },
   "errors": {

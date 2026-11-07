@@ -7,14 +7,17 @@ import { getPortalCustomer } from '@/lib/customerPortal';
 import { listSavedSearches } from '@/lib/customers';
 import { listMoveProjects } from '@/lib/moveProjects';
 import { getMoveMatches } from '@/lib/moveMatches';
-import { MOVE_RESEND_AFTER_MS, moveRequestBlocker, moveSearchQuery } from '@/lib/moveProjectRules';
+import { MOVE_RESEND_AFTER_MS, checkinDue, moveRequestBlocker, moveSearchQuery, moveStagesReached } from '@/lib/moveProjectRules';
 import { firstName } from '@/lib/clientPortalView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocale, getT } from '@/lib/i18n/server';
 import SendMoveRequest from '../SendMoveRequest';
 import DeleteMoveProject from '../DeleteMoveProject';
 import { storyLines } from '../storyLines';
-import { deleteMoveProjectAction, sendMoveRequestAction } from '../actions';
+import { deleteMoveProjectAction, markProjectFoundAction, pauseProjectAction, resumeProjectAction, sendMoveRequestAction, settleCheckinAction } from '../actions';
+import ProjectStatusActions from '../ProjectStatusActions';
+import { CheckinCard, ProjectStages, SigningChecklist } from '../ProjectJourney';
+import { getCustomerInquiries } from '@/lib/customerInquiries';
 
 export async function generateMetadata() {
   const t = await getT();
@@ -136,6 +139,20 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
   const name = firstName(customer.full_name);
   // Same window as sendMoveRequestAction's refusal: one push to agencies a day.
   const recentlySent = Boolean(project.lastLeadAt) && Date.now() - new Date(project.lastLeadAt).getTime() < MOVE_RESEND_AFTER_MS;
+  const active = project.status === 'active';
+  // "Visites" is reached by a real viewing request made since this project began.
+  let hasVisit = false;
+  try {
+    const since = new Date(project.createdAt).getTime();
+    hasVisit = (await getCustomerInquiries(customerId)).some(({ viewings = [] }) =>
+      viewings.some((v) => v.created_at && new Date(v.created_at).getTime() >= since));
+  } catch {
+    hasVisit = false;
+  }
+  const stages = moveStagesReached(project, { hasVisit });
+  const foundDate = project.foundAt
+    ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long', timeZone: 'Africa/Kinshasa' }).format(new Date(project.foundAt))
+    : null;
 
   return (
     <div className="mx-auto flex max-w-[45rem] flex-col gap-4 sm:gap-5">
@@ -152,6 +169,24 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         <p className="u-eyebrow text-blue">{t('account.move.eyebrow')}</p>
         <h1 className="u-title-page mt-1 text-ink">{projectName}</h1>
       </div>
+
+      <ProjectStages reached={stages} t={t} />
+
+      {params?.trouve === '1' || project.status === 'found' ? (
+        <p className="rounded-xl bg-green-tint px-4 py-3 text-[0.9375rem] font-semibold text-green-deep" role="status">
+          {foundDate ? t('account.move.status.foundBanner', { date: foundDate }) : t('account.move.status.foundBannerNow')}
+        </p>
+      ) : null}
+      {project.status === 'paused' ? (
+        <p className="rounded-xl bg-canvas-deep px-4 py-3 text-[0.9375rem] text-ink-70" role="status">{t('account.move.status.pausedBanner')}</p>
+      ) : null}
+      {params?.merci === '1' ? (
+        <p className="rounded-xl bg-green-tint px-4 py-3 text-[0.9375rem] font-semibold text-green-deep" role="status">{t('account.move.checkin.thanks')}</p>
+      ) : null}
+      {params?.error === 'status' ? (
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{t('account.move.status.error')}</p>
+      ) : null}
+      {checkinDue(project) ? <CheckinCard action={settleCheckinAction.bind(null, project.id)} t={t} /> : null}
 
       <section className={`relative overflow-hidden p-4 sm:p-5 ${CARD}`} aria-labelledby="move-story">
         <div className="flex items-start justify-between gap-3">
@@ -188,7 +223,7 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
             </li>
           ) : null}
         </ul>
-        {alertOn ? (
+        {alertOn && active ? (
           <p className="mt-3 flex items-start gap-2 rounded-xl bg-blue-tint px-3 py-2.5 text-[0.8125rem] text-blue-deep">
             <Bell strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
             {t('account.move.page.alertOn')}
@@ -196,6 +231,8 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         ) : null}
       </section>
 
+      {active ? (
+      <>
       <section className="flex flex-col gap-2" aria-labelledby="move-results">
         <h2 id="move-results" className="u-title-card text-ink">{t('account.move.page.results.title')}</h2>
         {query ? (
@@ -222,7 +259,19 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         ) : (
           <SendMoveRequest action={sendMoveRequestAction.bind(null, project.id)} />
         )}
+        <p className="text-[0.8125rem] text-ink-45">{t('account.move.page.request.followUp')}</p>
       </section>
+      </>
+      ) : null}
+
+      {active ? <SigningChecklist t={t} /> : null}
+
+      <ProjectStatusActions
+        status={project.status}
+        foundAction={markProjectFoundAction.bind(null, project.id)}
+        pauseAction={pauseProjectAction.bind(null, project.id)}
+        resumeAction={resumeProjectAction.bind(null, project.id)}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link

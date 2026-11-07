@@ -7146,7 +7146,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'sqlite-backup',
     ]);
   });
 
@@ -14500,6 +14500,76 @@ console.log('\n2. services/openai.js');
       assert.match(sql80, /REVOKE ALL ON customer_move_projects FROM anon, authenticated/);
       assert.doesNotMatch(sql80.replace(/ON DELETE CASCADE/g, ''), /\bDROP\b|\bDELETE\b|\bUPDATE\b/);
     });
+  }
+
+  // §81 "Mon déménagement": the 24 h promise and the next step after a visit (2026-11-07)
+  // ---------------------------------------------------------------------------
+  console.log('\n§81 a move request no agency answered in 24 h reaches the ops desk, once');
+  {
+    const follow81 = require('../services/moveFollowup');
+    const sweeps81 = require('../services/viewingSweeps');
+    const savedDesk81 = process.env.OPS_WHATSAPP_NUMBER;
+    const savedFlag81 = process.env.MOVE_FOLLOWUP;
+    try {
+      process.env.OPS_WHATSAPP_NUMBER = '243846962654';
+      delete process.env.MOVE_FOLLOWUP;
+      const now81 = Date.parse('2026-11-09T12:00:00Z');
+      const ts81 = (ms) => follow81.sqliteTs(ms);
+      const mk81 = (hoursAgo, extra = {}) => {
+        const lead = dbService.createLead({ wa_id: `24390000081${hoursAgo}`, source: 'move-project', commune: 'Gombe', move_story: 'Projet : nouveau travail', ...extra });
+        dbService.db.prepare('UPDATE leads SET created_at = ? WHERE id = ?').run(ts81(now81 - hoursAgo * 3600_000), lead.id);
+        return lead.id;
+      };
+      const due81 = mk81(25);
+      const fresh81 = mk81(5);
+      const old81 = mk81(24 * 9);
+      const other81 = dbService.createLead({ wa_id: '243900000819', source: 'guest-search-request', commune: 'Gombe' }).id;
+      dbService.db.prepare('UPDATE leads SET created_at = ? WHERE id = ?').run(ts81(now81 - 30 * 3600_000), other81);
+
+      await checkAsync('only a move request 24 h–7 days old with no agency answer is due', async () => {
+        const ids = follow81.dueLeads(now81).map((l) => l.id);
+        assert.ok(ids.includes(due81));
+        assert.ok(!ids.includes(fresh81), 'under 24 h is not due');
+        assert.ok(!ids.includes(old81), 'older than 7 days is not chased');
+        assert.ok(!ids.includes(other81), 'only move-project requests carry the promise');
+      });
+      await checkAsync('the desk is told once, with the story, and the row is stamped', async () => {
+        const sent = [];
+        const r1 = await follow81.runMoveFollowups({ now: now81, send: async (to, text) => { sent.push({ to, text }); return 'session'; } });
+        assert.ok(r1.sent >= 1);
+        const mine = sent.find((s) => s.text.includes(`/admin/leads/${due81}`));
+        assert.ok(mine && mine.to === '243846962654');
+        assert.match(mine.text, /Projet : nouveau travail/);
+        const r2 = await follow81.runMoveFollowups({ now: now81, send: async () => 'session' });
+        assert.ok(!follow81.dueLeads(now81).some((l) => l.id === due81), 'never twice');
+        assert.ok(r2.due === 0 || !sent.slice(1).some((s) => s.text.includes(`/admin/leads/${due81}`)));
+      });
+      await checkAsync('an agency proposal means nobody needs chasing', async () => {
+        const answered = mk81(26);
+        dbService.db.prepare('INSERT INTO lead_proposals (lead_id, agent_id, property_id) VALUES (?, ?, ?)').run(answered, 1, 1);
+        assert.ok(!follow81.dueLeads(now81).some((l) => l.id === answered));
+      });
+      await checkAsync('MOVE_FOLLOWUP=off sends nothing', async () => {
+        mk81(27);
+        process.env.MOVE_FOLLOWUP = 'off';
+        const r = await follow81.runMoveFollowups({ now: now81, send: async () => { throw new Error('must not send'); } });
+        assert.deepStrictEqual(r, { due: 0, sent: 0, nobody: 0 });
+      });
+      check('the job checks every 15 minutes and is registered before the backup', () => {
+        assert.strictEqual(follow81.moveFollowupJob.shouldRun(new Date('2026-11-09T12:15:00Z')), true);
+        assert.strictEqual(follow81.moveFollowupJob.shouldRun(new Date('2026-11-09T12:16:00Z')), false);
+      });
+      check('after a visit that did not work out, real alternatives — or the honest thanks', () => {
+        assert.strictEqual(sweeps81.falloffNextText([]), sweeps81.FALLOFF_THANKS || sweeps81.falloffNextText([]));
+        const text = sweeps81.falloffNextText([{ id: 7, title: 'Appartement 2 ch', price: 600 }]);
+        assert.match(text, /Voici d'autres biens qui correspondent à votre recherche/);
+        assert.match(text, /\/listings\/7/);
+        assert.doesNotMatch(sweeps81.falloffNextText([]), /Voici/);
+      });
+    } finally {
+      if (savedDesk81 === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = savedDesk81;
+      if (savedFlag81 === undefined) delete process.env.MOVE_FOLLOWUP; else process.env.MOVE_FOLLOWUP = savedFlag81;
+    }
   }
 
   console.log(`\n${'-'.repeat(60)}`);

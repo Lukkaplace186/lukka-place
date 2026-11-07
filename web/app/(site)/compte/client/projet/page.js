@@ -96,6 +96,11 @@ export default async function MoveProjectsPage({ searchParams }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <h2 className="u-title-card text-ink">{name}</h2>
+                    {project.status !== 'active' ? (
+                      <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[0.75rem] font-bold ${project.status === 'found' ? 'bg-green-tint text-green-deep' : 'bg-canvas-deep text-ink-70'}`}>
+                        {t(`account.move.status.chip.${project.status}`)}
+                      </span>
+                    ) : null}
                     {reasonLabels.length && project.title ? (
                       <p className="truncate text-[0.8125rem] text-ink-45">{reasonLabels.join(' · ')}</p>
                     ) : null}
@@ -113,11 +118,13 @@ export default async function MoveProjectsPage({ searchParams }) {
                     {whenLine}
                   </p>
                 ) : null}
+                {project.status === 'active' ? (
                 <p className="text-[0.8125rem]">
                   <Suspense fallback={<span className="text-ink-45">{t('account.move.matches.loading')}</span>}>
                     <MatchCount project={project} t={t} />
                   </Suspense>
                 </p>
+                ) : null}
                 <div className="mt-1 grid grid-cols-2 gap-2">
                   <Link
                     href={`/compte/client/projet/${project.id}`}

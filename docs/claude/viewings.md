@@ -555,3 +555,13 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   `MIN_PUBLIC_REVIEWS` (5), shared with web/lib/agentReviews.js.
 - Monthly contest score (rating + response speed + visits done) is the
   planned follow-up, not built. §51 of verify-pipeline.
+
+## After a visit that did not work out: the next step comes from us (2026-11-07)
+
+The fall-through reason used to be answered "Répondez à ce message si vous
+souhaitez que nous vous proposions d'autres biens" — the customer had to come
+back. When no rating question is asked, `recordFalloffReason` now sends
+`falloffNextText`: up to three real homes from `alternativesFor` (the whole
+lead's criteria, the visited home excluded), or that same honest thanks when
+there are none. The customer just wrote to us, so the session message
+arrives. §81.

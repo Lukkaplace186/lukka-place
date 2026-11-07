@@ -7,6 +7,7 @@ import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
 import KeyFacts from '@/components/KeyFacts';
 import EntryCostsBreakdown from '@/components/EntryCostsBreakdown';
+import ProjectFitLine from '@/components/ProjectFitLine';
 import Price from '@/components/Price';
 import PricePanel from '@/components/PricePanel';
 import EnquiryCard from '@/components/EnquiryCard';
@@ -344,6 +345,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   streamed in so the count never delays the page. */}
               <Suspense fallback={null}>
                 <ListingInterestLine listingId={listing.id} />
+              </Suspense>
+
+              {/* "Pour votre projet": how this home fits the signed-in
+                  customer's move project, from real fields only. */}
+              <Suspense fallback={null}>
+                <ProjectFitLine listing={listing} />
               </Suspense>
             </div>
 

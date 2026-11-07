@@ -1737,6 +1737,10 @@ const LEADS_EXTENDED_COLUMNS = [
   // agencies in the lead alert (services/leadDispatch.js). NULL on every
   // lead that did not come from a move project.
   ['move_story', 'TEXT'],
+  // services/moveFollowup.js: when a move request with no agency answer
+  // after 24 h was put in front of the ops desk (stamped after the attempt,
+  // whoever was reached). NULL = not followed up.
+  ['followup_alerted_at', 'TEXT'],
 ];
 
 function migrateLeads() {

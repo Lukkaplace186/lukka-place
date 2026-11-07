@@ -4560,3 +4560,38 @@ half: `docs/claude/leads-and-enquiries.md`, same heading.
   "N sur 5 choisies" count; the rest grey out at five. Changing city drops
   communes (and the anchor's commune) from the old city. A city with no
   communes on file (Muanda) says so and searches the whole city.
+- **The end of a move, the stages, and the rest of the plan (2026-11-07).**
+  `migrations/20261107_move_project_journey.sql` adds `status`
+  (active/paused/found), `found_at`, `paused_at`, `settled_at`,
+  `settled_answer`, `story_text`, `story_consent_at` — all set only by the
+  customer's taps. On `/projet/[id]`: **"C'est le bon !"** (confirmed in
+  place) → status found, the project's alert removed (kept if another
+  searching project shares the same query), its last lead CONVERTED;
+  **"Mettre en pause"** / **"Reprendre la recherche"** (also "ce n'était pas
+  le bon"), the alert stopped and restored. **"Bien installés ?"** appears 30
+  days after found (`checkinDue`), on the project and as a prompt on Accueil:
+  the answer, the customer's story (optional), and an unticked consent box —
+  without consent the story stays in the account (admin shows "non affichée").
+  A **stage strip** (`moveStagesReached`: projet · recherche · demande ·
+  visites · trouvé · installé) is computed from real events only ("visites"
+  = a viewing request made since the project began). **"Avant de signer"**
+  is a general checklist (no claim about a listing; entry costs stay on each
+  listing page). The request card promises the 24 h desk follow-up (engine
+  `services/moveFollowup.js`). Status chips on the list and Accueil; Profil
+  links to "Mes projets"; "L'église" is a fourth place that matters.
+  **Listing pages** show "Pour votre projet « … »" for a signed-in customer
+  with a searching project (`components/ProjectFitLine.js`, `projectFit`):
+  bedrooms, commune and budget ✓/✗, only fields both sides state, the
+  best-fitting project, nothing for the wrong kind of home. **"Trouver pour
+  moi"** without an account has optional "Votre situation" chips (reasons →
+  the same French brief to agencies). **`/admin/move-projects`**
+  (`customers.view`, `lib/moveProjectStats.js`): north star = moves found
+  (and settled in), projects, searching/paused, median days to found,
+  reasons × found, communes × found, top reason·commune pairs, and stories
+  shared with consent only.
+  **Not done, deliberately:** the WhatsApp assistant's first question (owner
+  moved the questions to the account over the 24 h window); anything needing
+  a new Meta template (story in the agency template, cold-customer
+  check-ins); the agent client book reason (the book is hidden from agents
+  since 2026-09-22) and an agent "Mon parcours" page (the agent space is
+  limited to Biens / Demandes / Abonnement / Réglages by product decision).

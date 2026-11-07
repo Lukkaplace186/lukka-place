@@ -385,6 +385,16 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * "Mon déménagement" 24-hour follow-up (services/moveFollowup.js): a move
+ * request no agency answered within a day goes to the ops desk, keeping the
+ * promise the project page makes. MOVE_FOLLOWUP=off disables.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./moveFollowup').moveFollowupJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

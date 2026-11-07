@@ -51,6 +51,14 @@ function fromRow(row) {
     answeredSteps: row.answered_steps || [],
     lastLeadId: row.last_lead_id != null ? Number(row.last_lead_id) : null,
     lastLeadAt: row.last_lead_at,
+    // migrations/20261107_move_project_journey.sql — absent (undefined) before it runs.
+    status: row.status || 'active',
+    foundAt: row.found_at ?? null,
+    pausedAt: row.paused_at ?? null,
+    settledAt: row.settled_at ?? null,
+    settledAnswer: row.settled_answer ?? null,
+    storyText: row.story_text ?? null,
+    storyConsentAt: row.story_consent_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -224,6 +232,46 @@ export async function saveProjectAndAlert(customerId, project, t, { projectId = 
     }
   }
   return { ...result, alert };
+}
+
+/**
+ * The customer's own "C'est le bon !" / "Mettre en pause" / "Reprendre":
+ * status plus the matching timestamp. Before the journey migration (42703)
+ * nothing is written and `false` comes back, so the page can say so.
+ */
+export async function setMoveProjectStatus(customerId, projectId, status) {
+  const id = Number(projectId);
+  const stamp = { found: ', found_at = NOW(), paused_at = NULL', paused: ', paused_at = NOW()', active: ', paused_at = NULL, found_at = NULL' }[status];
+  if (stamp === undefined) return false;
+  try {
+    const { rowCount } = await getPool().query(
+      `UPDATE customer_move_projects SET status = $3${stamp}, updated_at = NOW()
+        WHERE customer_id = $1 AND id = $2`,
+      [customerId, id, status],
+    );
+    return rowCount > 0;
+  } catch (err) {
+    if (err.code === MISSING_COLUMN || err.code === MISSING_TABLE) return false;
+    throw err;
+  }
+}
+
+/** The "Bien installés ?" answer, the customer's story, and their consent (or not) to share it. */
+export async function recordSettledCheckin(customerId, projectId, { answer, story, consent }) {
+  try {
+    const { rowCount } = await getPool().query(
+      `UPDATE customer_move_projects
+          SET settled_at = NOW(), settled_answer = $3, story_text = $4,
+              story_consent_at = CASE WHEN $5::boolean AND $4::text IS NOT NULL THEN NOW() ELSE NULL END,
+              updated_at = NOW()
+        WHERE customer_id = $1 AND id = $2`,
+      [customerId, Number(projectId), answer, story, Boolean(consent)],
+    );
+    return rowCount > 0;
+  } catch (err) {
+    if (err.code === MISSING_COLUMN || err.code === MISSING_TABLE) return false;
+    throw err;
+  }
 }
 
 /** Records the lead "Envoyer ma demande aux agences" created for one project. Never throws. */

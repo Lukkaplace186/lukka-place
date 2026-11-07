@@ -32,6 +32,8 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: 'ShieldCheck' },
       { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: 'Building2' },
       { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: 'Users' },
+      // "Mon déménagement" (2026-11-07): why customers move, where, and how many found their home.
+      { href: '/admin/move-projects', labelKey: 'admin.nav.moveProjects', icon: 'Truck' },
       { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: 'Star' },
       { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: 'HandCoins' },

@@ -348,6 +348,21 @@ const FALLOFF_REASON_BY_CHOICE = {
 };
 const FALLOFF_THANKS = `${HEADER_BRAND} Merci, c'est noté. Répondez à ce message si vous souhaitez que nous vous proposions d'autres biens.`;
 
+/** After a visit that did not work out: real alternatives, or the honest thanks when there are none. */
+function falloffNextText(alternatives) {
+  if (!alternatives.length) return FALLOFF_THANKS;
+  const site = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
+  const lines = [`${HEADER_BRAND} Merci, c'est noté. Voici d'autres biens qui correspondent à votre recherche :`, ''];
+  for (const row of alternatives) {
+    const label = row.title || (row.reference ? `Réf: ${row.reference}` : `bien #${row.id}`);
+    const price = row.price ? ` — ${Number(row.price).toLocaleString('fr-FR')} $` : '';
+    lines.push(`• ${label}${price}`);
+    lines.push(`  ${site}/listings/${row.slug || row.id}`);
+  }
+  lines.push('', 'Répondez à ce message si vous souhaitez que nous cherchions autre chose avec vous.');
+  return lines.join('\n');
+}
+
 /**
  * "1".."4", keycaps, or the words themselves. Short replies only — a customer
  * who sends a real message while the question is open must reach intake.
@@ -471,7 +486,14 @@ async function recordFalloffReason({ from, viewingRequestId, code, notifyCustome
       dbService.getViewingRequestWithLead(request.id),
       { prefix: `${HEADER_BRAND} Merci, c'est noté.`, send: sendCustomerText },
     );
-    if (!asked) await trySendCustomer(request.lead_wa_id, FALLOFF_THANKS, null, 'falloff thanks');
+    // The next step comes from us, not "write back if you want more"
+    // (2026-11-07): real homes matching what they asked for, or an honest
+    // "nothing equivalent yet". The customer just wrote to us, so a session
+    // message arrives.
+    if (!asked) {
+      const alternatives = await alternativesFor(request, request.property_id);
+      await trySendCustomer(request.lead_wa_id, falloffNextText(alternatives), null, 'falloff next step');
+    }
   }
   console.log(`[sweep] viewing #${request.id} fall-through reason (customer): ${code}`);
   return { handled: true, action: 'falloff-reason', code, viewingRequestId: request.id };
@@ -563,6 +585,7 @@ module.exports = {
   checkinButtons,
   checkinText,
   alternativesText,
+  falloffNextText,
   parseFalloffReason,
   FALLOFF_REASON_BY_CHOICE,
   PENDING_FALLOFF_KIND,

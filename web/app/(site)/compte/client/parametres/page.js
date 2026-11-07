@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronRight, Coins, KeyRound, Languages, LogOut, Phone, UserRound } from 'lucide-react';
+import { ChevronRight, Coins, KeyRound, Languages, LogOut, Phone, Truck, UserRound } from 'lucide-react';
 import CurrencyToggle from '@/components/CurrencyToggle';
 import LanguageToggle from '@/components/LanguageToggle';
 import DeleteAccountButton from '../../DeleteAccountButton';
@@ -117,6 +117,15 @@ export default async function ParametresPage() {
             <span className="min-w-0 flex-1">
               <span className="block text-[0.90625rem] font-semibold text-ink">{t('account.profile.password')}</span>
               <span className="block text-[0.78125rem] text-ink-45">{t('account.profile.passwordSub')}</span>
+            </span>
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-ink-35" aria-hidden="true" />
+          </Link>
+          {/* "Mon déménagement" (2026-11-07): the customer's moves, reachable from Profil too. */}
+          <Link href="/compte/client/projet" className="flex min-h-14 items-center gap-3 px-3.5 py-2 hover:bg-canvas-alt">
+            <RowIcon icon={Truck} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.90625rem] font-semibold text-ink">{t('account.move.list.title')}</span>
+              <span className="block text-[0.78125rem] text-ink-45">{t('account.move.profileSub')}</span>
             </span>
             <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-ink-35" aria-hidden="true" />
           </Link>

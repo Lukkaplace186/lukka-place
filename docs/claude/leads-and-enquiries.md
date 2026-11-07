@@ -291,3 +291,20 @@ is moving. Nothing is sent to agencies from the cards; only the customer's
   question only reaches someone inside the 24-hour window, and a cold customer
   needs a template for every one.
 - §80 of verify-pipeline.
+
+## "Mon déménagement": the 24-hour promise and the end of a move (2026-11-07)
+
+- **The project page promises** "Si aucune agence ne vous a écrit sous 24 h,
+  l'équipe Lukka Place vous contacte". `services/moveFollowup.js`
+  (`move-request-followup`, every 15 min, before `sqlite-backup`) keeps it: a
+  `move-project` lead 24 h–7 days old, status NEW/CONTACTED/QUALIFIED, with no
+  `lead_proposals` row, goes to the ops desk (`sendDeskAlert`, desk template
+  when set) with the customer's number and story and the admin link. The
+  customer is not messaged by the engine (they are cold); a person calls.
+  `leads.followup_alerted_at` is stamped after the attempt, whoever was
+  reached, so nobody is told twice; "nobody told" is logged when
+  `OPS_WHATSAPP_NUMBER` is unset. `MOVE_FOLLOWUP=off` disables. §81.
+- **"C'est le bon !"** on web sets the project's last lead to `CONVERTED`
+  (`PATCH /admin/leads/:id`) — the first code path that reaches that status.
+- **The no-account "Trouver pour moi" form** now sends the situation chips
+  as `move_story` too (reasons only).

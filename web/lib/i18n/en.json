@@ -1069,7 +1069,8 @@
         "limit": "You have already sent several requests. Please try again later.",
         "send": "The request could not be sent. Please try again in a moment."
       },
-      "jump": "Or tell us what you need: we pass it on to agencies ↓"
+      "jump": "Or tell us what you need: we pass it on to agencies ↓",
+      "situation": "Your situation (optional)"
     },
     "similarAlert": {
       "title": "Not Quite Right?",
@@ -3570,7 +3571,8 @@
             "travail": "My work",
             "ecole": "The children’s school",
             "famille": "Family",
-            "aucun": "Doesn’t matter"
+            "aucun": "Doesn’t matter",
+            "eglise": "Church"
           },
           "communeLabel": "In which commune?",
           "communePlaceholder": "Choose a commune",
@@ -3711,7 +3713,8 @@
           "errors": {
             "send": "Your request could not be sent. Please try again in a moment.",
             "recent": "Your request was already sent today. Agencies will answer in your messages."
-          }
+          },
+          "followUp": "If no agency has written to you within 24 h, the Lukka Place team will contact you."
         }
       },
       "home": {
@@ -3754,6 +3757,71 @@
         "yes": "Delete",
         "no": "Cancel",
         "deleting": "Deleting…"
+      },
+      "profileSub": "Your moves, their homes and their alerts",
+      "stages": {
+        "label": "Where your move stands",
+        "projet": "Plan",
+        "recherche": "Search",
+        "demande": "Request sent",
+        "visites": "Visits",
+        "trouve": "Found",
+        "installe": "Settled in"
+      },
+      "status": {
+        "found": "This is the one! I found it",
+        "foundConfirm": "Did you find your home?",
+        "foundEffect": "We will stop this move’s alert and note that your request succeeded.",
+        "foundYes": "Yes, this is the one!",
+        "pause": "Pause",
+        "resume": "Resume the search",
+        "notTheOne": "It wasn’t the one: resume the search",
+        "saving": "One moment…",
+        "foundBanner": "🎉 Congratulations! You found your home on {date}.",
+        "foundBannerNow": "🎉 Congratulations! You found your home.",
+        "pausedBanner": "Move paused: its alert is off. Resume whenever you like.",
+        "error": "The change could not be saved. Please try again in a moment.",
+        "chip": {
+          "active": "Searching",
+          "paused": "Paused",
+          "found": "Found"
+        }
+      },
+      "checkin": {
+        "title": "Settled In?",
+        "lead": "It has been a month since you found your home. How is it going?",
+        "answers": {
+          "settled": "Yes, all good",
+          "not_yet": "Not yet"
+        },
+        "storyLabel": "Tell us about your move (optional)",
+        "storyPlaceholder": "Your story, in a few words",
+        "consent": "I agree that Lukka Place may share my story, without my phone number.",
+        "submit": "Send",
+        "thanks": "Thank you! Your answer is saved.",
+        "homePrompt": "Tell us how your new home is going."
+      },
+      "checklist": {
+        "title": "Before You Sign",
+        "lead": "A few checks before you pay anything.",
+        "items": {
+          "visit": "Visit the home in person, ideally at the time of day you will live there (water, power, noise).",
+          "costs": "Ask for each cost separately: deposit, rent in advance and commission.",
+          "contract": "Read the contract before signing: rent, length, notice, and who pays for repairs.",
+          "condition": "Make a written inventory of the home’s condition, with photos, on moving-in day.",
+          "documents": "Check the landlord’s identity and that they have the right to rent or sell the home.",
+          "receipt": "Only pay against a signed receipt for each amount."
+        }
+      },
+      "fit": {
+        "for": "For your move “{name}”",
+        "bedroomsOk": "{beds} bedrooms",
+        "bedroomsNo": "{beds} bedrooms (you want {min})",
+        "communeOk": "{commune}",
+        "communeNo": "{commune}, outside your communes",
+        "budget": "Within your budget",
+        "above": "{pct}% above your budget",
+        "below": "{pct}% below your budget"
       }
     }
   },
@@ -3814,7 +3882,8 @@
       "blog": "Guides & News",
       "campaign": "Campaign",
       "interactions": "Interactions",
-      "seo": "SEO & Google"
+      "seo": "SEO & Google",
+      "moveProjects": "Move Projects"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -4786,7 +4855,18 @@
       "deleted": "Customer account deleted.",
       "moveTitle": "Move Project",
       "moveNone": "No move described.",
-      "moveUpdated": "Updated {date}"
+      "moveUpdated": "Updated {date}",
+      "moveStatus": {
+        "active": "Searching",
+        "paused": "Paused",
+        "found": "Home found"
+      },
+      "moveSettled": {
+        "settled": "settled in",
+        "not_yet": "not settled yet"
+      },
+      "moveStoryConsent": "Sharing agreed on {date}",
+      "moveStoryPrivate": "Story told without consent to share: not shown."
     },
     "benchmarks": {
       "title": "Benchmark Pricing",
@@ -7494,6 +7574,34 @@
       "filterUnposted": "Not posted yet",
       "filterPosted": "Already posted",
       "notInLabel": "Not yet in"
+    },
+    "moveProjects": {
+      "title": "Move Projects",
+      "subtitle": "What customers tell us about their move, counted as told.",
+      "loadError": "The figures could not be loaded.",
+      "noTable": "No projects yet (the table does not exist yet).",
+      "northStar": "Moves completed",
+      "northStarHint": "{settled} settled in · {rate} of projects",
+      "projects": "Projects",
+      "customers": "{count} customer(s)",
+      "searching": "Searching",
+      "paused": "{count} paused",
+      "medianDays": "Median time to a home",
+      "days": "{count} days",
+      "sent": "{count} sent to agencies",
+      "byReason": "Why They Move",
+      "byCommune": "Where They Want to Live",
+      "reason": "Reason",
+      "commune": "Commune",
+      "foundCol": "Found",
+      "otherReason": "Another reason",
+      "none": "Nothing yet.",
+      "pairs": "Most Common Reasons and Communes",
+      "pairsHint": "The stories to tell, where they happen.",
+      "stories": "Shared Stories",
+      "storiesHint": "Only stories the customer agreed to share.",
+      "noStories": "No shared story yet.",
+      "customer": "See the customer"
     }
   },
   "errors": {

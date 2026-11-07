@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, Building2, ChevronDown, Handshake, CalendarClock, ClipboardPaste, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, Newspaper, Presentation, User, Users,
-  Building, Landmark, Link2, Megaphone, MessageCircle, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, UsersRound,
+  Building, Landmark, Link2, Megaphone, MessageCircle, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, Truck, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
@@ -36,7 +36,7 @@ import { ADMIN_SEARCH_EVENT } from './GlobalSearch';
  */
 // Keys, not text — see components/navItems.js. The list itself lives in
 // lib/adminNav.js (shared with /admin/settings).
-const ICONS = { BarChart3, Building, Building2, CalendarClock, ClipboardPaste, ChartNoAxesCombined, CreditCard, FileText, Gauge, HandCoins, Handshake, HeartPulse, Landmark, Link2, Mail, Megaphone, MessageCircle, Newspaper, Presentation, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, User, Users, UsersRound };
+const ICONS = { BarChart3, Building, Building2, CalendarClock, ClipboardPaste, ChartNoAxesCombined, CreditCard, FileText, Gauge, HandCoins, Handshake, HeartPulse, Landmark, Link2, Mail, Megaphone, MessageCircle, Newspaper, Presentation, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, Truck, User, Users, UsersRound };
 const NAV_GROUPS = ADMIN_NAV_GROUPS.map((group) => ({
   ...group,
   items: group.items.map((item) => ({ ...item, icon: ICONS[item.icon] })),

@@ -7,6 +7,7 @@ import { buildRequirementsSummary } from '@/lib/customerPortal';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { clientIpFrom } from '@/lib/salesReferral';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { moveStoryFr, parseMoveProject } from '@/lib/moveProjectRules';
 import {
   GUEST_REQUEST_SOURCE,
   createLimiter,
@@ -79,9 +80,14 @@ export async function submitGuestRequestAction(_prev, formData) {
     budgetMax: request.budgetMax ? String(request.budgetMax) : '',
   });
   const type = guestTypeSummary(request.propertyType);
-  const requirementsSummary = [type, base, 'Demande envoyée sans compte depuis le site (numéro non vérifié).']
+  // "Votre situation" chips (2026-11-07): the reasons only, in the same
+  // French brief the move projects use, story first on the agent's card.
+  const { project: situation } = parseMoveProject({ reasons: String(formData.get('reasons') || '').split(',') });
+  const story = moveStoryFr(situation);
+  const criteria = [type, base, 'Demande envoyée sans compte depuis le site (numéro non vérifié).']
     .filter(Boolean)
     .join(' · ');
+  const requirementsSummary = [story, criteria].filter(Boolean).join('\n');
 
   let leadId = null;
   try {
@@ -95,6 +101,7 @@ export async function submitGuestRequestAction(_prev, formData) {
       communes: [request.commune],
       priceMax: request.budgetMax,
       bedrooms: request.bedrooms,
+      moveStory: story || undefined,
     });
     leadId = lead?.id ?? null;
   } catch (err) {

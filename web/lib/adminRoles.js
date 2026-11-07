@@ -129,6 +129,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/agents': 'agents.view',
   '/admin/agencies': 'agents.view',
   '/admin/customers': 'customers.view',
+  '/admin/move-projects': 'customers.view',
   // Pasting Facebook group posts adds agent prospects (lib/facebookProspects.js).
   '/admin/prospects': 'agents.manage',
   '/admin/subscriptions': 'billing.view',

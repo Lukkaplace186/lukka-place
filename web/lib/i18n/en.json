@@ -3755,7 +3755,7 @@
           "nearby": "In {commune}, ≈ {km} km"
         },
         "seeAlso": "See also",
-        "closePrice": "Similar prices (± 25%)",
+        "closePrice": "Similar prices",
         "closePlace": "Nearby communes",
         "noneClose": "Nothing close yet."
       },
@@ -3787,8 +3787,14 @@
         "visites": "Visits",
         "trouve": "Found",
         "installe": "Settled in",
-        "hint": "A step not ticked? Tap it to say where you are.",
-        "markAs": "Mark that I am at: {stage}"
+        "hint": "Tap a step to say where you are. You can go back too.",
+        "markAs": "Mark that I am at: {stage}",
+        "updated": "Step updated: {stage}",
+        "undo": "Undo",
+        "saveError": "The step could not be saved. Please try again.",
+        "backToAuto": "Back to automatic tracking",
+        "backToAutoDone": "Automatic tracking restored",
+        "trackerAhead": "From your requests and visits, you may be at: {stage}."
       },
       "status": {
         "found": "This is the one! I found it",
@@ -3844,6 +3850,41 @@
         "budget": "Within your budget",
         "above": "{pct}% above your budget",
         "below": "{pct}% below your budget"
+      },
+      "stageCard": {
+        "projet": {
+          "title": "Your Move Is Noted",
+          "body": "Say what you are looking for to see homes that match and hear about new ones."
+        },
+        "recherche": {
+          "title": "Homes for Your Move",
+          "body": "The homes that match are below, and your alert tells you about new ones.",
+          "seeHomes": "See the homes"
+        },
+        "demande": {
+          "title": "Your Requests",
+          "counts": "{requests} request(s) sent · {proposals} suggestion(s) received"
+        },
+        "visites": {
+          "title": "Your Visits",
+          "none": "No visit planned yet. Ask for one from a listing page.",
+          "all": "All my visits"
+        },
+        "trouve": {
+          "title": "Getting Ready to Move In",
+          "body": "Congratulations! A few steps to settle in well.",
+          "items": {
+            "power": "Put the electricity meter (SNEL cash power) in your name, or check who pays it.",
+            "water": "Check the water supply (REGIDESO) or borehole, and who pays the bills.",
+            "keys": "Collect every key and make a written move-in inventory, with photos.",
+            "papers": "Keep the signed contract and a receipt for every payment.",
+            "address": "Give your new address to your family, employer and school."
+          }
+        },
+        "installe": {
+          "title": "Welcome Home!",
+          "body": "Thank you for moving with Lukka Place. Your other moves stay in the Moves tab."
+        }
       }
     }
   },

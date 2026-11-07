@@ -3755,7 +3755,7 @@
           "nearby": "À {commune}, ≈ {km} km"
         },
         "seeAlso": "Voir aussi",
-        "closePrice": "Prix proches (± 25 %)",
+        "closePrice": "Prix similaires",
         "closePlace": "Communes proches",
         "noneClose": "Rien de proche pour l’instant."
       },
@@ -3787,8 +3787,14 @@
         "visites": "Visites",
         "trouve": "Trouvé",
         "installe": "Installé",
-        "hint": "Une étape n’est pas cochée ? Touchez-la pour indiquer où vous en êtes.",
-        "markAs": "Indiquer que j’en suis à : {stage}"
+        "hint": "Touchez une étape pour indiquer où vous en êtes. Vous pouvez revenir en arrière.",
+        "markAs": "Indiquer que j’en suis à : {stage}",
+        "updated": "Étape mise à jour : {stage}",
+        "undo": "Annuler",
+        "saveError": "L’étape n’a pas pu être enregistrée. Réessayez.",
+        "backToAuto": "Revenir au suivi automatique",
+        "backToAutoDone": "Suivi automatique rétabli",
+        "trackerAhead": "D’après vos demandes et visites, vous en êtes peut-être à : {stage}."
       },
       "status": {
         "found": "C’est le bon ! J’ai trouvé",
@@ -3844,6 +3850,41 @@
         "budget": "Dans votre budget",
         "above": "{pct} % au-dessus de votre budget",
         "below": "{pct} % en dessous de votre budget"
+      },
+      "stageCard": {
+        "projet": {
+          "title": "Votre projet est noté",
+          "body": "Précisez ce que vous cherchez pour voir les biens qui correspondent et recevoir les nouveaux."
+        },
+        "recherche": {
+          "title": "Les biens pour votre projet",
+          "body": "Les biens qui correspondent sont ci-dessous, et votre alerte vous prévient des nouveaux.",
+          "seeHomes": "Voir les biens"
+        },
+        "demande": {
+          "title": "Vos demandes",
+          "counts": "{requests} demande(s) envoyée(s) · {proposals} proposition(s) reçue(s)"
+        },
+        "visites": {
+          "title": "Vos visites",
+          "none": "Pas encore de visite prévue. Demandez-en une depuis la page d’un bien.",
+          "all": "Toutes mes visites"
+        },
+        "trouve": {
+          "title": "Préparer l’emménagement",
+          "body": "Félicitations ! Quelques étapes pour bien vous installer.",
+          "items": {
+            "power": "Mettez le compteur d’électricité (cash power SNEL) à votre nom ou vérifiez qui le paie.",
+            "water": "Vérifiez l’abonnement d’eau (REGIDESO) ou le forage, et qui paie les factures.",
+            "keys": "Récupérez toutes les clés et faites l’état des lieux d’entrée par écrit, avec photos.",
+            "papers": "Gardez le contrat signé et un reçu pour chaque somme versée.",
+            "address": "Donnez votre nouvelle adresse à votre famille, votre employeur et l’école."
+          }
+        },
+        "installe": {
+          "title": "Bienvenue chez vous !",
+          "body": "Merci d’avoir déménagé avec Lukka Place. Vos autres projets restent dans l’onglet Projets."
+        }
       }
     }
   },

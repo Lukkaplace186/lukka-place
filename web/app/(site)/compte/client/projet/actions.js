@@ -184,14 +184,22 @@ export async function settleCheckinAction(projectId, formData) {
  * confirmations because they stop the alert and close the request.
  */
 export async function setManualStageAction(projectId, stage) {
+  // Called from the stepper (components ProjectStepper.js), forward or back,
+  // and by its "Annuler"; 'auto' hands the stage back to the tracking.
+  // Returns state for the client — the stepper updates at once and shows
+  // an undo toast, then refreshes the page around it.
   const customerId = await getCurrentCustomerId();
-  if (!customerId) redirect('/compte/connexion?next=/compte/client/projet');
+  if (!customerId) return { ok: false, reason: 'session' };
   const project = await getMoveProject(customerId, projectIdOf(projectId));
-  if (!project) redirect('/compte/client/projet');
-  const ok = MOVE_MANUAL_STAGES.includes(stage) && (await setMoveProjectManualStage(customerId, project.id, stage));
-  if (ok) console.log(`[move-project] project #${project.id}: customer set stage ${stage}`);
+  if (!project) return { ok: false, reason: 'missing' };
+  // Once found, "Ce n'était pas le bon" is the way back (it restarts the alert).
+  if (project.status === 'found') return { ok: false, reason: 'found' };
+  const value = stage === 'auto' ? null : stage;
+  if (value !== null && !MOVE_MANUAL_STAGES.includes(value)) return { ok: false, reason: 'stage' };
+  const ok = await setMoveProjectManualStage(customerId, project.id, value);
+  if (ok) console.log(`[move-project] project #${project.id}: customer set stage ${value ?? 'auto'}`);
   revalidateProjects(project.id);
-  redirect(`/compte/client/projet/${project.id}${ok ? '' : '?error=status'}`);
+  return { ok, reason: ok ? null : 'save' };
 }
 
 /** "Supprimer ce projet" (after the customer confirmed in the dialog). */

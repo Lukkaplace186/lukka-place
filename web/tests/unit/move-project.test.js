@@ -31,6 +31,7 @@ import {
   projectDisplayName,
   projectFit,
   moveStagesReached,
+  moveStageView,
   projectFromSearchQuery,
 } from '@/lib/moveProjectRules';
 import { createMoveProject, deleteMoveProject, getMoveProject, updateMoveProject } from '@/lib/moveProjects';
@@ -373,18 +374,31 @@ test('stages cascade: the furthest real event ticks every stage before it', () =
   assert.deepEqual([...MOVE_STAGES], ['projet', 'recherche', 'demande', 'visites', 'trouve', 'installe']);
 });
 
-test('the customer can move their stage forward by hand, never past "found" without confirming', () => {
+test('the customer sets their stage forward or back; events become proof and hints, never forced', () => {
   const story = parseMoveProject({ reasons: ['travail'] }).project;
-  assert.deepEqual([...MOVE_MANUAL_STAGES], ['recherche', 'demande', 'visites']);
+  assert.deepEqual([...MOVE_MANUAL_STAGES], ['projet', 'recherche', 'demande', 'visites']);
   assert.deepEqual(moveStagesReached({ ...story, status: 'active', manualStage: 'visites' }), ['projet', 'recherche', 'demande', 'visites']);
   assert.deepEqual(moveStagesReached({ ...story, status: 'active', manualStage: 'trouve' }), ['projet'], 'not a manual stage');
-  // A manual stage never moves a real event back.
-  assert.deepEqual(moveStagesReached({ ...story, status: 'active', manualStage: 'recherche' }, { hasVisit: true }).at(-1), 'visites');
+  // Back: a visit fell through, the customer steps back to "Recherche".
+  const back = moveStageView({ ...story, status: 'active', manualStage: 'recherche' }, { hasVisit: true });
+  assert.equal(back.current, 'recherche');
+  assert.deepEqual(back.reached, ['projet', 'recherche']);
+  assert.equal(back.trackerAhead, 'visites', 'the tracking is offered as a hint');
+  assert.deepEqual(back.proven, ['projet', 'recherche', 'demande', 'visites']);
+  // Self-reported vs proven: only events prove.
+  const ahead = moveStageView({ ...story, status: 'active', manualStage: 'visites' });
+  assert.deepEqual(ahead.proven, ['projet']);
+  assert.equal(ahead.manual, true);
+  // Once found, the status decides; "Ce n'était pas le bon" is the way back.
+  assert.equal(moveStageView({ ...story, status: 'found', manualStage: 'recherche' }).current, 'trouve');
   const action = read('app/(site)/compte/client/projet/actions.js');
-  assert.match(action, /MOVE_MANUAL_STAGES\.includes\(stage\) && \(await setMoveProjectManualStage\(customerId, project\.id, stage\)\)/);
-  const pills = read('app/(site)/compte/client/projet/ProjectJourney.js');
-  assert.match(pills, /\?confirmer=trouve#statut/, '"Trouvé" opens the confirmation');
-  assert.match(pills, /\?installe=1#checkin/, '"Installé" opens the check-in');
+  assert.match(action, /if \(project\.status === 'found'\) return \{ ok: false, reason: 'found' \};/);
+  assert.match(action, /const value = stage === 'auto' \? null : stage;/, '"auto" hands the stage back to the tracking');
+  const stepper = read('app/(site)/compte/client/projet/ProjectStepper.js');
+  assert.match(stepper, /\?confirmer=trouve#statut/, '"Trouvé" opens the confirmation');
+  assert.match(stepper, /\?installe=1#checkin/, '"Installé" opens the check-in');
+  assert.match(stepper, /label: t\('account\.move\.stages\.undo'\)/, 'every change offers Annuler');
+  assert.match(stepper, /if \(found \|\| stage === local\.current \|\| !MOVE_MANUAL_STAGES\.includes\(stage\)\) return;/, 'tapping the current step does nothing');
   const page = read('app/(site)/compte/client/projet/[id]/page.js');
   assert.match(page, /if \(lead && at\(lead\.created_at\) >= since\) hasRequest = true;/, 'any request since the project counts');
 });

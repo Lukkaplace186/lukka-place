@@ -4648,3 +4648,18 @@ are fixed, `tests/unit/signup-rush.test.js`.
   (`migrations/20261107_move_project_manual_stage.sql`, forward only);
   "Trouvé" opens the "C'est le bon !" confirmation (`?confirmer=trouve`),
   "Installé" the check-in (`?installe=1`).
+- **The stepper is a control (2026-11-07, owner: "they can't go back").**
+  `ProjectStepper.js` (client): tapping Projet / Recherche / Demande envoyée
+  / Visites sets the stage **forward or back** at once, saves it
+  (`setManualStageAction`, now returns `{ok}` instead of redirecting; `'auto'`
+  clears it) and shows "Étape mise à jour : … · Annuler" (the portal Toast).
+  Tapping the current pill does nothing. Once found, the status decides and
+  "Ce n'était pas le bon" is the way back. `moveStageView` replaces the
+  event-forced cascade: the customer's choice wins both ways; `proven`
+  (events) ticks solid, self-reported ticks dotted; `trackerAhead` shows
+  "D'après vos demandes et visites, vous en êtes peut-être à : …" and "Revenir
+  au suivi automatique" hands it back. **`StageCard.js`** under the pills
+  follows the current stage: story → matches → requests and agency
+  proposals → upcoming visits + "Avant de signer" → moving-in checklist
+  (SNEL cash power, REGIDESO, keys and inventory, receipts, address) →
+  welcome. "± 25 %" left the pill: it reads "Prix similaires".

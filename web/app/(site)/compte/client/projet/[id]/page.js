@@ -7,7 +7,7 @@ import { getPortalCustomer } from '@/lib/customerPortal';
 import { listSavedSearches } from '@/lib/customers';
 import { listMoveProjects } from '@/lib/moveProjects';
 import { getMoveMatches } from '@/lib/moveMatches';
-import { MOVE_RESEND_AFTER_MS, checkinDue, moveRequestBlocker, moveSearchQuery, moveStagesReached } from '@/lib/moveProjectRules';
+import { MOVE_RESEND_AFTER_MS, checkinDue, moveRequestBlocker, moveSearchQuery, moveStageView } from '@/lib/moveProjectRules';
 import { firstName } from '@/lib/clientPortalView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocale, getT } from '@/lib/i18n/server';
@@ -16,7 +16,9 @@ import DeleteMoveProject from '../DeleteMoveProject';
 import { storyLines } from '../storyLines';
 import { deleteMoveProjectAction, setManualStageAction, markProjectFoundAction, pauseProjectAction, resumeProjectAction, sendMoveRequestAction, settleCheckinAction } from '../actions';
 import ProjectStatusActions from '../ProjectStatusActions';
-import { CheckinCard, ProjectStages, SigningChecklist } from '../ProjectJourney';
+import { CheckinCard } from '../ProjectJourney';
+import ProjectStepper from '../ProjectStepper';
+import StageCard from '../StageCard';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 
 export async function generateMetadata() {
@@ -167,22 +169,25 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
   // even when those were never tracked.
   let hasVisit = false;
   let hasRequest = false;
+  let inquiries = [];
+  const since = new Date(project.createdAt).getTime();
   try {
-    const since = new Date(project.createdAt).getTime();
     const at = (value) => {
       if (!value) return 0;
       const text = String(value);
       const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(text) || text.includes('T') ? text : `${text.replace(' ', 'T')}Z`;
       return new Date(iso).getTime() || 0;
     };
-    for (const { lead, viewings = [] } of await getCustomerInquiries(customerId)) {
+    inquiries = await getCustomerInquiries(customerId);
+    for (const { lead, viewings = [] } of inquiries) {
       if (lead && at(lead.created_at) >= since) hasRequest = true;
       if (viewings.some((v) => at(v.created_at) >= since)) hasVisit = true;
     }
   } catch {
     hasVisit = false;
   }
-  const stages = moveStagesReached(project, { hasVisit, hasRequest });
+  // The customer's own stage wins, both ways; events are proof and hints.
+  const stageView = moveStageView(project, { hasVisit, hasRequest });
   const foundDate = project.foundAt
     ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long', timeZone: 'Africa/Kinshasa' }).format(new Date(project.foundAt))
     : null;
@@ -203,7 +208,7 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         <h1 className="u-title-page mt-1 text-ink">{projectName}</h1>
       </div>
 
-      <ProjectStages reached={stages} t={t} projectId={project.id} status={project.status} stageAction={setManualStageAction.bind(null, project.id)} />
+      <ProjectStepper view={stageView} projectId={project.id} status={project.status} stageAction={setManualStageAction.bind(null, project.id)} />
 
       {params?.trouve === '1' || project.status === 'found' ? (
         <p className="rounded-xl bg-green-tint px-4 py-3 text-[0.9375rem] font-semibold text-green-deep" role="status">
@@ -220,6 +225,10 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{t('account.move.status.error')}</p>
       ) : null}
       {checkinDue(project) || (params?.installe === '1' && project.status === 'found' && !project.settledAt) ? <CheckinCard action={settleCheckinAction.bind(null, project.id)} t={t} /> : null}
+
+      {/* What matters at the current stage (owner, 2026-11-07). */}
+      <StageCard stage={stageView.current} project={project} inquiries={inquiries} since={since} t={t} locale={locale} />
+
 
       <section className={`relative overflow-hidden p-4 sm:p-5 ${CARD}`} aria-labelledby="move-story">
         <div className="flex items-start justify-between gap-3">
@@ -297,7 +306,6 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
       </>
       ) : null}
 
-      {active ? <SigningChecklist t={t} /> : null}
 
       <div id="statut" className="scroll-mt-24">
       <ProjectStatusActions

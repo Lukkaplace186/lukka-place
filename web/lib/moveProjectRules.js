@@ -487,33 +487,61 @@ export function checkinDue(project, now = new Date()) {
  * `hasVisit` comes from the customer's real viewing requests.
  */
 export const MOVE_STAGES = Object.freeze(['projet', 'recherche', 'demande', 'visites', 'trouve', 'installe']);
-/** Stages a customer may set by tapping a pill; "trouvé" and "installé" go through their own confirmations. */
-export const MOVE_MANUAL_STAGES = Object.freeze(['recherche', 'demande', 'visites']);
+/**
+ * Stages a customer may set by tapping a pill, FORWARD OR BACK (owner,
+ * 2026-11-07: "what if they make a mistake"). "Trouvé" and "Installé" keep
+ * their own confirmations: they stop the alert and close the request.
+ */
+export const MOVE_MANUAL_STAGES = Object.freeze(['projet', 'recherche', 'demande', 'visites']);
 
 /**
- * The stages this project has reached, CASCADING (owner, 2026-11-07): the
- * furthest stage any real event proves — or the customer set by hand —
- * marks every stage before it, so a visit confirmed outside the usual path
- * still shows "Recherche" and "Demande envoyée" done.
- *
- * Events: a search (the project names one) · a request (`lastLeadAt`, or
- * `hasRequest`: any request of the customer since the project began — a
- * "Trouver pour moi", a listing enquiry, a visit request) · a visit
- * (`hasVisit`: any viewing request since then, confirmed or not) · found ·
- * settled in. `project.manualStage` (one of MOVE_MANUAL_STAGES) is the
- * customer's own say and only ever moves the stage forward.
+ * How far real events take this project, as a MOVE_STAGES index: a search
+ * (the project names one), a request (`lastLeadAt`, or any request of the
+ * customer since the project began), a visit, found, settled in.
  */
-export function moveStagesReached(project, { hasVisit = false, hasRequest = false } = {}) {
-  if (!project) return [];
+function provenIndex(project, { hasVisit = false, hasRequest = false } = {}) {
   let furthest = 0;
   const reach = (stage) => { furthest = Math.max(furthest, MOVE_STAGES.indexOf(stage)); };
   if (moveSearchQuery(project)) reach('recherche');
   if (project.lastLeadAt || hasRequest) reach('demande');
   if (hasVisit) reach('visites');
-  if (MOVE_MANUAL_STAGES.includes(project.manualStage)) reach(project.manualStage);
   if (project.status === 'found') reach('trouve');
   if (project.status === 'found' && project.settledAnswer === 'settled') reach('installe');
-  return MOVE_STAGES.slice(0, furthest + 1);
+  return furthest;
+}
+
+/**
+ * Where the move stands, for the stepper:
+ *   current   the stage shown as current
+ *   reached   every stage up to it (cascading: reaching one ticks the earlier ones)
+ *   proven    the stages real events prove — ticked solid; a reached stage
+ *             that is not proven was the customer's own say (dotted tick)
+ *   manual    true when the customer set the stage themselves
+ *   trackerAhead  the stage events show beyond the customer's choice, or
+ *             null — offered as a hint, never forced
+ *
+ * The customer's choice wins in both directions (a visit that fell through
+ * can be stepped back from), except once found: "Trouvé"/"Installé" follow
+ * the status, and "Ce n'était pas le bon" is the way back.
+ */
+export function moveStageView(project, events = {}) {
+  if (!project) return { current: null, reached: [], proven: [], manual: false, trackerAhead: null };
+  const proven = provenIndex(project, events);
+  const manualIndex = MOVE_MANUAL_STAGES.includes(project.manualStage) ? MOVE_STAGES.indexOf(project.manualStage) : -1;
+  const manual = project.status !== 'found' && manualIndex >= 0;
+  const furthest = manual ? manualIndex : proven;
+  return {
+    current: MOVE_STAGES[furthest],
+    reached: MOVE_STAGES.slice(0, furthest + 1),
+    proven: MOVE_STAGES.slice(0, proven + 1),
+    manual,
+    trackerAhead: manual && proven > manualIndex ? MOVE_STAGES[proven] : null,
+  };
+}
+
+/** The reached stages only (kept for callers that need just the list). */
+export function moveStagesReached(project, events = {}) {
+  return moveStageView(project, events).reached;
 }
 
 /**

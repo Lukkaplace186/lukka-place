@@ -61,11 +61,15 @@ function rowsFromFile(file) {
     if (seen.has(slug)) throw new Error(`duplicate slug ${slug}`);
     seen.add(slug);
     const purpose = 'purpose' in index && get('purpose') === 'sale' ? 'sale' : 'rent';
+    // An advert copied without its date (a portal page, a shared post) has
+    // daysAgo null: posted_at stays NULL rather than becoming the entry day.
+    const daysAgo = get('daysAgo');
+    const undated = daysAgo === null || daysAgo === undefined || daysAgo === '';
     return market.normaliseObservation({
       source: data.source,
       source_ref: slug,
       source_url: SOURCE_URLS[data.source] ? SOURCE_URLS[data.source](slug) : (('url' in index && get('url')) || null),
-      posted_at: new Date(entered.getTime() - Number(get('daysAgo')) * 24 * 3600 * 1000),
+      posted_at: undated ? null : new Date(entered.getTime() - Number(daysAgo) * 24 * 3600 * 1000),
       purpose,
       property_kind: get('kind'),
       beds: get('beds'),
@@ -74,8 +78,9 @@ function rowsFromFile(file) {
       price_period: purpose === 'sale' ? 'total' : 'mois',
       commune_key: get('commune') || null,
       quartier: get('quartier') || null,
-      // Optional column: true only when the advert says furnished ("meublé").
-      furnished: 'furnished' in index ? get('furnished') === true : null,
+      // Optional column: true when the advert says furnished ("meublé"), false
+      // when it says empty ("vide", "non meublé"); anything else is not stated.
+      furnished: 'furnished' in index && typeof get('furnished') === 'boolean' ? get('furnished') : null,
       title: null,
     });
   });

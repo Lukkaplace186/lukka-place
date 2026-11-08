@@ -14873,6 +14873,27 @@ console.log('\n2. services/openai.js');
       const oldPage = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'admin', 'prospects', 'paste', 'page.js'), 'utf8');
       assert.match(oldPage, /redirect\('\/admin\/market-data\/marche#coller'\)/);
     });
+
+    check('an undated advert keeps posted_at NULL, and an unstated furnishing stays unknown', () => {
+      const file = path.join(require('os').tmpdir(), `lukka-undated-${process.pid}.json`);
+      fs.writeFileSync(file, JSON.stringify({
+        source: 'other',
+        entered: '2026-11-08',
+        columns: ['slug', 'kind', 'price', 'beds', 'commune', 'quartier', 'daysAgo', 'furnished'],
+        rows: [
+          ['u-1', 'appartement', 900, 2, 'Bandalungwa', null, null, false],
+          ['u-2', 'appartement', 2900, 1, 'Ngaliema', null, '', true],
+          ['u-3', 'appartement', 700, 2, 'Ngaliema', null, 2, null],
+        ],
+      }));
+      try {
+        const rows = imp84.rowsFromFile(file);
+        assert.deepStrictEqual(rows.map((r) => r.posted_at), [null, null, '2026-11-06T12:00:00.000Z'], 'no date is never "today"');
+        assert.deepStrictEqual(rows.map((r) => r.furnished), [false, true, null], 'not stated is not "unfurnished"');
+      } finally {
+        fs.rmSync(file, { force: true });
+      }
+    });
   }
 
   // §85 "Un client vous contacte": the agent is told the moment a customer taps (2026-11-08)

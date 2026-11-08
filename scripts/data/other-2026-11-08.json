@@ -1,0 +1,14 @@
+{
+  "source": "other",
+  "entered": "2026-11-08",
+  "note": "Portal-style adverts the owner pasted in chat on 2026-11-08 without naming the site: three Empire Supreme Business listings (the owner headed them 'EMPIRE SUPREME BUSINESS - 0975119937') and one Gombe apartment in English (+243817699634). No posting date on any of them (daysAgo null). Price = the advertised rent, not the 'dernier prix' / 'possibilité à' floor. furnished false where the listing says 'Unfurnished'. The Kasa-Vubu post lists two categories, one row each. Quartier only for a place name; 'Réf. Shaba' and 'arrêt Saï Saï' are landmarks.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "furnished", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["empire-2026-11-08-ngaliema-chanic-2ch", "appartement", 1800, 2, "Ngaliema", "Chanic", null, false, "0975119937", null, "Empire Supreme Business", "rent"],
+    ["empire-2026-11-08-kasavubu-shaba-3ch", "appartement", 1000, 3, "Kasa-Vubu", null, null, false, "0975119937", null, "Empire Supreme Business", "rent"],
+    ["empire-2026-11-08-kasavubu-shaba-1ch", "appartement", 450, 1, "Kasa-Vubu", null, null, false, "0975119937", null, "Empire Supreme Business", "rent"],
+    ["empire-2026-11-08-bandal-2ch", "appartement", 900, 2, "Bandalungwa", null, null, false, "0975119937", null, "Empire Supreme Business", "rent"],
+    ["empire-2026-11-08-ngaliema-saisai-3ch", "appartement", 1300, 3, "Ngaliema", null, null, false, "0975119937", null, "Empire Supreme Business", "rent"],
+    ["other-2026-11-08-gombe-2ch-2500", "appartement", 2500, 2, "Gombe", null, null, null, "+243817699634", null, null, "rent"]
+  ]
+}

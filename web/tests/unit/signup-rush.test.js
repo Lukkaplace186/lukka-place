@@ -27,7 +27,7 @@ test('a double tap cannot send the account twice, and a duplicate number reads a
   assert.match(form, /const \{ pending \} = useFormStatus\(\);/);
   assert.match(form, /disabled=\{pending\}/);
   const action = read('app/(site)/compte/inscription/actions.js');
-  assert.match(action, /if \(err\.code === '23505'\) redirect\(`\/compte\/inscription\?error=exists/);
+  assert.match(action, /if \(err\.code === '23505'\) return refuse\('exists', formData\);/);
 });
 
 test('passwords are hashed off the main thread on sign-up and login, and both forms agree', async () => {

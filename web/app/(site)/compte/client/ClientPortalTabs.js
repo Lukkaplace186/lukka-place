@@ -46,7 +46,8 @@ export const PORTAL_TABS = [
     href: '/compte/client/favoris',
     labelKey: 'account.portal.nav.saved',
     icon: Heart,
-    countKey: 'savedTotal',
+    // No running total here (2026-11-08): "7" (favourites + alerts) read as
+    // seven unread things that never went away. A tab marks only what is new.
     // A green dot: a saved listing dropped in price since this device last
     // opened the tab (layout.js, lib/favoritePriceDrops.js).
     dotKey: 'priceDrops',
@@ -56,7 +57,6 @@ export const PORTAL_TABS = [
     href: '/compte/client/visites',
     labelKey: 'account.portal.nav.activity',
     icon: ClipboardList,
-    countKey: 'inquiries',
     match: (p) =>
       p.startsWith('/compte/client/visites') || p.startsWith('/compte/client/messages') || p.startsWith('/compte/client/demandes'),
   },

@@ -70,7 +70,7 @@ test('the name is required, in the form and in the action', () => {
   assert.match(field, /\brequired\b/);
   assert.match(form, /t\('auth\.signup\.fullName'\)/);
   const action = read('app/(site)/compte/inscription/actions.js');
-  assert.ok(action.indexOf('error=name') > 0 && action.indexOf('error=name') < action.indexOf('createCustomer('), 'refused before the account exists');
+  assert.ok(action.indexOf("refuse('name'") > 0 && action.indexOf("refuse('name'") < action.indexOf('createCustomer('), 'refused before the account exists');
   const fr = JSON.parse(read('lib/i18n/fr.json'));
   assert.equal(fr.auth.signup.fullName, 'Nom et prénom');
   assert.match(fr.auth.signup.phoneHint, /WhatsApp/);

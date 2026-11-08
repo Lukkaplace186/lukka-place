@@ -1,8 +1,8 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { createCustomerSessionToken, CUSTOMER_SESSION_COOKIE, CUSTOMER_SESSION_TTL_SECONDS } from './customerAuth';
+import { createCustomerSessionToken, CUSTOMER_SESSION_COOKIE, CUSTOMER_SESSION_TTL_SECONDS, CUSTOMER_LOGGED_IN_FLAG } from './customerAuth';
 
-const LOGGED_IN_FLAG_COOKIE = 'lukka_logged_in';
+const LOGGED_IN_FLAG_COOKIE = CUSTOMER_LOGGED_IN_FLAG;
 export const CUSTOMER_LOGGED_IN_FLAG_COOKIE = LOGGED_IN_FLAG_COOKIE;
 
 /**

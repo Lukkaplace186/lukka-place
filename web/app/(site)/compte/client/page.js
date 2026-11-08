@@ -16,6 +16,7 @@ import { formatVisitDay, formatVisitTime } from '@/lib/visitAgenda';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocale, getT } from '@/lib/i18n/server';
+import { moveRequestHref } from '@/lib/moveRequestHref';
 import VisitCard from './visites/VisitCard';
 import CustomerVisitActions from './visites/CustomerVisitActions';
 
@@ -314,12 +315,18 @@ export default async function EspaceClientHome({ searchParams }) {
 
   const quick = [
     { href: '/listings', icon: Search, label: t('account.home.quick.search') },
-    { href: '/compte/client/demandes', icon: Target, label: t('account.home.quick.findForMe') },
+    // One way to ask the agencies: the move project (lib/moveRequestHref.js).
+    { href: await moveRequestHref(customerId), icon: Target, label: t('account.home.quick.findForMe') },
     { href: '/listings?view=map', icon: MapIcon, label: t('account.home.quick.map') },
   ];
 
   return (
     <div className="mx-auto flex max-w-[45rem] flex-col gap-4 sm:gap-5">
+      {params?.motdepasse === 'change' ? (
+        <p role="status" className="rounded-card bg-success-tint px-4 py-3 text-[0.875rem] font-semibold text-ink">
+          {t('account.portal.passwordChanged')}
+        </p>
+      ) : null}
       <div>
         <h1 className="u-title-page text-ink">{t('account.portal.greeting', { name })}</h1>
         {customer.phone ? (

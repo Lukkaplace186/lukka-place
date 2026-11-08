@@ -1,7 +1,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { phoneFromForm } from '@/lib/phone';
+import { headers } from 'next/headers';
+import { normalizePhone, phoneFromForm } from '@/lib/phone';
+import { clientKey, rateLimited } from '@/lib/eventIngest';
 import {
   getCustomerByPhone,
   createCustomer,
@@ -16,6 +18,10 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
 import { getT } from '@/lib/i18n/server';
+
+// Shared connections (a carrier's NAT) carry many people: generous, still far
+// from enough to walk a list of numbers.
+const SIGNUP_CHECKS_PER_MINUTE = 60;
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -46,14 +52,35 @@ function parseAnonymousData(formData) {
 }
 
 /**
+ * What the customer typed, sent back with a refusal so the form keeps it
+ * (2026-11-08: a refused sign-up used to reload the card with name and number
+ * blank). The password is never sent back; the form keeps it in its own state.
+ */
+function typedValues(formData) {
+  return {
+    fullName: String(formData.get('fullName') || '').slice(0, 120),
+    phone: String(formData.get('phone') || '').slice(0, 30),
+    phoneCountry: String(formData.get('phoneCountry') || '').slice(0, 2),
+    partnerCode: String(formData.get('partner_code') || '').slice(0, 20),
+  };
+}
+
+function refuse(error, formData) {
+  return { error, values: typedValues(formData), attempt: Date.now() };
+}
+
+/**
  * Creates the account and signs the customer in. Number, name and password,
  * nothing else (2026-11-06, owner decision: every extra step lost customers).
  * Nothing proves the number belongs to whoever typed it; the owner accepted
  * that. A mistyped number is fixed by deleting the account and signing up
  * again; someone else's number is reclaimed by its owner through
  * "Mot de passe oublié", whose code goes to that WhatsApp.
+ *
+ * A useActionState action: a refusal RETURNS `{ error, values }` (the form
+ * stays filled); success redirects.
  */
-export async function signupAction(formData) {
+export async function signupAction(_prevState, formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
   const fullName = String(formData.get('fullName') || '').trim();
@@ -61,24 +88,15 @@ export async function signupAction(formData) {
 
   // A name is required (owner decision, 2026-11-04): agents call the
   // customer back, and "Bonjour," with no name is how a lead goes cold.
-  if (fullName.length < 2) {
-    redirect(`/compte/inscription?error=name&next=${encodeURIComponent(next)}`);
-  }
-
-  if (!phone) {
-    redirect(`/compte/inscription?error=phone&next=${encodeURIComponent(next)}`);
-  }
+  if (fullName.length < 2) return refuse('name', formData);
+  if (!phone) return refuse('phone', formData);
 
   // Minimal length check, no policy engine — matches this app's low-ceremony
   // posture (adminAuth.js has no password policy either).
-  if (password.length < 8) {
-    redirect(`/compte/inscription?error=password&next=${encodeURIComponent(next)}`);
-  }
+  if (password.length < 8) return refuse('password', formData);
 
   const existing = await getCustomerByPhone(phone);
-  if (existing) {
-    redirect(`/compte/inscription?error=exists&next=${encodeURIComponent(next)}`);
-  }
+  if (existing) return refuse('exists', formData);
 
   // The optional "Code de parrainage" (an agent's, a creator's): a code that
   // is not a live partner's is sent back BEFORE the account exists, so the
@@ -93,9 +111,7 @@ export async function signupAction(formData) {
       console.error(`[customer-auth] partner code check failed, signing up without it: ${err.message}`);
       known = true;
     }
-    if (!known) {
-      redirect(`/compte/inscription?error=ref&next=${encodeURIComponent(next)}&code=${encodeURIComponent(typedCode)}`);
-    }
+    if (!known) return refuse('ref', formData);
   }
 
   // Two taps, or two tabs, can both pass the "exists" check above; the
@@ -105,7 +121,7 @@ export async function signupAction(formData) {
   try {
     customer = await createCustomer({ phone, passwordHash: await hashPasswordAsync(password), fullName });
   } catch (err) {
-    if (err.code === '23505') redirect(`/compte/inscription?error=exists&next=${encodeURIComponent(next)}`);
+    if (err.code === '23505') return refuse('exists', formData);
     throw err;
   }
 
@@ -142,4 +158,39 @@ export async function signupAction(formData) {
   // Someone who told us about their move lands on it, with the homes that
   // match — unless a gate sent them here from somewhere they want to return to.
   redirect(projectHref && next === '/compte/client' ? projectHref : next);
+}
+
+/**
+ * "Ce numéro a déjà un compte" as soon as the number is typed (2026-11-08):
+ * someone who already has an account used to answer every card and learn it
+ * on the last one. Says no more than the sign-up refusal itself already
+ * says, and is rate-limited per connection so it cannot list accounts.
+ *
+ * @returns {Promise<{exists: boolean}>}
+ */
+export async function checkSignupPhoneAction(rawPhone, country) {
+  const phone = normalizePhone(String(rawPhone || ''), String(country || ''));
+  if (!phone) return { exists: false };
+  const key = clientKey({ headers: await headers() });
+  if (rateLimited(`signup-phone-check:${key}`, SIGNUP_CHECKS_PER_MINUTE)) return { exists: false };
+  try {
+    return { exists: Boolean(await getCustomerByPhone(phone)) };
+  } catch {
+    return { exists: false };
+  }
+}
+
+/**
+ * "Se connecter avec ce numéro": the sign-in page opens with that number
+ * already in place (the remembered-number cookie, never the URL), and, when
+ * the customer answered the move cards, it saves those answers once they are
+ * signed in (`?apres=projet`, read by the login form from this device's draft).
+ */
+export async function signInWithNumberAction(formData) {
+  const next = safeNext(formData.get('next'));
+  const phone = phoneFromForm(formData);
+  if (phone) await rememberCustomerPhone(phone);
+  const params = new URLSearchParams({ next });
+  if (formData.get('withProject') === '1') params.set('apres', 'projet');
+  redirect(`/compte/connexion?${params.toString()}`);
 }

@@ -6,10 +6,10 @@ import { getT } from '@/lib/i18n/server';
 import { getRememberedCustomerPhone } from '@/lib/customerSession';
 import { splitPhone } from '@/lib/phone';
 
-export const metadata = {
-  title: 'Connexion — Lukka Place',
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: t('auth.customerLoginMetaTitle'), robots: { index: false, follow: false } };
+}
 
 /**
  * Same shape as app/admin/login/page.js — errors read back via ?error=,
@@ -46,10 +46,13 @@ export default async function CustomerLoginPage({ searchParams }) {
           error={error}
           defaultCountry={remembered.country || country}
           defaultPhone={remembered.country ? remembered.national : ''}
+          // From sign-up's "Se connecter avec ce numéro": this device's move
+          // answers become a project once signed in.
+          withProject={params.apres === 'projet'}
         />
 
         <p className="mt-5 text-center text-sm text-ink-45">
-          Pas encore de compte ?{' '}
+          {t('auth.noAccountYet')}{' '}
           <Link href={`/compte/inscription?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
             {t('common.actions.signup')}
           </Link>

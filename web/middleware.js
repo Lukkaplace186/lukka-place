@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { isValidSessionToken, ADMIN_SESSION_COOKIE } from '@/lib/adminAuth';
-import { isValidCustomerSessionToken, CUSTOMER_SESSION_COOKIE } from '@/lib/customerAuth';
+import {
+  isValidCustomerSessionToken,
+  renewedCustomerSessionToken,
+  CUSTOMER_SESSION_COOKIE,
+  CUSTOMER_SESSION_TTL_SECONDS,
+  CUSTOMER_LOGGED_IN_FLAG,
+} from '@/lib/customerAuth';
 import { isValidAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS } from '@/lib/agentAuth';
 import { IMPERSONATION_COOKIE, impersonationDecision } from '@/lib/impersonationToken';
 import { normaliseSearchAliases } from '@/lib/searchAliases';
@@ -226,7 +232,17 @@ export function middleware(request) {
 
     const token = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value;
     if (isValidCustomerSessionToken(token)) {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      // Renewed while used (2026-11-08): a customer who keeps coming back is
+      // not signed out 30 days after their last sign-in. Never an admin's
+      // "view as" session, whose short life is the point.
+      const renewed = request.cookies.get(IMPERSONATION_COOKIE) ? null : renewedCustomerSessionToken(token);
+      if (renewed) {
+        const cookie = { secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: CUSTOMER_SESSION_TTL_SECONDS };
+        response.cookies.set(CUSTOMER_SESSION_COOKIE, renewed, { ...cookie, httpOnly: true });
+        response.cookies.set(CUSTOMER_LOGGED_IN_FLAG, '1', { ...cookie, httpOnly: false });
+      }
+      return response;
     }
 
     const loginUrl = new URL('/compte/connexion', request.url);

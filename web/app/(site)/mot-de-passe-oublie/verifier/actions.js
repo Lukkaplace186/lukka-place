@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { verifyAndResetPassword, requestPasswordReset } from '@/lib/resetPassword';
 import { getResetAttempt, setResetAttemptCookie, clearResetAttemptCookie } from '@/lib/resetAttempt';
+import { getCustomerByPhone } from '@/lib/customers';
+import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerSession';
 
 const LOGIN_PATH_BY_ROLE = { customer: '/compte/connexion', agent: '/compte/agent/connexion' };
 
@@ -27,6 +29,19 @@ export async function verifyResetOtpAction(formData) {
   }
 
   await clearResetAttemptCookie();
+
+  // A customer who just proved their WhatsApp with the code and chose a new
+  // password is signed in straight away (2026-11-08): sending them to the
+  // sign-in page to type both again was one step too many. The reset already
+  // ended every other session (token_version + 1), so this reads the new one.
+  if (attempt.role === 'customer') {
+    const customer = await getCustomerByPhone(attempt.phone).catch(() => null);
+    if (customer) {
+      await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
+      await rememberCustomerPhone(attempt.phone);
+      redirect('/compte/client?motdepasse=change');
+    }
+  }
   redirect(`${LOGIN_PATH_BY_ROLE[attempt.role]}?reset=1`);
 }
 

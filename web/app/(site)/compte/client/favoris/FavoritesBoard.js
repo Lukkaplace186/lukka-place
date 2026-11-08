@@ -611,7 +611,8 @@ export default function FavoritesBoard({
 
       {unavailableCount > 0 ? (
         <p role="status" className="mb-5 rounded-md bg-canvas-deep px-4 py-3 text-[0.8125rem] text-ink-70">
-          {t('account.favorites.unavailable', { count: unavailableCount })}
+          {t('account.favorites.unavailable', { count: unavailableCount })}{' '}
+          <a href="#plus-en-ligne" className="font-semibold text-blue-deep underline">{t('account.favorites.offline.seeWhich')}</a>
         </p>
       ) : null}
 

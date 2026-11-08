@@ -155,7 +155,7 @@ test('the invite page remembers the partner from the browser, through the same h
 
 test('customer signup refuses an unknown partner code before the account exists, and credits a typed one', () => {
   const action = read('app/(site)/compte/inscription/actions.js');
-  const refuse = action.indexOf('error=ref');
+  const refuse = action.indexOf("refuse('ref'");
   const create = action.indexOf('await createCustomer(');
   assert.ok(refuse > 0 && refuse < create, 'the refusal comes before createCustomer');
   assert.match(action, /typedCode: typedCode \|\| null/);

@@ -51,12 +51,17 @@ test('the portal tabs follow the customer journey, not an arbitrary order', () =
   ]);
 });
 
-test('"Trouver pour moi" is reachable from the tab that tracks its answers, and from Accueil', () => {
+// 2026-11-08: one way to ask the agencies, the move project. The old
+// /compte/client/demandes form forwards there (lib/moveRequestHref.js).
+test('"Trouver pour moi" leads to the move project, from Accueil and from the old request page', () => {
   const tabs = read(TABS_FILE);
-  assert.match(tabs, /p\.startsWith\('\/compte\/client\/demandes'\)/, 'the form lights the Activité tab');
-  assert.match(tabs, /p\.startsWith\('\/compte\/client\/messages'\)/, 'so does the requests list');
+  assert.match(tabs, /p\.startsWith\('\/compte\/client\/messages'\)/, 'the requests list lights the Activité tab');
   assert.match(read(MESSAGES_FILE), /href="\/compte\/client\/demandes"/, 'Demandes offers "Nouvelle demande"');
-  assert.match(read('app/(site)/compte/client/page.js'), /href: '\/compte\/client\/demandes'/, 'Accueil offers it as a quick action');
+  assert.match(read('app/(site)/compte/client/page.js'), /href: await moveRequestHref\(customerId\)/, 'Accueil offers it as a quick action');
+  assert.match(read('app/(site)/compte/client/demandes/page.js'), /redirect\(await moveRequestHref\(session\.customerId\)\)/);
+  const href = read('lib/moveRequestHref.js');
+  assert.match(href, /#move-request/);
+  assert.match(href, /\/compte\/client\/projet\/nouveau/);
 });
 
 test('a visit request is a visit: it is listed under Visites and nowhere else', async () => {

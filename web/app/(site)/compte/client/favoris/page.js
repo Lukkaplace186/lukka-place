@@ -20,6 +20,8 @@ import { getSavedSearchMatches } from '@/lib/alerts';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { removeFavoriteAction, restoreFavoriteAction, saveFavoriteNoteAction } from '../actions';
 import FavoritesBoard from './FavoritesBoard';
+import UnavailableFavorites from './UnavailableFavorites';
+import { getUnavailableFavorites } from '@/lib/favoriteUnavailable';
 import AlertsBoard from '../alertes/AlertsBoard';
 import SavedSubTabs from '../SavedSubTabs';
 import { getT } from '@/lib/i18n/server';
@@ -50,8 +52,14 @@ async function FavoritesSection({ customerId, favoriteIds }) {
   // A favourite whose listing was let, sold or withdrawn drops out of the
   // approved read. Say how many, rather than letting the count silently shrink.
   const unavailableCount = favoriteIds.length - listings.length;
+  // Which ones, why, and homes like them (2026-11-08) — no longer a bare count.
+  const offline = unavailableCount > 0
+    ? await getUnavailableFavorites(favoriteIds, new Set(listings.map((listing) => String(listing.id)))).catch(() => ({ items: [], deletedIds: [] }))
+    : { items: [], deletedIds: [] };
+  const offlineList = <UnavailableFavorites items={offline.items} deletedIds={offline.deletedIds} removeAction={removeFavoriteAction} />;
   if (listings.length === 0) {
     return (
+      <>
       <PortalEmpty
         icon={Heart}
         title={t('account.favorites.emptyTitle')}
@@ -60,9 +68,12 @@ async function FavoritesSection({ customerId, favoriteIds }) {
       >
         {t('account.favorites.emptyBody')}
       </PortalEmpty>
+      {offlineList}
+      </>
     );
   }
   return (
+    <>
     <FavoritesBoard
       listings={listings}
       removeAction={removeFavoriteAction}
@@ -71,6 +82,8 @@ async function FavoritesSection({ customerId, favoriteIds }) {
       saveNoteAction={saveFavoriteNoteAction}
       unavailableCount={unavailableCount}
     />
+    {offlineList}
+    </>
   );
 }
 

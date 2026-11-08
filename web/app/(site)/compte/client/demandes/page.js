@@ -1,166 +1,20 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Send, FileText, ArrowRight } from 'lucide-react';
-import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
 import { getPortalCustomer } from '@/lib/customerPortal';
-import { getCustomerInquiries } from '@/lib/customerInquiries';
-import { getLocationHierarchyWithFallback } from '@/lib/locations';
-import { getPopularCommunes } from '@/lib/listings';
-import { LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { submitPropertyRequestAction } from '../actions';
-import RequestForm from './RequestForm';
-import { getT, getLocale } from '@/lib/i18n/server';
-import { listSavedSearches } from '@/lib/customers';
-import { prefillFromSavedSearch } from '@/lib/requestPrefill';
-
-// generateMetadata, not a static object: a static export cannot see the
-// request locale — see app/(site)/a-propos/page.js.
-export async function generateMetadata() {
-  const t = await getT();
-  return {
-    title: t('account.requestForm.metaTitle'),
-    robots: { index: false, follow: false },
-  };
-}
+import { moveRequestHref } from '@/lib/moveRequestHref';
 
 export const dynamic = 'force-dynamic';
 
-function formatDate(value, locale) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(date);
-}
-
-const LEAD_TONES = {
-  NEW: 'royal',
-  CONTACTED: 'royal',
-  QUALIFIED: 'royal',
-  VIEWING_REQUESTED: 'warning',
-  VIEWING_COMPLETED: 'success',
-  CONVERTED: 'success',
-  LOST: 'neutral',
-};
-
 /**
- * The commune options are real, in both branches: the engine's own
- * kinshasa_locations.json hierarchy when it is reachable, and communes
- * derived from the database (getPopularCommunes — communes that actually
- * have approved listings) when it is not. Same degrade-don't-die contract
- * /listings already relies on: an unreachable engine must not take this
- * page down, and no commune list is ever hardcoded here.
+ * "Trouver pour moi" in the account (2026-11-08, owner request): there is one
+ * way to ask the agencies now, the move project ("Envoyer ma demande aux
+ * agences"). This page used to hold a second request form that asked again
+ * what the project already knew. Every link to it (header, Accueil, Activité,
+ * /agents, /a-propos, the empty search) now lands on the newest open project's
+ * request section, or on a new project — lib/moveRequestHref.js. The old form
+ * (RequestForm.js, submitPropertyRequestAction) is kept, unused, for history.
  */
-/**
- * The real commune list, plus the communes that actually have approved
- * listings, most first — the picker's default view. `popular` only ORDERS
- * the real list; a failure to count leaves the picker showing everything.
- */
-async function resolveCommunes() {
-  const [{ communes }, popular] = await Promise.all([
-    getLocationHierarchyWithFallback(),
-    getPopularCommunes(24).catch(() => []),
-  ]);
-  const popularNames = popular.map((c) => c.commune);
-  return {
-    communes: communes.length > 0 ? communes : popularNames,
-    popular: popularNames.slice(0, 8),
-  };
-}
-
 export default async function DemandesPage() {
-  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/demandes');
-
-  const [{ communes, popular }, inquiries, savedSearches, locale] = await Promise.all([
-    resolveCommunes(),
-    getCustomerInquiries(session.customerId),
-    listSavedSearches(session.customerId),
-    getLocale(),
-  ]);
-  // Their most recent alert already says what they want — see lib/requestPrefill.js.
-  const prefill = prefillFromSavedSearch(savedSearches[0], communes);
-
-  return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_23.75rem] lg:items-start">
-      <RequestForm
-        action={submitPropertyRequestAction}
-        communes={communes}
-        popularCommunes={popular}
-        prefill={prefill}
-      />
-
-      <aside className="flex flex-col gap-5">
-        <h3 className="u-eyebrow">{t('account.requests.submitted')}</h3>
-
-        {inquiries.length === 0 ? (
-          <PortalPanel className="px-5 py-8 text-center">
-            <span className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-canvas-deep text-ink-45">
-              <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <p className="text-[0.875rem] leading-relaxed text-ink-45">
-              {t('account.requests.willAppearHere')}
-            </p>
-          </PortalPanel>
-        ) : (
-          <div className="u-stagger contents">
-          {/* `contents`: no box of its own, so the rows keep the parent's gap; it only scopes .u-stagger's row entrance (app/globals.css). */}
-          {inquiries.map(({ lead, listing }) => (
-            <PortalPanel key={lead.id} className="p-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="u-tabular text-[0.875rem] font-bold text-ink">
-                  {t('account.requests.requestNumber', { id: lead.id })}
-                </span>
-                <PortalBadge tone={LEAD_TONES[lead.status] || 'neutral'}>
-                  {LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status}
-                </PortalBadge>
-              </div>
-
-              {lead.requirements_summary ? (
-                <p className="mt-2.5 whitespace-pre-line text-[0.8125rem] leading-[1.5] text-ink-70">
-                  {lead.requirements_summary}
-                </p>
-              ) : null}
-
-              <p className="mt-2 text-[0.75rem] text-ink-35">
-                {t('account.requests.submittedOn', { date: formatDate(lead.created_at, locale) })}
-              </p>
-
-              <div className="my-4 h-px bg-line" />
-
-              <div className="flex flex-col gap-2.5">
-                {listing ? (
-                  <Link
-                    href={`/listings/${listing.id}`}
-                    className="inline-flex items-center gap-2 text-[0.8125rem] font-semibold text-blue-deep hover:underline"
-                  >
-                    <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {listing.title}
-                  </Link>
-                ) : (
-                  <p className="inline-flex items-center gap-2 text-[0.8125rem] text-ink-45">
-                    <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {t('account.requests.customSearchNoListing')}
-                  </p>
-                )}
-
-                <Link
-                  href="/compte/client/messages"
-                  className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep hover:underline"
-                >
-                  {t('account.requests.viewProgress')}
-                  <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-              </div>
-            </PortalPanel>
-          ))}
-          </div>
-        )}
-      </aside>
-    </div>
-  );
+  redirect(await moveRequestHref(session.customerId));
 }

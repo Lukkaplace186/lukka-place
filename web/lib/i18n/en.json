@@ -2982,7 +2982,8 @@
         "activity": "Activity",
         "priceDropDot": "Price cut on a saved listing",
         "projects": "Moves"
-      }
+      },
+      "passwordChanged": "Password changed. You are signed in."
     },
     "limits": {
       "favorites": "You've reached the limit of {max} saved listings. Remove one to add another.",
@@ -3084,7 +3085,7 @@
       },
       "contactWhatsApp": "Contact on WhatsApp",
       "whatsappNotConfigured": "WhatsApp number not configured",
-      "scheduleViewing": "Schedule a viewing",
+      "scheduleViewing": "Request a viewing",
       "linkCopied": "Link copied",
       "sharedList": "Shared List",
       "sharedListEmpty": "This shared list no longer contains any available properties.",
@@ -3130,7 +3131,25 @@
         "other": "{count} saved properties"
       },
       "contactAgentWhatsApp": "Message the agent on WhatsApp",
-      "contactLukkaWhatsApp": "Message Lukka Place on WhatsApp"
+      "contactLukkaWhatsApp": "Message Lukka Place on WhatsApp",
+      "offline": {
+        "title": "No Longer Online",
+        "lead": "These homes are no longer offered. See similar homes in the same area.",
+        "untitled": "Untitled home",
+        "reason": {
+          "closed": "Let or sold",
+          "withdrawn": "Withdrawn by the agency"
+        },
+        "similar": "Similar homes",
+        "remove": "Remove from saved",
+        "removeFailed": "The home could not be removed. Please try again.",
+        "deleted": {
+          "one": "{count} home deleted by its agency",
+          "other": "{count} homes deleted by their agency"
+        },
+        "clear": "Remove",
+        "seeWhich": "See which"
+      }
     },
     "alerts": {
       "title": "My Alerts",
@@ -3227,7 +3246,7 @@
       "viewProgress": "View progress",
       "onWhatsAppAtNumber": "on WhatsApp, at the number linked to your account.",
       "ourAgents": "our agents",
-      "emptyBody2": "Contact an agency from a listing, or describe the property you're looking for: your conversations will appear here.",
+      "emptyBody2": "Requests sent through Lukka Place (“Request a viewing”, your move) appear here. A direct WhatsApp chat with an agent stays in your WhatsApp.",
       "proposalsCount": {
         "one": "{count} proposed",
         "other": "{count} proposed"
@@ -3364,7 +3383,7 @@
       "openAgenda": "My visits, day by day",
       "unavailable": "Your visits can’t be loaded right now. Try again in a few minutes.",
       "emptyTitle": "No Visits Planned",
-      "emptyBody": "On a listing or in your saved homes, tap “Schedule a viewing”, then pick the day and time: the viewing will appear here.",
+      "emptyBody": "On a listing or in your saved homes, tap “Request a viewing”, then pick the day and time: the viewing will appear here.",
       "emptyAction": "Browse listings",
       "groups": {
         "today": "Today",
@@ -3672,7 +3691,8 @@
         "summary": {
           "one": "{count} answer saved",
           "other": "{count} answers saved"
-        }
+        },
+        "fromSave": "Your account keeps what you save. You can tell us about your move afterwards, from your account."
       },
       "edit": {
         "title": "Your Move Is Ready",
@@ -7798,12 +7818,13 @@
       "accountExists": "An account already exists with this number.",
       "otpFailed": "Sending the verification code failed — please try again.",
       "badCredentials": "Incorrect number or password.",
-      "locked": "Too many attempts — try again in 15 minutes.",
+      "locked": "Too many attempts: try again in 15 minutes, or reset your password on WhatsApp to get in right away.",
       "expiredAttempt": "That verification expired — please sign up again.",
       "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one.",
       "agencyNameRequired": "Enter your agency or trading name.",
       "partnerCodeUnknown": "This referral code does not exist. Correct it or leave the field empty.",
-      "fullNameRequired": "Enter your first and last name."
+      "fullNameRequired": "Enter your first and last name.",
+      "lockedReset": "Reset my password now"
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -7834,7 +7855,9 @@
       "noCodeNeeded": "Right after this, you’ll confirm this number by sending us a code from its WhatsApp.",
       "agencyName": "Agency / trading name",
       "contactName": "Agent / main contact name",
-      "fullName": "Full name"
+      "fullName": "Full name",
+      "signInWithNumber": "Sign in with this number",
+      "existsKeepsAnswers": "Your answers are kept: they become your move once you are signed in."
     },
     "createMyAccount": "Create my account",
     "passwordReset": "Password reset — log in with your new password.",
@@ -7928,7 +7951,16 @@
       "favorites": "Your saved properties on every device",
       "priceDrops": "A message when a saved property's price drops"
     },
-    "creatingAccount": "Creating your account…"
+    "creatingAccount": "Creating your account…",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "haveAccount": "Already have an account?",
+    "noAccountYet": "No account yet?",
+    "customerLoginMetaTitle": "Sign in — Lukka Place",
+    "signingIn": "Signing in…",
+    "login": {
+      "keepsAnswers": "Your answers about your move will be saved to your account."
+    }
   },
   "updates": {
     "title": "Updates",

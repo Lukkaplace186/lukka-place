@@ -56,6 +56,9 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
 
     const params = new URLSearchParams();
     params.set('next', next);
+    // Straight to the account card: they came to save, not for the move
+    // questions (2026-11-08) — app/(site)/compte/inscription/page.js.
+    params.set('from', 'save');
     if (phone) params.set('phone', phone);
     if (phone && country) params.set('country', country);
     router.push(`/compte/inscription?${params.toString()}`);

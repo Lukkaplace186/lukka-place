@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
-import { signupAction } from './actions';
+import { signupAction, checkSignupPhoneAction, signInWithNumberAction } from './actions';
 import SignupForm from './SignupForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
@@ -38,11 +38,17 @@ export default async function CustomerSignupPage({ searchParams }) {
   // the account form as the last card (components/MoveOnboarding.js). The
   // plain form stays at ?direct=1 for links that want it. An error redirect
   // reopens on the account card with the answers restored from the draft.
+  // From a save (♥, an alert — components/AuthPromptModal.js): straight to
+  // the account card; the move questions are offered afterwards, from the
+  // account (2026-11-08, owner request).
+  const fromSave = params.from === 'save';
+
   if (params.direct !== '1') {
     return (
       <MoveOnboarding
         mode="signup"
-        startAtEnd={Boolean(error)}
+        fromSave={fromSave}
+        startAtEnd={Boolean(error) || fromSave}
         signupProps={{
           action: signupAction,
           next,
@@ -51,6 +57,8 @@ export default async function CustomerSignupPage({ searchParams }) {
           initialCountry,
           partnerCode,
           phoneHintKey: 'auth.signup.phoneHint',
+          checkPhoneAction: checkSignupPhoneAction,
+          signInAction: signInWithNumberAction,
         }}
         accountFooter={
           <>
@@ -66,9 +74,9 @@ export default async function CustomerSignupPage({ searchParams }) {
               </a>
             ) : null}
             <p className="mt-5 text-center text-sm text-ink-45">
-              Déjà un compte ?{' '}
+              {t('auth.haveAccount')}{' '}
               <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
-                {t('admin.login.submit')}
+                {t('common.shared.signIn')}
               </Link>
             </p>
           </>
@@ -120,12 +128,14 @@ export default async function CustomerSignupPage({ searchParams }) {
           initialCountry={initialCountry}
           partnerCode={partnerCode}
           phoneHintKey="auth.signup.phoneHint"
+          checkPhoneAction={checkSignupPhoneAction}
+          signInAction={signInWithNumberAction}
         />
 
         <p className="mt-5 text-center text-sm text-ink-45">
-          Déjà un compte ?{' '}
+          {t('auth.haveAccount')}{' '}
           <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
-            {t('admin.login.submit')}
+            {t('common.shared.signIn')}
           </Link>
         </p>
       </div>

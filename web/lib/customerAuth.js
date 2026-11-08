@@ -99,12 +99,35 @@ export function verifyCustomerSessionToken(token) {
   return { customerId, tokenVersion };
 }
 
+/**
+ * A session renewed while it is used (2026-11-08, owner request: everyone was
+ * signed out 30 days after signing in, daily users included). Once a token
+ * has less than this left — i.e. it is more than a week old — opening the
+ * account issues a fresh 30-day one for the same customer and token version,
+ * so a password change or "logout everywhere" still ends it.
+ */
+export const RENEW_WHEN_LEFT_MS = SESSION_TTL_MS - 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * @returns {string|null} a fresh token when `token` is valid and due for
+ *   renewal; null otherwise (invalid, or still fresh).
+ */
+export function renewedCustomerSessionToken(token, now = Date.now()) {
+  const session = verifyCustomerSessionToken(token);
+  if (!session) return null;
+  const expiresAt = Number(String(token).split('.')[2]);
+  if (!Number.isFinite(expiresAt) || expiresAt - now > RENEW_WHEN_LEFT_MS) return null;
+  return createCustomerSessionToken({ customerId: session.customerId, tokenVersion: session.tokenVersion });
+}
+
 /** @returns {boolean} */
 export function isValidCustomerSessionToken(token) {
   return verifyCustomerSessionToken(token) !== null;
 }
 
 export const CUSTOMER_SESSION_COOKIE = SESSION_COOKIE;
+/** The client-readable "signed in" flag set beside the session (lib/customerSession.js). */
+export const CUSTOMER_LOGGED_IN_FLAG = 'lukka_logged_in';
 export const CUSTOMER_SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 
 export const MAX_FAILED_LOGIN_ATTEMPTS = 5;

@@ -4,6 +4,7 @@ import { getResetAttempt } from '@/lib/resetAttempt';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { getT } from '@/lib/i18n/server';
+import PasswordInput from '@/components/PasswordInput';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -77,15 +78,7 @@ export default async function ResetVerifyPage({ searchParams }) {
             <label htmlFor="newPassword" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
               {t('agent.settings.newPassword')}
             </label>
-            <input
-              id="newPassword"
-              type="password"
-              name="newPassword"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-            />
+            <PasswordInput id="newPassword" name="newPassword" autoComplete="new-password" minLength={8} required />
             <p className="mt-1 text-xs text-ink-45">{t('auth.minEightChars')}</p>
           </div>
 
@@ -93,15 +86,7 @@ export default async function ResetVerifyPage({ searchParams }) {
             <label htmlFor="confirmPassword" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
               {t('auth.confirmPassword')}
             </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              name="confirmPassword"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-            />
+            <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" minLength={8} required />
           </div>
 
           {error && (

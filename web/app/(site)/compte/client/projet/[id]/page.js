@@ -287,7 +287,7 @@ export default async function MoveProjectPage({ params: routeParams, searchParam
       </section>
 
       <section className={`flex flex-col gap-3 p-4 sm:p-5 ${CARD}`} aria-labelledby="move-request">
-        <h2 id="move-request" className="u-title-card text-ink">{t('account.move.page.request.title')}</h2>
+        <h2 id="move-request" className="u-title-card scroll-mt-24 text-ink">{t('account.move.page.request.title')}</h2>
         <p className="text-[0.9375rem] text-ink-45">{t('account.move.page.request.lead')}</p>
         {blocker ? (
           <p className="rounded-xl bg-canvas-deep px-4 py-3 text-sm text-ink-70">{t(`account.move.page.request.missing.${blocker}`)}</p>

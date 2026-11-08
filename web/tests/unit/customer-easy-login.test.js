@@ -73,8 +73,10 @@ test('logout ends this device only; deleting the account forgets the remembered 
 test('the login form is prefilled with the remembered number, in its own country', () => {
   assert.match(read('app/(site)/compte/connexion/page.js'), /getRememberedCustomerPhone\(\)/);
   const form = read('app/(site)/compte/connexion/LoginForm.js');
-  assert.match(form, /defaultValue=\{defaultPhone\}/);
-  assert.match(form, /detectCountry=\{!defaultPhone\}/);
+  // A refused sign-in keeps what was typed; otherwise the remembered number.
+  assert.match(form, /const phoneValue = values \? values\.phone : defaultPhone;/);
+  assert.match(form, /defaultValue=\{phoneValue\}/);
+  assert.match(form, /detectCountry=\{!phoneValue\}/);
   assert.match(read('lib/customerSession.js'), /httpOnly: true,[\s\S]*REMEMBERED_PHONE_MAX_AGE/);
 });
 

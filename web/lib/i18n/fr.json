@@ -2982,7 +2982,8 @@
         "activity": "Activité",
         "priceDropDot": "Baisse de prix sur un bien enregistré",
         "projects": "Projets"
-      }
+      },
+      "passwordChanged": "Mot de passe changé. Vous êtes connecté."
     },
     "limits": {
       "favorites": "Vous avez atteint la limite de {max} favoris. Retirez-en un pour en ajouter un autre.",
@@ -3084,7 +3085,7 @@
       },
       "contactWhatsApp": "Contacter sur WhatsApp",
       "whatsappNotConfigured": "Numéro WhatsApp non configuré",
-      "scheduleViewing": "Planifier une visite",
+      "scheduleViewing": "Demander une visite",
       "linkCopied": "Lien copié",
       "sharedList": "Liste partagée",
       "sharedListEmpty": "Cette liste partagée ne contient plus de biens disponibles.",
@@ -3130,7 +3131,25 @@
         "other": "{count} biens sauvegardés"
       },
       "contactAgentWhatsApp": "Écrire à l’agent sur WhatsApp",
-      "contactLukkaWhatsApp": "Écrire à Lukka Place sur WhatsApp"
+      "contactLukkaWhatsApp": "Écrire à Lukka Place sur WhatsApp",
+      "offline": {
+        "title": "Plus en ligne",
+        "lead": "Ces biens ne sont plus proposés. Voyez des biens semblables dans le même quartier.",
+        "untitled": "Bien sans titre",
+        "reason": {
+          "closed": "Loué ou vendu",
+          "withdrawn": "Retiré par l’agence"
+        },
+        "similar": "Biens similaires",
+        "remove": "Retirer de mes favoris",
+        "removeFailed": "Le bien n’a pas pu être retiré. Réessayez.",
+        "deleted": {
+          "one": "{count} bien supprimé par son agence",
+          "other": "{count} biens supprimés par leur agence"
+        },
+        "clear": "Retirer",
+        "seeWhich": "Voir lesquels"
+      }
     },
     "alerts": {
       "title": "Mes alertes",
@@ -3227,7 +3246,7 @@
       "viewProgress": "Voir le suivi",
       "onWhatsAppAtNumber": "sur WhatsApp, au numéro rattaché à votre compte.",
       "ourAgents": "nos agents",
-      "emptyBody2": "Contactez une agence depuis une annonce, ou décrivez-nous le bien que vous cherchez : vos échanges apparaîtront ici.",
+      "emptyBody2": "Les demandes envoyées par Lukka Place (« Demander une visite », votre projet de déménagement) apparaissent ici. Une discussion WhatsApp directe avec un agent reste dans votre WhatsApp.",
       "proposalsCount": {
         "one": "{count} proposé",
         "other": "{count} proposés"
@@ -3364,7 +3383,7 @@
       "openAgenda": "Mes visites, jour par jour",
       "unavailable": "Vos visites ne peuvent pas être chargées pour le moment. Réessayez dans quelques minutes.",
       "emptyTitle": "Aucune visite prévue",
-      "emptyBody": "Sur une annonce ou dans vos favoris, appuyez sur « Planifier une visite », puis choisissez le jour et l’heure : la visite apparaîtra ici.",
+      "emptyBody": "Sur une annonce ou dans vos favoris, appuyez sur « Demander une visite », puis choisissez le jour et l’heure : la visite apparaîtra ici.",
       "emptyAction": "Voir les annonces",
       "groups": {
         "today": "Aujourd’hui",
@@ -3672,7 +3691,8 @@
         "summary": {
           "one": "{count} réponse enregistrée",
           "other": "{count} réponses enregistrées"
-        }
+        },
+        "fromSave": "Votre compte garde ce que vous enregistrez. Vous pourrez raconter votre déménagement ensuite, depuis votre espace."
       },
       "edit": {
         "title": "Votre projet est prêt",
@@ -7798,12 +7818,13 @@
       "accountExists": "Un compte existe déjà avec ce numéro.",
       "otpFailed": "L'envoi du code de vérification a échoué — réessayez.",
       "badCredentials": "Numéro ou mot de passe incorrect.",
-      "locked": "Trop de tentatives — réessayez dans 15 minutes.",
+      "locked": "Trop de tentatives : réessayez dans 15 minutes, ou réinitialisez votre mot de passe par WhatsApp pour entrer tout de suite.",
       "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription.",
       "referralUnknown": "Nous ne reconnaissons pas ce code de parrainage. Vérifiez-le auprès de votre commercial, ou laissez le champ vide pour vous inscrire sans code.",
       "agencyNameRequired": "Indiquez le nom de votre agence ou votre nom commercial.",
       "partnerCodeUnknown": "Ce code de parrainage n'existe pas. Corrigez-le ou laissez le champ vide.",
-      "fullNameRequired": "Indiquez votre nom et prénom."
+      "fullNameRequired": "Indiquez votre nom et prénom.",
+      "lockedReset": "Réinitialiser mon mot de passe maintenant"
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -7834,7 +7855,9 @@
       "noCodeNeeded": "Juste après, vous confirmerez ce numéro en nous envoyant un code depuis son WhatsApp.",
       "agencyName": "Nom de l’agence / nom commercial",
       "contactName": "Nom de l’agent / contact principal",
-      "fullName": "Nom et prénom"
+      "fullName": "Nom et prénom",
+      "signInWithNumber": "Se connecter avec ce numéro",
+      "existsKeepsAnswers": "Vos réponses seront gardées : elles deviendront votre projet une fois connecté."
     },
     "createMyAccount": "Créer mon compte",
     "passwordReset": "Mot de passe réinitialisé — connectez-vous avec votre nouveau mot de passe.",
@@ -7928,7 +7951,16 @@
       "favorites": "Vos favoris sur tous vos appareils",
       "priceDrops": "Un message quand le prix d'un bien enregistré baisse"
     },
-    "creatingAccount": "Création du compte…"
+    "creatingAccount": "Création du compte…",
+    "showPassword": "Afficher le mot de passe",
+    "hidePassword": "Masquer le mot de passe",
+    "haveAccount": "Déjà un compte ?",
+    "noAccountYet": "Pas encore de compte ?",
+    "customerLoginMetaTitle": "Connexion — Lukka Place",
+    "signingIn": "Connexion…",
+    "login": {
+      "keepsAnswers": "Vos réponses sur votre déménagement seront enregistrées dans votre compte."
+    }
   },
   "updates": {
     "title": "Actualités",

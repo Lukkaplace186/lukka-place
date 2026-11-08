@@ -259,7 +259,7 @@ const EMPTY = Object.freeze({
 });
 
 export default function MoveOnboarding({
-  mode = 'signup', initialAnswers = null, startAtEnd = false, signupProps = null, accountFooter = null,
+  mode = 'signup', initialAnswers = null, startAtEnd = false, signupProps = null, accountFooter = null, fromSave = false,
   saveAction = null, saveError = false,
   // Edit mode: the project being edited (null = a new one) and its name.
   projectId = null, initialTitle = '',
@@ -674,11 +674,12 @@ export default function MoveOnboarding({
   }
 
   const isEnd = current === 'end';
+  const saveOnly = fromSave && isEnd && mode === 'signup' && answeredCount === 0;
   const titleKey = isEnd ? (mode === 'signup' ? 'account.move.account.title' : 'account.move.edit.title') : `account.move.steps.${current}.title`;
   let leadText;
   if (isEnd) {
     leadText = mode === 'signup'
-      ? (answeredCount ? t('account.move.account.lead') : t('account.move.account.noAnswers'))
+      ? (answeredCount ? t('account.move.account.lead') : t(fromSave ? 'account.move.account.fromSave' : 'account.move.account.noAnswers'))
       : t('account.move.edit.lead');
   } else if (current === 'budget') {
     leadText = answers.transaction === 'vente' ? s('budget.leadBuy') : s('budget.leadRent');
@@ -692,6 +693,10 @@ export default function MoveOnboarding({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      {/* Arriving from a save (♥, an alert) with nothing answered: just the
+          account form, no questionnaire chrome (2026-11-08). The questions
+          are offered afterwards, from the account. */}
+      {saveOnly ? null : (
       <div className="flex items-center gap-3">
         {mode === 'edit' && index === 0 ? (
           // Leaving the edit without saving: back to the project (or the list).
@@ -731,9 +736,10 @@ export default function MoveOnboarding({
           <span className="w-11 flex-none" />
         )}
       </div>
+      )}
 
       <div key={current} className="u-reveal mt-6 flex flex-1 flex-col">
-        <p className="u-eyebrow text-blue">{t('account.move.eyebrow')} · {t('account.move.progress', { current: index + 1, total })}</p>
+        {saveOnly ? null : <p className="u-eyebrow text-blue">{t('account.move.eyebrow')} · {t('account.move.progress', { current: index + 1, total })}</p>}
         <h1 className="u-title-section mt-2 text-ink">{t(titleKey)}</h1>
         <p className="mt-1.5 text-[0.9375rem] text-ink-45">{leadText}</p>
 
@@ -750,7 +756,7 @@ export default function MoveOnboarding({
               {/* The draft is NOT cleared here: a refused sign-up re-renders
                   this page and must find the answers again. It is cleared
                   once the account exists (components/ClearMoveDraft.js). */}
-              {signupProps ? <SignupForm {...signupProps}>{hiddenField}</SignupForm> : null}
+              {signupProps ? <SignupForm {...signupProps} hasAnswers={answeredCount > 0}>{hiddenField}</SignupForm> : null}
               {accountFooter}
             </>
           ) : null}

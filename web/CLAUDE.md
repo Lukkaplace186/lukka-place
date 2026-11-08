@@ -4697,3 +4697,50 @@ numéro est maintenant …". `lib/customerPhoneChange.js`,
   `/admin/customers/[id]` lists "Anciens numéros" with links to their leads.
 - **Not built:** a desk-side change for a customer locked out (lost SIM AND
   signed out) — proposed for `/admin/customers/[id]`.
+
+## Customer friction fixes — sign-up, sign-in, account (2026-11-08)
+
+Owner request after a friction review of the customer side.
+`tests/unit/customer-friction-fixes.test.js`.
+
+- **A save goes straight to the account card.** `AuthPromptModal` (♥, alerts)
+  adds `from=save`; `/compte/inscription` then opens `MoveOnboarding` on the
+  account card with no questionnaire chrome (`saveOnly`) and the lead "Vous
+  pourrez raconter votre déménagement ensuite". Accueil already invites the
+  move afterwards.
+- **Refusals keep the form.** `signupAction` and `loginAction` are
+  `useActionState` actions now: a refusal RETURNS `{ error, values, attempt }`
+  (never the password); success still redirects. The phone field re-mounts
+  (`key={attempt}`) with what was typed; name and password are controlled
+  state. Sign-up's cursor starts on the name.
+- **Existing account said early.** The number is checked on blur
+  (`checkSignupPhoneAction`, 60/min per connection — says no more than the
+  sign-up refusal already did). "Se connecter avec ce numéro"
+  (`signInWithNumberAction`, a `formAction` button) puts the number in the
+  remembered-number cookie, never the URL, and with `?apres=projet` the login
+  form sends this device's move draft so `loginAction` saves it as a project.
+- **Show/hide password** (`components/PasswordInput.js`) on sign-up, sign-in
+  and the reset page.
+- **"Trop de tentatives"** now says the reset unlocks at once and links it.
+- **A customer password reset signs in** (`/compte/client?motdepasse=change`);
+  agents still go to their sign-in page.
+- **Sessions renew while used**: middleware re-issues the customer cookie
+  (same id and token version) once it is a week old
+  (`renewedCustomerSessionToken`); never under an impersonation cookie.
+  Only `/compte/*` requests pass the middleware, so it is visiting the
+  account that renews.
+- **One way to ask agencies.** `/compte/client/demandes` (the "Trouver pour
+  moi" form) forwards to the newest open move project's request section, or
+  to a new project (`lib/moveRequestHref.js`). `RequestForm.js` and
+  `submitPropertyRequestAction` are kept unused.
+- **No running totals on the account tabs** (Enregistrés "7", Activité): a
+  tab shows only the price-drop dot.
+- **Offline saved homes are listed** (`lib/favoriteUnavailable.js`,
+  `favoris/UnavailableFavorites.js`): title, let/sold vs withdrawn, "Biens
+  similaires" (same deal, commune, rooms), remove. Never a price, photo,
+  agent or address of an off-site listing.
+- Wording: the Visites empty page and the favourites button say "Demander une
+  visite" like the listing; Activité's empty page says a direct WhatsApp chat
+  with an agent stays in WhatsApp. Sign-in/sign-up French moved to the
+  dictionary (`auth.haveAccount`, `auth.noAccountYet`,
+  `auth.customerLoginMetaTitle`).

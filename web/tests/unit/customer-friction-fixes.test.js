@@ -149,6 +149,13 @@ test('offline saved homes are listed with a reason and a link to similar homes, 
   assert.equal(similarHomesHref({}), '/listings');
 });
 
+test('a deleted listing is said neutrally: we do not know who removed it', () => {
+  for (const lang of ['fr', 'en']) {
+    const { deleted } = JSON.parse(read(`lib/i18n/${lang}.json`)).account.favorites.offline;
+    assert.doesNotMatch(`${deleted.one} ${deleted.other}`, /agence|agency/i);
+  }
+});
+
 test('nothing is queried when every saved home is online', async () => {
   assert.deepEqual(await getUnavailableFavorites(['1'], new Set(['1'])), { items: [], deletedIds: [] });
   assert.equal(calls.length, 0);

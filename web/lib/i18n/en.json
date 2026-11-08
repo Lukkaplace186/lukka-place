@@ -3144,8 +3144,8 @@
         "remove": "Remove from saved",
         "removeFailed": "The home could not be removed. Please try again.",
         "deleted": {
-          "one": "{count} home deleted by its agency",
-          "other": "{count} homes deleted by their agency"
+          "one": "{count} home removed from the site",
+          "other": "{count} homes removed from the site"
         },
         "clear": "Remove",
         "seeWhich": "See which"

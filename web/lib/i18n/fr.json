@@ -3144,8 +3144,8 @@
         "remove": "Retirer de mes favoris",
         "removeFailed": "Le bien n’a pas pu être retiré. Réessayez.",
         "deleted": {
-          "one": "{count} bien supprimé par son agence",
-          "other": "{count} biens supprimés par leur agence"
+          "one": "{count} bien supprimé du site",
+          "other": "{count} biens supprimés du site"
         },
         "clear": "Retirer",
         "seeWhich": "Voir lesquels"

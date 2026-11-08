@@ -56,7 +56,8 @@ export default function UnavailableFavorites({ items, deletedIds = [], removeAct
       <h2 id="plus-en-ligne-title" className="u-title-card text-ink">
         {t('account.favorites.offline.title')} <span className="text-ink-45">({visible.length + deleted.length})</span>
       </h2>
-      <p className="mt-1 text-[0.8125rem] text-ink-45">{t('account.favorites.offline.lead')}</p>
+      {/* Only when there is something to compare: a deleted listing has no details left. */}
+      {visible.length > 0 ? <p className="mt-1 text-[0.8125rem] text-ink-45">{t('account.favorites.offline.lead')}</p> : null}
       <ul className="mt-3 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-[var(--hairline)]">
         {visible.map((item) => (
           <li key={item.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">

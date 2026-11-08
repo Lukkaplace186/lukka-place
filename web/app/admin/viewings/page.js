@@ -34,6 +34,21 @@ export const dynamic = 'force-dynamic';
 /** A filter value, not a status: the SLA-alerted PENDING slice (engine VIEWING_FEED_VIEWS.escalated). */
 const ESCALATED = 'ESCALATED';
 const CANCELLABLE = ['PENDING', 'CONFIRMED', 'RESCHEDULED'];
+
+// A direct contact (the agent reached the customer from their own phone) can
+// be recorded on any request still in progress, once.
+const CONTACT_RECORDABLE = ['PENDING', 'CONFIRMED', 'RESCHEDULED'];
+const CONTACT_CHANNEL_LABEL_KEYS = {
+  whatsapp: 'admin.viewings.channelWhatsapp',
+  phone: 'admin.viewings.channelPhone',
+  in_person: 'admin.viewings.channelInPerson',
+  other: 'admin.viewings.channelOther',
+};
+const CONTACT_BY_LABEL_KEYS = {
+  AGENT_WHATSAPP: 'admin.viewings.contactByAgentWhatsapp',
+  AGENT_DASHBOARD: 'admin.viewings.contactByAgentDashboard',
+  DESK: 'admin.viewings.contactByDesk',
+};
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
@@ -266,6 +281,21 @@ export default async function AdminViewingsPage({ searchParams }) {
                           {row.first_response_at ? ` · ${formatKinshasa(row.first_response_at)}` : ''}
                         </div>
                       ) : null}
+                      {/* Told to us, not seen: a chat between two personal
+                          numbers never reaches the engine. */}
+                      {row.direct_contact_at ? (
+                        <>
+                          <Chip tone="success">
+                            {t('admin.viewings.directContactChip', {
+                              channel: t(CONTACT_CHANNEL_LABEL_KEYS[row.direct_contact_channel] || 'admin.viewings.channelOther'),
+                            })}
+                          </Chip>
+                          <div className="text-ink-45">
+                            {CONTACT_BY_LABEL_KEYS[row.direct_contact_by] ? t(CONTACT_BY_LABEL_KEYS[row.direct_contact_by]) : ''}
+                            {` · ${formatKinshasa(row.direct_contact_at)}`}
+                          </div>
+                        </>
+                      ) : null}
                       {row.agent_response_via || row.customer_notified_at ? (
                         <Chip tone={row.customer_notified_at ? 'success' : 'danger'}>
                           {row.customer_notified_at
@@ -296,6 +326,7 @@ export default async function AdminViewingsPage({ searchParams }) {
                       commune={row.resolved_commune || null}
                       canNudge={row.routing_type === 'DIRECT_WA' && ['PENDING', 'RESCHEDULED'].includes(row.status)}
                       canCancel={CANCELLABLE.includes(row.status)}
+                      canRecordContact={!row.direct_contact_at && CONTACT_RECORDABLE.includes(row.status)}
                     />
                     {canDeleteViewings ? (
                       <div className="mt-1.5">

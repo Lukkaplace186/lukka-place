@@ -265,10 +265,41 @@ system by construction, so it is only ever counted if somebody records it.
   engine half of web's `/admin/interactions` — `INTERACTION_LEAD_SOURCES`
   (listing WhatsApp enquiries, profile and project requests, introductions)
   and viewing requests, grouped by agent and listing; `contacted` = moved past
-  NEW (viewings: `first_response_at`). Not "Trouver pour moi" searches (several
+  NEW (viewings: `first_response_at`, or a recorded `direct_contact_at` since 2026-11-07 — see docs/claude/viewings.md, "Direct contact"). Not "Trouver pour moi" searches (several
   agencies) and not `listing-visit-request` leads (counted once, through their
   viewing request). Web adds the storefront taps and names the agents.
 - §71 of verify-pipeline.
+
+## "Un client vous contacte": the agent is told at the tap (2026-11-08)
+
+Owner request 2026-11-08, after a customer → agent WhatsApp chat went unseen:
+when a customer is trying to reach an agent, tell the agent straight away.
+The tap on a verified agent's WhatsApp / "Appeler" button is the one moment we
+know (web already stores it); what follows is between two personal numbers.
+
+- **Web** (`lib/contactTapAlert.js`): `/api/telemetry/lead-click` (DIRECT_WA)
+  and `/api/track` `call_click` (DIRECT) call the engine in `after()`, only
+  for `viewer_kind = 'visitor'` — never the agent, team, bots, prefetch, or a
+  central-number tap.
+- **Engine** (`services/contactTapAlert.js`, `POST /admin/contact-taps`):
+  public listing + the shared agent gates (`directRoutingBlocker`, not
+  deleted), then "🏠 [Lukka Place] Un client vous contacte" to the agent with
+  the listing and two buttons, `contact_tap_replied|nothing:<id>`
+  ("J'ai répondu" / "Rien reçu"; "On s'est parlé" / "Aucun appel" for a call).
+  Only the alerted number can answer; the first answer stands. No buttons →
+  the alert still goes as plain text, without the question.
+- **Stored** in SQLite `contact_tap_alerts` (written before the send, so two
+  taps a second apart alert once). Dedupe: one alert per listing per visitor
+  per 24 h, one per listing per 30 min whoever tapped.
+- **It does not know the customer**: a tap is anonymous and is not a message;
+  the text says "vient d'appuyer", never "vous a écrit".
+- **Shown** on `/admin/interactions`: "Agents prévenus en direct de N taps :
+  X ont confirmé avoir répondu" and a per-agent "Réponse confirmée" column
+  (`getInteractionCounts().contactTaps`). Never added to a total.
+- **Delivery**: a session message, so it reaches an agent who wrote to our
+  number in the last 24 h only; a Meta template is the follow-up.
+  `CONTACT_TAP_ALERT=off` disables it.
+- §85 of verify-pipeline; web `tests/unit/contact-tap-alert.test.js`.
 
 ## "Mon déménagement" requests carry the customer's story (2026-11-07)
 

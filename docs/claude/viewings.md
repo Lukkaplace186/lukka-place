@@ -565,3 +565,56 @@ back. When no rating question is asked, `recordFalloffReason` now sends
 lead's criteria, the visited home excluded), or that same honest thanks when
 there are none. The customer just wrote to us, so the session message
 arrives. §81.
+
+## Direct contact: the agent reached the customer from their own phone (2026-11-07)
+
+Reported 2026-11-07: the desk chased an agent about a visit request that showed
+no reply; the agent had answered the customer on WhatsApp from their own phone.
+A chat between two personal numbers never reaches the engine, so the only way
+we learn of it is somebody telling us. Three ways in, one record on the row:
+`viewing_requests.direct_contact_at` (when it was RECORDED — not a guess at
+when the agent wrote), `direct_contact_channel` (whatsapp | phone | in_person |
+other, leads.contact_channel's words) and `direct_contact_by` (AGENT_WHATSAPP |
+AGENT_DASHBOARD | DESK). First record wins.
+
+- **The 2-hour check** (`viewing-contact-check` job, `runContactCheckSweep`,
+  `CONTACT_CHECK_MS`): a PENDING, DIRECT_WA request 2–24 h old with no
+  `first_response_at` and no direct contact gets "Avez-vous déjà contacté le
+  client ?" sent to its agent — a separate message with
+  buttons `viewing_contact_wa|contact_call|contact_not:<id>` (WhatsApp allows
+  three reply buttons and the alert's three are taken), typed 1/2/3 through
+  `pending_agent_actions` kind CONTACT_CHECK when the buttons fail. Same
+  authorisation as the alert's buttons. Once per request
+  (`contact_check_sent_at`). `VIEWING_CONTACT_CHECK=off` disables it.
+  It is a session message: an agent who got the alert as a template (outside
+  the 24 h window) may not receive it. **Two hours, not ten minutes** (owner
+  decision, same day: ten minutes was too soon to chase an agent), so it comes
+  AFTER the 15-minute escalation and an escalated request is still asked; it
+  tells the desk whether the customer was reached before anyone phones the
+  agent. Requests over 24 h old are never asked, so a deploy does not chase old
+  ones.
+- **"Oui"** records the contact and thanks the agent; the customer is not
+  messaged. **"Pas encore"** records nothing and re-sends the alert with its
+  three buttons.
+- **The SLA sweep skips a request with a direct contact on file**
+  (`listViewingRequestsAwaitingSla`): no desk alert, no alternatives sent to a
+  customer who is already talking to the agent. Only the dashboard button
+  (or the desk) can record one inside 15 minutes; the WhatsApp check comes
+  later.
+- **Web**: the agent's visit card has "J'ai déjà contacté le client" (behind
+  "···", PENDING/RESCHEDULED only) → `recordViewingDirectContactAction`; the
+  desk has "Contact direct confirmé" in a row's menu on `/admin/viewings`
+  (`viewings.manage`, audited `viewing.direct_contact`), and the row shows
+  the channel, who said it and when. Both go through
+  `POST /admin/viewing-requests/:id/direct-contact` (`recordDirectContact`;
+  the dashboard path re-checks the agent like `respondFromDashboard`). Sends
+  nothing.
+- **Not a response time.** `first_response_at`, `agent_response_via` and
+  Postgres `agent_performance_logs` are untouched: we do not know when the
+  agent actually wrote. `getInteractionCounts` counts a direct contact as
+  contacted; the telemetry "answered" figure still means answered through our
+  loop.
+- The alert itself now says "Vous écrivez ou appelez le client directement ?
+  Répondez quand même ici" — in the session text only; an approved template's
+  body is fixed in Meta.
+- §82 of verify-pipeline.

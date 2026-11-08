@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Phone, Check, X, CalendarCheck, CalendarClock, MoreHorizontal, Home, MessageCircle, Target } from 'lucide-react';
+import { Phone, Check, X, CalendarCheck, CalendarClock, MoreHorizontal, Home, MessageCircle, MessageCircleCheck, Target } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { updateViewingRequestAction } from '@/app/compte/agent/actions';
+import { recordViewingDirectContactAction, updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { agentActionsFor } from '@/lib/viewingActions';
 import { confirmPrefill, formatVisitDay, formatVisitTime } from '@/lib/visitAgenda';
 import { leadTelHref, leadWhatsAppLink } from '@/lib/leadContact';
@@ -74,6 +74,10 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   const { showToast } = useToast();
 
   const [answered, setAnswered] = useState(null);
+  // "J'ai déjà contacté le client": the agent reached the customer from their
+  // own phone, which we cannot see. Keyed to the row like `answered`.
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactSaved, setContactSaved] = useState(null);
   const status = answered?.for === viewingRequest ? answered.status : viewingRequest.status;
   const statusText = INBOX_BADGE_KEYS[status]
     ? t(INBOX_BADGE_KEYS[status])
@@ -142,6 +146,28 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
     });
   }
 
+  function recordContact(channel) {
+    setContactSaved(viewingRequest);
+    setContactOpen(false);
+    setMoreOpen(false);
+    startTransition(async () => {
+      let result;
+      try {
+        result = await recordViewingDirectContactAction(viewingRequest.id, channel);
+      } catch (err) {
+        console.error('[AgentVisitRequestCard] recordViewingDirectContactAction failed', err);
+        result = { ok: false, error: isNetworkError(err) ? t('common.network.actionOffline') : t('errors.submissionFailed') };
+      }
+      if (!result?.ok) {
+        setContactSaved(null);
+        showToast({ type: 'error', message: result?.error || t('errors.submissionFailed') });
+        return;
+      }
+      showToast({ type: 'success', message: t('agent.visits.directContactSaved') });
+      router.refresh();
+    });
+  }
+
   function submitReschedule(event) {
     event.preventDefault();
     if (!newTime.trim()) return;
@@ -163,6 +189,10 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   });
   const telHref = leadTelHref(viewingRequest.lead_wa_id);
   const toConfirm = can('CONFIRMED');
+  const contactRecorded = Boolean(viewingRequest.direct_contact_at) || contactSaved === viewingRequest;
+  // Offered while the request still waits on an answer — the case the desk
+  // escalates — and only until one is on file.
+  const canRecordContact = !contactRecorded && (status === 'PENDING' || status === 'RESCHEDULED');
   const SlotIcon = agreed ? CalendarCheck : CalendarClock;
 
   const whatsappLink = (className, label) => (
@@ -205,6 +235,12 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           <p className="flex min-w-0 items-center gap-2 text-sm text-ink-70">
             <Home strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" aria-hidden="true" />
             <span className="truncate">{target}</span>
+          </p>
+        )}
+        {contactRecorded && (
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-success">
+            <MessageCircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('agent.visits.directContactBadge')}
           </p>
         )}
         {viewingRequest.customer_notified_at && (
@@ -267,6 +303,34 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
       <div hidden={!moreOpen} className="mt-3 border-t border-line pt-3">
         <div className="flex flex-col gap-1.5">
           {toConfirm && waHref && whatsappLink(`${SECONDARY} text-green-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt`, t('agent.leads.replyOnWhatsApp'))}
+          {canRecordContact && (
+            <button type="button" disabled={pending} onClick={() => setContactOpen((v) => !v)} aria-expanded={contactOpen} className={`${SECONDARY} text-ink hover:bg-canvas-alt`}>
+              <MessageCircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('agent.visits.directContact')}
+            </button>
+          )}
+          {contactOpen && canRecordContact && (
+            <div className="flex flex-col gap-2 rounded-lg bg-canvas-alt p-3">
+              <p className="text-[0.8125rem] font-semibold text-ink-70">{t('agent.visits.directContactHint')}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ['whatsapp', 'agent.visits.directContactWhatsapp'],
+                  ['phone', 'agent.visits.directContactPhone'],
+                  ['in_person', 'agent.visits.directContactInPerson'],
+                ].map(([channel, labelKey]) => (
+                  <button
+                    key={channel}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => recordContact(channel)}
+                    className="u-press min-h-11 rounded-lg bg-surface px-2 text-[0.8125rem] font-semibold text-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas disabled:opacity-60"
+                  >
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {can('RESCHEDULED') && (
             <button type="button" disabled={pending} onClick={() => setReschedule((v) => !v)} aria-expanded={reschedule} className={`${SECONDARY} text-ink hover:bg-canvas-alt`}>
               <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

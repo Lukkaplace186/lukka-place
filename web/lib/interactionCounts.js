@@ -75,7 +75,13 @@ function toId(value) {
  * }} input
  * @returns {{total: number, channels: Record<string, number>, central: {whatsapp: number, call: number},
  *            contacted: number, answerable: number,
- *            agents: {agentId: number|null, channels: Record<string, number>, total: number, contacted: number, answerable: number}[]}}
+ *            tapAlerts: {alerted: number, replied: number, nothing: number},
+ *            agents: {agentId: number|null, channels: Record<string, number>, total: number, contacted: number, answerable: number,
+ *                     tapAlerts: {alerted: number, replied: number, nothing: number}}[]}}
+ *   `tapAlerts`: the engine's "Un client vous contacte" alerts (engine.contactTaps)
+ *   and what the agents answered. Never added to a total — the tap is already
+ *   counted under whatsappDirect / callDirect, and one alert can cover several
+ *   taps (the engine dedupes).
  */
 export function mergeInteractionCounts({ taps = [], calls = [], chats = [], engine = {}, propertyAgents = new Map() } = {}) {
   const byAgent = new Map();
@@ -86,7 +92,12 @@ export function mergeInteractionCounts({ taps = [], calls = [], chats = [], engi
 
   const row = (agentId) => {
     const key = agentId ?? null;
-    if (!byAgent.has(key)) byAgent.set(key, { agentId: key, channels: emptyChannels(), total: 0, contacted: 0, answerable: 0 });
+    if (!byAgent.has(key)) {
+      byAgent.set(key, {
+        agentId: key, channels: emptyChannels(), total: 0, contacted: 0, answerable: 0,
+        tapAlerts: { alerted: 0, replied: 0, nothing: 0 },
+      });
+    }
     return byAgent.get(key);
   };
   const add = (agentId, channel, count, answered = null) => {
@@ -123,9 +134,19 @@ export function mergeInteractionCounts({ taps = [], calls = [], chats = [], engi
   // A site conversation always names its agent; "contacted" = the agent replied.
   for (const c of chats) add(toId(c.agentId), 'siteChat', c.count, c.contacted ?? 0);
 
+  const tapAlerts = { alerted: 0, replied: 0, nothing: 0 };
+  for (const a of engine.contactTaps || []) {
+    const r = row(agentFor(a));
+    for (const k of ['alerted', 'replied', 'nothing']) {
+      const n = Number(a[k]) || 0;
+      r.tapAlerts[k] += n;
+      tapAlerts[k] += n;
+    }
+  }
+
   const agents = [...byAgent.values()].sort((a, b) => b.total - a.total || (a.agentId ?? Infinity) - (b.agentId ?? Infinity));
   const total = Object.values(channels).reduce((s, n) => s + n, 0);
-  return { total, channels, central, contacted, answerable, agents };
+  return { total, channels, central, contacted, answerable, tapAlerts, agents };
 }
 
 /** Every listing id the engine rows name without an agent: what to look up in Postgres. */

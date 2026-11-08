@@ -43,6 +43,28 @@ const agentReviews = require('./agentReviews');
 const SLA_MS = 15 * 60 * 1000;
 
 /**
+ * When to ask the agent "Avez-vous déjà contacté le client ?". Reported
+ * 2026-11-07: an agent had answered the customer on WhatsApp from their own
+ * phone while our side showed no reply. Two hours (owner decision, same day —
+ * ten minutes was too soon to chase an agent): it comes AFTER the 15-minute
+ * escalation, so it no longer prevents that; it tells the desk, before anyone
+ * phones the agent, whether the customer was in fact reached.
+ */
+const CONTACT_CHECK_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Requests older than this are never asked about: a question about a
+ * days-old request reads as noise, and the first run after a deploy must not
+ * chase every request that ever went unanswered.
+ */
+const CONTACT_CHECK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** VIEWING_CONTACT_CHECK=off disables the check; unset is on. Read at call time. */
+function contactCheckEnabled() {
+  return String(process.env.VIEWING_CONTACT_CHECK || '').trim().toLowerCase() !== 'off';
+}
+
+/**
  * How long after the agreed slot to ask the customer how it went.
  *
  * Two hours: long enough that a visit running late has still happened, short
@@ -267,6 +289,26 @@ async function runSlaSweep(now = new Date()) {
   }
 
   return { due: due.length, alerted };
+}
+
+/**
+ * Requests whose agent has said nothing for 2 hours: ask whether they
+ * already contacted the customer directly. Stamped whether or not the send
+ * went out — once per request, like the SLA stamp.
+ */
+async function runContactCheckSweep(now = new Date()) {
+  if (!contactCheckEnabled()) return { due: 0, asked: 0, disabled: true };
+  const due = dbService.listViewingRequestsDueForContactCheck(CONTACT_CHECK_MS, now.toISOString(), CONTACT_CHECK_MAX_AGE_MS);
+  let asked = 0;
+  for (const request of due) {
+    const result = await viewingNotifications.askAgentContactCheck(request.id);
+    dbService.markContactCheckSent(request.id, now.toISOString());
+    if (result.sent) asked += 1;
+    console.log(
+      `[sweep] viewing #${request.id} contact check: ${result.sent ? `sent (${result.channel})` : `not sent — ${result.reason}`}`,
+    );
+  }
+  return { due: due.length, asked };
 }
 
 /** Confirmed visits whose 2-hour check-in window has opened. */
@@ -566,6 +608,14 @@ const slaJob = {
   run: () => runSlaSweep(),
 };
 
+const contactCheckJob = {
+  name: 'viewing-contact-check',
+  shouldRun: (now = new Date()) =>
+    contactCheckEnabled()
+    && dbService.listViewingRequestsDueForContactCheck(CONTACT_CHECK_MS, now.toISOString(), CONTACT_CHECK_MAX_AGE_MS).length > 0,
+  run: () => runContactCheckSweep(),
+};
+
 const checkinJob = {
   name: 'viewing-checkin',
   shouldRun: (now = new Date()) =>
@@ -575,6 +625,10 @@ const checkinJob = {
 
 module.exports = {
   runSlaSweep,
+  runContactCheckSweep,
+  contactCheckJob,
+  CONTACT_CHECK_MS,
+  CONTACT_CHECK_MAX_AGE_MS,
   runCheckinSweep,
   handleCheckinButtonReply,
   handleCustomerTextReply,

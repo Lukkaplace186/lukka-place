@@ -46,6 +46,7 @@ import {
   updateLeadStatus,
   sendWhatsAppMessage,
   respondToViewingRequest,
+  recordViewingDirectContact,
   createLeadProposal,
   getAgentPitchUsage,
   parseAgentListingText,
@@ -587,6 +588,35 @@ export async function updateViewingRequestAction(viewingRequestId, formData) {
     unchanged: Boolean(result.unchanged),
     tenantNotified: Boolean(result.tenantNotified),
   };
+}
+
+/**
+ * "J'ai déjà contacté le client" on a visit request. An agent who writes to or
+ * calls the customer from their own phone leaves nothing on our side, so the
+ * request read as unanswered and was escalated (reported 2026-11-07). This
+ * records it — the engine re-checks the request is this agent's — and stops
+ * the escalation. Nothing is sent to the customer.
+ */
+const AGENT_DIRECT_CONTACT_CHANNELS = ['whatsapp', 'phone', 'in_person'];
+
+export async function recordViewingDirectContactAction(viewingRequestId, channel) {
+  const t = await getT();
+  const agentId = await assertAgentSession();
+  if (!AGENT_DIRECT_CONTACT_CHANNELS.includes(channel)) return { ok: false, error: t('errors.submissionFailed') };
+  try {
+    await assertOwnedViewingRequest(agentId, viewingRequestId);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  try {
+    await recordViewingDirectContact(viewingRequestId, { channel, by: 'AGENT_DASHBOARD', agentId });
+  } catch (err) {
+    console.error(`[compte/agent] viewing request #${viewingRequestId} direct contact failed: ${err.message}`);
+    return { ok: false, error: t('errors.sendFailed') };
+  }
+  revalidatePath('/compte/agent/demandes');
+  revalidatePath('/compte/agent');
+  return { ok: true };
 }
 
 /**

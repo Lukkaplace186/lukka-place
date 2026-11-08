@@ -1,4 +1,6 @@
+import { after } from 'next/server';
 import { getPool } from '@/lib/db';
+import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
@@ -47,6 +49,7 @@ export async function POST(request) {
   const agentId = signedInAgentIdFrom(request);
   const viewerKind = viewerKindFor(request, device, { automated: body?.automated === true, agentId });
 
+  const visitorId = visitorIdFrom(request, body?.visitorId);
   let recorded;
   try {
     recorded = await recordLeadClick(getPool(), {
@@ -56,7 +59,7 @@ export async function POST(request) {
       source,
       price: usableAmount(price),
       routingType,
-      visitorId: visitorIdFrom(request, body?.visitorId),
+      visitorId,
       viewerKind,
       agentId,
       // Optional; an unknown value is stored as none, never a 400.
@@ -66,6 +69,11 @@ export async function POST(request) {
     console.error(`[api/telemetry/lead-click] insert failed: ${err.message}`);
     return Response.json({ success: false }, { status: 500 });
   }
+
+  // Tell the agent a customer is about to write to them, once the response
+  // has left (lib/contactTapAlert.js): the tap is the only moment we know.
+  const tapKind = contactTapKind({ event: 'whatsapp_cta_clicked', routingType, viewerKind, recorded });
+  if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId }));
 
   return Response.json({ success: true, recorded });
 }

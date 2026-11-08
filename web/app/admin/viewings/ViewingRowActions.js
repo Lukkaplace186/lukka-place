@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BellRing, CalendarClock, MoreHorizontal, Send, UserRoundCog, XCircle } from 'lucide-react';
+import { BellRing, CalendarClock, MessageCircleCheck, MoreHorizontal, Send, UserRoundCog, XCircle } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -13,7 +13,17 @@ import {
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import AgentPicker from '../AgentPicker';
-import { cancelViewingAction, nudgeViewingAction, reassignViewingAction, scheduleViewingAction } from './actions';
+import {
+  cancelViewingAction, nudgeViewingAction, reassignViewingAction, recordDirectContactAction, scheduleViewingAction,
+} from './actions';
+
+/** The channels the desk can record, in the order the dialog offers them. */
+const CONTACT_CHANNELS = [
+  ['whatsapp', 'admin.viewings.channelWhatsapp'],
+  ['phone', 'admin.viewings.channelPhone'],
+  ['in_person', 'admin.viewings.channelInPerson'],
+  ['other', 'admin.viewings.channelOther'],
+];
 
 const ICON_BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2 text-ink transition-colors hover:border-blue disabled:cursor-not-allowed disabled:opacity-50';
@@ -34,7 +44,7 @@ const SECONDARY =
  * click sends the listing's own agent the alert through the same engine
  * reassign path (which notifies them), so the chain customer → agent exists.
  */
-export default function ViewingRowActions({ viewingRequestId, currentAgentId, listingAgent = null, commune, canNudge, canCancel }) {
+export default function ViewingRowActions({ viewingRequestId, currentAgentId, listingAgent = null, commune, canNudge, canCancel, canRecordContact = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -113,6 +123,12 @@ export default function ViewingRowActions({ viewingRequestId, currentAgentId, li
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
+          {canRecordContact ? (
+            <DropdownMenuItem onSelect={() => setDialog('contact')}>
+              <MessageCircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('admin.viewings.recordContact')}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onSelect={() => setDialog('time')}>
             <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('admin.viewings.setTime')}
@@ -176,6 +192,34 @@ export default function ViewingRowActions({ viewingRequestId, currentAgentId, li
             >
               {t('admin.viewings.setTime')}
             </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The agent says they already reached the customer from their own
+          phone — a chat the engine cannot see. Records it on the request and
+          stops the escalation; nobody is messaged. */}
+      <Dialog open={dialog === 'contact'} onOpenChange={(open) => (open ? setDialog('contact') : close())}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('admin.viewings.recordContactTitle')}</DialogTitle>
+            <DialogDescription>{t('admin.viewings.recordContactBody')}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2">
+            {CONTACT_CHANNELS.map(([channel, labelKey]) => (
+              <button
+                key={channel}
+                type="button"
+                className={SECONDARY}
+                disabled={pending}
+                onClick={() => run(() => recordDirectContactAction(viewingRequestId, channel), close)}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <button type="button" className={SECONDARY} onClick={close}>{t('common.actions.cancel')}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

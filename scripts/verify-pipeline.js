@@ -7145,7 +7145,7 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
+      'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
       'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'sqlite-backup',
     ]);
   });
@@ -14572,6 +14572,168 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §82 Direct contact: the agent reached the customer from their own phone (2026-11-07)
+  // ---------------------------------------------------------------------------
+  // Reported 2026-11-07: an agent answered a customer on WhatsApp from their own
+  // phone and our side showed no reply. That chat is invisible to us, so the
+  // agent is asked after 2 hours, and the dashboard and desk can record it.
+  console.log('\n§82 a direct contact the agent tells us about is recorded and stops the escalation');
+  {
+    const sweeps82 = require('../services/viewingSweeps');
+    const repoBefore82 = propertyRepo.getListingContactById;
+    const flagBefore82 = process.env.VIEWING_CONTACT_CHECK;
+    const sqlTs82 = (msAgo) => new Date(Date.now() - msAgo).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+    const mk82 = (minutesAgo, routingType = 'DIRECT_WA') => {
+      const r = freshViewingRequest('samedi 14h');
+      dbService.setViewingRouting(r.id, { agentId: 43, routingType });
+      dbService.db.prepare('UPDATE viewing_requests SET created_at = ? WHERE id = ?').run(sqlTs82(minutesAgo * 60_000), r.id);
+      return r.id;
+    };
+    const sendsTo82 = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+    const mentions82 = (calls, text) => calls.filter((c) => JSON.stringify(c.data).includes(text));
+    try {
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      delete process.env.VIEWING_CONTACT_CHECK;
+
+      check('the alert tells the agent we cannot see their own chats with the customer', () => {
+        const text = viewingNotifications.agentMessage({
+          listing: ATTRIBUTED_LISTING,
+          lead: { name: 'A', wa_id: '243990111222' },
+          viewingRequest: { requested_time: 'samedi' },
+          propertyId: 303,
+        });
+        assert.match(text, /nous ne voyons pas vos échanges/);
+      });
+      check('the contact check has three buttons within 20 characters, ids naming the request', () => {
+        const buttons = viewingNotifications.contactCheckButtons(9);
+        assert.strictEqual(buttons.length, 3);
+        for (const b of buttons) assert.ok([...b.title].length <= 20, b.title);
+        assert.deepStrictEqual(viewingNotifications.parseViewingButtonId(buttons[0].id), { action: 'contact_wa', viewingRequestId: 9 });
+        assert.deepStrictEqual(viewingNotifications.parseViewingButtonId(buttons[2].id), { action: 'contact_not', viewingRequestId: 9 });
+      });
+
+      const due82 = mk82(121);
+      const fresh82 = mk82(60);
+      const stale82 = mk82(25 * 60);
+      const escalated82 = mk82(121);
+      dbService.markSlaAlerted(escalated82);
+      const central82 = mk82(121, 'CENTRAL_FALLBACK');
+      check('due after 2 hours, only where a verified agent was alerted directly', () => {
+        assert.strictEqual(sweeps82.CONTACT_CHECK_MS, 2 * 60 * 60 * 1000);
+        const ids = dbService.listViewingRequestsDueForContactCheck(sweeps82.CONTACT_CHECK_MS, undefined, sweeps82.CONTACT_CHECK_MAX_AGE_MS).map((r) => r.id);
+        assert.ok(ids.includes(due82));
+        assert.ok(!ids.includes(fresh82), 'not before 2 hours');
+        assert.ok(ids.includes(escalated82), 'the check comes after the 15-minute escalation, so an escalated request is still asked');
+        assert.ok(!ids.includes(stale82), 'never about a request older than 24 hours');
+        assert.ok(!ids.includes(central82), 'nobody to ask on a central fallback');
+      });
+
+      httpCalls.length = 0;
+      await sweeps82.runContactCheckSweep();
+      const asked82 = mentions82(sendsTo82(AGENT_WA), `viewing_contact_wa:${due82}`);
+      check('the sweep asks the agent once, with the contact buttons, and stamps the row', () => {
+        assert.strictEqual(asked82.length, 1);
+        assert.match(JSON.stringify(asked82[0].data), /Avez-vous déjà contacté le client/);
+        assert.ok(dbService.getViewingRequest(due82).contact_check_sent_at);
+      });
+      httpCalls.length = 0;
+      await sweeps82.runContactCheckSweep();
+      check('never asked twice', () =>
+        assert.strictEqual(mentions82(sendsTo82(AGENT_WA), `viewing_contact_wa:${due82}`).length, 0));
+
+      const stranger82 = await viewingNotifications.handleViewingButtonReply({ from: '243999000111', replyId: `viewing_contact_wa:${due82}` });
+      check('a stranger tapping the button records nothing', () => {
+        assert.strictEqual(stranger82.handled, true);
+        assert.strictEqual(dbService.getViewingRequest(due82).direct_contact_at, null);
+      });
+
+      httpCalls.length = 0;
+      const yes82 = await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_contact_wa:${due82}` });
+      const yesRow82 = dbService.getViewingRequest(due82);
+      check('"Oui, WhatsApp" records the contact and who said it, and leaves status and latency alone', () => {
+        assert.strictEqual(yes82.action, 'direct-contact');
+        assert.ok(yesRow82.direct_contact_at);
+        assert.strictEqual(yesRow82.direct_contact_channel, 'whatsapp');
+        assert.strictEqual(yesRow82.direct_contact_by, 'AGENT_WHATSAPP');
+        assert.strictEqual(yesRow82.status, 'PENDING');
+        assert.strictEqual(yesRow82.first_response_at, null, 'not an answer through our loop: no invented latency');
+        assert.strictEqual(sendsTo82(AGENT_WA).length, 1, 'the agent is thanked');
+        assert.strictEqual(sendsTo82('243990111222').length, 0, 'the customer is not messaged');
+      });
+      check('a recorded direct contact is never escalated by the SLA sweep', () => {
+        dbService.db.prepare('UPDATE viewing_requests SET created_at = ? WHERE id = ?').run(sqlTs82(20 * 60_000), due82);
+        assert.ok(!dbService.listViewingRequestsAwaitingSla(sweeps82.SLA_MS).some((r) => r.id === due82));
+      });
+
+      const notYet82 = mk82(121);
+      httpCalls.length = 0;
+      await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_contact_not:${notYet82}` });
+      check('"Pas encore" records nothing, re-sends the visit buttons, and the escalation still comes', () => {
+        assert.strictEqual(dbService.getViewingRequest(notYet82).direct_contact_at, null);
+        assert.strictEqual(mentions82(sendsTo82(AGENT_WA), `viewing_accept:${notYet82}`).length, 1);
+        dbService.db.prepare('UPDATE viewing_requests SET created_at = ? WHERE id = ?').run(sqlTs82(16 * 60_000), notYet82);
+        assert.ok(dbService.listViewingRequestsAwaitingSla(sweeps82.SLA_MS).some((r) => r.id === notYet82));
+      });
+
+      const typed82 = mk82(121);
+      dbService.setPendingAgentAction({ waId: AGENT_WA, kind: 'CONTACT_CHECK', viewingRequestId: typed82 });
+      const typedOut82 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: '2' });
+      check('a typed "2" answers the numbered fallback: contacted by phone', () => {
+        assert.strictEqual(typedOut82.handled, true);
+        assert.strictEqual(dbService.getViewingRequest(typed82).direct_contact_channel, 'phone');
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA), undefined);
+      });
+
+      const desk82 = mk82(30);
+      const dash82 = mk82(30);
+      httpCalls.length = 0;
+      await checkAsync('the desk and the agent dashboard can record it, and nobody is messaged', async () => {
+        const desk = await viewingNotifications.recordDirectContact({ viewingRequestId: desk82, channel: 'whatsapp', by: 'DESK' });
+        assert.deepStrictEqual(desk, { ok: true, recorded: true });
+        assert.strictEqual(dbService.getViewingRequest(desk82).direct_contact_by, 'DESK');
+        const again = await viewingNotifications.recordDirectContact({ viewingRequestId: desk82, channel: 'phone', by: 'DESK' });
+        assert.strictEqual(again.recorded, false, 'the first record stands');
+        assert.strictEqual(dbService.getViewingRequest(desk82).direct_contact_channel, 'whatsapp');
+        const wrong = await viewingNotifications.recordDirectContact({ viewingRequestId: dash82, channel: 'phone', by: 'AGENT_DASHBOARD', agentId: 999 });
+        assert.strictEqual(wrong.reason, 'not-this-requests-agent');
+        const right = await viewingNotifications.recordDirectContact({ viewingRequestId: dash82, channel: 'phone', by: 'AGENT_DASHBOARD', agentId: 43 });
+        assert.strictEqual(right.ok, true);
+        assert.strictEqual(dbService.getViewingRequest(dash82).direct_contact_by, 'AGENT_DASHBOARD');
+        assert.strictEqual(httpCalls.length, 0);
+      });
+      await checkAsync('a bad channel or a closed request is refused', async () => {
+        const r = mk82(30);
+        assert.strictEqual((await viewingNotifications.recordDirectContact({ viewingRequestId: r, channel: 'pigeon', by: 'DESK' })).reason, 'invalid-channel');
+        dbService.updateViewingRequest(r, { status: 'DECLINED' });
+        assert.strictEqual((await viewingNotifications.recordDirectContact({ viewingRequestId: r, channel: 'phone', by: 'DESK' })).reason, 'request-closed');
+      });
+      check('the interaction counts read a direct contact as contacted', () => {
+        const counts = dbService.getInteractionCounts({ since: '2000-01-01' });
+        const viewings = counts.viewings || [];
+        const contacted = viewings.reduce((sum, row) => sum + Number(row.contacted || 0), 0);
+        assert.ok(contacted >= 4, `contacted=${contacted}`);
+      });
+      check('the owner list (agent dashboard) carries the direct-contact fields', () => {
+        const page = dbService.listViewingRequestsForOwner({ propertyIds: [303], limit: 200 });
+        const row = page.data.find((r) => r.id === dash82);
+        assert.ok(row && row.direct_contact_at && row.direct_contact_by === 'AGENT_DASHBOARD');
+      });
+      await checkAsync('VIEWING_CONTACT_CHECK=off asks nobody', async () => {
+        mk82(122);
+        process.env.VIEWING_CONTACT_CHECK = 'off';
+        httpCalls.length = 0;
+        const r = await sweeps82.runContactCheckSweep();
+        assert.strictEqual(r.disabled, true);
+        assert.strictEqual(httpCalls.length, 0);
+        assert.strictEqual(sweeps82.contactCheckJob.shouldRun(), false);
+      });
+    } finally {
+      propertyRepo.getListingContactById = repoBefore82;
+      if (flagBefore82 === undefined) delete process.env.VIEWING_CONTACT_CHECK;
+      else process.env.VIEWING_CONTACT_CHECK = flagBefore82;
+    }
+  }
+
   // §83 "Changer de numéro": a customer moves the account to a new number (2026-11-08)
   // ---------------------------------------------------------------------------
   console.log('\n§83 the customer phone-change migration is additive and closed to the anon key');
@@ -14711,6 +14873,129 @@ console.log('\n2. services/openai.js');
       const oldPage = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'admin', 'prospects', 'paste', 'page.js'), 'utf8');
       assert.match(oldPage, /redirect\('\/admin\/market-data\/marche#coller'\)/);
     });
+  }
+
+  // §85 "Un client vous contacte": the agent is told the moment a customer taps (2026-11-08)
+  // ---------------------------------------------------------------------------
+  // A tap on a verified agent's WhatsApp / Appeler button opens a chat we never
+  // see. Owner request 2026-11-08: let the agent know straight away, and ask
+  // whether they answered — the only way that conversation becomes visible.
+  console.log('\n§85 a customer tap on an agent\'s button alerts that agent at once, and their answer is kept');
+  {
+    const tap83 = require('../services/contactTapAlert');
+    const repoListing83 = propertyRepo.getListingContactById;
+    const repoAgent83 = propertyRepo.getAgentContactById;
+    const flag83 = process.env.CONTACT_TAP_ALERT;
+    const toAgent83 = () => httpCalls.filter((c) => c.data && String(c.data.to) === AGENT_WA);
+    let listing83 = ATTRIBUTED_LISTING;
+    let agent83 = { agent_id: 43, deleted: false };
+    try {
+      delete process.env.CONTACT_TAP_ALERT;
+      propertyRepo.getListingContactById = async () => listing83;
+      propertyRepo.getAgentContactById = async () => agent83;
+
+      check('the buttons fit WhatsApp\'s 20 characters and never collide with the viewing buttons', () => {
+        for (const kind of tap83.KINDS) {
+          for (const b of tap83.buttons(7, kind)) assert.ok([...b.title].length <= 20, b.title);
+        }
+        assert.deepStrictEqual(tap83.parseTapButtonId('contact_tap_replied:7'), { answer: 'REPLIED', alertId: 7 });
+        assert.strictEqual(tap83.parseTapButtonId('viewing_accept:7'), null);
+        assert.strictEqual(viewingNotifications.parseViewingButtonId('contact_tap_replied:7'), null);
+      });
+
+      httpCalls.length = 0;
+      const first83 = await tap83.alertAgentOfTap({ propertyId: 8301, kind: 'whatsapp', visitorKey: 'v-83a' });
+      check('a WhatsApp tap alerts the listing\'s agent at once, naming the listing, with the two buttons', () => {
+        assert.strictEqual(first83.sent, true);
+        assert.strictEqual(first83.channel, 'buttons');
+        const sent = toAgent83();
+        assert.strictEqual(sent.length, 1);
+        const body = JSON.stringify(sent[0].data);
+        assert.match(body, /Un client vous contacte/);
+        assert.match(body, /« WhatsApp »/);
+        assert.match(body, new RegExp(`contact_tap_replied:${first83.alertId}`));
+        assert.match(body, new RegExp(`contact_tap_nothing:${first83.alertId}`));
+        assert.doesNotMatch(body, /vous a écrit/, 'a tap is not a message');
+      });
+
+      httpCalls.length = 0;
+      const again83 = await tap83.alertAgentOfTap({ propertyId: 8301, kind: 'whatsapp', visitorKey: 'v-83a' });
+      const other83 = await tap83.alertAgentOfTap({ propertyId: 8301, kind: 'whatsapp', visitorKey: 'v-83b' });
+      check('a repeat tap is not re-sent: same visitor 24 h, same listing 30 min', () => {
+        assert.deepStrictEqual(again83, { sent: false, reason: 'duplicate-visitor' });
+        assert.deepStrictEqual(other83, { sent: false, reason: 'recent-alert' });
+        assert.strictEqual(toAgent83().length, 0);
+      });
+
+      httpCalls.length = 0;
+      const call83 = await tap83.alertAgentOfTap({ propertyId: 8302, kind: 'call', visitorKey: 'v-83c' });
+      check('an "Appeler" tap tells the agent a call is coming', () => {
+        assert.strictEqual(call83.sent, true);
+        const body = JSON.stringify(toAgent83()[0].data);
+        assert.match(body, /« Appeler »/);
+        assert.match(body, /On s'est parlé/);
+      });
+
+      await checkAsync('the shared agent gates apply: unverified, routing off, deleted, not public', async () => {
+        listing83 = { ...ATTRIBUTED_LISTING, phone_verified_at: null };
+        assert.strictEqual((await tap83.alertAgentOfTap({ propertyId: 8303, kind: 'whatsapp' })).reason, 'numéro agent non vérifié');
+        listing83 = { ...ATTRIBUTED_LISTING, direct_routing_enabled: false };
+        assert.match((await tap83.alertAgentOfTap({ propertyId: 8304, kind: 'whatsapp' })).reason, /routage direct désactivé/);
+        listing83 = ATTRIBUTED_LISTING;
+        agent83 = { agent_id: 43, deleted: true };
+        assert.strictEqual((await tap83.alertAgentOfTap({ propertyId: 8305, kind: 'whatsapp' })).reason, 'agent-deleted');
+        agent83 = { agent_id: 43, deleted: false };
+        listing83 = null;
+        assert.strictEqual((await tap83.alertAgentOfTap({ propertyId: 8306, kind: 'whatsapp' })).reason, 'listing-not-public');
+        listing83 = ATTRIBUTED_LISTING;
+        assert.strictEqual((await tap83.alertAgentOfTap({ propertyId: 8307, kind: 'sms' })).reason, 'invalid-kind');
+      });
+
+      await checkAsync('CONTACT_TAP_ALERT=off sends nothing', async () => {
+        process.env.CONTACT_TAP_ALERT = 'off';
+        httpCalls.length = 0;
+        assert.deepStrictEqual(await tap83.alertAgentOfTap({ propertyId: 8308, kind: 'whatsapp' }), { sent: false, reason: 'disabled' });
+        assert.strictEqual(httpCalls.length, 0);
+        delete process.env.CONTACT_TAP_ALERT;
+      });
+
+      const stranger83 = await tap83.handleTapButtonReply({ from: '243999000111', replyId: `contact_tap_replied:${first83.alertId}` });
+      check('only the alerted agent can answer', () => {
+        assert.strictEqual(stranger83.ignored, 'not-this-agent');
+        assert.strictEqual(dbService.getContactTapAlert(first83.alertId).answer, null);
+      });
+      httpCalls.length = 0;
+      const replied83 = await tap83.handleTapButtonReply({ from: AGENT_WA, replyId: `contact_tap_replied:${first83.alertId}` });
+      const late83 = await tap83.handleTapButtonReply({ from: AGENT_WA, replyId: `contact_tap_nothing:${first83.alertId}` });
+      check('"J\'ai répondu" is stored with its time, the agent is thanked, and the first answer stands', () => {
+        assert.strictEqual(replied83.recorded, true);
+        const row = dbService.getContactTapAlert(first83.alertId);
+        assert.strictEqual(row.answer, 'REPLIED');
+        assert.ok(row.answered_at);
+        assert.strictEqual(late83.recorded, false);
+        assert.ok(toAgent83().length >= 1, 'thanked');
+      });
+      await tap83.handleTapButtonReply({ from: AGENT_WA, replyId: `contact_tap_nothing:${call83.alertId}` });
+
+      check('the interaction counts carry the alerts and the answers', () => {
+        const counts = dbService.getInteractionCounts({ since: '2000-01-01' });
+        const rows = counts.contactTaps.filter((r) => r.propertyId === 8301 || r.propertyId === 8302);
+        const wa = rows.find((r) => r.kind === 'whatsapp');
+        const call = rows.find((r) => r.kind === 'call');
+        assert.deepStrictEqual({ alerted: wa.alerted, replied: wa.replied }, { alerted: 1, replied: 1 });
+        assert.deepStrictEqual({ alerted: call.alerted, nothing: call.nothing }, { alerted: 1, nothing: 1 });
+      });
+
+      check('the webhook routes these buttons to the tap handler', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(src, /handleTapButtonReply\(\{ from, replyId: buttonReplyId \}\)/);
+      });
+    } finally {
+      propertyRepo.getListingContactById = repoListing83;
+      propertyRepo.getAgentContactById = repoAgent83;
+      if (flag83 === undefined) delete process.env.CONTACT_TAP_ALERT;
+      else process.env.CONTACT_TAP_ALERT = flag83;
+    }
   }
 
   console.log(`\n${'-'.repeat(60)}`);

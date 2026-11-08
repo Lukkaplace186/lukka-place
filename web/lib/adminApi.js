@@ -653,6 +653,38 @@ export async function getInteractionCounts({ days = 30 } = {}) {
 }
 
 /**
+ * A visitor just tapped a verified agent's WhatsApp / Appeler button: the
+ * engine tells the agent straight away (services/contactTapAlert.js), after
+ * its own dedupe and agent gates.
+ *
+ * @param {{listingId: number, kind: 'whatsapp'|'call', visitorKey?: string|null}} input
+ * @returns {Promise<{sent: boolean, reason?: string}>}
+ */
+export async function notifyAgentOfContactTap({ listingId, kind, visitorKey = null }) {
+  return engineFetch('/admin/contact-taps', {
+    method: 'POST',
+    body: JSON.stringify({ listing_id: listingId, kind, visitor_key: visitorKey }),
+  });
+}
+
+/**
+ * "Le client a déjà été contacté" on a viewing request: the agent reached the
+ * customer from their own phone, which the engine cannot see. `by` is
+ * 'AGENT_DASHBOARD' (with `agentId`, re-checked by the engine against the
+ * request) or 'DESK'. Stops the SLA escalation; sends nothing to anybody.
+ *
+ * @param {number} id
+ * @param {{channel: 'whatsapp'|'phone'|'in_person'|'other', by: 'AGENT_DASHBOARD'|'DESK', agentId?: number}} input
+ * @returns {Promise<{recorded: boolean, viewingRequest: Object}>} `recorded` false when one was already on file.
+ */
+export async function recordViewingDirectContact(id, { channel, by, agentId } = {}) {
+  return engineFetch(`/admin/viewing-requests/${id}/direct-contact`, {
+    method: 'POST',
+    body: JSON.stringify({ channel, by, agent_id: agentId }),
+  });
+}
+
+/**
  * Record a desk "mise en relation" (engine services/teamIntroduction.js): a
  * lead in the agent's Demandes inbox. Sends nothing to anybody.
  * @returns {Promise<{lead: Object}>}

@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import {
-  nudgeViewingRequest, reassignViewingRequest, scheduleViewingRequest, updateViewingRequest,
+  nudgeViewingRequest, reassignViewingRequest, recordViewingDirectContact, scheduleViewingRequest, updateViewingRequest,
 } from '@/lib/adminApi';
+
+const DIRECT_CONTACT_CHANNELS = ['whatsapp', 'phone', 'in_person', 'other'];
 import { getT } from '@/lib/i18n/server';
 
 function revalidateRoutingPages() {
@@ -72,6 +74,30 @@ export async function cancelViewingAction(viewingRequestId) {
     await recordAudit(session, { action: 'viewing.cancel', entityType: 'viewing', entityId: viewingRequestId });
     revalidateRoutingPages();
     return { ok: true, message: t('admin.viewings.cancelled') };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * The agent told the desk they already wrote to or called the customer from
+ * their own phone — a chat we cannot see. Recorded on the request (the SLA
+ * escalation stops); nobody is messaged.
+ */
+export async function recordDirectContactAction(viewingRequestId, channel) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('viewings.manage');
+    if (!DIRECT_CONTACT_CHANNELS.includes(channel)) return { ok: false, error: t('admin.viewings.actionFailed') };
+    const result = await recordViewingDirectContact(viewingRequestId, { channel, by: 'DESK' });
+    await recordAudit(session, {
+      action: 'viewing.direct_contact',
+      entityType: 'viewing',
+      entityId: viewingRequestId,
+      details: { channel, recorded: Boolean(result.recorded) },
+    });
+    revalidateRoutingPages();
+    return { ok: true, message: result.recorded ? t('admin.viewings.contactRecorded') : t('admin.viewings.contactAlreadyRecorded') };
   } catch (err) {
     return { ok: false, error: err.message };
   }

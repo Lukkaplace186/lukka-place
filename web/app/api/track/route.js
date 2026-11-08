@@ -1,4 +1,6 @@
+import { after } from 'next/server';
 import { getPool } from '@/lib/db';
+import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import {
@@ -124,6 +126,10 @@ export async function POST(request) {
         viewerKind,
         agentId,
       });
+      // "Appeler" on a verified agent: tell them a call is coming
+      // (lib/contactTapAlert.js), after the response has left.
+      const tapKind = contactTapKind({ event: type, routingType: body?.routingType, viewerKind, recorded });
+      if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId }));
     } else if (type === 'search') {
       recorded = await recordSearch(pool, normaliseSearch(body), { device, source, visitorId, viewerKind });
     } else {

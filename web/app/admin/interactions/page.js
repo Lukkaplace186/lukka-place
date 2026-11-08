@@ -75,6 +75,15 @@ export default async function AdminInteractionsPage({ searchParams }) {
           {counts.answerable ? (
             <p className="u-micro text-ink-70">{t('admin.interactions.answered', { contacted: fmt(counts.contacted), total: fmt(counts.answerable) })}</p>
           ) : null}
+          {counts.tapAlerts.alerted ? (
+            <p className="u-micro text-ink-70">
+              {t('admin.interactions.tapAlerts', {
+                alerted: fmt(counts.tapAlerts.alerted),
+                replied: fmt(counts.tapAlerts.replied),
+                nothing: fmt(counts.tapAlerts.nothing),
+              })}
+            </p>
+          ) : null}
           {counts.central.whatsapp || counts.central.call ? (
             <p className="u-micro border-t border-line pt-2 text-ink-45">
               {t('admin.interactions.central', { whatsapp: fmt(counts.central.whatsapp), call: fmt(counts.central.call) })}
@@ -108,11 +117,12 @@ export default async function AdminInteractionsPage({ searchParams }) {
                 <th key={key} className={TH_STICKY_RIGHT}>{t(`admin.interactions.short.${key}`)}</th>
               ))}
               <th className={TH_STICKY_RIGHT}>{t('admin.interactions.total')}</th>
+              <th className={TH_STICKY_RIGHT} title={t('admin.interactions.tapRepliedHelp')}>{t('admin.interactions.tapReplied')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <EmptyRow colSpan={channelKeys.length + 2}>{t('admin.interactions.empty', { days })}</EmptyRow>
+              <EmptyRow colSpan={channelKeys.length + 3}>{t('admin.interactions.empty', { days })}</EmptyRow>
             ) : rows.map((row) => (
               <tr key={row.agentId ?? 'none'} className={TR_DENSE}>
                 <td className={TD_DENSE}>
@@ -128,6 +138,11 @@ export default async function AdminInteractionsPage({ searchParams }) {
                   <td key={key} className={TD_DENSE_RIGHT}>{row.channels[key] ? fmt(row.channels[key]) : <span className="text-ink-35">·</span>}</td>
                 ))}
                 <td className={`${TD_DENSE_RIGHT} font-bold text-ink`}>{fmt(row.total)}</td>
+                <td className={TD_DENSE_RIGHT}>
+                  {row.tapAlerts.alerted
+                    ? `${fmt(row.tapAlerts.replied)} / ${fmt(row.tapAlerts.alerted)}`
+                    : <span className="text-ink-35">·</span>}
+                </td>
               </tr>
             ))}
           </tbody>

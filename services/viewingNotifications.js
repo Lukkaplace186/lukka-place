@@ -293,6 +293,13 @@ function agentMessage({ listing, lead, viewingRequest, propertyId }) {
   // one tap, but an agent who wants the customer's details, or whose client
   // shows no buttons, needs to know where the request is waiting.
   lines.push('', `👉 Confirmer ou proposer une autre heure dans votre espace : ${schedulerLink()}`);
+  // Agents often just WhatsApp the customer from their own phone, which we
+  // cannot see (2026-11-07): the request then reads as unanswered and is
+  // escalated while they are already talking. Say so where they decide.
+  lines.push(
+    '',
+    "ℹ️ Vous écrivez ou appelez le client directement ? Répondez quand même ici : nous ne voyons pas vos échanges avec lui.",
+  );
   lines.push('', listingLink(listing, propertyId));
   return lines.join('\n');
 }
@@ -324,7 +331,56 @@ const BUTTON_PREFIX = {
   // Confirming the concrete slot, once the agent has accepted.
   slotOk: 'viewing_slot_ok',
   slotEdit: 'viewing_slot_edit',
+  // "Avez-vous déjà contacté le client ?" — the 2-hour check
+  // (services/viewingSweeps.js).
+  contactWa: 'viewing_contact_wa',
+  contactCall: 'viewing_contact_call',
+  contactNot: 'viewing_contact_not',
 };
+
+/**
+ * The contact check's three answers. A separate message from the alert, not a
+ * fourth button on it: WhatsApp allows three reply buttons per message, and
+ * the alert's three are taken.
+ */
+function contactCheckButtons(viewingRequestId) {
+  return [
+    { id: `${BUTTON_PREFIX.contactWa}:${viewingRequestId}`, title: '💬 Oui, WhatsApp' },
+    { id: `${BUTTON_PREFIX.contactCall}:${viewingRequestId}`, title: '📞 Oui, par appel' },
+    { id: `${BUTTON_PREFIX.contactNot}:${viewingRequestId}`, title: '⏳ Pas encore' },
+  ];
+}
+
+const CONTACT_CHECK_MENU = ['', 'Répondez :', '1️⃣ Oui, sur WhatsApp', '2️⃣ Oui, par appel', '3️⃣ Pas encore'].join('\n');
+
+/** The typed answer to the contact check, in button order. */
+const CONTACT_CHECK_BY_CHOICE = { 1: 'whatsapp', 2: 'phone', 3: null };
+
+/** Button action -> direct_contact_channel; contact_not records nothing. */
+const CONTACT_CHECK_BY_ACTION = { contact_wa: 'whatsapp', contact_call: 'phone', contact_not: null };
+
+function contactCheckText({ listing, request, propertyId, withMenu = false }) {
+  const lines = [
+    `${HEADER_BRAND} Avez-vous déjà contacté le client ?`,
+    '',
+    `👤 Client: ${request?.lead_name || 'Non précisé'} (${displayPhone(request?.lead_wa_id)})`,
+    `📍 Bien: ${listingLabel(listing, propertyId)}`,
+    '',
+    "Si vous lui avez écrit ou l'avez appelé depuis votre téléphone, dites-le-nous : "
+      + 'nous ne voyons pas ces échanges, et sans votre réponse la demande est signalée comme sans suite.',
+  ];
+  if (withMenu) lines.push(CONTACT_CHECK_MENU);
+  return lines.join('\n');
+}
+
+const CONTACT_RECORDED_TEXT = [
+  `${HEADER_BRAND} Merci, c'est noté : vous êtes en contact avec le client. 🙏`,
+  '',
+  `Quand la visite est fixée, confirmez-la dans votre espace : ${SITE_URL}/compte/agent/demandes?tab=visites`,
+].join('\n');
+
+const CONTACT_NOT_YET_TEXT =
+  `${HEADER_BRAND} Merci. Le client attend votre réponse : répondez à sa demande ci-dessous, ou contactez-le directement.`;
 
 /**
  * "Is this the right time?", asked only when we could parse a real slot out
@@ -720,6 +776,8 @@ const PENDING_KINDS = {
   // slot ("je suis disponible cette semaine"), so the check-in has a real
   // instant to count from rather than a guess.
   scheduleTime: 'SCHEDULE_TIME',
+  // "Avez-vous déjà contacté le client ?" when its buttons did not go out.
+  contactCheck: 'CONTACT_CHECK',
 };
 
 const DECLINE_REASONS = {
@@ -755,7 +813,7 @@ function fold(text) {
  * left alone rather than swallowed.
  */
 function parseViewingButtonId(replyId) {
-  const match = /^viewing_(accept|reschedule|decline|slot_ok|slot_edit):(\d+)$/.exec(
+  const match = /^viewing_(accept|reschedule|decline|slot_ok|slot_edit|contact_wa|contact_call|contact_not):(\d+)$/.exec(
     String(replyId || '').trim(),
   );
   if (!match) return null;
@@ -1709,6 +1767,116 @@ async function respondFromCustomer({ viewingRequestId, waId, action } = {}) {
  * One tapped button. Returns `{ handled: false }` for anything that isn't
  * ours so routes/webhook.js can carry on with its normal processing.
  */
+// ---------------------------------------------------------------------------
+// Direct contact — the agent reached the customer from their own phone
+// ---------------------------------------------------------------------------
+
+/**
+ * Ask the agent, two hours after a request they have not answered, whether
+ * they already contacted the customer themselves. Called once per request by
+ * the viewing-contact-check sweep. A session message: it reaches an agent who
+ * wrote to us in the last 24 h; one who got the alert as a template may not
+ * receive it. Never throws.
+ *
+ * @returns {Promise<{sent: boolean, reason?: string}>}
+ */
+async function askAgentContactCheck(viewingRequestId) {
+  try {
+    const ctx = await resolveContext(viewingRequestId, null);
+    if (!ctx.request) return { sent: false, reason: 'unknown-request' };
+    const { listing, request, propertyId } = ctx;
+    if (!listing?.agent_phone) return { sent: false, reason: 'no-agent' };
+    if (!listing.phone_verified_at) return { sent: false, reason: 'agent-unverified' };
+    if (listing.direct_routing_enabled === false) return { sent: false, reason: 'routing-off' };
+
+    const to = String(listing.agent_phone).replace(/\D/g, '');
+    try {
+      await chakra.sendInteractiveButtons(to, contactCheckText({ listing, request, propertyId }), contactCheckButtons(request.id));
+      return { sent: true, channel: 'buttons' };
+    } catch (err) {
+      console.warn(`[viewing] contact check #${request.id}: interactive failed (${err.message}) — numbered text`);
+    }
+    const ok = await trySend(to, contactCheckText({ listing, request, propertyId, withMenu: true }), `contact check #${request.id}`);
+    // A typed "1" carries no request id, so claim this agent's next message.
+    if (ok) dbService.setPendingAgentAction({ waId: to, kind: PENDING_KINDS.contactCheck, viewingRequestId: request.id });
+    return ok ? { sent: true, channel: 'session-numbered' } : { sent: false, reason: 'send-failed' };
+  } catch (err) {
+    console.error(`[viewing] contact check #${viewingRequestId} failed: ${err.message}`);
+    return { sent: false, reason: err.message };
+  }
+}
+
+/**
+ * The agent's answer to the contact check (a tap or a typed 1/2/3). `channel`
+ * null is "Pas encore": nothing is recorded, the alert's three buttons are
+ * sent again, and the 15-minute escalation goes ahead if nothing follows.
+ */
+async function handleContactCheckAnswer({ request, listing, propertyId, from, channel }) {
+  dbService.clearPendingAgentAction(from);
+  if (channel) {
+    const recorded = dbService.recordViewingDirectContact(request.id, { channel, by: 'AGENT_WHATSAPP' });
+    await trySend(from, CONTACT_RECORDED_TEXT, 'contact recorded');
+    console.log(`[viewing] request #${request.id}: agent ${from} says customer contacted by ${channel} (recorded: ${recorded})`);
+    return { action: 'direct-contact', channel, recorded };
+  }
+  if (request.status !== 'PENDING') {
+    // Answered through the loop in the meantime: nothing left to re-ask.
+    await trySend(from, `${HEADER_BRAND} C'est noté, merci. 🙏`, 'contact not yet (answered)');
+    return { action: 'contact-not-yet', alreadyAnswered: true };
+  }
+  const lead = { name: request.lead_name, wa_id: request.lead_wa_id };
+  const text = `${CONTACT_NOT_YET_TEXT}\n\n${agentMessage({ listing, lead, viewingRequest: request, propertyId })}`;
+  try {
+    await chakra.sendInteractiveButtons(String(from).replace(/\D/g, ''), text, viewingButtons(request.id));
+  } catch (err) {
+    console.warn(`[viewing] request #${request.id}: buttons after "pas encore" failed (${err.message}) — numbered text`);
+    await trySend(from, `${text}\n${buttonFallbackText()}`, 'contact not yet');
+    dbService.setPendingAgentAction({ waId: from, kind: PENDING_KINDS.viewingResponse, viewingRequestId: request.id });
+  }
+  console.log(`[viewing] request #${request.id}: agent ${from} has not contacted the customer yet`);
+  return { action: 'contact-not-yet' };
+}
+
+/**
+ * Record a direct contact told to us on the web: the agent from their
+ * dashboard (`by` AGENT_DASHBOARD, authorised by agents.id exactly like
+ * respondFromDashboard) or the desk (`by` DESK, the console checked the
+ * admin's permission). Sends nothing to anybody.
+ *
+ * @returns {{ok: boolean, reason?: string, recorded?: boolean}}
+ */
+async function recordDirectContact({ viewingRequestId, channel, by, agentId = null } = {}) {
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  if (!request) return { ok: false, reason: 'unknown-request' };
+  if (!dbService.DIRECT_CONTACT_CHANNELS.includes(channel)) return { ok: false, reason: 'invalid-channel' };
+  if (by !== 'AGENT_DASHBOARD' && by !== 'DESK') return { ok: false, reason: 'invalid-source' };
+  if (['DECLINED', 'CANCELLED'].includes(request.status)) return { ok: false, reason: 'request-closed' };
+
+  if (by === 'AGENT_DASHBOARD') {
+    let listing = null;
+    if (request.property_id) {
+      try {
+        listing = await propertyRepository.getListingContactById(request.property_id);
+      } catch (err) {
+        console.error(`[viewing] direct contact: listing #${request.property_id} lookup failed: ${err.message}`);
+      }
+    }
+    const claimant = agentId == null ? '' : String(agentId);
+    const stampedAgent = request.agent_id == null ? '' : String(request.agent_id);
+    const listingAgent = listing?.agent_id == null ? '' : String(listing.agent_id);
+    const authorised = Boolean(claimant) && (
+      request.reassigned_at ? stampedAgent === claimant : listingAgent === claimant || stampedAgent === claimant
+    );
+    if (!authorised) return { ok: false, reason: 'not-this-requests-agent' };
+  }
+
+  const recorded = dbService.recordViewingDirectContact(request.id, { channel, by });
+  // The WhatsApp check may still be waiting on a typed answer; it is settled.
+  if (recorded) dbService.clearPendingAgentActionsForViewing(request.id);
+  console.log(`[viewing] request #${request.id}: direct contact by ${channel} recorded from ${by} (new: ${recorded})`);
+  return { ok: true, recorded };
+}
+
 async function handleViewingButtonReply({ from, replyId }) {
   const parsed = parseViewingButtonId(replyId);
   if (!parsed) return { handled: false };
@@ -1730,6 +1898,10 @@ async function handleViewingButtonReply({ from, replyId }) {
   if (parsed.action === 'reschedule') return { handled: true, ...(await handleReschedule(args)) };
   if (parsed.action === 'slot_ok') return { handled: true, ...(await handleSlotOk(args)) };
   if (parsed.action === 'slot_edit') return { handled: true, ...(await handleSlotEdit(args)) };
+  if (Object.prototype.hasOwnProperty.call(CONTACT_CHECK_BY_ACTION, parsed.action)) {
+    const channel = CONTACT_CHECK_BY_ACTION[parsed.action];
+    return { handled: true, ...(await handleContactCheckAnswer({ ...args, channel })) };
+  }
   return { handled: true, ...(await handleDecline(args)) };
 }
 
@@ -1770,6 +1942,15 @@ async function handleAgentTextReply({ from, text }) {
     if (choice === 1) return { handled: true, ...(await handleAccept(args)) };
     if (choice === 2) return { handled: true, ...(await handleReschedule(args)) };
     return { handled: true, ...(await handleDecline(args)) };
+  }
+
+  if (pending.kind === PENDING_KINDS.contactCheck) {
+    const choice = parseNumberedChoice(text);
+    if (!choice) return { handled: false };
+    return {
+      handled: true,
+      ...(await handleContactCheckAnswer({ ...ctx, from, channel: CONTACT_CHECK_BY_CHOICE[choice] })),
+    };
   }
 
   if (pending.kind === PENDING_KINDS.scheduleTime) {
@@ -2011,6 +2192,12 @@ module.exports = {
   slotConfirmText,
   slotAgreedText,
   SCHEDULE_ASK,
+  // Direct contact (the 2-hour check, the dashboard and the desk).
+  askAgentContactCheck,
+  recordDirectContact,
+  contactCheckButtons,
+  contactCheckText,
+  CONTACT_RECORDED_TEXT,
   // The feedback loop.
   handleViewingButtonReply,
   handleAgentTextReply,

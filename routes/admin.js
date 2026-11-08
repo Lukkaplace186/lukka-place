@@ -26,6 +26,7 @@ const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDisp
 const { handleProjectEnquiry } = require('../services/projectEnquiry');
 const agentProfileEnquiry = require('../services/agentProfileEnquiry');
 const teamIntroduction = require('../services/teamIntroduction');
+const contactTapAlert = require('../services/contactTapAlert');
 const {
   normaliseLeadCommunes,
   leadCommunes,
@@ -38,6 +39,7 @@ const {
   nudgeViewingAgent,
   respondFromDashboard,
   DASHBOARD_TRANSITIONS,
+  recordDirectContact,
   respondFromCustomer,
   CUSTOMER_TRANSITIONS,
   notifyOps,
@@ -1234,6 +1236,51 @@ router.post('/viewing-requests/:id/agent-response', async (req, res) => {
   } catch (err) {
     console.error(`[admin] POST /viewing-requests/${id}/agent-response failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not record the agent response.' });
+  }
+});
+
+/**
+ * A customer just tapped a verified agent's WhatsApp / Appeler button on a
+ * listing (web's lead-click and track routes, visitors only). Tells the agent
+ * straight away and asks whether they answered (services/contactTapAlert.js).
+ * Always 200 with what happened: web fires and forgets.
+ */
+router.post('/contact-taps', async (req, res) => {
+  const result = await contactTapAlert.alertAgentOfTap({
+    propertyId: req.body?.listing_id,
+    kind: req.body?.kind,
+    visitorKey: req.body?.visitor_key || null,
+  });
+  return res.json({ success: true, ...result });
+});
+
+/**
+ * "Le client a déjà été contacté" — the agent reached the customer from their
+ * own phone, which this system cannot see. Told to us by the agent on their
+ * dashboard (`by: 'AGENT_DASHBOARD'` + agent_id, re-checked against the
+ * request) or by the desk (`by: 'DESK'`). Records it and stops the SLA
+ * escalation; sends nothing to anybody.
+ */
+router.post('/viewing-requests/:id/direct-contact', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  const by = req.body?.by;
+  const agentId = req.body?.agent_id == null ? null : Number.parseInt(req.body.agent_id, 10);
+  if (by === 'AGENT_DASHBOARD' && !Number.isFinite(agentId)) {
+    return res.status(400).json({ success: false, error: 'agent_id must be a numeric agents.id.' });
+  }
+  try {
+    const result = await recordDirectContact({ viewingRequestId: id, channel: req.body?.channel, by, agentId });
+    if (!result.ok) {
+      const httpStatus = { 'unknown-request': 404, 'not-this-requests-agent': 403, 'request-closed': 409 }[result.reason] || 400;
+      return res.status(httpStatus).json({ success: false, error: result.reason, reason: result.reason });
+    }
+    return res.json({ success: true, recorded: result.recorded, viewingRequest: db.getViewingRequest(id) });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/direct-contact failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the direct contact.' });
   }
 });
 

@@ -1489,6 +1489,25 @@ db.exec(`
     created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  -- "Un client vous contacte" (services/contactTapAlert.js): one row per alert
+  -- sent to an agent because a customer tapped their WhatsApp / Appeler button
+  -- on a listing. property_id and agent_id are Postgres ids. answer is the
+  -- agent's own word on whether they spoke (REPLIED | NOTHING), NULL until
+  -- they say — never inferred. created_at is ISO (written by the module).
+  CREATE TABLE IF NOT EXISTS contact_tap_alerts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    property_id INTEGER NOT NULL,
+    agent_id    INTEGER,
+    agent_wa    TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    visitor_key TEXT,
+    created_at  TEXT NOT NULL,
+    sent_via    TEXT,
+    answer      TEXT,
+    answered_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_contact_tap_alerts_property ON contact_tap_alerts (property_id, created_at);
+
   -- The availability check's own questions (services/availabilityCheck.js):
   -- "toujours disponible ?", then "loué/vendu ou retiré ?", "à quel prix ?",
   -- "le client venait-il de Lukka Place ?". Keyed by a Postgres property id,
@@ -2191,11 +2210,22 @@ function getInteractionCounts({ since }) {
       `SELECT COALESCE(vr.agent_id, l.agent_id) AS agent_id,
               COALESCE(vr.property_id, l.property_id) AS property_id,
               COUNT(*) AS n,
-              SUM(CASE WHEN vr.first_response_at IS NOT NULL THEN 1 ELSE 0 END) AS contacted
+              SUM(CASE WHEN vr.first_response_at IS NOT NULL OR vr.direct_contact_at IS NOT NULL THEN 1 ELSE 0 END) AS contacted
          FROM viewing_requests vr
          LEFT JOIN leads l ON l.id = vr.lead_id
         WHERE vr.created_at >= datetime(@since)
         GROUP BY COALESCE(vr.agent_id, l.agent_id), COALESCE(vr.property_id, l.property_id)`,
+    )
+    .all(p);
+  // created_at is ISO here ('2026-11-08T…'); datetime() normalises both sides.
+  const contactTaps = db
+    .prepare(
+      `SELECT agent_id, property_id, kind, COUNT(*) AS n,
+              SUM(CASE WHEN answer = 'REPLIED' THEN 1 ELSE 0 END) AS replied,
+              SUM(CASE WHEN answer = 'NOTHING' THEN 1 ELSE 0 END) AS nothing_received
+         FROM contact_tap_alerts
+        WHERE sent_via IS NOT NULL AND datetime(created_at) >= datetime(@since)
+        GROUP BY agent_id, property_id, kind`,
     )
     .all(p);
   const num = (v) => (v == null ? null : Number(v));
@@ -2206,6 +2236,12 @@ function getInteractionCounts({ since }) {
     })),
     viewings: viewings.map((r) => ({
       agentId: num(r.agent_id), propertyId: num(r.property_id), count: r.n, contacted: r.contacted || 0,
+    })),
+    // "Un client vous contacte" alerts and what the agents answered. Not added
+    // to any total: the tap itself is already counted by web.
+    contactTaps: contactTaps.map((r) => ({
+      agentId: num(r.agent_id), propertyId: num(r.property_id), kind: r.kind,
+      alerted: r.n, replied: r.replied || 0, nothing: r.nothing_received || 0,
     })),
   };
 }
@@ -3148,7 +3184,25 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // and the WhatsApp flow know the visit is already rated without a round trip.
   ['agent_rating', 'INTEGER'],
   ['agent_rated_at', 'TEXT'],
+  // Direct contact (2026-11-07). An agent who writes to or calls the customer
+  // from their own phone leaves nothing on our side — a chat between two
+  // personal numbers is invisible to this system. These record that it
+  // happened, when somebody tells us: the agent (the 2-hour "Avez-vous
+  // déjà contacté le client ?" check, or their dashboard) or the desk.
+  // `direct_contact_at` is when it was RECORDED, never a guess at when the
+  // agent actually wrote; it does not touch `first_response_at`, which stays
+  // the latency of an answer given through our own loop.
+  ['contact_check_sent_at', 'TEXT'],
+  ['direct_contact_at', 'TEXT'],
+  ['direct_contact_channel', 'TEXT'],
+  ['direct_contact_by', 'TEXT'],
 ];
+
+/** viewing_requests.direct_contact_channel — same words as leads.contact_channel. */
+const DIRECT_CONTACT_CHANNELS = ['whatsapp', 'phone', 'in_person', 'other'];
+
+/** viewing_requests.direct_contact_by — who told us. */
+const DIRECT_CONTACT_SOURCES = ['AGENT_WHATSAPP', 'AGENT_DASHBOARD', 'DESK'];
 
 /** viewing_requests.agent_visit_outcome. */
 const AGENT_VISIT_OUTCOMES = ['DONE', 'NOT_DONE'];
@@ -3679,10 +3733,127 @@ function listViewingRequestsAwaitingSla(olderThanMs, now = new Date().toISOStrin
          JOIN leads l ON l.id = v.lead_id
         WHERE v.status = 'PENDING'
           AND v.sla_alerted_at IS NULL
+          AND v.direct_contact_at IS NULL
           AND v.created_at <= ?
         ORDER BY v.created_at ASC`,
     )
     .all(cutoff.replace('T', ' ').replace(/\.\d+Z$/, ''));
+}
+
+/**
+ * Requests to ask the agent about: "Avez-vous déjà contacté le client ?".
+ * Only where a verified agent was actually alerted (DIRECT_WA) — there is
+ * nobody to ask on a central fallback — and only while nothing has been heard:
+ * no answer through the loop, no direct contact recorded. An escalated request
+ * IS asked: the check comes after the 15-minute SLA. Requests older than
+ * `maxAgeMs` are left alone. `contact_check_sent_at` makes it once per request.
+ *
+ * @param {number} olderThanMs How long after the request to ask.
+ * @param {string} [now] ISO instant to measure from; injectable for tests.
+ * @param {number} [maxAgeMs] Never ask about a request older than this.
+ */
+function listViewingRequestsDueForContactCheck(olderThanMs, now = new Date().toISOString(), maxAgeMs = 24 * 60 * 60 * 1000) {
+  const sqlTime = (ms) => new Date(new Date(now).getTime() - ms).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+  return db
+    .prepare(
+      `SELECT v.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.id AS lead_row_id
+         FROM viewing_requests v
+         JOIN leads l ON l.id = v.lead_id
+        WHERE v.status = 'PENDING'
+          AND v.routing_type = 'DIRECT_WA'
+          AND v.first_response_at IS NULL
+          AND v.direct_contact_at IS NULL
+          AND v.contact_check_sent_at IS NULL
+          AND v.created_at <= ?
+          AND v.created_at >= ?
+        ORDER BY v.created_at ASC`,
+    )
+    .all(sqlTime(olderThanMs), sqlTime(maxAgeMs));
+}
+
+/** Stamp the contact check so it is asked once, not once a minute. */
+function markContactCheckSent(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET contact_check_sent_at = ? WHERE id = ?').run(at, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * Record that the agent reached the customer outside our loop. The first
+ * record wins (`direct_contact_at IS NULL`): a desk entry after the agent's own
+ * tap must not rewrite who said it or when.
+ *
+ * @returns {boolean} whether this call recorded it.
+ */
+function recordViewingDirectContact(id, { channel, by, at = new Date().toISOString() } = {}) {
+  if (!DIRECT_CONTACT_CHANNELS.includes(channel)) {
+    throw new Error(`recordViewingDirectContact: unknown channel '${channel}' (expected one of ${DIRECT_CONTACT_CHANNELS.join(', ')})`);
+  }
+  if (!DIRECT_CONTACT_SOURCES.includes(by)) {
+    throw new Error(`recordViewingDirectContact: unknown source '${by}' (expected one of ${DIRECT_CONTACT_SOURCES.join(', ')})`);
+  }
+  return db
+    .prepare(
+      `UPDATE viewing_requests
+          SET direct_contact_at = ?, direct_contact_channel = ?, direct_contact_by = ?
+        WHERE id = ? AND direct_contact_at IS NULL`,
+    )
+    .run(at, channel, by, id).changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// contact_tap_alerts — "Un client vous contacte" (services/contactTapAlert.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a tap must not alert again, or null. Same visitor on the same listing
+ * since `sameVisitorSince` → 'duplicate-visitor'; anyone on the same listing
+ * since `sameListingSince` → 'recent-alert'.
+ */
+function recentContactTapAlert({ propertyId, visitorKey, sameVisitorSince, sameListingSince }) {
+  if (visitorKey) {
+    const seen = db
+      .prepare('SELECT 1 FROM contact_tap_alerts WHERE property_id = ? AND visitor_key = ? AND created_at >= ? LIMIT 1')
+      .get(Number(propertyId), String(visitorKey), sameVisitorSince);
+    if (seen) return 'duplicate-visitor';
+  }
+  const recent = db
+    .prepare('SELECT 1 FROM contact_tap_alerts WHERE property_id = ? AND created_at >= ? LIMIT 1')
+    .get(Number(propertyId), sameListingSince);
+  return recent ? 'recent-alert' : null;
+}
+
+/** @returns {number} the new alert id. */
+function createContactTapAlert({ propertyId, agentId, agentWa, kind, visitorKey = null, at = new Date().toISOString() }) {
+  return Number(
+    db
+      .prepare(
+        `INSERT INTO contact_tap_alerts (property_id, agent_id, agent_wa, kind, visitor_key, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(Number(propertyId), agentId == null ? null : Number(agentId), String(agentWa), String(kind), visitorKey, at)
+      .lastInsertRowid,
+  );
+}
+
+/** How the alert left (buttons | text), or NULL when it did not. */
+function markContactTapAlertSent(id, via) {
+  db.prepare('UPDATE contact_tap_alerts SET sent_via = ? WHERE id = ?').run(via || null, id);
+}
+
+function getContactTapAlert(id) {
+  return db.prepare('SELECT * FROM contact_tap_alerts WHERE id = ?').get(Number(id));
+}
+
+const CONTACT_TAP_ANSWERS = ['REPLIED', 'NOTHING'];
+
+/** The agent's answer; the first one stands. @returns {boolean} whether recorded. */
+function answerContactTapAlert(id, answer, at = new Date().toISOString()) {
+  if (!CONTACT_TAP_ANSWERS.includes(answer)) {
+    throw new Error(`answerContactTapAlert: unknown answer '${answer}' (expected one of ${CONTACT_TAP_ANSWERS.join(', ')})`);
+  }
+  return db
+    .prepare('UPDATE contact_tap_alerts SET answer = ?, answered_at = ? WHERE id = ? AND answer IS NULL')
+    .run(answer, at, Number(id)).changes > 0;
 }
 
 /** Stamp the SLA alert so the sweep never fires twice for one request. */
@@ -4223,6 +4394,7 @@ function listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit
       `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.created_at,
               vr.scheduled_at, vr.first_response_at, vr.customer_notified_at, vr.agent_response_via,
               vr.checkin_response, vr.commune,
+              vr.direct_contact_at, vr.direct_contact_channel, vr.direct_contact_by,
               l.wa_id AS lead_wa_id, l.name AS lead_name, l.assigned_agent,
               l.property_id AS lead_property_id, l.commune AS lead_commune, l.quartier AS lead_quartier
        ${fromJoin} ${whereClause}
@@ -4416,6 +4588,17 @@ module.exports = {
   setViewingScheduledAt,
   listViewingRequestsAwaitingSla,
   markSlaAlerted,
+  recentContactTapAlert,
+  createContactTapAlert,
+  markContactTapAlertSent,
+  getContactTapAlert,
+  answerContactTapAlert,
+  CONTACT_TAP_ANSWERS,
+  listViewingRequestsDueForContactCheck,
+  markContactCheckSent,
+  recordViewingDirectContact,
+  DIRECT_CONTACT_CHANNELS,
+  DIRECT_CONTACT_SOURCES,
   listViewingRequestsDueForCheckin,
   markCheckinSent,
   setCheckinResponse,

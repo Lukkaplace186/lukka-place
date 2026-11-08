@@ -212,7 +212,9 @@ registerJob({
  */
 {
   // eslint-disable-next-line global-require
-  const { slaJob, checkinJob } = require('./viewingSweeps');
+  const { contactCheckJob, slaJob, checkinJob } = require('./viewingSweeps');
+  // 'Avez-vous déjà contacté le client ?' 2 h after an unanswered request.
+  registerJob(contactCheckJob);
   registerJob(slaJob);
   registerJob(checkinJob);
   // Bon de visite: one hour after a confirmed slot, ask the agent whether it

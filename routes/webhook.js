@@ -61,6 +61,7 @@ const {
   handleAvailabilityTextReply,
 } = require('../services/availabilityCheck');
 const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
+const { handleTapButtonReply } = require('../services/contactTapAlert');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const salesReferral = require('../services/salesReferral');
@@ -818,6 +819,15 @@ async function processGroup(messages) {
       if (visitDone.handled) return;
     } catch (err) {
       console.error(`[visit-receipt] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
+      // "Un client vous contacte": J'ai répondu / Rien reçu
+      // (services/contactTapAlert.js). Only the alerted number may answer.
+      const tap = await handleTapButtonReply({ from, replyId: buttonReplyId });
+      if (tap.handled) return;
+    } catch (err) {
+      console.error(`[contact-tap] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
   }

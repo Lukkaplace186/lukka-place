@@ -75,17 +75,19 @@ test('the funnel log only writes allow-listed steps and bounded tags', () => {
 
 test('the agency is optional on the page and in the action; the name comes first', () => {
   const page = read('../../app/(site)/compte/agent/inscription/page.js');
+  // The form itself moved to a client component (2026-11-08: a refusal keeps it filled).
+  const form = read('../../app/(site)/compte/agent/inscription/AgentSignupForm.js');
   const action = read('../../app/(site)/compte/agent/inscription/actions.js');
-  assert.doesNotMatch(action, /redirect\([^)]*error=agency/);
-  assert.match(action, /error=name/);
+  assert.doesNotMatch(action, /error=agency/);
+  assert.match(action, /if \(!contactName\) return refuse\('name', formData\);/);
 
-  const agencyInput = /<input\s+id="agency_name"[\s\S]*?\/>/.exec(page)?.[0];
+  const agencyInput = /<input\s+id="agency_name"[\s\S]*?\/>/.exec(form)?.[0];
   assert.ok(agencyInput);
   assert.doesNotMatch(agencyInput, /\brequired\b/);
-  assert.ok(page.indexOf('id="contact_name"') < page.indexOf('id="agency_name"'));
-  assert.doesNotMatch(page, /autoFocus/);
+  assert.ok(form.indexOf('id="contact_name"') < form.indexOf('id="agency_name"'));
+  assert.doesNotMatch(form, /autoFocus/);
   // The WhatsApp route is offered above the form.
-  assert.ok(page.indexOf('data-signup-step="whatsapp_tap"') < page.indexOf('<form'));
+  assert.ok(page.indexOf('data-signup-step="whatsapp_tap"') < page.indexOf('<AgentSignupForm'));
   assert.doesNotMatch(page, /Déjà un compte/);
 });
 

@@ -394,8 +394,41 @@ export async function getAgentByPhone(phone) {
     `SELECT id, phone, email, username, password_hash, token_version, failed_login_count,
             locked_until, phone_verified_at, otp_code_hash, otp_expires_at,
             reset_otp_code_hash, reset_otp_expires_at, deleted_at
-     FROM agents WHERE phone = $1`,
+     FROM agents WHERE phone = $1
+     -- A number can carry a removed account and a live one (a removed agent
+     -- who signed up again, 2026-11-08): the live one answers.
+     ORDER BY (deleted_at IS NULL) DESC, id DESC
+     LIMIT 1`,
     [phone],
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Sign-up takes over an account that never proved its number and holds no
+ * listing (2026-11-08): a mistyped number, or a sign-up left at the
+ * verification step, used to block the number's real owner for good
+ * ("Un compte existe déjà", and a password they never chose). The guard is
+ * in the UPDATE itself; the new holder still has to verify the number, and
+ * every session the old one had ends (token_version + 1).
+ *
+ * @returns {Promise<{id: number, phone: string, token_version: number}|null>} null when it no longer qualifies
+ */
+export async function reclaimUnverifiedAgent(agentId, passwordHash) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `UPDATE agents
+        SET password_hash = $2, token_version = token_version + 1,
+            failed_login_count = 0, locked_until = NULL,
+            otp_code_hash = NULL, otp_expires_at = NULL,
+            reset_otp_code_hash = NULL, reset_otp_expires_at = NULL,
+            updated_at = NOW()
+      WHERE id = $1
+        AND phone_verified_at IS NULL
+        AND deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM properties p WHERE p.agent_id = $1)
+      RETURNING id, phone, token_version`,
+    [agentId, passwordHash],
   );
   return rows[0] || null;
 }

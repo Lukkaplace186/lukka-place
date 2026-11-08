@@ -1,40 +1,31 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getCurrentAgentId } from '@/lib/agentSession';
+import { getCurrentAgentId, getRememberedAgentPhone } from '@/lib/agentSession';
 import { getAgentById } from '@/lib/agents';
 import { agentLoginAction } from './actions';
-import PhoneField from '@/components/PhoneField';
-import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import AgentLoginForm from './AgentLoginForm';
+import { splitPhone } from '@/lib/phone';
 import { getRequestCountry } from '@/lib/requestCountry';
-import { getLocale, getT } from '@/lib/i18n/server';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Connexion agent — Lukka Place',
-  robots: { index: false, follow: false },
-};
-
-// Keys, not text: a module-level constant is evaluated once at import
-// and cannot hold translated copy — see components/navItems.js. The
-// lookup below resolves the key at render.
-const ERROR_MESSAGE_KEYS = {
-  1: 'auth.errors.badCredentials',
-  phone: 'auth.errors.phoneInvalid',
-  locked: 'auth.errors.locked',
-  otp_failed: 'auth.errors.otpFailed',
-};
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: t('auth.agentLoginMetaTitle'), robots: { index: false, follow: false } };
+}
 
 /**
- * Plain HTML form, no client wrapper — unlike the customer LoginForm.js,
- * there's no localStorage anonymous-data merge to carry across submit here.
+ * Agent sign-in. The form (AgentLoginForm.js) opens on the number this device
+ * last signed in with; a refusal keeps what was typed (2026-11-08).
  */
 export default async function AgentLoginPage({ searchParams }) {
   const t = await getT();
-  const locale = await getLocale();
   const country = await getRequestCountry();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/agent';
+  // The number that last signed in on this device (lib/agentSession.js).
+  const remembered = splitPhone(await getRememberedAgentPhone());
 
   // Already signed in (a menu link, a bookmark, a WhatsApp link that went
   // through here): straight to the page asked for, not the form again. The
@@ -51,60 +42,23 @@ export default async function AgentLoginPage({ searchParams }) {
         <h1 className="u-title-section text-ink">{t('agent.nav.eyebrow')}</h1>
         <p className="mt-1 text-sm text-ink-45">{t('auth.agentLoginLead')}</p>
 
-        <form action={agentLoginAction} className="mt-6 flex flex-col gap-3">
-          <input type="hidden" name="next" value={next} />
+        {reset && (
+          <p className="mt-4 text-sm text-green-deep" role="status">
+            {t('auth.passwordReset')}
+          </p>
+        )}
 
-          <PhoneField
-            name="phone"
-            id="phone"
-            defaultCountry={country}
-            locale={locale}
-            labels={phoneFieldLabels(t)}
-            autoFocus
-            required
-          />
-
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                {t('auth.password')}
-              </label>
-              <Link href="/mot-de-passe-oublie?role=agent" className="text-xs font-semibold text-blue-deep hover:underline">
-                {t('account.profile.forgotPassword')}
-              </Link>
-            </div>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-            />
-          </div>
-
-          {reset && (
-            <p className="text-sm text-green-deep" role="status">
-              {t('auth.passwordReset')}
-            </p>
-          )}
-
-          {error && (
-            <p className="text-sm text-red-600" role="alert">
-              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || (ERROR_MESSAGE_KEYS[1] ? t(ERROR_MESSAGE_KEYS[1]) : null)}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
-          >
-            {t('admin.login.submit')}
-          </button>
-        </form>
+        <AgentLoginForm
+          action={agentLoginAction}
+          next={next}
+          error={error}
+          defaultCountry={remembered.country || country}
+          defaultPhone={remembered.country ? remembered.national : ''}
+          submitLabel={t('admin.login.submit')}
+        />
 
         <p className="mt-5 text-center text-sm text-ink-45">
-          Pas encore de compte agent ?{' '}
+          {t('auth.agentNoAccountYet')}{' '}
           <Link
             href={`/compte/agent/inscription?next=${encodeURIComponent(next)}`}
             className="font-semibold text-blue-deep hover:underline"

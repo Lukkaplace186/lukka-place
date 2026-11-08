@@ -1240,7 +1240,8 @@
       "viewsUnit": {
         "one": "view",
         "other": "views"
-      }
+      },
+      "passwordChanged": "Password saved. You are signed in."
     },
     "listings": {
       "pager": {
@@ -7933,7 +7934,8 @@
       "agencyOptional": "Agency name (optional)",
       "agencyHint": "Working on your own? Leave it empty: your name will be shown.",
       "haveCode": "I have a referral code",
-      "alreadyAccount": "Already have an account?"
+      "alreadyAccount": "Already have an account?",
+      "existsHelp": "Sign in with this number, or get a WhatsApp code to choose a new password."
     },
     "activateCustomer": {
       "metaTitle": "Choose My Password — Lukka Place",
@@ -7960,7 +7962,11 @@
     "signingIn": "Signing in…",
     "login": {
       "keepsAnswers": "Your answers about your move will be saved to your account."
-    }
+    },
+    "agentFirstPassword": "You joined Lukka Place on WhatsApp, so your account has no password yet. Enter the code sent to your WhatsApp and choose one.",
+    "agentNoPasswordHint": "Joined on WhatsApp, with no password? Tap “Forgotten your password?”: a WhatsApp code lets you create one.",
+    "agentLoginMetaTitle": "Agent Login — Lukka Place",
+    "agentNoAccountYet": "No agent account yet?"
   },
   "updates": {
     "title": "Updates",

@@ -30,6 +30,34 @@ export async function establishAgentSession({ id, tokenVersion }) {
   });
 }
 
+/**
+ * The number that last signed in on this device, so coming back is the
+ * password and nothing else (2026-11-08, same as the customer's
+ * lukka_customer_phone). httpOnly, read only by the agent sign-in page;
+ * kept on logout.
+ */
+const REMEMBERED_AGENT_PHONE_COOKIE = 'lukka_agent_phone';
+const REMEMBERED_PHONE_MAX_AGE = 365 * 24 * 60 * 60;
+
+export async function rememberAgentPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!/^\d{7,15}$/.test(digits)) return;
+  const cookieStore = await cookies();
+  cookieStore.set(REMEMBERED_AGENT_PHONE_COOKIE, digits, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: REMEMBERED_PHONE_MAX_AGE,
+  });
+}
+
+export async function getRememberedAgentPhone() {
+  const cookieStore = await cookies();
+  const digits = String(cookieStore.get(REMEMBERED_AGENT_PHONE_COOKIE)?.value || '');
+  return /^\d{7,15}$/.test(digits) ? digits : null;
+}
+
 export async function clearAgentSession() {
   const cookieStore = await cookies();
   cookieStore.delete({ name: AGENT_SESSION_COOKIE, path: '/' });

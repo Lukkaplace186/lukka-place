@@ -42,6 +42,8 @@ export default async function ResetVerifyPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const sent = params.sent === '1';
+  // An agent who joined on WhatsApp and has no password yet (lib/agentPasswordSetup.js).
+  const firstPassword = params.nouveau === '1';
 
   const whatsappHref = getCentralWhatsAppHref(
     t('auth.forgot.whatsappCodeHelp'),
@@ -51,6 +53,11 @@ export default async function ResetVerifyPage({ searchParams }) {
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('agent.settings.newPassword')}</h1>
+        {firstPassword ? (
+          <p role="status" className="mt-3 rounded-md bg-blue-tint px-3 py-2.5 text-[0.8125rem] text-ink">
+            {t('auth.agentFirstPassword')}
+          </p>
+        ) : null}
         <p className="mt-1 text-sm text-ink-45">
           Entrez le code à 6 chiffres envoyé sur WhatsApp au {maskPhone(formatPhoneDisplay(attempt.phone))}.
           {sent ? ` ${t('auth.newCodeSent')}` : ''}

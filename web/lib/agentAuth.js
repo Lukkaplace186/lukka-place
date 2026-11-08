@@ -76,6 +76,24 @@ export function verifyAgentSessionToken(token) {
   return { agentId, tokenVersion };
 }
 
+/**
+ * Renewed while used (2026-11-08, owner request: agents use the dashboard
+ * daily and were signed out 30 days after signing in). Same rule as the
+ * customer's (lib/customerAuth.js renewedCustomerSessionToken): once a token
+ * is more than a week old, opening the dashboard issues a fresh one for the
+ * same agent and token version, so a reset or revocation still ends it.
+ */
+export const AGENT_RENEW_WHEN_LEFT_MS = SESSION_TTL_MS - 7 * 24 * 60 * 60 * 1000;
+
+/** @returns {string|null} a fresh token when `token` is valid and due; null otherwise. */
+export function renewedAgentSessionToken(token, now = Date.now()) {
+  const session = verifyAgentSessionToken(token);
+  if (!session) return null;
+  const expiresAt = Number(String(token).split('.')[2]);
+  if (!Number.isFinite(expiresAt) || expiresAt - now > AGENT_RENEW_WHEN_LEFT_MS) return null;
+  return createAgentSessionToken({ agentId: session.agentId, tokenVersion: session.tokenVersion });
+}
+
 export function isValidAgentSessionToken(token) {
   return verifyAgentSessionToken(token) !== null;
 }

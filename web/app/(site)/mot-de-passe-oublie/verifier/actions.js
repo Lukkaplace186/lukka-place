@@ -5,6 +5,8 @@ import { verifyAndResetPassword, requestPasswordReset } from '@/lib/resetPasswor
 import { getResetAttempt, setResetAttemptCookie, clearResetAttemptCookie } from '@/lib/resetAttempt';
 import { getCustomerByPhone } from '@/lib/customers';
 import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerSession';
+import { getAgentByPhone } from '@/lib/agents';
+import { establishAgentSession, rememberAgentPhone } from '@/lib/agentSession';
 
 const LOGIN_PATH_BY_ROLE = { customer: '/compte/connexion', agent: '/compte/agent/connexion' };
 
@@ -40,6 +42,17 @@ export async function verifyResetOtpAction(formData) {
       await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
       await rememberCustomerPhone(attempt.phone);
       redirect('/compte/client?motdepasse=change');
+    }
+  }
+  // An agent too (2026-11-08) — including one who joined on WhatsApp and just
+  // chose a first password — when their number is already verified. One whose
+  // number is not goes through sign-in, which sends them to verify it.
+  if (attempt.role === 'agent') {
+    const agent = await getAgentByPhone(attempt.phone).catch(() => null);
+    if (agent && !agent.deleted_at && agent.phone_verified_at) {
+      await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });
+      await rememberAgentPhone(attempt.phone);
+      redirect('/compte/agent?motdepasse=change');
     }
   }
   redirect(`${LOGIN_PATH_BY_ROLE[attempt.role]}?reset=1`);

@@ -4744,3 +4744,44 @@ Owner request after a friction review of the customer side.
   with an agent stays in WhatsApp. Sign-in/sign-up French moved to the
   dictionary (`auth.haveAccount`, `auth.noAccountYet`,
   `auth.customerLoginMetaTitle`).
+
+## Agent friction fixes — sign-up, sign-in (2026-11-08)
+
+Owner request after a friction review of the agent side.
+`tests/unit/agent-friction-fixes.test.js`.
+
+- **A number is never blocked for good.** Sign-up on a number that already
+  has an agent:
+  - removed by the team (`deleted_at`) → a new account; the removed one stays
+    removed and `getAgentByPhone` now prefers the live row
+    (`ORDER BY (deleted_at IS NULL) DESC, id DESC`);
+  - verified with no password (joined on WhatsApp) → `startAgentPasswordSetup`
+    (lib/agentPasswordSetup.js): the password-reset WhatsApp code, then
+    "choose your password" (`/mot-de-passe-oublie/verifier?nouveau=1`);
+  - never verified → `reclaimUnverifiedAgent` takes it over (new password,
+    token_version + 1) when it holds no listing — the guard is in the UPDATE —
+    after the referral check; the number still has to be verified;
+  - verified with a password → "Un compte existe déjà" with sign-in and the
+    WhatsApp reset offered.
+  Sign-in sends a no-password agent to the same password setup instead of
+  "incorrect" and a lockout. That attempt is not written to
+  `agent_login_attempts` (its outcome CHECK has no value for it).
+- **A failed code send lands on the verify page** (`&error=send_failed`, with
+  resend and the WhatsApp proof), from sign-up and sign-in; it used to say
+  "réessayez" on sign-up, where only "exists" could follow.
+- **After a reset an agent with a verified number is signed in**
+  (`/compte/agent?motdepasse=change`), like a customer.
+- **Forms keep what was typed**: `agentSignupAction` / `agentLoginAction` are
+  `useActionState` actions (refusal → `{ error, values, attempt }`, never the
+  password); the forms are `AgentSignupForm.js` / `AgentLoginForm.js`. Labels
+  from the `admin` / `agent` namespaces are passed in by the pages (the
+  `(site)` tree does not ship them). Show/hide eye on both; sign-in remembers
+  the number (`lukka_agent_phone`, lib/agentSession.js) and links the reset on
+  "locked".
+- **Agent sessions renew while used**, same rule as customers
+  (`renewedAgentSessionToken`, middleware, never under "view as"). The dashboard's
+  imperative action calls checked on this date all handle a rejection.
+- **Not changed, owner's call:** the web listing form still refuses a price of
+  0 — `missing_price` is a BLOCKING moderation flag, so a "prix sur demande"
+  listing could not be approved; the Free plan's 2-listing cap vs the launch
+  policy's 3 is pricing.

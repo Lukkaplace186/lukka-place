@@ -7,12 +7,11 @@ import { findRepByReferralCode } from '@/lib/salesLaunch';
 import { REFERRAL_COOKIE, parseReferralCookie } from '@/lib/salesReferral';
 import { partnerCodePrefill } from '@/lib/partnerPrefill';
 import { agentWhatsappSignupLink } from '@/lib/whatsappSignup';
-import PhoneField from '@/components/PhoneField';
+import AgentSignupForm from './AgentSignupForm';
 import SignupFunnelTracker from '@/components/SignupFunnelTracker';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
-import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { getRequestCountry } from '@/lib/requestCountry';
-import { getLocale, getT } from '@/lib/i18n/server';
+import { getT } from '@/lib/i18n/server';
 import { otpBypassEnabled } from '@/lib/otpBypass';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
@@ -29,20 +28,7 @@ export async function generateMetadata() {
 // Keys, not text: a module-level constant is evaluated once at import
 // and cannot hold translated copy — see components/navItems.js. The
 // lookup below resolves the key at render.
-const ERROR_MESSAGE_KEYS = {
-  name: 'auth.errors.nameRequired',
-  // Kept for a link to ?error=agency from before the agency became optional.
-  agency: 'auth.errors.agencyNameRequired',
-  phone: 'auth.errors.phoneInvalid',
-  password: 'auth.errors.passwordMin8',
-  exists: 'auth.errors.accountExists',
-  otp_failed: 'auth.errors.otpFailed',
-  ref: 'auth.errors.referralUnknown',
-};
 
-/** 16px on a phone (a smaller input makes iOS zoom on focus), 44px tall. */
-const INPUT_CLASS = 'u-focus-ring h-11 w-full rounded-md border border-line bg-white px-3 text-base text-ink sm:text-sm';
-const LABEL_CLASS = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45';
 
 /**
  * The code to prefill: the referral this browser already carries (first valid
@@ -95,7 +81,6 @@ async function repCodeForWhatsapp(code) {
  */
 export default async function AgentSignupPage({ searchParams }) {
   const t = await getT();
-  const locale = await getLocale();
   const country = await getRequestCountry();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
@@ -148,115 +133,17 @@ export default async function AgentSignupPage({ searchParams }) {
           </>
         ) : null}
 
-        <form id="agent-signup-form" action={agentSignupAction} className="mt-4 flex flex-col gap-3">
-          <input type="hidden" name="next" value={next} />
-
-          {/* The person first, the agency optional: agent_infos first/last
-              name is who customers speak to; agents.agency_name, when there is
-              one, is the public heading (AGENCY_NAME_EXPR falls back to the
-              person). Nothing takes focus on load: focusing the first field
-              opened a phone's keyboard over the reasons to sign up. */}
-          <div>
-            <label htmlFor="contact_name" className={LABEL_CLASS}>
-              {t('auth.agentSignup.yourName')}
-            </label>
-            <input
-              id="contact_name"
-              type="text"
-              name="contact_name"
-              autoComplete="name"
-              placeholder="Ex. Jean Dupont"
-              required
-              maxLength={160}
-              className={INPUT_CLASS}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="agency_name" className={LABEL_CLASS}>
-              {t('auth.agentSignup.agencyOptional')}
-            </label>
-            <input
-              id="agency_name"
-              type="text"
-              name="agency_name"
-              autoComplete="organization"
-              placeholder="Ex. Espace Kin Immobilier"
-              maxLength={160}
-              aria-describedby="agency_name_hint"
-              className={INPUT_CLASS}
-            />
-            <p id="agency_name_hint" className="mt-1 text-xs text-ink-45">{t('auth.agentSignup.agencyHint')}</p>
-          </div>
-
-          <PhoneField
-            name="phone"
-            id="phone"
-            defaultCountry={country}
-            locale={locale}
-            labels={{ ...phoneFieldLabels(t), label: t('agent.settings.whatsappNumber') }}
-            required
-          />
-
-          <div>
-            <label htmlFor="password" className={LABEL_CLASS}>
-              {t('auth.password')}
-            </label>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              className={INPUT_CLASS}
-            />
-          </div>
-
-          <details open={referralOpen} className="group">
-            <summary
-              data-signup-step="referral_open"
-              className="flex min-h-11 cursor-pointer list-none items-center text-sm font-semibold text-blue-deep [&::-webkit-details-marker]:hidden"
-            >
-              {t('auth.agentSignup.haveCode')}
-            </summary>
-            <div>
-              <label htmlFor="referral_code" className={LABEL_CLASS}>
-                {t('auth.referralCode')}
-              </label>
-              <input
-                id="referral_code"
-                type="text"
-                name="referral_code"
-                defaultValue={referralCode}
-                autoComplete="off"
-                autoCapitalize="characters"
-                maxLength={20}
-                placeholder="JEAN01"
-                aria-describedby="referral_code_hint"
-                className={`${INPUT_CLASS} uppercase`}
-              />
-              <p id="referral_code_hint" className="mt-1 text-xs text-ink-45">{t('auth.referralCodeHint')}</p>
-            </div>
-          </details>
-
-          {error && (
-            <p className="text-sm text-red-600" role="alert">
-              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || t(ERROR_MESSAGE_KEYS.phone)}
-            </p>
-          )}
-
-          <p className="text-xs text-ink-45">
-            {bypassing ? t('auth.signup.noCodeNeeded') : t('auth.signup.codeWillBeSent')}
-          </p>
-
-          <button
-            type="submit"
-            className="h-11 rounded-md bg-blue px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
-          >
-            {bypassing ? t('auth.createMyAccount') : t('auth.signup.receiveCode')}
-          </button>
-        </form>
+        <AgentSignupForm
+          action={agentSignupAction}
+          next={next}
+          error={error}
+          country={country}
+          referralCode={referralCode}
+          referralOpen={referralOpen}
+          bypassing={bypassing}
+          signInLabel={t('admin.login.submit')}
+          phoneLabel={t('agent.settings.whatsappNumber')}
+        />
 
         <p className="mt-5 text-center text-sm text-ink-45">
           {t('auth.agentSignup.alreadyAccount')}{' '}

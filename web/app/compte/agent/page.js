@@ -86,6 +86,12 @@ export default async function AgentOverviewPage({ searchParams }) {
       />
 
       <div className="flex flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-8 sm:py-7">
+        {/* Signed in straight after a password reset or a first password (2026-11-08). */}
+        {params?.motdepasse === 'change' ? (
+          <p role="status" className="rounded-card bg-success-tint px-4 py-3 text-[0.875rem] font-semibold text-ink">
+            {t('agent.overview.passwordChanged')}
+          </p>
+        ) : null}
         <AgentVisitReminderBanner visits={todo.todayVisits} listingById={listingById} />
 
         {/* "🎉 Votre première demande de visite !" — once per first, only while recent. */}

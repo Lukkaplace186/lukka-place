@@ -188,7 +188,7 @@ test('the public heading is the agency name when given, the person otherwise', (
 });
 
 test('signup asks for the agency and the contact separately, and stores them in different places', () => {
-  const page = read('app/(site)/compte/agent/inscription/page.js');
+  const page = read('app/(site)/compte/agent/inscription/AgentSignupForm.js');
   assert.match(page, /name="agency_name"/);
   assert.match(page, /name="contact_name"/);
   assert.doesNotMatch(page, /name="full_name"/);

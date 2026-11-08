@@ -1240,7 +1240,8 @@
       "viewsUnit": {
         "one": "vue",
         "other": "vues"
-      }
+      },
+      "passwordChanged": "Mot de passe enregistré. Vous êtes connecté."
     },
     "listings": {
       "pager": {
@@ -7933,7 +7934,8 @@
       "agencyOptional": "Nom de votre agence (facultatif)",
       "agencyHint": "Vous travaillez seul ? Laissez vide : votre nom sera affiché.",
       "haveCode": "J’ai un code de parrainage",
-      "alreadyAccount": "Déjà un compte ?"
+      "alreadyAccount": "Déjà un compte ?",
+      "existsHelp": "Connectez-vous avec ce numéro, ou recevez un code WhatsApp pour choisir un nouveau mot de passe."
     },
     "activateCustomer": {
       "metaTitle": "Choisir mon mot de passe — Lukka Place",
@@ -7960,7 +7962,11 @@
     "signingIn": "Connexion…",
     "login": {
       "keepsAnswers": "Vos réponses sur votre déménagement seront enregistrées dans votre compte."
-    }
+    },
+    "agentFirstPassword": "Vous avez rejoint Lukka Place sur WhatsApp : votre compte n’a pas encore de mot de passe. Saisissez le code reçu sur WhatsApp et choisissez-en un.",
+    "agentNoPasswordHint": "Inscrit sur WhatsApp, sans mot de passe ? Touchez « Mot de passe oublié » : un code WhatsApp vous permet d’en créer un.",
+    "agentLoginMetaTitle": "Connexion agent — Lukka Place",
+    "agentNoAccountYet": "Pas encore de compte agent ?"
   },
   "updates": {
     "title": "Actualités",

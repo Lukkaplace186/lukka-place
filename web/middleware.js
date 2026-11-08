@@ -7,7 +7,7 @@ import {
   CUSTOMER_SESSION_TTL_SECONDS,
   CUSTOMER_LOGGED_IN_FLAG,
 } from '@/lib/customerAuth';
-import { isValidAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS } from '@/lib/agentAuth';
+import { isValidAgentSessionToken, renewedAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS } from '@/lib/agentAuth';
 import { IMPERSONATION_COOKIE, impersonationDecision } from '@/lib/impersonationToken';
 import { normaliseSearchAliases } from '@/lib/searchAliases';
 import { refParamApplies, searchWithoutRef } from '@/lib/partnerRules';
@@ -206,6 +206,17 @@ export function middleware(request) {
     const token = request.cookies.get(AGENT_SESSION_COOKIE)?.value;
     if (isValidAgentSessionToken(token)) {
       const response = NextResponse.next();
+      // Renewed while used (2026-11-08) — never an admin's "view as" session.
+      const renewed = request.cookies.get(IMPERSONATION_COOKIE) ? null : renewedAgentSessionToken(token);
+      if (renewed) {
+        response.cookies.set(AGENT_SESSION_COOKIE, renewed, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: AGENT_SESSION_TTL_SECONDS,
+        });
+      }
       // Sessions opened before the header flag existed get it here, so the
       // menu shows "Mon espace agent" after one visit to the dashboard.
       if (request.cookies.get(AGENT_LOGGED_IN_FLAG_COOKIE)?.value !== '1') {

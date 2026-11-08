@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * Every Facebook group prospect still waiting for an invitation, as a CSV:
- * Phone, Author, Group, Post URL, Date Extracted.
+ * Every agent prospect still to contact ("À contacter" on
+ * /admin/market-data/prospects), as a CSV: Phone, Name, Agency, Sources,
+ * First URL, Date Added. Since 2026-11-08 that is ONE list (market_prospects):
+ * the posters of every pasted advert plus the numbers of the older Facebook
+ * list (engine migrations/20261108_merge_facebook_prospects.sql). The console
+ * page has its own "Exporter (CSV)" with its filters; this is the
+ * command-line copy.
  *
  *   npm run export:leads
  *   npm run export:leads -- --out=C:/tmp/prospects.csv
@@ -15,7 +20,7 @@
  * drops the "+"; tools that import contact lists read it as written.
  *
  * Requires DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME in .env.local, and the
- * engine's migrations/20261023_facebook_prospects.sql.
+ * engine's migrations/20261105_market_prospects.sql.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,9 +35,9 @@ if (fs.existsSync(envPath)) {
 }
 
 const PENDING_INVITES_SQL = `
-  SELECT phone, author_name, group_name, post_url, created_at
-    FROM facebook_prospects
-   WHERE status = 'pending_invite'
+  SELECT phone, name, agency, array_to_string(sources, ' ') AS sources, first_url, created_at
+    FROM market_prospects
+   WHERE status = 'todo'
    ORDER BY created_at, id`;
 
 const kinshasaTime = new Intl.DateTimeFormat('sv-SE', {
@@ -41,8 +46,8 @@ const kinshasaTime = new Intl.DateTimeFormat('sv-SE', {
 });
 
 // Same rules as lib/csv.js: a cell starting with = + - @ gets an apostrophe so
-// it can never run as a formula. Phone is exempt: it is built from 12 digits
-// we validated (CHECK on the column), and an apostrophe would break imports.
+// it can never run as a formula. Phone is exempt: it is built from the digits
+// we validated (CHECK on the column, 7–15 digits), and an apostrophe would break imports.
 function cell(value) {
   if (value === null || value === undefined) return '';
   let text = String(value);
@@ -51,14 +56,15 @@ function cell(value) {
 }
 
 function toCsv(rows) {
-  const lines = ['Phone,Author,Group,Post URL,Date Extracted'];
+  const lines = ['Phone,Name,Agency,Sources,First URL,Date Added'];
   for (const r of rows) {
-    if (!/^243\d{9}$/.test(r.phone)) continue;
+    if (!/^\d{7,15}$/.test(r.phone)) continue;
     lines.push([
       `+${r.phone}`,
-      cell(r.author_name),
-      cell(r.group_name),
-      cell(r.post_url),
+      cell(r.name),
+      cell(r.agency),
+      cell(r.sources),
+      cell(r.first_url),
       cell(kinshasaTime.format(r.created_at)),
     ].join(','));
   }
@@ -83,10 +89,10 @@ try {
   const { rows } = await pool.query(PENDING_INVITES_SQL);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, toCsv(rows));
-  console.log(`${rows.length} prospect(s) pending invite → ${outPath}`);
+  console.log(`${rows.length} prospect(s) to contact → ${outPath}`);
 } catch (err) {
   if (err.code === '42P01') {
-    console.error('facebook_prospects does not exist — run the engine migration 20261023_facebook_prospects.sql first.');
+    console.error('market_prospects does not exist — run the engine migration 20261105_market_prospects.sql first.');
   } else {
     console.error(`Export failed: ${err.message}`);
   }

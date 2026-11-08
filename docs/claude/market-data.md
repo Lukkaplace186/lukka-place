@@ -122,3 +122,28 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   more" kept once (a 60,000-character page is mostly that). The box takes
   300,000 raw characters; a row whose price was not read starts unticked for
   the guide.
+- **One agent list, every route (2026-11-08, owner: "when we paste, the
+  asking price goes into the median and the agent's information is collected
+  on the table").** Until then the 73 numbers the team had collected sat in
+  `facebook_prospects` (web "Coller une publication", 2026-10-23, numbers
+  only) while "Coller des annonces" wrote `market_prospects` — and had never
+  been saved from. Now:
+  - `migrations/20261108_merge_facebook_prospects.sql` (data only,
+    `ON CONFLICT DO NOTHING`) copies the old list in: pending_invite → todo,
+    invited → noanswer, registered → signed, declined → declined; source
+    `facebook`; group and "seen in N posts" go to the note; adverts_count 0
+    (it counts saved PRICES). `facebook_prospects` is kept, unwritten.
+  - `/admin/prospects/paste` redirects to `/admin/market-data/marche#coller`;
+    the sidebar's Network group shows "Coller des annonces" and "Prospects
+    agents". Saving needs `market.manage` (owner, moderator, analyst) — the
+    old page took `agents.manage`, so the `support` role no longer pastes.
+  - `POST /api/ingest/facebook-lead` (`lib/facebookProspects.js`) and
+    `npm run export:leads` (status todo) use `market_prospects`.
+  - **Adverts pasted to Claude in chat** (the owner's usual route): write the
+    `scripts/data/<source>-<date>.json` file with the optional columns
+    `phone`, `name`, `agency`, `url`, `purpose` (`sale` → total price), and
+    `import-market-observations.js --write` stores the prices AND the posters
+    in one transaction (`services/marketProspects.js`, the engine twin of
+    web's upsert and `prospectPhone`; §84 compares them). A phone that is not
+    a number stops the import. Only adverts new to that import count for a
+    poster, so re-importing a file inflates nothing.

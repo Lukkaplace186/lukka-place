@@ -35,7 +35,9 @@ export const ADMIN_NAV_GROUPS = [
       // "Mon déménagement" (2026-11-07): why customers move, where, and how many found their home.
       { href: '/admin/move-projects', labelKey: 'admin.nav.moveProjects', icon: 'Truck' },
       { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: 'Star' },
-      { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
+      // One paste (2026-11-08): each advert's price → the price guide, its poster → Prospects agents.
+      { href: '/admin/market-data/marche', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
+      { href: '/admin/market-data/prospects', labelKey: 'admin.marketProspects.title', icon: 'Radar' },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: 'HandCoins' },
       { href: '/admin/partenaires', labelKey: 'admin.nav.partners', icon: 'Megaphone' },
       // The agent announcement campaign: stop / restart, the message, who got it.

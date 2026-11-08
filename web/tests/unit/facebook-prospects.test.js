@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MOBILE_PREFIXES, cleanPostUrl, extractCongoPhones } from '@/lib/facebookLeadParser';
-import { KNOWN_AGENT_PHONES_SQL, UPSERT_PROSPECT_SQL, listRecentFacebookProspects, recordFacebookProspects } from '@/lib/facebookProspects';
+import { KNOWN_AGENT_PHONES_SQL, UPSERT_PROSPECT_SQL, recordFacebookProspects } from '@/lib/facebookProspects';
+import { UPSERT_PROSPECT_SQL as PASTE_UPSERT_SQL } from '@/lib/marketProspects';
 import { sectionPermission } from '@/lib/adminRoles';
 import { ADMIN_NAV_HREFS } from '@/lib/adminNav';
 import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
@@ -63,16 +64,19 @@ test('agents are matched on folded digits, prospects are upserted by phone', () 
   assert.ok(agents.includes("regexp_replace(phone, '[^0-9]', '', 'g')"));
   assert.ok(agents.includes("WHEN d ~ '^0[0-9]{9}$' THEN '243' || substring(d from 2)"), 'a local 0812… agent phone still matches');
   assert.ok(!/deleted_at/.test(agents), 'a deleted agent is still a known number');
+  // One agent list (2026-11-08): the ingest route writes exactly what the paste writes.
+  assert.equal(UPSERT_PROSPECT_SQL, PASTE_UPSERT_SQL);
   const upsert = normalizeSql(UPSERT_PROSPECT_SQL);
-  assert.ok(upsert.includes('INSERT INTO facebook_prospects'));
+  assert.ok(upsert.includes('INSERT INTO market_prospects'));
+  assert.ok(!upsert.includes('facebook_prospects'));
   assert.ok(upsert.includes('ON CONFLICT (phone) DO UPDATE'));
-  assert.ok(upsert.includes('(xmax = 0) AS inserted'));
+  assert.ok(upsert.includes('name = COALESCE(market_prospects.name, EXCLUDED.name)'), 'a later post never overwrites the team');
 });
 
 test('known agents and our own numbers are skipped, new numbers stored digits-only', async () => {
   enqueue([{ phone: '243821234567' }]); // agent lookup
-  enqueue([{ id: 1, inserted: true }]); // +243812345678
-  enqueue([{ id: 2, inserted: false }]); // +243991234567, seen before
+  enqueue([{ id: 1, created: true }]); // +243812345678
+  enqueue([{ id: 2, created: false }]); // +243991234567, seen before
   const result = await recordFacebookProspects({
     phones: ['+243976321848', '+243812345678', '+243821234567', '+243991234567'],
     authorName: '  Jean Immo ',
@@ -87,7 +91,8 @@ test('known agents and our own numbers are skipped, new numbers stored digits-on
     { phone: '+243991234567', reason: 'already_prospect' },
   ]);
   assert.deepEqual(calls[0].values, [['243812345678', '243821234567', '243991234567']], 'our number never reaches the database');
-  assert.deepEqual(calls[1].values, ['243812345678', 'Jean Immo', 'Maisons à louer Kinshasa', 'https://www.facebook.com/groups/1/posts/2', 'Appartement à Limete']);
+  // name, no agency, source facebook, first link, no advert (no price read), no console account; never the post text
+  assert.deepEqual(calls[1].values, ['243812345678', 'Jean Immo', null, ['facebook'], 'https://www.facebook.com/groups/1/posts/2', 0, null]);
   assert.equal(calls.length, 3);
 });
 
@@ -119,29 +124,39 @@ test('the table is closed to PostgREST and separate from customer leads', () => 
   assert.ok(sql.includes('REVOKE ALL ON facebook_prospects FROM anon, authenticated'));
 });
 
-test('the export lists pending invites only, with the five columns', () => {
+test('the export lists the prospects still to contact on the one list', () => {
   const script = read('../../scripts/export-facebook-leads.mjs');
-  assert.ok(script.includes("WHERE status = 'pending_invite'"));
-  assert.ok(script.includes("'Phone,Author,Group,Post URL,Date Extracted'"));
-  assert.ok(!/UPDATE\s+facebook_prospects/i.test(script), 'exporting never marks anyone invited');
+  assert.ok(script.includes('FROM market_prospects'));
+  assert.ok(script.includes("WHERE status = 'todo'"));
+  assert.ok(script.includes("'Phone,Name,Agency,Sources,First URL,Date Added'"));
+  assert.ok(!/UPDATE\s+\w*prospects/i.test(script), 'exporting never marks anyone contacted');
   const pkg = JSON.parse(read('../../package.json'));
   assert.equal(pkg.scripts['export:leads'], 'node scripts/export-facebook-leads.mjs');
 });
 
 // ---------------------------------------------------------------------------
-// "Coller une publication" (/admin/prospects/paste)
+// One paste, one list (2026-11-08)
 // ---------------------------------------------------------------------------
 
-test('the paste page is agents.manage, re-parses on the server and audits counts only', () => {
-  assert.equal(sectionPermission('/admin/prospects/paste'), 'agents.manage');
-  assert.ok(ADMIN_NAV_HREFS.includes('/admin/prospects/paste'));
-  const action = read('../../app/admin/prospects/paste/actions.js');
-  assert.ok(action.includes("requireAdmin('agents.manage')"));
-  assert.ok(action.includes('extractCongoPhones(postText)'), 'the browser preview is never trusted');
-  assert.ok(action.includes("action: 'prospects.facebook_paste'"));
-  assert.ok(!/details:[^}]*postText/.test(action), 'the post text never reaches the audit log');
+test('the old "Coller une publication" page sends to the combined paste; the sidebar shows the paste and the list', () => {
   const page = read('../../app/admin/prospects/paste/page.js');
-  assert.ok(page.includes("can(session?.role, 'agents.manage')"));
+  assert.ok(page.includes("redirect('/admin/market-data/marche#coller')"));
+  assert.ok(!ADMIN_NAV_HREFS.includes('/admin/prospects/paste'));
+  assert.ok(ADMIN_NAV_HREFS.includes('/admin/market-data/marche'));
+  assert.ok(ADMIN_NAV_HREFS.includes('/admin/market-data/prospects'));
+  assert.equal(sectionPermission('/admin/market-data/marche'), 'market.view');
+});
+
+test('the merge migration copies the old list without touching what the team has', () => {
+  const sql = read('../../../migrations/20261108_merge_facebook_prospects.sql');
+  assert.ok(sql.includes('INSERT INTO market_prospects'));
+  assert.ok(sql.includes('FROM facebook_prospects fp'));
+  assert.ok(sql.includes('ON CONFLICT (phone) DO NOTHING'));
+  assert.ok(sql.includes("WHEN 'pending_invite' THEN 'todo'"));
+  assert.ok(sql.includes("WHEN 'registered'     THEN 'signed'"));
+  assert.ok(/ARRAY\['facebook'\]/.test(sql));
+  assert.ok(sql.includes("to_regclass('public.facebook_prospects')"), 'safe on a base without either table');
+  assert.ok(!/DELETE|DROP|TRUNCATE|UPDATE\s+market_prospects/i.test(sql), 'data only, additive');
 });
 
 test('cleanPostUrl keeps http(s) links only', () => {
@@ -149,17 +164,4 @@ test('cleanPostUrl keeps http(s) links only', () => {
   assert.equal(cleanPostUrl('javascript:alert(1)'), null);
   assert.equal(cleanPostUrl('not a url'), null);
   assert.equal(cleanPostUrl(''), null);
-});
-
-test('the recent list never throws before the migration', async () => {
-  const err = Object.assign(new Error('relation "facebook_prospects" does not exist'), { code: '42P01' });
-  const { getPool } = await import('../support/fakePool.js');
-  const pool = getPool();
-  const original = pool.query;
-  pool.query = async () => { throw err; };
-  try {
-    assert.deepEqual(await listRecentFacebookProspects(), { available: false, pendingTotal: 0, rows: [] });
-  } finally {
-    pool.query = original;
-  }
 });

@@ -59,7 +59,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, found: phones.length, ...result });
   } catch (err) {
     if (err?.code === '42P01') {
-      console.error('[facebook-lead] facebook_prospects is missing — run migrations/20261023_facebook_prospects.sql');
+      console.error('[facebook-lead] market_prospects is missing — run migrations/20261105_market_prospects.sql');
       return NextResponse.json({ ok: false, error: 'unavailable' }, { status: 503 });
     }
     console.error(`[facebook-lead] ${err.message}`);

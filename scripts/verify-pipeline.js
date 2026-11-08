@@ -14594,6 +14594,125 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §84 One paste = prices AND agents, one agent list (2026-11-08)
+  // ---------------------------------------------------------------------------
+  console.log('\n§84 a pasted advert feeds the price guide and the ONE agent list (market_prospects)');
+  {
+    const mp84 = require('../services/marketProspects');
+    const imp84 = require('./import-market-observations');
+    const webProspects84 = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'marketProspects.js'), 'utf8');
+    const webRules84 = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'marketProspectRules.js'), 'utf8');
+    const norm84 = (s) => s.replace(/\s+/g, ' ').trim();
+    const template84 = (src, name) => {
+      const m = src.match(new RegExp(`const ${name} = \`([\\s\\S]*?)\`;`));
+      assert.ok(m, `${name} not found`);
+      return norm84(m[1]);
+    };
+
+    check('engine and web write a prospect with the same upsert and link (duplicated module pair)', () => {
+      assert.strictEqual(norm84(mp84.UPSERT_PROSPECT_SQL), template84(webProspects84, 'UPSERT_PROSPECT_SQL'));
+      assert.strictEqual(norm84(mp84.LINK_SQL), template84(webProspects84, 'LINK_SQL'));
+      assert.match(mp84.UPSERT_PROSPECT_SQL, /name = COALESCE\(market_prospects\.name, EXCLUDED\.name\)/, 'a later paste never overwrites the team');
+    });
+
+    check('engine prospectPhone is web prospectPhone', () => {
+      const body = (src) => norm84(src.match(/function prospectPhone\(value\) \{([\s\S]*?)\n\}/)[1]);
+      assert.strictEqual(body(fs.readFileSync(path.join(__dirname, '..', 'services', 'marketProspects.js'), 'utf8')), body(webRules84));
+      assert.strictEqual(mp84.prospectPhone('0812 345 678'), '243812345678');
+      assert.strictEqual(mp84.prospectPhone('+243 99 123 4567'), '243991234567');
+      assert.strictEqual(mp84.prospectPhone('812345678'), '243812345678');
+      assert.strictEqual(mp84.prospectPhone('1500'), null, 'a price is not a number to call');
+    });
+
+    const file84 = path.join(require('os').tmpdir(), `lukka-fb-paste-${process.pid}.json`);
+    fs.writeFileSync(file84, JSON.stringify({
+      source: 'facebook',
+      entered: '2026-11-08',
+      columns: ['slug', 'kind', 'price', 'beds', 'commune', 'quartier', 'daysAgo', 'phone', 'name', 'agency', 'url', 'purpose'],
+      rows: [
+        ['fb-1', 'appartement', 600, 2, 'Ngaliema', 'Binza UPN', 1, '0812 345 678', 'Jean Immo', null, 'https://www.facebook.com/groups/1/posts/2', null],
+        ['fb-2', 'maison', 900, 3, 'Limete', null, 2, '+243 812 345 678', null, 'Immo Plus', null, null],
+        ['fb-3', 'appartement', 450, 1, 'Gombe', null, 0, '', null, null, null, null],
+        ['fb-4', 'villa', 250000, 4, 'Ngaliema', null, 3, '0991234567', 'Marie', null, null, 'sale'],
+      ],
+    }));
+    try {
+      check('the chat import reads prices as before and posters only from rows with a number', () => {
+        const rows = imp84.rowsFromFile(file84);
+        assert.strictEqual(rows.length, 4);
+        assert.ok(rows.every((r) => !('phone' in r) && !JSON.stringify(r).includes('812345678')), 'no phone in market_observations');
+        const sale = rows.find((r) => r.source_ref === 'fb-4');
+        assert.deepStrictEqual([sale.purpose, sale.price_period], ['sale', 'total']);
+        assert.strictEqual(rows.find((r) => r.source_ref === 'fb-1').source_url, 'https://www.facebook.com/groups/1/posts/2');
+        const posters = imp84.prospectsFromFile(file84);
+        assert.deepStrictEqual(posters.map((p) => [p.ref, p.phone]), [['fb-1', '243812345678'], ['fb-2', '243812345678'], ['fb-4', '243991234567']]);
+      });
+
+      check('one entry per number; only adverts new to this import are counted', () => {
+        const grouped = mp84.groupProspects(imp84.prospectsFromFile(file84), new Set(['fb-2', 'fb-4']));
+        assert.strictEqual(grouped.length, 2);
+        const jean = grouped.find((p) => p.phone === '243812345678');
+        assert.deepStrictEqual([jean.name, jean.agency, jean.adverts, jean.refs], ['Jean Immo', 'Immo Plus', 1, ['fb-1', 'fb-2']]);
+        assert.strictEqual(jean.url, 'https://www.facebook.com/groups/1/posts/2');
+      });
+
+      check('a typo in a phone stops the import instead of dropping the agent', () => {
+        const bad = JSON.parse(fs.readFileSync(file84, 'utf8'));
+        bad.rows[0][7] = '12';
+        fs.writeFileSync(file84, JSON.stringify(bad));
+        assert.throws(() => imp84.prospectsFromFile(file84), /fb-1: '12' is not a phone number/);
+      });
+    } finally {
+      fs.rmSync(file84, { force: true });
+    }
+
+    await checkAsync('saveProspects upserts each poster with the source and links its stored adverts', async () => {
+      const calls = [];
+      const client = {
+        async query(sql, params) {
+          calls.push({ sql: norm84(sql), params });
+          if (sql === mp84.OBSERVATION_IDS_SQL) return { rows: [{ id: '11', source_ref: 'fb-1' }, { id: '12', source_ref: 'fb-2' }] };
+          if (sql === mp84.UPSERT_PROSPECT_SQL) return { rows: [{ id: '7', created: params[0] === '243812345678' }] };
+          return { rows: [{ prospect_id: 7 }], rowCount: 1 };
+        },
+      };
+      const result = await mp84.saveProspects(client, [
+        { phone: '243812345678', name: 'Jean Immo', agency: null, url: null, adverts: 2, refs: ['fb-1', 'fb-2'] },
+        { phone: '243991234567', name: 'Marie', agency: null, url: null, adverts: 0, refs: ['fb-9'] },
+      ], { source: 'facebook' });
+      assert.deepStrictEqual(result, { prospectsNew: 1, prospectsUpdated: 1, linked: 2 });
+      assert.deepStrictEqual(calls[1].params, ['243812345678', 'Jean Immo', null, ['facebook'], null, 2, null]);
+      assert.deepStrictEqual(calls.filter((c) => /market_prospect_adverts/.test(c.sql)).map((c) => c.params), [[7, 11], [7, 12]]);
+    });
+
+    check('the import stores prices and posters in ONE transaction', () => {
+      const src = fs.readFileSync(path.join(__dirname, 'import-market-observations.js'), 'utf8');
+      const begin = src.indexOf("client.query('BEGIN')");
+      assert.ok(begin > 0 && begin < src.indexOf('storeObservations(rows, { pool: client })'));
+      assert.ok(src.indexOf('saveProspects(client') < src.indexOf("client.query('COMMIT')"));
+      assert.match(src, /client\.query\('ROLLBACK'\)/);
+    });
+
+    check('the older Facebook list is merged into market_prospects without touching the team\'s rows', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261108_merge_facebook_prospects.sql'), 'utf8');
+      assert.match(sql, /INSERT INTO market_prospects/);
+      assert.match(sql, /ON CONFLICT \(phone\) DO NOTHING/);
+      assert.match(sql, /to_regclass\('public\.facebook_prospects'\) IS NULL/);
+      assert.doesNotMatch(sql, /\bDROP\b|\bDELETE\b|\bTRUNCATE\b|UPDATE\s+market_prospects/i);
+      assert.match(sql, /WHEN 'registered'\s+THEN 'signed'/);
+    });
+
+    check('every web writer of agents uses market_prospects; nothing writes facebook_prospects any more', () => {
+      const fb = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'facebookProspects.js'), 'utf8');
+      assert.match(fb, /import \{ UPSERT_PROSPECT_SQL \} from '\.\/marketProspects'/);
+      assert.doesNotMatch(fb, /INSERT INTO facebook_prospects/);
+      const exportScript = fs.readFileSync(path.join(__dirname, '..', 'web', 'scripts', 'export-facebook-leads.mjs'), 'utf8');
+      assert.match(exportScript, /FROM market_prospects/);
+      const oldPage = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'admin', 'prospects', 'paste', 'page.js'), 'utf8');
+      assert.match(oldPage, /redirect\('\/admin\/market-data\/marche#coller'\)/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

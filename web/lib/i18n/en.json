@@ -3886,6 +3886,37 @@
           "body": "Thank you for moving with Lukka Place. Your other moves stay in the Moves tab."
         }
       }
+    },
+    "phoneChange": {
+      "metaTitle": "Change Your Number",
+      "title": "Change Your Number",
+      "link": "Change number",
+      "current": "Current number: {phone}",
+      "newNumber": "New WhatsApp number",
+      "hint": "We send a code to it on WhatsApp.",
+      "sendCode": "Get the code",
+      "sending": "Sending…",
+      "codeSent": "We sent a 6-digit code on WhatsApp to {phone}.",
+      "codeLabel": "Code received",
+      "confirm": "Confirm",
+      "confirming": "Checking…",
+      "resend": "Send the code again",
+      "editNumber": "Change the number",
+      "done": "Your number is now {phone}.",
+      "footnote": "You stay signed in on this device; your other devices will need to sign in again with the new number. Requests and visits made with your old number stay in your account.",
+      "errors": {
+        "phone": "This WhatsApp number is not valid. Check the country and the number.",
+        "same": "This is already your account’s number.",
+        "taken": "This number already has an account. Sign in with it, or choose another number.",
+        "rate": "Too many codes requested. Try again in an hour.",
+        "send_failed": "The code could not be sent. Check the number, then tap “Send the code again”.",
+        "unavailable": "Changing your number is not available yet. Please try again later.",
+        "failed": "Something went wrong. Please try again.",
+        "invalid": "Wrong code. Check it and try again.",
+        "expired": "This code has expired. Ask for a new one.",
+        "too_many": "Too many tries. Ask for a new code.",
+        "none": "No change in progress. Enter your new number."
+      }
     }
   },
   "admin": {
@@ -5356,7 +5387,8 @@
       "conversationItem": "WhatsApp thread #{id} · {count} messages",
       "savedSearchesTitle": "Saved Searches",
       "favoritesTitle": "{count} Saved Listings",
-      "none": "None."
+      "none": "None.",
+      "previousPhones": "Previous numbers:"
     },
     "seoAudit": {
       "title": "SEO & Google",

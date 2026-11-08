@@ -14572,6 +14572,28 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §83 "Changer de numéro": a customer moves the account to a new number (2026-11-08)
+  // ---------------------------------------------------------------------------
+  console.log('\n§83 the customer phone-change migration is additive and closed to the anon key');
+  {
+    const sql83 = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261108_customer_phone_change.sql'), 'utf8');
+    check('every new customers column is ADD COLUMN IF NOT EXISTS', () => {
+      for (const col of ['phone_change_to', 'phone_change_code_hash', 'phone_change_expires_at', 'phone_change_attempts', 'phone_change_sends', 'phone_change_window_at']) {
+        assert.ok(sql83.includes(`ADD COLUMN IF NOT EXISTS ${col}`), col);
+      }
+    });
+    check('customer_phone_history cascades with the account and has RLS on, anon revoked', () => {
+      assert.match(sql83, /CREATE TABLE IF NOT EXISTS customer_phone_history/);
+      assert.match(sql83, /REFERENCES customers \(id\) ON DELETE CASCADE/);
+      assert.match(sql83, /ALTER TABLE customer_phone_history ENABLE ROW LEVEL SECURITY/);
+      assert.match(sql83, /REVOKE ALL ON customer_phone_history FROM anon, authenticated/);
+    });
+    check('nothing in the migration rewrites or drops existing customer data', () => {
+      // "ON DELETE CASCADE" is the history's foreign key, not a delete.
+      assert.doesNotMatch(sql83.replace(/ON DELETE CASCADE/g, ''), /\bDROP\b|\bUPDATE\b|\bDELETE\b/i);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

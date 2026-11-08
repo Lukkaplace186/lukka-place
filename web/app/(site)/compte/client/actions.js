@@ -28,6 +28,7 @@ import { buildRequirementsSummary } from '@/lib/customerPortal';
 import { MAX_REQUEST_COMMUNES } from '@/lib/leadCommunes';
 import { ALERT_FREQUENCIES, MAX_ALERT_LABEL_LENGTH } from '@/lib/alertPreferences';
 import { getT } from '@/lib/i18n/server';
+import { getAccountPhones } from '@/lib/customerPhoneChange';
 
 /**
  * Server actions for the Espace Client portal.
@@ -315,7 +316,8 @@ export async function updatePropertyRequestAction(leadId, formData) {
   } catch (error) {
     return { ok: false, error: t('errors.requestNotFound') };
   }
-  if (!lead || lead.wa_id !== customer.phone) {
+  const accountPhones = await getAccountPhones(customerId, customer.phone);
+  if (!lead || !accountPhones.includes(lead.wa_id)) {
     return { ok: false, error: t('errors.requestNotYours') };
   }
 
@@ -384,11 +386,27 @@ export async function updatePropertyRequestAction(leadId, formData) {
 // {ok, message|error} for ViewingPanel's toast, never throws at it.
 // ---------------------------------------------------------------------------
 
-async function requireCustomerPhone() {
+// Current number first, then any the account left ("Changer de numéro"):
+// a visit booked under an old number is still this customer's to answer.
+async function requireCustomerPhones() {
   const customerId = await requireCustomerId();
   const customer = await getCustomerById(customerId);
   if (!customer?.phone) redirect('/compte/connexion?next=/compte/client/messages');
-  return customer.phone;
+  return getAccountPhones(customerId, customer.phone);
+}
+
+/** Tries each of the account's numbers; the engine answers 404 for a number that is not the visit's. */
+async function withAccountPhone(waIds, call) {
+  let notFound;
+  for (const waId of waIds) {
+    try {
+      return await call(waId);
+    } catch (error) {
+      if (error?.status !== 404) throw error;
+      notFound = error;
+    }
+  }
+  throw notFound || new Error('not found');
 }
 
 function viewingIdFrom(input) {
@@ -479,42 +497,42 @@ export async function setWhatsAppAlertsAction(input) {
 // function for a bound `t`, and a callback parameter is invisible to it.
 
 export async function cancelViewingAction(viewingId) {
-  const waId = await requireCustomerPhone();
+  const waIds = await requireCustomerPhones();
   const id = viewingIdFrom(viewingId);
   return runVisitAnswer('cancelViewingAction', async (translate) => {
     if (id == null) throw new Error('not found');
-    const result = await customerRespondToViewing(id, { waId, action: 'CANCEL' });
+    const result = await withAccountPhone(waIds, (waId) => customerRespondToViewing(id, { waId, action: 'CANCEL' }));
     // Only claim the agent was told when the engine says a message left.
     return translate(result.agentNotified ? 'account.visits.done.cancelled' : 'account.visits.done.cancelledQuiet');
   });
 }
 
 export async function acceptViewingSlotAction(viewingId) {
-  const waId = await requireCustomerPhone();
+  const waIds = await requireCustomerPhones();
   const id = viewingIdFrom(viewingId);
   return runVisitAnswer('acceptViewingSlotAction', async (translate) => {
     if (id == null) throw new Error('not found');
-    const result = await customerRespondToViewing(id, { waId, action: 'ACCEPT_SLOT' });
+    const result = await withAccountPhone(waIds, (waId) => customerRespondToViewing(id, { waId, action: 'ACCEPT_SLOT' }));
     return translate(result.agentNotified ? 'account.visits.done.slotAccepted' : 'account.visits.done.slotAcceptedQuiet');
   });
 }
 
 export async function checkinViewingAction(viewingId, response) {
-  const waId = await requireCustomerPhone();
+  const waIds = await requireCustomerPhones();
   const id = viewingIdFrom(viewingId);
   return runVisitAnswer('checkinViewingAction', async (translate) => {
     if (id == null || !VIEWING_CHECKIN_RESPONSES.includes(response)) throw new Error('not found');
-    await customerViewingCheckin(id, { waId, response });
+    await withAccountPhone(waIds, (waId) => customerViewingCheckin(id, { waId, response }));
     return translate('account.visits.done.feedback');
   });
 }
 
 export async function viewingFalloffReasonAction(viewingId, code) {
-  const waId = await requireCustomerPhone();
+  const waIds = await requireCustomerPhones();
   const id = viewingIdFrom(viewingId);
   return runVisitAnswer('viewingFalloffReasonAction', async (translate) => {
     if (id == null || !VIEWING_FALLOFF_REASON_CODES.includes(code)) throw new Error('not found');
-    await customerViewingFalloffReason(id, { waId, code });
+    await withAccountPhone(waIds, (waId) => customerViewingFalloffReason(id, { waId, code }));
     return translate('account.visits.done.reason');
   });
 }
@@ -525,13 +543,13 @@ export async function viewingFalloffReasonAction(viewingId, code) {
  * check-in and one rating per visit; the comment waits for moderation.
  */
 export async function rateAgentAction(viewingId, stars, comment) {
-  const waId = await requireCustomerPhone();
+  const waIds = await requireCustomerPhones();
   const id = viewingIdFrom(viewingId);
   const value = Number(stars);
   const text = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
   return runVisitAnswer('rateAgentAction', async (translate) => {
     if (id == null || !Number.isInteger(value) || value < 1 || value > 5) throw new Error('not found');
-    await customerRateAgent(id, { waId, stars: value, comment: text || null });
+    await withAccountPhone(waIds, (waId) => customerRateAgent(id, { waId, stars: value, comment: text || null }));
     return translate('account.agenda.rating.done');
   });
 }

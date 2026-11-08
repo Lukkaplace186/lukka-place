@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { getCustomerById, getCurrentCustomerId } from './customers';
 import { listLeads, getLeadProposals, listCustomerViewingRequests } from './adminApi';
 import { getListingsByIds } from './listings';
+import { getAccountPhones } from './customerPhoneChange';
 
 /**
  * A customer's own submitted inquiries — /compte/demandes. Leads live in the
@@ -41,9 +42,23 @@ export const getCustomerInquiries = cache(async (customerId) => {
   // confirmation (2026-11-06, owner decision, risk accepted — an account on
   // someone else's number sees that number's requests).
 
+  // Every number the account has held ("Changer de numéro", 2026-11-08):
+  // requests made under an old number stay in the account. The current
+  // number's read decides the engine-down fallback; an old one failing only
+  // drops its own rows.
+  const phones = await getAccountPhones(customerId, customer.phone);
   let leads;
   try {
-    ({ data: leads } = await listLeads({ waId: customer.phone, limit: 100 }));
+    const [current, ...older] = await Promise.allSettled(phones.map((waId) => listLeads({ waId, limit: 100 })));
+    if (current.status === 'rejected') throw current.reason;
+    const byId = new Map();
+    for (const result of [current, ...older]) {
+      if (result.status !== 'fulfilled') continue;
+      for (const lead of result.value?.data || []) byId.set(lead.id, lead);
+    }
+    leads = [...byId.values()]
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+      .slice(0, 100);
   } catch (error) {
     console.warn('[customerInquiries] engine unreachable, falling back to an empty list:', error.message);
     return [];
@@ -62,7 +77,8 @@ export const getCustomerInquiries = cache(async (customerId) => {
   let viewings = [];
   const [proposalsResult, viewingsResult] = await Promise.allSettled([
     getLeadProposals(leads.map((lead) => lead.id)),
-    listCustomerViewingRequests(customer.phone),
+    Promise.all(phones.map((waId) => listCustomerViewingRequests(waId)))
+      .then((pages) => ({ data: pages.flatMap((page) => page?.data || []) })),
   ]);
   if (proposalsResult.status === 'fulfilled') {
     ({ proposals } = proposalsResult.value);

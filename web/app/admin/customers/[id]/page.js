@@ -13,6 +13,7 @@ import { getAdminSession } from '@/lib/adminSession';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { CONVERSATION_STATE_LABEL_KEYS, LEAD_STATUS_LABEL_KEYS, VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { getT } from '@/lib/i18n/server';
+import { getAccountPhones } from '@/lib/customerPhoneChange';
 import { Chip, ErrorNote, STATUS_TONE, formatKinshasa } from '../../LeadRoutingUI';
 import EntityTimeline from '../../EntityTimeline';
 import CustomerRowActions from '../CustomerRowActions';
@@ -57,6 +58,8 @@ export default async function AdminCustomerDetailPage({ params }) {
   const engineError = [leadsResult, viewingsResult, conversationsResult].some((r) => r.status === 'rejected');
   const favoriteLabels = await getListingLabels(customer.favorite_ids.slice(0, 30)).catch(() => new Map());
   const moveProjects = await listMoveProjects(customer.id).catch(() => []);
+  // Numbers the customer left through "Changer de numéro"; their requests stay under those numbers in the engine.
+  const previousPhones = (await getAccountPhones(customer.id, phone).catch(() => [phone])).filter((value) => value !== phone);
 
   const activity = [
     ...leads.map((lead) => ({
@@ -96,6 +99,17 @@ export default async function AdminCustomerDetailPage({ params }) {
           <span>{t('admin.customerProfile.joined', { date: formatKinshasa(customer.created_at) })}</span>
           <span>{t('admin.customerProfile.lastLogin', { date: formatKinshasa(customer.last_login_at) })}</span>
         </div>
+        {previousPhones.length > 0 ? (
+          <p className="u-micro mt-1 text-ink-45">
+            {t('admin.customerProfile.previousPhones')}{' '}
+            {previousPhones.map((old, index) => (
+              <span key={old}>
+                {index > 0 ? ', ' : null}
+                <Link href={`/admin/leads?wa=${encodeURIComponent(old)}`} className="u-tabular text-blue hover:underline">+{old}</Link>
+              </span>
+            ))}
+          </p>
+        ) : null}
         {can(session?.role, 'accounts.impersonate') ? (
           <div className="mt-3">
             <ImpersonateButton

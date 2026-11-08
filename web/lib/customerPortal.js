@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { getCurrentCustomerId, getCustomerById, listFavoriteIds, listSavedSearches } from './customers';
 import { getLeadCountsByWaIds } from './adminApi';
+import { getAccountPhones } from './customerPhoneChange';
 
 /**
  * Shared server-side data for the Espace Client portal (`/compte/client/*`).
@@ -82,14 +83,20 @@ export const getPortalCounts = cache(async (customerId) => {
     listFavoriteIds(customerId),
     listSavedSearches(customerId),
     customer?.phone
-      ? getLeadCountsByWaIds([customer.phone]).catch((error) => {
+      ? getAccountPhones(customerId, customer.phone).then((phones) => getLeadCountsByWaIds(phones)).catch((error) => {
         console.warn('[customerPortal] lead counts unavailable:', error.message);
         return null;
       })
       : Promise.resolve({}),
   ]);
 
-  const own = leadCounts ? leadCounts[customer?.phone] || { leads: 0, viewings: 0 } : null;
+  // Summed over every number the account has held ("Changer de numéro").
+  const own = leadCounts
+    ? Object.values(leadCounts).reduce(
+      (sum, row) => ({ leads: sum.leads + (row?.leads || 0), viewings: sum.viewings + (row?.viewings || 0) }),
+      { leads: 0, viewings: 0 },
+    )
+    : null;
   return {
     favorites: favoriteIds.length,
     alerts: savedSearches.length,

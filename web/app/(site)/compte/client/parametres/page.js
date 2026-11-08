@@ -55,12 +55,13 @@ function RowIcon({ icon: Icon }) {
  * by the alert sweep). "Mot de passe" goes to the real self-service reset
  * (/mot-de-passe-oublie, WhatsApp OTP).
  */
-export default async function ParametresPage() {
+export default async function ParametresPage({ searchParams }) {
   const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/parametres');
 
   const { customer, customerId } = session;
+  const numberChanged = (await searchParams)?.numero === 'change';
   const [rate, alertsOptedOutAt, locale] = await Promise.all([
     getCdfRate(),
     getWhatsAppAlertsOptOut(customerId).catch(() => null),
@@ -82,6 +83,12 @@ export default async function ParametresPage() {
     <div className="mx-auto flex max-w-[45rem] flex-col gap-4">
       <h1 className="u-title-page text-ink">{t('account.profile.title')}</h1>
 
+      {numberChanged ? (
+        <p role="status" className="rounded-card bg-success-tint px-4 py-3 text-[0.875rem] font-semibold text-ink">
+          {t('account.phoneChange.done', { phone })}
+        </p>
+      ) : null}
+
       <div className="flex items-center gap-3 rounded-card bg-surface p-4 shadow-[var(--hairline),var(--shadow-card)]">
         <span className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-blue-tint text-[1.1875rem] font-extrabold text-blue-deep">
           {initials || <UserRound strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" aria-hidden="true" />}
@@ -102,16 +109,17 @@ export default async function ParametresPage() {
               <ProfileNameForm initialName={customer.full_name || ''} saveAction={updateProfileNameAction} />
             </div>
           </div>
-          {/* Plain text, not a disabled input: a greyed box reads as a field
-              that is broken, when it is simply the account's id. */}
-          <div className="flex min-h-14 items-center gap-3 px-3.5 py-2">
+          {/* "Changer de numéro" (2026-11-08): the number is the login, and it
+              moves only through a WhatsApp code sent to the new number. */}
+          <Link href="/compte/client/parametres/numero" className="flex min-h-14 items-center gap-3 px-3.5 py-2 hover:bg-canvas-alt">
             <RowIcon icon={Phone} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[0.90625rem] font-semibold text-ink">{t('account.profile.phone')}</p>
-              <p className="u-tabular text-[0.78125rem] text-ink-45">{phone}</p>
-              <p className="text-[0.75rem] text-ink-35">{t('account.profile.phoneNote')}</p>
-            </div>
-          </div>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.90625rem] font-semibold text-ink">{t('account.profile.phone')}</span>
+              <span className="u-tabular block text-[0.78125rem] text-ink-45">{phone}</span>
+              <span className="block text-[0.75rem] font-semibold text-blue">{t('account.phoneChange.link')}</span>
+            </span>
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-ink-35" aria-hidden="true" />
+          </Link>
           <Link href="/mot-de-passe-oublie" className="flex min-h-14 items-center gap-3 px-3.5 py-2 hover:bg-canvas-alt">
             <RowIcon icon={KeyRound} />
             <span className="min-w-0 flex-1">

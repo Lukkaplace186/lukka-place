@@ -4663,3 +4663,37 @@ are fixed, `tests/unit/signup-rush.test.js`.
   proposals → upcoming visits + "Avant de signer" → moving-in checklist
   (SNEL cash power, REGIDESO, keys and inventory, receipts, address) →
   welcome. "± 25 %" left the pill: it reads "Prix similaires".
+
+## "Changer de numéro" — a customer moves the account to a new number (2026-11-08)
+
+Owner request: a customer could not change their number at all. Paramètres'
+phone row opens `/compte/client/parametres/numero`: new number (the sign-up
+`PhoneField`) → a 6-digit code by WhatsApp to the **new** number (the same
+`sendOtpViaWhatsApp`, template first) → done; Paramètres then says "Votre
+numéro est maintenant …". `lib/customerPhoneChange.js`,
+`lib/customerPhoneChangeRules.js`, engine `migrations/20261108_customer_phone_change.sql`
+(verify §83), `tests/unit/customer-phone-change.test.js`.
+
+- **Only the new number is asked.** The usual reason is a lost or replaced
+  SIM, so a code to the old number would block exactly those people; the
+  session already says who they are. No password either (owner chose the
+  4-step flow). Someone holding an unlocked, signed-in phone could change the
+  number — accepted.
+- **Refused:** the account's own number ("same"), a number another customer
+  account holds ("taken", never merged; also caught as 23505 at the switch).
+  5 codes per hour per account (counter and pending change in ONE guarded
+  UPDATE), 5 wrong codes per code, 10-minute expiry. Columns
+  `customers.phone_change_*` are separate from signup and reset codes.
+- **On success, one transaction:** old number into `customer_phone_history`,
+  `phone` = new, `phone_verified_at` = now (the code proved it), reset code
+  and lockout cleared, `token_version` + 1 (every other device signed out);
+  the action re-signs this device and updates the remembered-number cookie.
+- **History stays.** Engine leads/visits are keyed by `wa_id`, so
+  `getAccountPhones` (current first, then history) feeds Mes demandes,
+  visits, the tab counts and the request-edit ownership check; visit answers
+  try each number and move on only on the engine's 404. New requests, alerts
+  and agent messages use the new number. **Visits already in progress keep
+  the old number** for agent WhatsApps (engine data agents act on; not moved).
+  `/admin/customers/[id]` lists "Anciens numéros" with links to their leads.
+- **Not built:** a desk-side change for a customer locked out (lost SIM AND
+  signed out) — proposed for `/admin/customers/[id]`.

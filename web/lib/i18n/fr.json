@@ -3886,6 +3886,37 @@
           "body": "Merci d’avoir déménagé avec Lukka Place. Vos autres projets restent dans l’onglet Projets."
         }
       }
+    },
+    "phoneChange": {
+      "metaTitle": "Changer de numéro",
+      "title": "Changer de numéro",
+      "link": "Changer de numéro",
+      "current": "Numéro actuel : {phone}",
+      "newNumber": "Nouveau numéro WhatsApp",
+      "hint": "Nous y envoyons un code par WhatsApp.",
+      "sendCode": "Recevoir le code",
+      "sending": "Envoi…",
+      "codeSent": "Nous avons envoyé un code à 6 chiffres par WhatsApp au {phone}.",
+      "codeLabel": "Code reçu",
+      "confirm": "Confirmer",
+      "confirming": "Vérification…",
+      "resend": "Renvoyer le code",
+      "editNumber": "Modifier le numéro",
+      "done": "Votre numéro est maintenant {phone}.",
+      "footnote": "Vous restez connecté sur cet appareil ; vos autres appareils devront se reconnecter avec le nouveau numéro. Vos demandes et visites faites avec l’ancien numéro restent dans votre compte.",
+      "errors": {
+        "phone": "Ce numéro WhatsApp n’est pas valide. Vérifiez le pays et le numéro.",
+        "same": "C’est déjà le numéro de votre compte.",
+        "taken": "Ce numéro a déjà un compte. Connectez-vous avec ce numéro, ou choisissez-en un autre.",
+        "rate": "Trop de codes demandés. Réessayez dans une heure.",
+        "send_failed": "Le code n’a pas pu être envoyé. Vérifiez le numéro, puis touchez « Renvoyer le code ».",
+        "unavailable": "Le changement de numéro n’est pas encore disponible. Réessayez plus tard.",
+        "failed": "Une erreur est survenue. Réessayez.",
+        "invalid": "Code incorrect. Vérifiez et réessayez.",
+        "expired": "Ce code a expiré. Demandez-en un nouveau.",
+        "too_many": "Trop d’essais. Demandez un nouveau code.",
+        "none": "Aucun changement en cours. Saisissez votre nouveau numéro."
+      }
     }
   },
   "admin": {
@@ -5356,7 +5387,8 @@
       "conversationItem": "Conversation WhatsApp #{id} · {count} message(s)",
       "savedSearchesTitle": "Recherches enregistrées",
       "favoritesTitle": "{count} bien(s) favori(s)",
-      "none": "Aucun."
+      "none": "Aucun.",
+      "previousPhones": "Anciens numéros :"
     },
     "seoAudit": {
       "title": "SEO & Google",

@@ -14600,8 +14600,8 @@ console.log('\n2. services/openai.js');
   {
     const mp84 = require('../services/marketProspects');
     const imp84 = require('./import-market-observations');
-    const webProspects84 = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'marketProspects.js'), 'utf8');
-    const webRules84 = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'marketProspectRules.js'), 'utf8');
+    // Read inside the checks: the VPS engine dir has no web/ (those checks fail there by construction).
+    const webFile84 = (...parts) => fs.readFileSync(path.join(__dirname, '..', 'web', ...parts), 'utf8');
     const norm84 = (s) => s.replace(/\s+/g, ' ').trim();
     const template84 = (src, name) => {
       const m = src.match(new RegExp(`const ${name} = \`([\\s\\S]*?)\`;`));
@@ -14610,14 +14610,14 @@ console.log('\n2. services/openai.js');
     };
 
     check('engine and web write a prospect with the same upsert and link (duplicated module pair)', () => {
-      assert.strictEqual(norm84(mp84.UPSERT_PROSPECT_SQL), template84(webProspects84, 'UPSERT_PROSPECT_SQL'));
-      assert.strictEqual(norm84(mp84.LINK_SQL), template84(webProspects84, 'LINK_SQL'));
+      assert.strictEqual(norm84(mp84.UPSERT_PROSPECT_SQL), template84(webFile84('lib', 'marketProspects.js'), 'UPSERT_PROSPECT_SQL'));
+      assert.strictEqual(norm84(mp84.LINK_SQL), template84(webFile84('lib', 'marketProspects.js'), 'LINK_SQL'));
       assert.match(mp84.UPSERT_PROSPECT_SQL, /name = COALESCE\(market_prospects\.name, EXCLUDED\.name\)/, 'a later paste never overwrites the team');
     });
 
     check('engine prospectPhone is web prospectPhone', () => {
       const body = (src) => norm84(src.match(/function prospectPhone\(value\) \{([\s\S]*?)\n\}/)[1]);
-      assert.strictEqual(body(fs.readFileSync(path.join(__dirname, '..', 'services', 'marketProspects.js'), 'utf8')), body(webRules84));
+      assert.strictEqual(body(fs.readFileSync(path.join(__dirname, '..', 'services', 'marketProspects.js'), 'utf8')), body(webFile84('lib', 'marketProspectRules.js')));
       assert.strictEqual(mp84.prospectPhone('0812 345 678'), '243812345678');
       assert.strictEqual(mp84.prospectPhone('+243 99 123 4567'), '243991234567');
       assert.strictEqual(mp84.prospectPhone('812345678'), '243812345678');

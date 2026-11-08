@@ -160,6 +160,14 @@ test('the actions take the customer from the session and keep this device signed
   assert.match(src, /redirect\('\/compte\/client\/parametres\?numero=change'\)/);
 });
 
+test('a refused number stays in the field (the form re-opens with what was typed)', () => {
+  const actions = read('app/(site)/compte/client/parametres/numero/actions.js');
+  assert.match(actions, /return \{ step: 'phone', error: 'phone', \.\.\.typed \}/);
+  const form = read('app/(site)/compte/client/parametres/numero/PhoneChangeForm.js');
+  assert.match(form, /key=\{sendState\?\.attempt \|\| 'first'\}/);
+  assert.match(form, /defaultValue=\{sendState\?\.typed \|\| ''\}/);
+});
+
 test('Paramètres links the number to the change page and says the new number after it', () => {
   const src = read('app/(site)/compte/client/parametres/page.js');
   assert.match(src, /href="\/compte\/client\/parametres\/numero"/);

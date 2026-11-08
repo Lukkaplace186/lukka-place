@@ -107,10 +107,14 @@ export default function PhoneChangeForm({ initialStep, pendingPhone, defaultCoun
 
   return (
     <form action={send} className="flex flex-col gap-4">
+      {/* Re-mounted with what was typed after each refusal: the form action
+          resets the form, which would otherwise empty the field. */}
       <PhoneField
+        key={sendState?.attempt || 'first'}
         name="phone"
         id="phone"
-        defaultCountry={defaultCountry}
+        defaultValue={sendState?.typed || ''}
+        defaultCountry={sendState?.country || defaultCountry}
         locale={locale}
         labels={{ ...phoneFieldLabels(t), label: t('account.phoneChange.newNumber') }}
         hint={t('account.phoneChange.hint')}

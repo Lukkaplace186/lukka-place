@@ -22,17 +22,24 @@ async function requireCustomerId() {
 
 export async function sendPhoneChangeCodeAction(_prev, formData) {
   const customerId = await requireCustomerId();
+  // What was typed comes back with a refusal, so the field is not emptied
+  // (a form action resets the form; the page re-opens the field with it).
+  const typed = {
+    typed: String(formData.get('phone') || '').slice(0, 30),
+    country: String(formData.get('phoneCountry') || '').slice(0, 2),
+    attempt: Date.now(),
+  };
   const phone = phoneFromForm(formData);
-  if (!phone) return { step: 'phone', error: 'phone' };
+  if (!phone) return { step: 'phone', error: 'phone', ...typed };
   let result;
   try {
     result = await requestPhoneChange(customerId, phone);
   } catch (error) {
     console.error('[phone-change] request failed:', error.message);
-    return { step: 'phone', error: 'failed' };
+    return { step: 'phone', error: 'failed', ...typed };
   }
   if (result.error === 'gone') redirect('/compte/connexion');
-  if (!result.ok) return { step: result.error === 'send_failed' ? 'code' : 'phone', error: result.error, phone };
+  if (!result.ok) return { step: result.error === 'send_failed' ? 'code' : 'phone', error: result.error, phone, ...typed };
   revalidatePath('/compte/client/parametres/numero');
   return { step: 'code', phone: result.phone, sent: Date.now() };
 }

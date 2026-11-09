@@ -1394,7 +1394,8 @@
       "replyOnWhatsApp": "Répondre sur WhatsApp",
       "replyViaLukka": "Répondre via Lukka Place",
       "moreOptions": "Plus d’options",
-      "call": "Appeler"
+      "call": "Appeler",
+      "contactDeclared": "C'est noté : la demande passe en « Contacté »."
     },
     "visits": {
       "confirm": "Confirmer",
@@ -7753,6 +7754,16 @@
       "storiesHint": "Seulement les histoires dont le client a accepté le partage.",
       "noStories": "Aucune histoire partagée pour l’instant.",
       "customer": "Voir le client"
+    },
+    "whatsappHistory": {
+      "title": "Historique WhatsApp",
+      "hint": "Tous les messages échangés avec nos numéros WhatsApp depuis le 9 novembre 2026. « Envoyé » veut dire accepté par WhatsApp : nous ne recevons pas d'accusé de lecture.",
+      "empty": "Aucun message enregistré pour ce numéro depuis le 9 novembre 2026.",
+      "error": "Historique indisponible : le moteur ne répond pas.",
+      "received": "Reçu",
+      "sent": "Envoyé",
+      "buttonTap": "Bouton",
+      "media": "{count} média(s)"
     }
   },
   "errors": {

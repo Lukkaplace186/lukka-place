@@ -137,6 +137,36 @@ function parseCheckinButtonId(replyId) {
 const sendCustomerText = (to, text) => trySendCustomer(to, text, null, 'agent rating');
 
 /** Best-effort outbound; never throws into a sweep. */
+/**
+ * The post-visit check-in as a template (`VISIT_FEEDBACK_TEMPLATE`, read at
+ * call time, unset by default): body {{1}} customer first name, {{2}} the
+ * listing; quick replies Bien passée / Pas convaincu / Agent absent carrying
+ * the visit_feedback_good|bad|noshow payloads. Only outside the customer's
+ * 24 h window — inside it the session buttons arrive and read better.
+ * Returns false (never throws) when it did not go, so the caller falls back.
+ */
+async function sendCheckinTemplate(request, listingLabel) {
+  const name = (process.env.VISIT_FEEDBACK_TEMPLATE || '').trim();
+  const to = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!name || !to) return false;
+  // eslint-disable-next-line global-require
+  if (require('./sessionWindow').insideSessionWindow(to)) return false;
+  // eslint-disable-next-line global-require
+  const chakra = require('./chakra');
+  const firstName = String(request.lead_name || '').trim().split(/\s+/)[0] || 'Bonjour';
+  try {
+    await chakra.sendTemplate(to, name, {
+      languageCode: process.env.VISIT_FEEDBACK_TEMPLATE_LANG || 'fr',
+      bodyParams: [firstName.slice(0, 60), String(listingLabel).replace(/\s+/g, ' ').slice(0, 120)],
+      buttons: checkinButtons(request.id).map((b) => ({ id: b.id })),
+    });
+    return true;
+  } catch (err) {
+    console.warn(`[sweep] checkin #${request.id}: template '${name}' failed (${err.message}) — session buttons instead`);
+    return false;
+  }
+}
+
 async function trySendCustomer(phone, text, buttons, label) {
   if (!phone) return false;
   const to = String(phone).replace(/\D/g, '');
@@ -327,12 +357,16 @@ async function runCheckinSweep(now = new Date()) {
       // customer knows which property they visited.
     }
 
-    const ok = await trySendCustomer(
-      request.lead_wa_id,
-      checkinText(label, false),
-      checkinButtons(request.id),
-      `checkin #${request.id}`,
-    );
+    // Outside the customer's 24 h window (a web-form visitor never wrote to
+    // us) the session buttons never arrive: VISIT_FEEDBACK_TEMPLATE, approved
+    // with the three quick replies in order, carries the same payloads.
+    const ok = (await sendCheckinTemplate(request, label))
+      || (await trySendCustomer(
+        request.lead_wa_id,
+        checkinText(label, false),
+        checkinButtons(request.id),
+        `checkin #${request.id}`,
+      ));
 
     // Claims the customer's next message, so a typed "1" resolves without a
     // button id. Set regardless of channel: the text fallback is precisely

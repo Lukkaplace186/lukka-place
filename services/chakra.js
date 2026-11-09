@@ -16,6 +16,14 @@
 
 const axios = require('axios');
 
+/** services/messageLog.js, loaded lazily (it loads db.js). Its calls never throw. */
+let messageLogModule = null;
+function messageLog() {
+  // eslint-disable-next-line global-require
+  if (!messageLogModule) messageLogModule = require('./messageLog');
+  return messageLogModule;
+}
+
 const API_BASE = process.env.CHAKRA_API_BASE || 'https://api.chakrahq.com';
 const API_VERSION = process.env.CHAKRA_WHATSAPP_API_VERSION || 'v21.0';
 
@@ -183,6 +191,7 @@ async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, r
       headers: authHeaders(),
       timeout: 15000,
     });
+    messageLog().recordOutboundText(to, messageText, data);
     return data;
   } catch (err) {
     return rethrowChakraError(err, `sendWhatsAppMessage to ${to}`);
@@ -354,6 +363,7 @@ async function sendTemplate(
       { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template', template },
       { headers: target.headers, timeout: 15000 },
     );
+    messageLog().recordOutboundTemplate(to, templateName, { bodyParams, buttons, urlButton, sender }, data);
     return data;
   } catch (err) {
     return rethrowChakraError(err, `sendTemplate '${templateName}' to ${to}`);
@@ -431,6 +441,7 @@ async function sendInteractiveButtons(toPhone, bodyText, buttons = []) {
       headers: authHeaders(),
       timeout: 15000,
     });
+    messageLog().recordOutboundInteractive(to, bodyText, buttons, data);
     return data;
   } catch (err) {
     return rethrowChakraError(err, `sendInteractiveButtons to ${to}`);

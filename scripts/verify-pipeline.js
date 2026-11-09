@@ -15433,6 +15433,136 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §90 Every customer↔agent interaction we can see is recorded (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Gap analysis: ~90 % of contact left our system. First step: a log of every
+  // WhatsApp message in and out, agents' dashboard taps recorded, the dispatch
+  // agent gate, the assistant hand-over told to the desk, typed replies under
+  // an interactive alert claimed, the check-in as a template outside 24 h.
+  console.log('\n§90 messages in and out are logged; dashboard taps, hand-overs and gates close the loop');
+  {
+    const sweeps90 = require('../services/viewingSweeps');
+    const messageLog90 = require('../services/messageLog');
+    const saved90 = {};
+    const ENV90 = ['OPS_WHATSAPP_NUMBER', 'VISIT_FEEDBACK_TEMPLATE', 'DESK_ALERT_TEMPLATE', 'MESSAGE_LOG', 'VIEWING_REQUEST_TEMPLATE'];
+    for (const k of ENV90) saved90[k] = process.env[k];
+    const repo90 = propertyRepo.getListingContactById;
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
+    try {
+      for (const k of ENV90) delete process.env[k];
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      const chakra90 = require('../services/chakra');
+
+      await chakra90.sendWhatsAppMessage('243990009001', 'Bonjour, la boutique est libre.');
+      await chakra90.sendTemplate('243990009001', 'demande_visite_agent_v3', { bodyParams: ['Prince', 'Dodave'], buttons: [{ id: 'viewing_accept:1' }] });
+      messageLog90.recordInbound({ from: '243990009001', wamid: 'wamid.LOG90', type: 'text', text: 'ok je confirme', media: [] });
+      messageLog90.recordInbound({ from: '243990009001', wamid: 'wamid.LOG90', type: 'text', text: 'ok je confirme', media: [] });
+      const log90 = dbService.listWhatsAppMessages({ waId: '243990009001' });
+      check('every message out and in is logged with its text; a template keeps its name and values; a redelivery once', () => {
+        assert.strictEqual(log90.length, 3);
+        const inbound = log90.filter((r) => r.direction === 'in');
+        assert.strictEqual(inbound.length, 1, 'the redelivered wamid is kept once');
+        assert.strictEqual(inbound[0].body, 'ok je confirme');
+        const tpl = log90.find((r) => r.kind === 'template');
+        assert.strictEqual(tpl.template_name, 'demande_visite_agent_v3');
+        assert.match(tpl.body, /\{\{1\}\} Prince/);
+        assert.match(tpl.body, /viewing_accept:1/);
+        assert.ok(log90.some((r) => r.direction === 'out' && r.kind === 'text' && /boutique est libre/.test(r.body)));
+      });
+      process.env.MESSAGE_LOG = 'off';
+      await chakra90.sendWhatsAppMessage('243990009001', 'pas enregistré');
+      check('MESSAGE_LOG=off stops recording, never the send', () => {
+        assert.strictEqual(dbService.listWhatsAppMessages({ waId: '243990009001' }).length, 3);
+      });
+      delete process.env.MESSAGE_LOG;
+      check('the webhook logs each inbound message', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(src, /messageLog\.recordInbound\(message\)/);
+      });
+
+      const lead90 = dbService.createLead({ wa_id: '243990009002', name: 'Client Tap', source: 'agent-profile-inquiry' });
+      const tap1 = dbService.recordAgentContactAttempt({ agentId: 43, leadId: lead90.id, channel: 'whatsapp', source: 'lead_card' });
+      const tap2 = dbService.recordAgentContactAttempt({ agentId: 43, leadId: lead90.id, channel: 'whatsapp', source: 'lead_card' });
+      const visit90 = freshViewingRequest('jeudi 10h');
+      const vtap = dbService.recordAgentContactAttempt({ agentId: 43, viewingRequestId: visit90.id, channel: 'phone', source: 'visit_card' });
+      check('a dashboard tap moves a NEW lead to CONTACTED with its channel; a double tap counts once', () => {
+        assert.strictEqual(tap1.recorded, true);
+        assert.strictEqual(tap1.leadMoved, true);
+        assert.strictEqual(tap2.recorded, false);
+        const row = dbService.getLead(lead90.id);
+        assert.strictEqual(row.status, 'CONTACTED');
+        assert.strictEqual(row.contact_channel, 'whatsapp');
+        assert.strictEqual(dbService.listAgentContactAttempts({ leadId: lead90.id }).length, 1);
+      });
+      check('a tap on a visit is recorded but proves no contact: status, direct contact and escalation untouched', () => {
+        assert.strictEqual(vtap.recorded, true);
+        const row = dbService.getViewingRequest(visit90.id);
+        assert.strictEqual(row.status, 'PENDING');
+        assert.strictEqual(row.direct_contact_at, null);
+      });
+      check('the contact-attempt and history routes exist', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(src, /router\.post\('\/contact-attempts'/);
+        assert.match(src, /router\.get\('\/whatsapp-log'/);
+      });
+
+      check('lead dispatch only ranks agents who pass the shared gate (verified, not deleted, routing on)', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
+        assert.match(src, /AND a\.phone_verified_at IS NOT NULL/);
+        assert.match(src, /AND a\.deleted_at IS NULL/);
+        assert.match(src, /AND a\.direct_routing_enabled IS DISTINCT FROM false/);
+      });
+
+      process.env.OPS_WHATSAPP_NUMBER = '243815550000';
+      const convo90 = dbService.createConversation('243910000090');
+      httpCalls.length = 0;
+      openaiService.executeHandoffToAgent({ reason: 'Veut parler à un agent' }, { conversationId: convo90.id, waId: '243910000090' });
+      await tick();
+      check('the assistant\'s hand-over to a human tells the desk, with the customer\'s number', () => {
+        const toDesk = JSON.stringify(httpCalls.filter((c) => c.data && String(c.data.to) === '243815550000'));
+        assert.match(toDesk, /demande à parler/);
+        assert.match(toDesk, /243910000090/);
+      });
+
+      const r90 = freshViewingRequest('vendredi 11h');
+      dbService.clearPendingAgentAction(AGENT_WA);
+      httpCalls.length = 0;
+      await viewingNotifications.notifyViewingRequest({ viewingRequest: r90, lead: { name: 'Henoc Mimbo', wa_id: '243990111222' } });
+      check('an alert sent with interactive buttons still claims a typed reply', () => {
+        const pending = dbService.getPendingAgentAction(AGENT_WA);
+        assert.strictEqual(pending.kind, 'VIEWING_RESPONSE');
+        assert.strictEqual(pending.viewing_request_id, r90.id);
+      });
+      const typed90 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'ok je confirme' });
+      check('so "ok je confirme" under the buttons confirms the visit', () => {
+        assert.strictEqual(typed90.action, 'accept');
+        assert.strictEqual(dbService.getViewingRequest(r90.id).status, 'CONFIRMED');
+      });
+
+      process.env.VISIT_FEEDBACK_TEMPLATE = 'avis_visite_client';
+      const c90 = freshViewingRequest('samedi 10h');
+      dbService.updateViewingRequest(c90.id, { status: 'CONFIRMED' });
+      dbService.setViewingScheduledAt(c90.id, new Date(Date.now() - 3 * 3600 * 1000).toISOString());
+      dbService.db.prepare('DELETE FROM whatsapp_last_inbound WHERE wa_id = ?').run('243990111222');
+      httpCalls.length = 0;
+      await sweeps90.runCheckinSweep();
+      const sent90 = httpCalls.find((c) => c.data && c.data.type === 'template' && String(c.data.to) === '243990111222'
+        && JSON.stringify(c.data).includes(`visit_feedback_good:${c90.id}`));
+      check('outside the customer\'s 24 h window the check-in goes as the template, with its three answers', () => {
+        assert.ok(sent90, 'a template was sent');
+        assert.strictEqual(sent90.data.template.name, 'avis_visite_client');
+        const payloads = sent90.data.template.components.filter((c) => c.type === 'button').map((b) => b.parameters[0].payload);
+        assert.deepStrictEqual(payloads, [`visit_feedback_good:${c90.id}`, `visit_feedback_bad:${c90.id}`, `visit_feedback_noshow:${c90.id}`]);
+      });
+    } finally {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      propertyRepo.getListingContactById = repo90;
+      for (const k of ENV90) {
+        if (saved90[k] === undefined) delete process.env[k]; else process.env[k] = saved90[k];
+      }
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

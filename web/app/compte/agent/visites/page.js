@@ -24,6 +24,7 @@ import { VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { formatRelativeFr } from '@/lib/format';
 import { canDeclareVisitOutcome } from '@/lib/visitOutcome';
 import { getLocale, getT } from '@/lib/i18n/server';
+import AgentContactLink from '@/components/AgentContactLink';
 
 /**
  * The agent's visit agenda: CONFIRMED visits by Kinshasa day, a seven-day
@@ -148,16 +149,24 @@ export default async function AgentVisitAgendaPage() {
             </a>
           )}
           {phone && (
-            <a href={`tel:+${phone}`} className={action}>
+            <AgentContactLink href={`tel:+${phone}`} className={action} viewingRequestId={visit.id} channel="phone" source="agenda">
               <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               {t('agent.agenda.callCustomer')}
-            </a>
+            </AgentContactLink>
           )}
           {phone && (
-            <a href={buildWhatsAppLink(phone, message)} target="_blank" rel="noopener noreferrer" className={action}>
+            <AgentContactLink
+              href={buildWhatsAppLink(phone, message)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={action}
+              viewingRequestId={visit.id}
+              channel="whatsapp"
+              source="agenda"
+            >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-green-deep" />
               {t('agent.agenda.contactCustomer')}
-            </a>
+            </AgentContactLink>
           )}
           {scheduled && canDeclareVisitOutcome(visit, now) && <AgentVisitDoneButtons viewingRequestId={visit.id} />}
           {visit.agent_visit_outcome === 'DONE' && (

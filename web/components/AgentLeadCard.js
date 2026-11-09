@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useOptimistic, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Phone, Calculator, Home, Send, Check, Target, MoreHorizontal } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { bestMatch } from '@/lib/agentMatching';
@@ -10,6 +11,7 @@ import AgentQuickReplies from './AgentQuickReplies';
 import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
+import AgentContactLink from '@/components/AgentContactLink';
 
 /**
  * One customer enquiry in the agent's single Demandes inbox (2026-10-06
@@ -73,6 +75,31 @@ export default function AgentLeadCard({
   const [status, setOptimisticStatus] = useOptimistic(lead.status);
   const textareaRef = useRef(null);
   const name = lead.name || lead.wa_id;
+  const router = useRouter();
+  const [declareOpen, setDeclareOpen] = useState(false);
+  const [declaring, setDeclaring] = useState(false);
+
+  // "J'ai déjà contacté le client" (2026-11-09): recorded through the same
+  // engine path as a tap, with source 'declared'; a NEW lead moves to Contacté.
+  async function declareContact(channel) {
+    setDeclaring(true);
+    try {
+      const res = await fetch('/api/agent/contact-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id, channel, source: 'declared' }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast({ type: 'success', message: t('agent.leads.contactDeclared') });
+      setDeclareOpen(false);
+      router.refresh();
+    } catch (err) {
+      console.error('[AgentLeadCard] contact declaration failed', err);
+      showToast({ type: 'error', message: t('errors.submissionFailed') });
+    } finally {
+      setDeclaring(false);
+    }
+  }
 
   const statusText =
     status === lead.status
@@ -156,19 +183,35 @@ export default function AgentLeadCard({
 
       <div className="mt-4 flex items-center gap-2">
         {directLink ? (
-          <a href={directLink} target="_blank" rel="noopener noreferrer" className={`${PRIMARY} bg-green-ink text-white hover:brightness-110`}>
+          <AgentContactLink
+            href={directLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${PRIMARY} bg-green-ink text-white hover:brightness-110`}
+            leadId={lead.id}
+            channel="whatsapp"
+            source="lead_card"
+          >
             <WhatsAppIcon className="h-5 w-5 shrink-0" />
             <span className="truncate">{t('agent.leads.replyOnWhatsApp')}</span>
-          </a>
+          </AgentContactLink>
         ) : (
           <div className="min-w-0 flex-1">
             <AgentAlternativesDialog kind="lead" id={lead.id} emphasis />
           </div>
         )}
         {telHref && (
-          <a href={telHref} aria-label={t('agent.leads.call')} title={t('agent.leads.call')} className={ICON_BUTTON}>
+          <AgentContactLink
+            href={telHref}
+            aria-label={t('agent.leads.call')}
+            title={t('agent.leads.call')}
+            className={ICON_BUTTON}
+            leadId={lead.id}
+            channel="phone"
+            source="lead_card"
+          >
             <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-          </a>
+          </AgentContactLink>
         )}
         <button
           type="button"
@@ -187,7 +230,41 @@ export default function AgentLeadCard({
         <div className="flex flex-col gap-1.5">
           {directLink && <AgentAlternativesDialog kind="lead" id={lead.id} />}
 
-          <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} />
+          <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} leadId={lead.id} />
+
+          {/* The agent answered from their own phone, which we cannot see:
+              they say so here (recorded as a declared contact, lead → Contacté). */}
+          {lead.status === 'NEW' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setDeclareOpen((v) => !v)}
+                aria-expanded={declareOpen}
+                className={`${SECONDARY} text-ink hover:bg-canvas-alt`}
+              >
+                <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('agent.visits.directContact')}
+              </button>
+              {declareOpen && (
+                <div className="flex flex-col gap-2 rounded-lg bg-canvas-alt p-3">
+                  <p className="text-[0.8125rem] font-semibold text-ink-70">{t('agent.visits.directContactHint')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[['whatsapp', 'agent.visits.directContactWhatsapp'], ['phone', 'agent.visits.directContactPhone']].map(([channel, key]) => (
+                      <button
+                        key={channel}
+                        type="button"
+                        disabled={declaring}
+                        onClick={() => declareContact(channel)}
+                        className={`${SECONDARY} text-ink hover:bg-surface disabled:opacity-50`}
+                      >
+                        {t(key)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           <button
             type="button"

@@ -1315,7 +1315,37 @@ function executeHandoffToAgent(args = {}, context) {
     console.warn(`[openai] handoff_to_agent: state transition skipped for conversation #${context.conversationId} (${err.message})`);
   }
 
+  // The customer asked for a human and the assistant now stays quiet: tell the
+  // desk, or nobody ever answers (2026-11-09 gap analysis — the hand-over used
+  // to alert nobody). Fire-and-forget after the writes; never throws.
+  alertDeskOfHandoff({ lead, context, reason: args.reason }).catch((err) => {
+    console.error(`[openai] handoff desk alert for conversation #${context.conversationId} failed: ${err.message}`);
+  });
+
   return { handed_off: true, lead_id: lead.id, state_changed: stateChanged };
+}
+
+async function alertDeskOfHandoff({ lead, context, reason }) {
+  // eslint-disable-next-line global-require
+  const opsDesk = require('./opsDesk');
+  const desk = opsDesk.opsNumber();
+  const waId = lead?.wa_id || context?.waId || context?.from || null;
+  if (!desk) {
+    console.warn(`[openai] handoff: conversation #${context?.conversationId} handed to a human — OPS_WHATSAPP_NUMBER unset, nobody told`);
+    return false;
+  }
+  const lines = [
+    '🙋 Un client demande à parler à quelqu\'un',
+    '',
+    `• Client : ${lead?.name || 'Non précisé'} (${waId ? `+${String(waId).replace(/\D/g, '')}` : 'numéro inconnu'})`,
+  ];
+  if (reason) lines.push(`• Motif : ${String(reason).replace(/\s+/g, ' ').slice(0, 200)}`);
+  if (lead?.requirements_summary) lines.push(`• Recherche : ${String(lead.requirements_summary).replace(/\s+/g, ' ').slice(0, 200)}`);
+  lines.push('', "L'assistant ne répond plus à ce client : répondez-lui depuis la console.", `https://lukkaplace.com/admin/conversations?c=${context?.conversationId}`);
+  // eslint-disable-next-line global-require
+  await require('./deskAlert').sendDeskAlert(desk, lines.join('\n'), { label: 'assistant handoff' });
+  console.log(`[openai] handoff: conversation #${context?.conversationId} — desk told`);
+  return true;
 }
 
 const BUYER_TOOL_EXECUTORS = {

@@ -726,3 +726,16 @@ never chased.
   client", row chips "En attente du client" / "Client relancé" / "Créneau
   refusé — agent relancé".
 - §89 of verify-pipeline.
+
+## Gap-analysis fixes in the visit loop (2026-11-09)
+
+- An alert sent as **interactive session buttons** now also claims the agent's
+  next message (VIEWING_RESPONSE), so a typed "ok je confirme" under the
+  buttons confirms instead of reaching intake. Before, only the numbered and
+  template channels did.
+- **`VISIT_FEEDBACK_TEMPLATE`** is finally read (`viewingSweeps.sendCheckinTemplate`):
+  outside the customer's 24 h window the post-visit check-in goes as that
+  template (body {{1}} first name, {{2}} listing; quick replies Bien passée /
+  Pas convaincu / Agent absent = visit_feedback_good|bad|noshow), inside it the
+  session buttons as before. Unset → unchanged. Drafted as `avis_visite_client`.
+- §90 of verify-pipeline.

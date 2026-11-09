@@ -16,6 +16,7 @@ import { getT } from '@/lib/i18n/server';
 import { getAccountPhones } from '@/lib/customerPhoneChange';
 import { Chip, ErrorNote, STATUS_TONE, formatKinshasa } from '../../LeadRoutingUI';
 import EntityTimeline from '../../EntityTimeline';
+import WhatsAppHistory from '../../WhatsAppHistory';
 import CustomerRowActions from '../CustomerRowActions';
 import ImpersonateButton from '../../ImpersonateButton';
 import { adminSetCustomerPasswordAction, adminUnlockCustomerAction } from '../actions';
@@ -173,6 +174,9 @@ export default async function AdminCustomerDetailPage({ params }) {
               <p className="u-micro text-ink-45">{t('admin.customers.moveNone')}</p>
             )}
           </section>
+
+          {/* Everything the customer and our WhatsApp numbers said to each other. */}
+          <WhatsAppHistory waId={phone} />
 
           <section className="u-card flex flex-col gap-3 rounded-card bg-surface p-5">
             <h2 className="u-title-card text-ink">{t('admin.customerProfile.activityTitle')}</h2>

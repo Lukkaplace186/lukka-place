@@ -1508,6 +1508,50 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_contact_tap_alerts_property ON contact_tap_alerts (property_id, created_at);
 
+  -- Every WhatsApp message our numbers send or receive (services/messageLog.js,
+  -- 2026-11-09). Before this, an agent's free text existed only in pm2's log
+  -- and an agent's message sent "via Lukka Place" was stored nowhere.
+  -- direction 'in' | 'out'; kind text | interactive | template | button |
+  -- media | other. body is what was written (a template's own wording lives
+  -- at Meta, so its row holds the template name and its parameters). wa_id is
+  -- the OTHER party's digits; the role (agent / customer / desk) is resolved
+  -- when read, never guessed at write time. Never a delivery receipt: an
+  -- 'out' row means Chakra accepted the send.
+  CREATE TABLE IF NOT EXISTS whatsapp_message_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction     TEXT NOT NULL,
+    wa_id         TEXT NOT NULL,
+    kind          TEXT NOT NULL,
+    body          TEXT,
+    template_name TEXT,
+    reply_id      TEXT,
+    media_count   INTEGER,
+    wamid         TEXT,
+    sender_number TEXT,
+    created_at    TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_whatsapp_message_log_wa ON whatsapp_message_log (wa_id, created_at);
+  -- A webhook redelivery repeats an inbound wamid: kept once. Outbound rows
+  -- are never deduplicated (one send = one row, whatever id Chakra echoes).
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_message_log_in_wamid
+    ON whatsapp_message_log (wamid) WHERE wamid IS NOT NULL AND direction = 'in';
+
+  -- An agent opened WhatsApp or a call to a customer from their dashboard
+  -- (lead card, quick replies, alternatives, visit card, agenda), or declared
+  -- "J'ai déjà contacté le client" on a lead ('declared'). agent_id is the
+  -- Postgres agents.id; exactly one of lead_id / viewing_request_id is set.
+  CREATE TABLE IF NOT EXISTS agent_contact_attempts (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id           INTEGER NOT NULL,
+    lead_id            INTEGER,
+    viewing_request_id INTEGER,
+    channel            TEXT NOT NULL,
+    source             TEXT NOT NULL,
+    created_at         TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_contact_attempts_lead ON agent_contact_attempts (lead_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_agent_contact_attempts_visit ON agent_contact_attempts (viewing_request_id, created_at);
+
   -- The availability check's own questions (services/availabilityCheck.js):
   -- "toujours disponible ?", then "loué/vendu ou retiré ?", "à quel prix ?",
   -- "le client venait-il de Lukka Place ?". Keyed by a Postgres property id,
@@ -3785,6 +3829,101 @@ function markContactCheckSent(id, at = new Date().toISOString()) {
   return getViewingRequest(id);
 }
 
+// ---------------------------------------------------------------------------
+// whatsapp_message_log — every message in and out (services/messageLog.js)
+// ---------------------------------------------------------------------------
+
+const MESSAGE_LOG_DIRECTIONS = ['in', 'out'];
+const MESSAGE_LOG_BODY_MAX = 4000;
+
+function recordWhatsAppMessage({
+  direction, waId, kind, body = null, templateName = null, replyId = null, mediaCount = null, wamid = null,
+  senderNumber = null, at = new Date().toISOString(),
+} = {}) {
+  if (!MESSAGE_LOG_DIRECTIONS.includes(direction)) throw new Error(`recordWhatsAppMessage: bad direction '${direction}'`);
+  const wa = String(waId || '').replace(/\D/g, '');
+  if (!wa) throw new Error('recordWhatsAppMessage requires waId');
+  const text = body == null ? null : String(body).slice(0, MESSAGE_LOG_BODY_MAX);
+  return db
+    .prepare(
+      `INSERT OR IGNORE INTO whatsapp_message_log
+         (direction, wa_id, kind, body, template_name, reply_id, media_count, wamid, sender_number, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(direction, wa, String(kind || 'other'), text, templateName, replyId, mediaCount, wamid, senderNumber, at).lastInsertRowid;
+}
+
+/** One number's messages, newest first; `before` (an id) pages backwards. */
+function listWhatsAppMessages({ waId, limit = 100, before = null } = {}) {
+  const wa = String(waId || '').replace(/\D/g, '');
+  if (!wa) return [];
+  const n = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 500);
+  const beforeId = Number.parseInt(before, 10);
+  return Number.isFinite(beforeId)
+    ? db.prepare('SELECT * FROM whatsapp_message_log WHERE wa_id = ? AND id < ? ORDER BY id DESC LIMIT ?').all(wa, beforeId, n)
+    : db.prepare('SELECT * FROM whatsapp_message_log WHERE wa_id = ? ORDER BY id DESC LIMIT ?').all(wa, n);
+}
+
+// ---------------------------------------------------------------------------
+// agent_contact_attempts — an agent opened WhatsApp / a call to a customer
+// from their dashboard (2026-11-09). An attempt, never proof of a message.
+// ---------------------------------------------------------------------------
+
+const CONTACT_ATTEMPT_CHANNELS = ['whatsapp', 'phone'];
+const CONTACT_ATTEMPT_SOURCES = [
+  'lead_card', 'quick_reply', 'alternatives', 'visit_card', 'agenda', 'today', 'declared',
+];
+
+/**
+ * Record one tap. The same agent × target × channel within 2 minutes counts
+ * once (a double tap, or a tab reopened). A lead still NEW moves to CONTACTED
+ * with this channel: an agent who opened WhatsApp on it has started on it.
+ * A visit is never moved, and no direct contact is recorded for it — opening
+ * WhatsApp does not prove the customer was reached, and that record stops the
+ * SLA escalation.
+ *
+ * @returns {{recorded: boolean, id?: number, leadMoved?: boolean}}
+ */
+function recordAgentContactAttempt({
+  agentId, leadId = null, viewingRequestId = null, channel, source, at = new Date().toISOString(),
+} = {}) {
+  if (!CONTACT_ATTEMPT_CHANNELS.includes(channel)) throw new Error(`recordAgentContactAttempt: bad channel '${channel}'`);
+  if (!CONTACT_ATTEMPT_SOURCES.includes(source)) throw new Error(`recordAgentContactAttempt: bad source '${source}'`);
+  const agent = Number.parseInt(agentId, 10);
+  if (!Number.isFinite(agent)) throw new Error('recordAgentContactAttempt requires agentId');
+  if (leadId == null && viewingRequestId == null) throw new Error('recordAgentContactAttempt requires a lead or a visit');
+  const since = new Date(new Date(at).getTime() - 2 * 60 * 1000).toISOString();
+  const recent = db
+    .prepare(
+      `SELECT id FROM agent_contact_attempts
+        WHERE agent_id = ? AND channel = ? AND created_at >= ?
+          AND lead_id IS ? AND viewing_request_id IS ?`,
+    )
+    .get(agent, channel, since, leadId, viewingRequestId);
+  if (recent) return { recorded: false, id: recent.id };
+  const id = db
+    .prepare(
+      `INSERT INTO agent_contact_attempts (agent_id, lead_id, viewing_request_id, channel, source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(agent, leadId, viewingRequestId, channel, source, at).lastInsertRowid;
+  let leadMoved = false;
+  if (leadId != null) {
+    leadMoved = db
+      .prepare("UPDATE leads SET status = 'CONTACTED', contact_channel = COALESCE(contact_channel, ?), updated_at = CURRENT_TIMESTAMP, last_interaction_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'NEW'")
+      .run(channel, leadId).changes > 0;
+  }
+  return { recorded: true, id, leadMoved };
+}
+
+function listAgentContactAttempts({ leadId = null, viewingRequestId = null } = {}) {
+  if (leadId != null) return db.prepare('SELECT * FROM agent_contact_attempts WHERE lead_id = ? ORDER BY id DESC').all(leadId);
+  if (viewingRequestId != null) {
+    return db.prepare('SELECT * FROM agent_contact_attempts WHERE viewing_request_id = ? ORDER BY id DESC').all(viewingRequestId);
+  }
+  return [];
+}
+
 /**
  * Record that the agent reached the customer outside our loop. The first
  * record wins (`direct_contact_at IS NULL`): a desk entry after the agent's own
@@ -4574,6 +4713,12 @@ module.exports = {
   INTERACTION_LEAD_SOURCES,
   recordTeamIntroductionLead,
   VIEWING_FEED_VIEWS,
+  recordWhatsAppMessage,
+  listWhatsAppMessages,
+  recordAgentContactAttempt,
+  listAgentContactAttempts,
+  CONTACT_ATTEMPT_CHANNELS,
+  CONTACT_ATTEMPT_SOURCES,
   markViewingProposalSent,
   markViewingProposalReminded,
   markViewingProposalRefused,

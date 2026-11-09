@@ -38,6 +38,7 @@ import ModerationTable from '../../listings/ModerationTable';
 import Pagination from '../../table/Pagination';
 import { Chip, ErrorNote, ROUTING_TONE, STATUS_TONE, Stat as PanelStat, formatKinshasa, formatLatency } from '../../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../../table/TableFrame';
+import WhatsAppHistory from '../../WhatsAppHistory';
 
 export const metadata = {
   title: 'Agent — Admin — Lukka Place',
@@ -203,6 +204,8 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
             </tbody>
           </TableFrame>
         </section>
+        {/* What the agent and our WhatsApp numbers said to each other. */}
+        {agent.phone ? <WhatsAppHistory waId={agent.phone} /> : null}
         <section className="flex flex-col gap-2">
           <h2 className="u-title-card text-ink">{t('admin.agentProfile.matchesTitle')}</h2>
           <TableFrame minWidth="44rem">

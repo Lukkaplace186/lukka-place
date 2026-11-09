@@ -261,6 +261,30 @@ export function trackCallClick(listing) {
   });
 }
 
+/**
+ * An agent tapped WhatsApp / "Appeler" on a customer from their dashboard
+ * (POST /api/agent/contact-attempt). Fire-and-forget with keepalive, so it
+ * still lands when the tap hands the page over to WhatsApp or the dialer.
+ * Never throws; a lost beacon costs one record, never the tap itself.
+ *
+ * @param {{leadId?: number, viewingRequestId?: number, channel: 'whatsapp'|'phone', source: string}} attempt
+ */
+export function trackAgentContact({ leadId, viewingRequestId, channel, source }) {
+  if (typeof window === 'undefined') return;
+  if (leadId == null && viewingRequestId == null) return;
+  try {
+    fetch('/api/agent/contact-attempt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: leadId ?? null, viewingRequestId: viewingRequestId ?? null, channel, source }),
+      keepalive: true,
+      credentials: 'same-origin',
+    }).catch(() => {});
+  } catch {
+    // Never the agent's problem.
+  }
+}
+
 /** `/listings/310` (or a full URL to it) -> 310, else null. */
 export function listingIdFromPath(pathOrUrl) {
   try {

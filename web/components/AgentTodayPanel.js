@@ -67,6 +67,7 @@ function toRow(item, { t, locale, listingById }) {
       // The answer to a new enquiry is a WhatsApp message from the agent's own
       // phone (lib/leadContact.js) — "Ouvrir la demande" stays as the second action.
       waHref: leadWhatsAppLink({ ...l, name: item.customerName || l.name }, [...listingById.values()]),
+      leadId: l.id,
       title: item.customerName || customerLabel(l) || t('agent.today.unknownCustomer'),
       subtitle: listing?.title || l.requirements_summary || [l.quartier, l.commune].filter(Boolean).join(', ') || null,
       badge: t('agent.today.badge.newLead'),

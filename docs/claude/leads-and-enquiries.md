@@ -339,3 +339,44 @@ is moving. Nothing is sent to agencies from the cards; only the customer's
   (`PATCH /admin/leads/:id`) — the first code path that reaches that status.
 - **The no-account "Trouver pour moi" form** now sends the situation chips
   as `move_story` too (reasons only).
+
+## Recording every customer ↔ agent interaction — first step (2026-11-09)
+
+Gap analysis (artifact https://claude.ai/artifact/7zx3wa2XF3ps7bxHMdrE5J):
+in 30 days, 102 taps on an agent's own WhatsApp button and 17 on "Appeler"
+against 9 requests we could follow; 379 of 382 listings sent customers to
+the agent's personal number. Owner decisions the same day: the listing
+WhatsApp button will go through the Lukka Place number first (replacing the
+dual contact policy above — not built yet), agents keep their own WhatsApp
+but every dashboard tap is recorded, and customers get a 24 h "un agent vous
+a-t-il contacté ?" follow-up once `suivi_demande_client` is approved.
+
+Built in this first step:
+
+- **Every WhatsApp message in and out** — SQLite `whatsapp_message_log`
+  (`services/messageLog.js`), written by `chakra.js` after each send Chakra
+  accepted (text, interactive with its button labels, template with its name
+  and values) and by the webhook for each inbound (text, button id, media
+  count; a redelivered wamid once). `MESSAGE_LOG=off` stops it. Read by
+  `GET /admin/whatsapp-log?wa_id=` and shown as "Historique WhatsApp" on
+  `/admin/customers/[id]` and the agent's Activité tab. The log starts
+  2026-11-09; nothing is backfilled.
+- **Dashboard taps** — `agent_contact_attempts` (`POST /admin/contact-attempts`,
+  web `POST /api/agent/contact-attempt` with the agent from the session cookie
+  and the Demandes ownership rules; `components/AgentContactLink.js` on the
+  lead card, visit card, quick replies, alternatives "Ouvrir dans mon
+  WhatsApp", "À faire" and the agenda). A NEW lead moves to CONTACTED with the
+  channel; a double tap within 2 min counts once; a visit is only annotated
+  (no status, no direct contact — opening WhatsApp is not proof).
+  "J'ai déjà contacté le client" on a NEW lead card records source `declared`.
+- **Bugs fixed**: `agentRanking` now applies the shared agent gate (verified,
+  not deleted, routing not off — verification was only +10 points, so a lead
+  could be pushed to an unverified or deleted agent); the lead-card reply box
+  (`assertOwnedLead`, now web `lib/agentLeadOwnership.js` `findOwnedLead`)
+  accepts dispatcher pushes and the lead's own agent_id.
+- **The assistant's hand-over** (`handoff_to_agent`) now alerts the desk with
+  the customer's number and a link to the conversation; it alerted nobody.
+- Not in this step, folded into the CTA re-route: taps on the agent profile,
+  directory, Projets neufs and Espace Client buttons (they will go through our
+  number instead of being counted).
+- §90 of verify-pipeline; web `tests/unit/agent-contact-attempts.test.js`.

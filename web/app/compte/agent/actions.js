@@ -42,7 +42,6 @@ import { commercialSpecsFromForm, isCommercial } from '@/lib/commercialSpaces';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
 import {
-  listLeads,
   updateLeadStatus,
   sendWhatsAppMessage,
   respondToViewingRequest,
@@ -58,6 +57,7 @@ import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscript
 import { getT } from '@/lib/i18n/server';
 import { normaliseArea } from '@/lib/listingView';
 import { getListingQuota } from '@/lib/listingQuota';
+import { findOwnedLead } from '@/lib/agentLeadOwnership';
 import { quotaRefusal } from '@/lib/listingQuotaRules';
 import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
 import { validateAgreedSlot } from '@/lib/visitAgenda';
@@ -473,15 +473,9 @@ export async function createListingAction(validCommunes, validCategories, formDa
  * alone, same reasoning updateListingStatusAction's own doc comment gives.
  */
 async function assertOwnedLead(agentId, leadId) {
-  const [agent, listings] = await Promise.all([getAgentProfile(agentId), getOwnListingsForDashboard(agentId)]);
-  const propertyIds = listings.map((l) => l.id);
-  const displayName = agentDisplayName(agent);
-  const { data } =
-    propertyIds.length || displayName
-      ? await listLeads({ propertyIds, assignedAgent: displayName || undefined, limit: 200 })
-      : { data: [] };
-
-  const lead = data.find((l) => l.id === leadId);
+  // lib/agentLeadOwnership.js: every signal the Demandes inbox shows, incl.
+  // the dispatcher's matchedAgentId (missing here before 2026-11-09).
+  const lead = await findOwnedLead(agentId, leadId);
   if (!lead) throw new Error('Not your lead, or it does not exist.');
   return lead;
 }

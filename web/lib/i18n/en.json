@@ -1394,7 +1394,8 @@
       "replyOnWhatsApp": "Reply on WhatsApp",
       "replyViaLukka": "Reply via Lukka Place",
       "moreOptions": "More options",
-      "call": "Call"
+      "call": "Call",
+      "contactDeclared": "Noted: the request is now marked Contacted."
     },
     "visits": {
       "confirm": "Confirm",
@@ -7753,6 +7754,16 @@
       "storiesHint": "Only stories the customer agreed to share.",
       "noStories": "No shared story yet.",
       "customer": "See the customer"
+    },
+    "whatsappHistory": {
+      "title": "WhatsApp History",
+      "hint": "Every message exchanged with our WhatsApp numbers since 9 November 2026. \"Sent\" means WhatsApp accepted it: we receive no read receipts.",
+      "empty": "No message recorded for this number since 9 November 2026.",
+      "error": "History unavailable: the engine is not answering.",
+      "received": "Received",
+      "sent": "Sent",
+      "buttonTap": "Button",
+      "media": "{count} media"
     }
   },
   "errors": {

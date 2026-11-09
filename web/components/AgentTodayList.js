@@ -12,6 +12,7 @@ import { useToast } from './Toast';
 import VisitSlotForm from './VisitSlotForm';
 import { useT } from '@/lib/i18n/client';
 import { WhatsAppIcon } from './WhatsAppCTA';
+import AgentContactLink from '@/components/AgentContactLink';
 
 const KIND_ICON = {
   visit: CalendarClock,
@@ -157,10 +158,18 @@ export default function AgentTodayList({ rows, seeAll }) {
             );
           } else if (row.kind === 'lead' && row.waHref) {
             primary = (
-              <a href={row.waHref} target="_blank" rel="noopener noreferrer" className={WHATSAPP_BUTTON}>
+              <AgentContactLink
+                href={row.waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={WHATSAPP_BUTTON}
+                leadId={row.leadId}
+                channel="whatsapp"
+                source="today"
+              >
                 <WhatsAppIcon className="h-4 w-4 shrink-0" />
                 {t('agent.leads.replyOnWhatsApp')}
-              </a>
+              </AgentContactLink>
             );
           } else {
             primary = (

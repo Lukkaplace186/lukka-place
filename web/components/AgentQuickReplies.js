@@ -8,6 +8,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { quickReplyFacts, renderQuickReply, whatsappDigits } from '@/lib/quickReplyRules';
 import { useT } from '@/lib/i18n/client';
+import AgentContactLink from '@/components/AgentContactLink';
 
 /**
  * "Réponses rapides" on a lead or visit card: pick one of the agent's saved
@@ -36,7 +37,9 @@ export function QuickRepliesProvider({ templates = [], listings = [], children }
   return <QuickRepliesContext.Provider value={value}>{children}</QuickRepliesContext.Provider>;
 }
 
-export default function AgentQuickReplies({ waId, clientName = null, propertyId = null }) {
+export default function AgentQuickReplies({
+  waId, clientName = null, propertyId = null, leadId = null, viewingRequestId = null,
+}) {
   const t = useT();
   const context = useContext(QuickRepliesContext);
   const [open, setOpen] = useState(false);
@@ -119,16 +122,20 @@ export default function AgentQuickReplies({ waId, clientName = null, propertyId 
                         </p>
                       )}
                       {href ? (
-                        <a
+                        <AgentContactLink
                           href={href}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => setOpen(false)}
+                          leadId={leadId}
+                          viewingRequestId={leadId == null ? viewingRequestId : null}
+                          channel="whatsapp"
+                          source="quick_reply"
                           className="u-btn-primary u-press mt-2.5 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-blue text-[0.8125rem] font-bold text-white"
                         >
                           {t('agent.quickReplies.openWhatsApp')}
                           <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                        </a>
+                        </AgentContactLink>
                       ) : null}
                     </li>
                   );

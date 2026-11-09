@@ -685,6 +685,29 @@ export async function recordViewingDirectContact(id, { channel, by, agentId } = 
 }
 
 /**
+ * An agent opened WhatsApp or a call to a customer from their dashboard, or
+ * declared "J'ai déjà contacté le client" on a lead (engine
+ * POST /admin/contact-attempts). The caller has checked the session and that
+ * the lead or visit is theirs. A NEW lead moves to CONTACTED. Sends nothing.
+ * @returns {Promise<{recorded: boolean, leadMoved?: boolean}>}
+ */
+export async function recordAgentContactAttempt({ agentId, leadId = null, viewingRequestId = null, channel, source }) {
+  return engineFetch('/admin/contact-attempts', {
+    method: 'POST',
+    body: JSON.stringify({
+      agent_id: agentId, lead_id: leadId, viewing_request_id: viewingRequestId, channel, source,
+    }),
+  });
+}
+
+/** One number's WhatsApp history with us, newest first (engine whatsapp_message_log). */
+export async function getWhatsAppLog(waId, { limit = 100, before } = {}) {
+  const params = new URLSearchParams({ wa_id: String(waId || '').replace(/\D/g, ''), limit: String(limit) });
+  if (before != null) params.set('before', String(before));
+  return engineFetch(`/admin/whatsapp-log?${params}`);
+}
+
+/**
  * The desk confirms a visit the agent agreed outside our loop (engine
  * confirmFromDesk). `scheduledAt` is ISO with its offset. Messages the
  * customer and the agent.

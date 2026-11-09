@@ -1286,6 +1286,56 @@ router.post('/viewing-requests/:id/direct-contact', async (req, res) => {
 });
 
 /**
+ * An agent opened WhatsApp or a call to a customer from their dashboard, or
+ * declared "J'ai déjà contacté le client" on a lead (2026-11-09). Web's
+ * Server Action has already checked the agent session and that the lead or
+ * visit is theirs; this records the attempt (db.recordAgentContactAttempt:
+ * a NEW lead moves to CONTACTED, a visit is only annotated). Sends nothing.
+ */
+router.post('/contact-attempts', (req, res) => {
+  const body = req.body || {};
+  const agentId = Number.parseInt(body.agent_id, 10);
+  const leadId = body.lead_id == null ? null : Number.parseInt(body.lead_id, 10);
+  const viewingRequestId = body.viewing_request_id == null ? null : Number.parseInt(body.viewing_request_id, 10);
+  if (!Number.isFinite(agentId)) return res.status(400).json({ success: false, error: 'agent_id must be a numeric agents.id.' });
+  if ((leadId == null) === (viewingRequestId == null) || (leadId != null && !Number.isFinite(leadId))
+    || (viewingRequestId != null && !Number.isFinite(viewingRequestId))) {
+    return res.status(400).json({ success: false, error: 'Give exactly one of lead_id or viewing_request_id.' });
+  }
+  if (!db.CONTACT_ATTEMPT_CHANNELS.includes(body.channel)) return res.status(400).json({ success: false, error: 'invalid channel' });
+  if (!db.CONTACT_ATTEMPT_SOURCES.includes(body.source)) return res.status(400).json({ success: false, error: 'invalid source' });
+  if (leadId != null && !db.getLead(leadId)) return res.status(404).json({ success: false, error: 'Lead not found.' });
+  if (viewingRequestId != null && !db.getViewingRequest(viewingRequestId)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  try {
+    const result = db.recordAgentContactAttempt({ agentId, leadId, viewingRequestId, channel: body.channel, source: body.source });
+    if (result.recorded) {
+      console.log(
+        `[contact-attempt] agent #${agentId} opened ${body.channel} from ${body.source} — ${leadId != null ? `lead #${leadId}` : `visit #${viewingRequestId}`}${result.leadMoved ? ' (lead → CONTACTED)' : ''}`,
+      );
+    }
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] POST /contact-attempts failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the contact attempt.' });
+  }
+});
+
+/** One number's WhatsApp history with us, newest first (whatsapp_message_log). */
+router.get('/whatsapp-log', (req, res) => {
+  const waId = String(req.query.wa_id || '').replace(/\D/g, '');
+  if (!/^\d{7,15}$/.test(waId)) return res.status(400).json({ success: false, error: 'wa_id must be 7-15 digits.' });
+  try {
+    const data = db.listWhatsAppMessages({ waId, limit: req.query.limit, before: req.query.before });
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error(`[admin] GET /whatsapp-log failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read the WhatsApp history.' });
+  }
+});
+
+/**
  * The desk confirms a visit the agent agreed outside our loop, at the agreed
  * instant (`scheduled_at`, ISO with offset). Messages the customer (and the
  * agent) exactly as a dashboard confirmation would — see confirmFromDesk.

@@ -12,6 +12,7 @@ import { buildAlternativesMessage, MAX_ALTERNATIVES } from '@/lib/listingAlterna
 import { getAlternativesAction, sendAlternativesAction } from '@/app/compte/agent/alternativesActions';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
+import AgentContactLink from '@/components/AgentContactLink';
 
 /**
  * "Proposer des alternatives" on a lead or visit card: the agent picks up to
@@ -189,15 +190,19 @@ export default function AgentAlternativesDialog({ kind, id, emphasis = false }) 
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 {ownLink ? (
-                  <a
+                  <AgentContactLink
                     href={ownLink}
                     target="_blank"
                     rel="noopener noreferrer"
+                    leadId={kind === 'lead' ? id : null}
+                    viewingRequestId={kind === 'visit' ? id : null}
+                    channel="whatsapp"
+                    source="alternatives"
                     className="u-btn-primary u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white"
                   >
                     <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                     {t('agent.alternatives.openOwnWhatsApp')}
-                  </a>
+                  </AgentContactLink>
                 ) : (
                   <span
                     aria-disabled="true"

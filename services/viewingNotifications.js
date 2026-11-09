@@ -571,7 +571,10 @@ async function notifyViewingRequest({
       // A tapped button carries the request id; a typed "1" does not. When
       // the buttons didn't go out, claim this agent's next message for this
       // specific request so the numbered reply still resolves.
-      if (channel === 'session-numbered' && viewingRequest?.id) {
+      // 'buttons' too: an agent who TYPES "ok je confirme" under the
+      // interactive alert instead of tapping must not land in intake
+      // (2026-11-09 gap analysis — the same loss as request #19).
+      if ((channel === 'session-numbered' || channel === 'buttons') && viewingRequest?.id) {
         dbService.setPendingAgentAction({
           waId: String(listing.agent_phone).replace(/\D/g, ''),
           kind: PENDING_KINDS.viewingResponse,

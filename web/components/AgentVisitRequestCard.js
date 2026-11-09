@@ -16,6 +16,7 @@ import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { isNetworkError } from '@/lib/networkError';
 import { VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { useLocale, useT } from '@/lib/i18n/client';
+import AgentContactLink from '@/components/AgentContactLink';
 
 const STATUS_TAG = {
   PENDING: 'bg-warning-tint text-warning-ink',
@@ -196,10 +197,18 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   const SlotIcon = agreed ? CalendarCheck : CalendarClock;
 
   const whatsappLink = (className, label) => (
-    <a href={waHref} target="_blank" rel="noopener noreferrer" className={className}>
+    <AgentContactLink
+      href={waHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+      viewingRequestId={viewingRequest.id}
+      channel="whatsapp"
+      source="visit_card"
+    >
       <WhatsAppIcon className="h-5 w-5 shrink-0" />
       <span className="truncate">{label}</span>
-    </a>
+    </AgentContactLink>
   );
 
   return (
@@ -271,9 +280,17 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           </div>
         )}
         {telHref && (
-          <a href={telHref} aria-label={t('agent.leads.call')} title={t('agent.leads.call')} className={ICON_BUTTON}>
+          <AgentContactLink
+            href={telHref}
+            aria-label={t('agent.leads.call')}
+            title={t('agent.leads.call')}
+            className={ICON_BUTTON}
+            viewingRequestId={viewingRequest.id}
+            channel="phone"
+            source="visit_card"
+          >
             <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-          </a>
+          </AgentContactLink>
         )}
         <button
           type="button"
@@ -371,6 +388,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
             </button>
           )}
           <AgentQuickReplies
+            viewingRequestId={viewingRequest.id}
             waId={viewingRequest.lead_wa_id}
             clientName={viewingRequest.lead_name}
             propertyId={viewingRequest.property_id || viewingRequest.lead_property_id}

@@ -41,9 +41,9 @@
  *   fit         0-15  real listings in that commune that also fit the budget
  *                     and bedroom count asked for. Strictly stronger evidence
  *                     than raw inventory, so it scores on top of it.
- *   verified       10 agents.phone_verified_at IS NOT NULL — we can actually
- *                     reach them on WhatsApp, which is the entire delivery
- *                     mechanism.
+ *   verified       10 agents.phone_verified_at IS NOT NULL — now also a hard
+ *                     filter (the shared agent gate, 2026-11-09), so every
+ *                     ranked agent scores it; kept so scores stay comparable.
  *
  * multiplied by the subscription tier's `packages.priority_multiplier`
  * (default 1.0 — an unsubscribed agency is not excluded, just unweighted),
@@ -158,6 +158,14 @@ async function rankAgentsForRequest(
       WHERE a.status = 1
         AND a.phone IS NOT NULL
         AND a.phone <> ''
+        -- The shared agent gate (CLAUDE.md, "Agent gates are shared"): a
+        -- request is only pushed to a number the agent proved they hold, on an
+        -- account not deleted, with direct routing not switched off. Before
+        -- 2026-11-09 verification only added 10 points here, so a lead could
+        -- be pushed to an unverified or deleted agent.
+        AND a.phone_verified_at IS NOT NULL
+        AND a.deleted_at IS NULL
+        AND a.direct_routing_enabled IS DISTINCT FROM false
         -- Coverage is the hard filter. LOWER() on both sides because
         -- primary_communes is agent-entered through a checkbox list built
         -- from the canonical hierarchy, while a lead's commune comes from the

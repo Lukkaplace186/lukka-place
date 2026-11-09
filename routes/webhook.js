@@ -30,6 +30,7 @@ const {
 } = require('../services/db');
 const chakra = require('../services/chakra');
 const { recordInbound, lastInboundAt } = require('../services/sessionWindow');
+const messageLog = require('../services/messageLog');
 const { scheduleReferralAnnouncement } = require('../services/referralAnnounce');
 const { persistImages, persistVideos } = require('../services/mediaStorage');
 const listingMedia = require('../services/listingMedia');
@@ -1774,6 +1775,9 @@ router.post('/', verifyWebhookSecret, (req, res) => {
     } catch (err) {
       console.warn(`[webhook] could not record the inbound time for ${message.from}: ${err.message}`);
     }
+    // Every inbound message, with its text, in whatsapp_message_log
+    // (services/messageLog.js; a redelivered wamid is kept once). Never throws.
+    messageLog.recordInbound(message);
 
     // The referral programme announcement, for a verified agent who has not
     // had it (services/referralAnnounce.js). A delayed side effect: the

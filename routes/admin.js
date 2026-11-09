@@ -40,6 +40,7 @@ const {
   respondFromDashboard,
   DASHBOARD_TRANSITIONS,
   recordDirectContact,
+  confirmFromDesk,
   respondFromCustomer,
   CUSTOMER_TRANSITIONS,
   notifyOps,
@@ -1281,6 +1282,29 @@ router.post('/viewing-requests/:id/direct-contact', async (req, res) => {
   } catch (err) {
     console.error(`[admin] POST /viewing-requests/${id}/direct-contact failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not record the direct contact.' });
+  }
+});
+
+/**
+ * The desk confirms a visit the agent agreed outside our loop, at the agreed
+ * instant (`scheduled_at`, ISO with offset). Messages the customer (and the
+ * agent) exactly as a dashboard confirmation would — see confirmFromDesk.
+ */
+router.post('/viewing-requests/:id/desk-confirm', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  try {
+    const result = await confirmFromDesk({ viewingRequestId: id, scheduledAt: req.body?.scheduled_at });
+    if (!result.ok) {
+      const httpStatus = { 'unknown-request': 404, 'invalid-transition': 409 }[result.reason] || 400;
+      return res.status(httpStatus).json({ success: false, error: result.reason, reason: result.reason, current: result.current });
+    }
+    return res.json({ success: true, ...result, viewingRequest: db.getViewingRequest(id) });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/desk-confirm failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not confirm the visit.' });
   }
 });
 

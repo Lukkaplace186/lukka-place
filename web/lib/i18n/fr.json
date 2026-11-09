@@ -5081,7 +5081,16 @@
       "listingHasNoAgent": "Cette annonce n’a pas d’agent",
       "alertListingAgent": "Alerter l’agent",
       "alertListingAgentHint": "Envoyer la demande de visite à {name} sur WhatsApp et la lui attribuer",
-      "assign": "Attribuer"
+      "assign": "Attribuer",
+      "confirmVisit": "Confirmer la visite",
+      "confirmVisitTitle": "Confirmer la visite",
+      "confirmVisitBody": "À utiliser quand l'agent vous a donné l'heure convenue avec le client. Heure de Kinshasa. Le client reçoit la confirmation sur WhatsApp et l'agent un message de l'équipe.",
+      "confirmVisitSubmit": "Confirmer et prévenir le client",
+      "confirmedNotified": "Visite confirmée. Le client a été prévenu sur WhatsApp.",
+      "confirmedNotNotified": "Visite confirmée, mais le message au client n'a pas pu partir.",
+      "confirmAlready": "Cette visite était déjà confirmée.",
+      "confirmPast": "Cette heure est déjà passée : choisissez l'heure à venir convenue.",
+      "confirmClosed": "Cette demande ne peut plus être confirmée (déclinée, annulée ou terminée)."
     },
     "marketData": {
       "title": "Données marché",

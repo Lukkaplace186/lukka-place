@@ -645,3 +645,25 @@ stayed PENDING and escalated while the agent believed they had confirmed.
   characters of the text: agents' messages are stored nowhere else, and what
   Prince Immo wrote could not be read back.
 - §86 of verify-pipeline.
+
+## The desk confirms a visit agreed outside our loop (2026-11-09)
+
+Request #19 again: after the agent tapped "Oui, WhatsApp" on the contact
+check, the visit was recorded as contacted but could only stay PENDING — a
+contact is not an agreed visit, and nothing let the desk record one. The
+console had reassign / nudge / "Fixer l'heure" (scheduled_at only) / cancel.
+
+- `confirmFromDesk` (`POST /admin/viewing-requests/:id/desk-confirm`,
+  `scheduled_at` required, ISO with offset): PENDING or RESCHEDULED →
+  CONFIRMED at that instant; a missing, unparseable or past time is refused
+  before anything is written. The customer gets what a dashboard confirmation
+  sends (`tenantAcceptedText` / the confirmed template, `customer_notified_at`
+  stamped); the agent gets "Visite confirmée par l'équipe" (session message).
+  Open WhatsApp questions about the request are closed. NOT the agent's
+  response: `first_response_at` / `agent_response_via` untouched. A second
+  click on a CONFIRMED request sends nothing.
+- Web: "Confirmer la visite" in a row's menu on `/admin/viewings`
+  (`viewings.manage`, PENDING/RESCHEDULED rows), date + time in Kinshasa
+  time, the dialog says the customer and the agent are messaged; audited
+  `viewing.desk_confirm` with whether each was told.
+- §87 of verify-pipeline.

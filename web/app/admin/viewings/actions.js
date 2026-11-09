@@ -4,8 +4,17 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import {
-  nudgeViewingRequest, reassignViewingRequest, recordViewingDirectContact, scheduleViewingRequest, updateViewingRequest,
+  confirmViewingFromDesk, nudgeViewingRequest, reassignViewingRequest, recordViewingDirectContact, scheduleViewingRequest,
+  updateViewingRequest,
 } from '@/lib/adminApi';
+
+/** Engine refusals of a desk confirmation → the sentence the admin reads. */
+const DESK_CONFIRM_ERRORS = {
+  'scheduled-at-required': 'admin.viewings.invalidTime',
+  'scheduled-at-invalid': 'admin.viewings.invalidTime',
+  'scheduled-at-past': 'admin.viewings.confirmPast',
+  'invalid-transition': 'admin.viewings.confirmClosed',
+};
 
 const DIRECT_CONTACT_CHANNELS = ['whatsapp', 'phone', 'in_person', 'other'];
 import { getT } from '@/lib/i18n/server';
@@ -57,6 +66,49 @@ export async function scheduleViewingAction(viewingRequestId, localValue) {
     await recordAudit(session, { action: 'viewing.schedule', entityType: 'viewing', entityId: viewingRequestId, details: { at: `${text}+01:00` } });
     revalidateRoutingPages();
     return { ok: true, message: t('admin.viewings.scheduled') };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * The agent agreed the visit outside our loop (phone, their own WhatsApp) and
+ * told the desk the time. CONFIRMED at that Kinshasa instant; the CUSTOMER is
+ * WhatsApped the confirmation and the agent a short note — the dialog says so
+ * before the click.
+ */
+export async function confirmViewingAction(viewingRequestId, localValue) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('viewings.manage');
+    const text = String(localValue || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) {
+      return { ok: false, error: t('admin.viewings.invalidTime') };
+    }
+    let result;
+    try {
+      result = await confirmViewingFromDesk(viewingRequestId, `${text}:00+01:00`);
+    } catch (err) {
+      const key = DESK_CONFIRM_ERRORS[err.message];
+      return { ok: false, error: key ? t(key) : err.message };
+    }
+    await recordAudit(session, {
+      action: 'viewing.desk_confirm',
+      entityType: 'viewing',
+      entityId: viewingRequestId,
+      details: {
+        at: `${text}+01:00`,
+        unchanged: Boolean(result.unchanged),
+        customerNotified: Boolean(result.tenantNotified),
+        agentNotified: Boolean(result.agentNotified),
+      },
+    });
+    revalidateRoutingPages();
+    if (result.unchanged) return { ok: true, message: t('admin.viewings.confirmAlready') };
+    return {
+      ok: true,
+      message: result.tenantNotified ? t('admin.viewings.confirmedNotified') : t('admin.viewings.confirmedNotNotified'),
+    };
   } catch (err) {
     return { ok: false, error: err.message };
   }

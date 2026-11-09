@@ -1554,6 +1554,90 @@ const DASHBOARD_TRANSITIONS = Object.freeze({
  * @returns {Promise<{ok: true, status: string, unchanged: boolean, tenantNotified: boolean, scheduledAt?: string|null, alternatives?: number}
  *   | {ok: false, reason: string, current?: string}>}
  */
+/**
+ * The DESK confirms a visit the agent agreed outside our loop — on the phone,
+ * or on WhatsApp from their own number (2026-11-09, request #19: the agent
+ * said "Oui, WhatsApp" to the contact check and the visit could only stay
+ * PENDING, because nothing let anyone record that it was on).
+ *
+ * Needs the agreed instant (a confirmation without one is a guess the
+ * customer would travel on). From PENDING or RESCHEDULED only. Then exactly
+ * what an agent's dashboard confirmation does for the customer — CONFIRMED,
+ * scheduled_at pinned, tenantAcceptedText / the confirmed template — and a
+ * short note to the agent so they know the customer was told. It is NOT the
+ * agent's response: first_response_at and agent_response_via stay untouched,
+ * as they do for a recorded direct contact. Repeating it on a CONFIRMED
+ * request is a no-op that sends nothing.
+ */
+async function confirmFromDesk({ viewingRequestId, scheduledAt, now = new Date() } = {}) {
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  if (!request) return { ok: false, reason: 'unknown-request' };
+  if (scheduledAt === undefined || scheduledAt === null || String(scheduledAt).trim() === '') {
+    return { ok: false, reason: 'scheduled-at-required' };
+  }
+  const resolved = resolveScheduledAtInput(scheduledAt, now, visitClock(request));
+  if (resolved.error) return { ok: false, reason: 'scheduled-at-invalid' };
+  if (new Date(resolved.value).getTime() <= now.getTime()) return { ok: false, reason: 'scheduled-at-past' };
+  const agreedAt = resolved.value;
+
+  if (request.status === 'CONFIRMED') return { ok: true, status: 'CONFIRMED', unchanged: true, tenantNotified: false, agentNotified: false };
+  if (!DASHBOARD_TRANSITIONS.CONFIRMED.includes(request.status)) {
+    return { ok: false, reason: 'invalid-transition', current: request.status };
+  }
+
+  const propertyId = request.property_id;
+  let listing = null;
+  if (propertyId) {
+    try {
+      listing = await propertyRepository.getListingContactById(propertyId);
+    } catch (err) {
+      console.error(`[viewing] desk confirm: listing #${propertyId} lookup failed: ${err.message}`);
+    }
+  }
+  if (request.reassigned_at && request.agent_id) {
+    try {
+      const assigned = await propertyRepository.getAgentContactById(request.agent_id);
+      if (assigned) listing = withAgent(listing, assigned);
+    } catch (err) {
+      console.error(`[viewing] desk confirm: assigned agent #${request.agent_id} lookup failed: ${err.message}`);
+    }
+  }
+
+  dbService.clearPendingAgentActionsForViewing(request.id);
+  dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(request.id, agreedAt);
+
+  const tenantNotified = await trySend(
+    request.lead_wa_id,
+    tenantAcceptedText(listing, request, propertyId, agreedAt),
+    'desk confirmation',
+    confirmedTemplate(listing, request, propertyId, agreedAt),
+  );
+  if (tenantNotified) markCustomerNotified(request.id);
+
+  const agentPhone = String(listing?.agent_phone || '').replace(/\D/g, '');
+  const agentNotified = agentPhone
+    ? await trySend(
+      agentPhone,
+      [
+        `${HEADER_BRAND} Visite confirmée par l'équipe ✅`,
+        `📍 ${listingLabel(listing, propertyId)}`,
+        `👤 ${request.lead_name || 'Client'}`,
+        `📅 ${formatSlotFr(agreedAt, visitClock(request, listing)) || agreedAt}`,
+        '',
+        'Le client vient d\'être prévenu sur WhatsApp.',
+        schedulerLink(),
+      ].join('\n'),
+      'desk confirmation agent copy',
+    )
+    : false;
+
+  console.log(
+    `[viewing] request #${request.id} CONFIRMED by the desk for ${agreedAt} — client told: ${tenantNotified}, agent told: ${agentNotified}`,
+  );
+  return { ok: true, status: 'CONFIRMED', unchanged: false, tenantNotified, agentNotified, scheduledAt: agreedAt };
+}
+
 async function respondFromDashboard({ viewingRequestId, agentId, status, requestedTime, scheduledAt, now = new Date() } = {}) {
   const request = dbService.getViewingRequestWithLead(viewingRequestId);
   if (!request) return { ok: false, reason: 'unknown-request' };
@@ -2321,6 +2405,7 @@ module.exports = {
   handleViewingButtonReply,
   handleAgentTextReply,
   respondFromDashboard,
+  confirmFromDesk,
   DASHBOARD_TRANSITIONS,
   respondFromCustomer,
   CUSTOMER_TRANSITIONS,

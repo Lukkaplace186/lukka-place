@@ -685,6 +685,19 @@ export async function recordViewingDirectContact(id, { channel, by, agentId } = 
 }
 
 /**
+ * The desk confirms a visit the agent agreed outside our loop (engine
+ * confirmFromDesk). `scheduledAt` is ISO with its offset. Messages the
+ * customer and the agent.
+ * @returns {Promise<{status: string, unchanged: boolean, tenantNotified: boolean, agentNotified: boolean}>}
+ */
+export async function confirmViewingFromDesk(id, scheduledAt) {
+  return engineFetch(`/admin/viewing-requests/${id}/desk-confirm`, {
+    method: 'POST',
+    body: JSON.stringify({ scheduled_at: scheduledAt }),
+  });
+}
+
+/**
  * Record a desk "mise en relation" (engine services/teamIntroduction.js): a
  * lead in the agent's Demandes inbox. Sends nothing to anybody.
  * @returns {Promise<{lead: Object}>}

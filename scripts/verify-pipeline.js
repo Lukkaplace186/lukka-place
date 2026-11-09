@@ -15153,6 +15153,66 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §87 The desk confirms a visit the agent agreed outside our loop (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Request #19: the agent said "Oui, WhatsApp" to the contact check, and the
+  // visit could only stay PENDING — nobody could record that it was on.
+  console.log('\n§87 the desk can confirm a visit at the agreed time, and the customer is told');
+  {
+    const repo87 = propertyRepo.getListingContactById;
+    const now87 = new Date('2026-11-09T17:00:00Z');
+    try {
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      const r87 = freshViewingRequest('lundi 9 novembre à 16h15');
+      const noTime87 = await viewingNotifications.confirmFromDesk({ viewingRequestId: r87.id, now: now87 });
+      const past87 = await viewingNotifications.confirmFromDesk({ viewingRequestId: r87.id, scheduledAt: '2026-11-09T10:00:00+01:00', now: now87 });
+      check('no agreed time, or a time already gone, confirms nothing', () => {
+        assert.strictEqual(noTime87.reason, 'scheduled-at-required');
+        assert.strictEqual(past87.reason, 'scheduled-at-past');
+        assert.strictEqual(dbService.getViewingRequest(r87.id).status, 'PENDING');
+      });
+
+      dbService.setPendingAgentAction({ waId: AGENT_WA, kind: 'VIEWING_ALERT', viewingRequestId: r87.id });
+      httpCalls.length = 0;
+      const ok87 = await viewingNotifications.confirmFromDesk({ viewingRequestId: r87.id, scheduledAt: '2026-11-10T10:00:00+01:00', now: now87 });
+      const row87 = dbService.getViewingRequest(r87.id);
+      check('CONFIRMED at the agreed instant; customer and agent told; not counted as the agent\'s response', () => {
+        assert.strictEqual(ok87.ok, true);
+        assert.strictEqual(row87.status, 'CONFIRMED');
+        assert.strictEqual(new Date(row87.scheduled_at).toISOString(), '2026-11-10T09:00:00.000Z');
+        assert.strictEqual(ok87.tenantNotified, true);
+        assert.strictEqual(ok87.agentNotified, true);
+        assert.ok(httpCalls.some((c) => c.data && String(c.data.to) === '243990111222'), 'customer messaged');
+        assert.ok(httpCalls.some((c) => c.data && String(c.data.to) === AGENT_WA && JSON.stringify(c.data).includes("confirmée par l'équipe")), 'agent told');
+        assert.strictEqual(row87.first_response_at, null, 'no invented response latency');
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA), undefined, 'an open WhatsApp question about it is closed');
+      });
+
+      httpCalls.length = 0;
+      const again87 = await viewingNotifications.confirmFromDesk({ viewingRequestId: r87.id, scheduledAt: '2026-11-10T10:00:00+01:00', now: now87 });
+      const declined87 = freshViewingRequest('demain');
+      dbService.updateViewingRequest(declined87.id, { status: 'DECLINED' });
+      const closed87 = await viewingNotifications.confirmFromDesk({ viewingRequestId: declined87.id, scheduledAt: '2026-11-10T10:00:00+01:00', now: now87 });
+      check('a second click sends nothing; a declined request cannot be confirmed', () => {
+        assert.strictEqual(again87.unchanged, true);
+        assert.strictEqual(httpCalls.length, 0);
+        assert.strictEqual(closed87.reason, 'invalid-transition');
+      });
+
+      check('the admin route and the console action exist', () => {
+        const route = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(route, /router\.post\('\/viewing-requests\/:id\/desk-confirm'/);
+        const actionsFile = path.join(__dirname, '..', 'web', 'app', 'admin', 'viewings', 'actions.js');
+        if (fs.existsSync(actionsFile)) {
+          assert.match(fs.readFileSync(actionsFile, 'utf8'), /action: 'viewing\.desk_confirm'/);
+        }
+      });
+    } finally {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      propertyRepo.getListingContactById = repo87;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

@@ -327,6 +327,7 @@ export default async function AdminViewingsPage({ searchParams }) {
                       canNudge={row.routing_type === 'DIRECT_WA' && ['PENDING', 'RESCHEDULED'].includes(row.status)}
                       canCancel={CANCELLABLE.includes(row.status)}
                       canRecordContact={!row.direct_contact_at && CONTACT_RECORDABLE.includes(row.status)}
+                      canConfirm={['PENDING', 'RESCHEDULED'].includes(row.status)}
                     />
                     {canDeleteViewings ? (
                       <div className="mt-1.5">

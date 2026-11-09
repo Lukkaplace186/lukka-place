@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BellRing, CalendarClock, MessageCircleCheck, MoreHorizontal, Send, UserRoundCog, XCircle } from 'lucide-react';
+import {
+  BellRing, CalendarCheck, CalendarClock, MessageCircleCheck, MoreHorizontal, Send, UserRoundCog, XCircle,
+} from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -14,7 +16,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import AgentPicker from '../AgentPicker';
 import {
-  cancelViewingAction, nudgeViewingAction, reassignViewingAction, recordDirectContactAction, scheduleViewingAction,
+  cancelViewingAction, confirmViewingAction, nudgeViewingAction, reassignViewingAction, recordDirectContactAction,
+  scheduleViewingAction,
 } from './actions';
 
 /** The channels the desk can record, in the order the dialog offers them. */
@@ -44,7 +47,9 @@ const SECONDARY =
  * click sends the listing's own agent the alert through the same engine
  * reassign path (which notifies them), so the chain customer → agent exists.
  */
-export default function ViewingRowActions({ viewingRequestId, currentAgentId, listingAgent = null, commune, canNudge, canCancel, canRecordContact = false }) {
+export default function ViewingRowActions({
+  viewingRequestId, currentAgentId, listingAgent = null, commune, canNudge, canCancel, canRecordContact = false, canConfirm = false,
+}) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -123,6 +128,12 @@ export default function ViewingRowActions({ viewingRequestId, currentAgentId, li
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
+          {canConfirm ? (
+            <DropdownMenuItem onSelect={() => setDialog('confirm')}>
+              <CalendarCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('admin.viewings.confirmVisit')}
+            </DropdownMenuItem>
+          ) : null}
           {canRecordContact ? (
             <DropdownMenuItem onSelect={() => setDialog('contact')}>
               <MessageCircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -191,6 +202,36 @@ export default function ViewingRowActions({ viewingRequestId, currentAgentId, li
               onClick={() => run(() => scheduleViewingAction(viewingRequestId, when), close)}
             >
               {t('admin.viewings.setTime')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The agent agreed the visit outside our loop and told the desk the
+          time. Confirming WhatsApps the customer and the agent — the body
+          says so before the click. */}
+      <Dialog open={dialog === 'confirm'} onOpenChange={(open) => (open ? setDialog('confirm') : close())}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('admin.viewings.confirmVisitTitle')}</DialogTitle>
+            <DialogDescription>{t('admin.viewings.confirmVisitBody')}</DialogDescription>
+          </DialogHeader>
+          <input
+            type="datetime-local"
+            aria-label={t('admin.viewings.timeLabel')}
+            value={when}
+            onChange={(event) => setWhen(event.target.value)}
+            className="u-focus-ring u-micro h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-ink"
+          />
+          <DialogFooter>
+            <button type="button" className={SECONDARY} onClick={close}>{t('common.actions.cancel')}</button>
+            <button
+              type="button"
+              className={PRIMARY}
+              disabled={pending || !when}
+              onClick={() => run(() => confirmViewingAction(viewingRequestId, when), close)}
+            >
+              {t('admin.viewings.confirmVisitSubmit')}
             </button>
           </DialogFooter>
         </DialogContent>

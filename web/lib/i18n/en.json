@@ -5081,7 +5081,16 @@
       "listingHasNoAgent": "This listing has no agent",
       "alertListingAgent": "Alert the agent",
       "alertListingAgentHint": "Send {name} the viewing request on WhatsApp and assign it to them",
-      "assign": "Assign"
+      "assign": "Assign",
+      "confirmVisit": "Confirm Visit",
+      "confirmVisitTitle": "Confirm the Visit",
+      "confirmVisitBody": "Use this when the agent has given you the time agreed with the customer. Kinshasa time. The customer gets the confirmation on WhatsApp and the agent a message from the team.",
+      "confirmVisitSubmit": "Confirm and notify the customer",
+      "confirmedNotified": "Visit confirmed. The customer was notified on WhatsApp.",
+      "confirmedNotNotified": "Visit confirmed, but the message to the customer could not be sent.",
+      "confirmAlready": "This visit was already confirmed.",
+      "confirmPast": "That time has already passed: pick the upcoming time that was agreed.",
+      "confirmClosed": "This request can no longer be confirmed (declined, cancelled or finished)."
     },
     "marketData": {
       "title": "Market Data",

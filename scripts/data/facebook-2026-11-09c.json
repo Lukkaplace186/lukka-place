@@ -1,0 +1,22 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-09",
+  "note": "Third Facebook paste of 2026-11-09, same rules as facebook-2026-11-09.json. Irene Bobila's Flouve post was pasted twice: imported once, one row per price category. Mix Metier's Mbinza Okapi villa is kept at its whole price only (the six lots are parts of the same plot). Jose Mambembe's and Ben's-immobilier's 800$ 3-bedroom flats on 1ere Rue Funa may be the same flat, but the details differ (3 vs 2 bathrooms, 2 vs 4 balconies), so both are kept. Easy Consulting (+243 895 306 053) was pasted without an advert: no price, so not in this file. Gracia Ndjila's advert has no number. Landmarks (rond-point Ngaba, Meteo, Institut francais, concession Ndangi, Cite du Fleuve, Villa 2) are not quartiers here.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-09c-01", "appartement", 800, 3, "Limete", "Funa", 0, "0961499012", "Jose Mambembe Ligza RT", "Chez Papa Social", "rent"],
+    ["fb-2026-11-09c-02", "duplex", 400, 2, "Limete", "Résidentiel", 0, "0961103341", "Gazo Kalonji", null, "rent"],
+    ["fb-2026-11-09c-03", "villa", 120000, 3, "Maluku", null, 0, "+243 999927567", "L'homme Congolais David", null, "sale"],
+    ["fb-2026-11-09c-04", "appartement", 550, 2, "Ngaliema", "Macampagne", 0, null, "Gracia Ndjila", null, "rent"],
+    ["fb-2026-11-09c-05", "appartement", 150, 1, "Ngaba", null, 0, "081 341 9889", "Irene Bobila", "Flouve Property Prime", "rent"],
+    ["fb-2026-11-09c-06", "appartement", 210, 1, "Ngaba", null, 0, "081 341 9889", "Irene Bobila", "Flouve Property Prime", "rent"],
+    ["fb-2026-11-09c-07", "appartement", 250, 1, "Ngaba", null, 0, "081 341 9889", "Irene Bobila", "Flouve Property Prime", "rent"],
+    ["fb-2026-11-09c-08", "villa", 450000, 3, "Ngaliema", null, 0, "0819 666 797", "Génie Techniques", "Bella casa", "sale"],
+    ["fb-2026-11-09c-09", "appartement", 800, 3, "Limete", "Funa", 0, "084 273 4776", null, "Ben's-immobilièr", "rent"],
+    ["fb-2026-11-09c-10", "appartement", 750, 3, "Ngaliema", null, 0, "+243974116497", "Nazo TeKa", null, "rent"],
+    ["fb-2026-11-09c-11", "appartement", 1250, 3, "Limete", null, 0, "+243812721567", "Plamedi Tambi", null, "rent"],
+    ["fb-2026-11-09c-12", "appartement", 850, 3, "Limete", "Industriel", 0, "+243833500874", "Fiston Bosenga", null, "rent"],
+    ["fb-2026-11-09c-13", "villa", 1300000, null, "Ngaliema", null, 0, "0827100107", null, "Mix Metier Angency", "sale"],
+    ["fb-2026-11-09c-14", "appartement", 410000, 2, "Gombe", null, 0, "+243977596206", null, "Trust Ingod Immo", "sale"]
+  ]
+}

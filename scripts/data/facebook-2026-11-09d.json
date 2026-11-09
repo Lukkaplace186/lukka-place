@@ -1,0 +1,9 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-09",
+  "note": "Fourth Facebook paste of 2026-11-09, same rules as facebook-2026-11-09.json. One advert: a house of two 3-bedroom flats in Kintambo, 'Babylone' (not a known quartier, so commune only; beds left empty because it is two units). The advert has no number, so the poster is not on the agent list.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-09d-01", "maison", 210000, null, "Kintambo", null, 0, null, "Kandala Kilefu Glo", null, "sale"]
+  ]
+}

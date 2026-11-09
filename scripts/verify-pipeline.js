@@ -15563,6 +15563,121 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §91 WhatsApp buttons go through the Lukka Place number first (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Owner decision after the gap analysis: the listing, profile, directory,
+  // project and Espace Client buttons open OUR number with the page's link;
+  // the engine records the customer and a lead, alerts the agent and hands the
+  // customer the agent's WhatsApp at once. One lead per customer and subject a
+  // day; an open visit is a follow-up, not a new request.
+  console.log('\n§91 a message through our number records the customer and hands them the agent\'s WhatsApp');
+  {
+    const listingEnquiry91 = require('../services/listingEnquiry');
+    const contactRelay91 = require('../services/contactRelay');
+    const projectEnquiry91 = require('../services/projectEnquiry');
+    const repoListing91 = propertyRepo.getListingContactById;
+    const repoAgent91 = propertyRepo.getAgentContactById;
+    const findProject91 = projectEnquiry91.findPublicProjectBySlug;
+    const handleProject91 = projectEnquiry91.handleProjectEnquiry;
+    const savedOps91 = process.env.OPS_WHATSAPP_NUMBER;
+    const CUSTOMER91 = '243990091001';
+    const to91 = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+    const text91 = (wa) => JSON.stringify(to91(wa));
+    const listingMsg = 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\nAppartement à Lingwala — 500 $ / mois\n\nEst-il toujours disponible ?\n\nhttps://lukkaplace.com/listings/303';
+    try {
+      delete process.env.OPS_WHATSAPP_NUMBER;
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      propertyRepo.getAgentContactById = async (id) => (Number(id) === 43
+        ? { agent_id: 43, agent_phone: AGENT_WA, phone_verified_at: '2026-09-09T00:00:00Z', direct_routing_enabled: true, deleted: false, agent_name: 'Kkimmo' }
+        : null);
+
+      httpCalls.length = 0;
+      const first91 = await listingEnquiry91.handleListingEnquiry({ from: CUSTOMER91, text: listingMsg, primaryWamid: 'wamid.L91A' });
+      const leads91 = dbService.listLeads({ waId: CUSTOMER91 }).data;
+      check('a listing message records a lead assigned to the agent, alerts them, and hands the customer their WhatsApp', () => {
+        assert.strictEqual(first91.handled, true);
+        assert.strictEqual(leads91.length, 1);
+        assert.strictEqual(leads91[0].source, 'listing-whatsapp-enquiry');
+        assert.strictEqual(String(leads91[0].agent_id), '43');
+        assert.ok(to91(AGENT_WA).length >= 1, 'agent alerted');
+        const reply = text91(CUSTOMER91);
+        assert.match(reply, /Kkimmo a reçu votre demande/);
+        assert.match(reply, new RegExp(`wa\\.me\\/${AGENT_WA}`));
+      });
+      httpCalls.length = 0;
+      await listingEnquiry91.handleListingEnquiry({ from: CUSTOMER91, text: listingMsg, primaryWamid: 'wamid.L91B' });
+      check('a second message the same day is the same lead: no new alert, "Bonjour à nouveau"', () => {
+        assert.strictEqual(dbService.listLeads({ waId: CUSTOMER91 }).data.length, 1);
+        assert.strictEqual(to91(AGENT_WA).length, 0);
+        assert.match(text91(CUSTOMER91), /Bonjour à nouveau/);
+      });
+
+      const visit91 = freshViewingRequest('mardi 10h');
+      const before91 = dbService.listLeads({ waId: '243990111222' }).data.length;
+      httpCalls.length = 0;
+      await listingEnquiry91.handleListingEnquiry({ from: '243990111222', text: listingMsg, primaryWamid: 'wamid.L91C' });
+      check('a customer with an open visit on the listing is following it up: no new lead, handed the agent', () => {
+        assert.ok(visit91.id);
+        assert.strictEqual(dbService.listLeads({ waId: '243990111222' }).data.length, before91);
+        assert.match(text91('243990111222'), new RegExp(`wa\\.me\\/${AGENT_WA}`));
+      });
+
+      check('profile and project links are recognised, host-anchored', () => {
+        assert.deepStrictEqual(contactRelay91.parseContactLink('Bonjour\n\nhttps://lukkaplace.com/agents/43'), { kind: 'agent', agentId: 43 });
+        assert.deepStrictEqual(contactRelay91.parseContactLink('https://lukkaplace.com/projets/residence-mimosas'), { kind: 'project', slug: 'residence-mimosas' });
+        assert.strictEqual(contactRelay91.parseContactLink('https://autre-site.com/agents/43'), null);
+      });
+      httpCalls.length = 0;
+      const prof91 = await contactRelay91.handleContactLink({ from: '243990091002', text: "Bonjour, j'ai vu votre profil sur Lukka Place.\n\nhttps://lukkaplace.com/agents/43", primaryWamid: 'wamid.P91A' });
+      const profLead91 = dbService.listLeads({ waId: '243990091002' }).data;
+      check('a profile message records a lead for that agent, alerts them and hands the customer their WhatsApp', () => {
+        assert.strictEqual(prof91.handled, true);
+        assert.strictEqual(profLead91.length, 1);
+        assert.strictEqual(profLead91[0].source, 'agent-profile-whatsapp');
+        assert.strictEqual(String(profLead91[0].agent_id), '43');
+        assert.ok(to91(AGENT_WA).length >= 1);
+        assert.match(text91('243990091002'), new RegExp(`wa\\.me\\/${AGENT_WA}`));
+      });
+      httpCalls.length = 0;
+      await contactRelay91.handleContactLink({ from: '243990091002', text: 'https://lukkaplace.com/agents/43', primaryWamid: 'wamid.P91B' });
+      const unknown91 = await contactRelay91.handleContactLink({ from: '243990091003', text: 'https://lukkaplace.com/agents/999', primaryWamid: 'wamid.P91C' });
+      check('a repeat is the same lead; an unknown agent falls through to ordinary processing', () => {
+        assert.strictEqual(dbService.listLeads({ waId: '243990091002' }).data.length, 1);
+        assert.strictEqual(to91(AGENT_WA).length, 0);
+        assert.strictEqual(unknown91.handled, false);
+      });
+
+      projectEnquiry91.findPublicProjectBySlug = async (slug) => (slug === 'residence-mimosas'
+        ? { id: 7, slug, name: 'Résidence Mimosas', commune: 'Ngaliema', agent_id: 43, developer_name: 'Kkimmo' }
+        : null);
+      projectEnquiry91.handleProjectEnquiry = async ({ waId }) => ({
+        ok: true, developerNotified: true, opsNotified: false, lead: dbService.createLead({ wa_id: waId, source: 'project-enquiry', development_id: 7 }),
+      });
+      httpCalls.length = 0;
+      const proj91 = await contactRelay91.handleContactLink({ from: '243990091004', text: 'Projet\n\nhttps://lukkaplace.com/projets/residence-mimosas', primaryWamid: 'wamid.J91A' });
+      check('a project message goes through the project enquiry and hands the customer the developer', () => {
+        assert.strictEqual(proj91.handled, true);
+        assert.match(text91('243990091004'), /le projet « Résidence Mimosas »/);
+        assert.match(text91('243990091004'), new RegExp(`wa\\.me\\/${AGENT_WA}`));
+      });
+
+      check('the webhook tries the contact links right after the listing enquiry', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(src, /handleContactLink\(\{ from, text, primaryWamid \}\)/);
+      });
+      check('profile WhatsApp leads count as profile enquiries in the interaction counts', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'db.js'), 'utf8');
+        assert.match(src, /'agent-profile-whatsapp',\r?\n\];/);
+      });
+    } finally {
+      propertyRepo.getListingContactById = repoListing91;
+      propertyRepo.getAgentContactById = repoAgent91;
+      projectEnquiry91.findPublicProjectBySlug = findProject91;
+      projectEnquiry91.handleProjectEnquiry = handleProject91;
+      if (savedOps91 === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = savedOps91;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

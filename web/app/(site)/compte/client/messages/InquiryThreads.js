@@ -17,9 +17,9 @@ import {
 } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { contactWhatsAppHref } from '@/lib/leadRouting';
 import { telHref } from '@/lib/phone';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import EditPropertyRequestDialog from './EditPropertyRequestDialog';
 import ViewingPanel from './ViewingPanel';
@@ -303,8 +303,15 @@ function proposalContactMessage(property, leadId) {
 }
 
 function proposalWhatsAppHref(property, leadId) {
+  // Through the Lukka Place number with the listing's link (2026-11-09):
+  // recorded as an enquiry on that listing, and the customer is handed the
+  // agent's WhatsApp at once (lib/leadRouting.js contactWhatsAppHref).
   return property.agentPhone
-    ? buildWhatsAppLink(property.agentPhone, proposalContactMessage(property, leadId))
+    ? contactWhatsAppHref({
+      agentPhone: property.agentPhone,
+      message: proposalContactMessage(property, leadId),
+      link: property.id != null ? `${SITE_URL}/listings/${property.id}` : null,
+    })
     : null;
 }
 

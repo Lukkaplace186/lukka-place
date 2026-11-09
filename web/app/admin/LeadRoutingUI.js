@@ -71,7 +71,7 @@ export const STATUS_TONE = {
   CANCELLED: 'neutral',
 };
 
-export const ROUTING_TONE = { DIRECT_WA: 'success', CENTRAL_FALLBACK: 'blue' };
+export const ROUTING_TONE = { DIRECT_WA: 'success', CENTRAL_FALLBACK: 'blue', VIA_LUKKA: 'success' };
 
 export function ErrorNote({ children }) {
   return (

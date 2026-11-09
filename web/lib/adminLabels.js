@@ -42,7 +42,9 @@ export const VIEWING_REQUEST_STATUS_LABEL_KEYS = Object.fromEntries(
 /** viewing_requests.routing_type / whatsapp_clicks.routing_type. */
 export const ROUTING_TYPES = ['DIRECT_WA', 'CENTRAL_FALLBACK'];
 export const ROUTING_TYPE_LABEL_KEYS = Object.fromEntries(
-  ROUTING_TYPES.map((type) => [type, `status.routing.${type}`]),
+  // VIA_LUKKA labels a WhatsApp tap only (whatsapp_clicks), never a visit
+  // request's routing, so it is not in ROUTING_TYPES (the viewings filter).
+  [...ROUTING_TYPES, 'VIA_LUKKA'].map((type) => [type, `status.routing.${type}`]),
 );
 
 /** viewing_requests.decline_reason_code — engine services/db.js DECLINE_REASON_CODES. */

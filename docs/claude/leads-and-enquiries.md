@@ -7,6 +7,11 @@
 
 ## Lead Routing Rules
 
+> **Superseded 2026-11-09** (owner decision): the WhatsApp button now goes
+> through the Lukka Place number first — see "WhatsApp through Lukka Place
+> first" at the end of this file. The call button still goes to the agent.
+> The text below is the earlier rule, kept for its history.
+
 **Dual contact policy.** A listing detail page offers two different things on
 purpose, and they route differently:
 
@@ -380,3 +385,46 @@ Built in this first step:
   directory, Projets neufs and Espace Client buttons (they will go through our
   number instead of being counted).
 - §90 of verify-pipeline; web `tests/unit/agent-contact-attempts.test.js`.
+
+## WhatsApp through Lukka Place first (2026-11-09)
+
+Owner decision after the gap analysis (102 direct WhatsApp taps in 30 days,
+nothing recorded after any of them). Replaces the dual contact policy above
+for WhatsApp; the "Appeler" tel: link still goes to the verified agent.
+
+- **Web** (`lib/leadRouting.js`): a verified, routable agent's listing button
+  resolves to routing `VIA_LUKKA` — the central number with the unchanged
+  storefront message (the listing link stays last). `contactWhatsAppHref`
+  does the same for the agent profile, the agent directory (link
+  `/agents/<id>`), a project page (`/projets/<slug>`) and the Espace Client
+  visit and proposal cards (`/listings/<id>`). `NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=on`
+  (build time) restores the agent's own number; with no central number set
+  the agent's number is used anyway.
+- **Taps**: `whatsapp_clicks.routing_type = 'VIA_LUKKA'`
+  (`migrations/20261109_whatsapp_via_lukka.sql`; before it runs the tap is
+  kept with no routing type, lib/leadClicks.js retries on 23514). No "Un client
+  vous contacte" alert for these taps — the agent is alerted when the message
+  actually arrives. `/admin/interactions` does not count the tap (the message
+  is counted as the WhatsApp enquiry); Lead Analytics' conversion divides
+  enquiries by central + via-Lukka taps.
+- **Engine, listing** (`services/listingEnquiry.js`): the lead is assigned to
+  the listing's agent; the reply is `services/contactHandoff.js`
+  `agentHandoffReply` — "<agent> a reçu votre demande … avec votre numéro",
+  the agent's wa.me link and number. A second message from the same customer
+  about the same listing within 24 h, or one from a customer with an open
+  visit on it (Espace Client), is a follow-up: no new lead, no new alert,
+  "Bonjour à nouveau". The agent alert now says the customer has their number.
+  An agent who is not routable: the earlier desk reply, unchanged.
+- **Engine, profile / directory / project** (`services/contactRelay.js`,
+  after the listing enquiry in the webhook, same guards): `/agents/<id>` →
+  lead `agent-profile-whatsapp` assigned to that agent (counted as a profile
+  enquiry), agent alerted (`nouvelle_demande_agent`), desk copy, handoff
+  reply; `/projets/<slug>` → `projectEnquiry.findPublicProjectBySlug` +
+  `handleProjectEnquiry` (the form's path), then the developer's WhatsApp.
+  Unknown or non-public pages fall through to ordinary processing.
+- The customer's chat with the agent after the handoff is between two
+  personal phones and stays invisible — accepted by the owner; the lead, the
+  dashboard taps and the 24 h follow-up (once `suivi_demande_client` is
+  approved) are what we keep.
+- §91 of verify-pipeline; web `tests/unit/whatsapp-via-lukka.test.js`,
+  `tests/unit/lead-routing.test.js`.

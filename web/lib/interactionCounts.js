@@ -43,6 +43,8 @@ export const TOTAL_CHANNELS = INTERACTION_CHANNELS.filter((c) => c.total).map((c
 export const LEAD_SOURCE_CHANNEL = {
   'listing-whatsapp-enquiry': 'whatsappEnquiry',
   'agent-profile-inquiry': 'profileEnquiry',
+  // WhatsApp from an agent's profile / the directory, through our number (2026-11-09).
+  'agent-profile-whatsapp': 'profileEnquiry',
   'project-enquiry': 'projectEnquiry',
   'team-introduction': 'teamIntroduction',
 };
@@ -120,6 +122,10 @@ export function mergeInteractionCounts({ taps = [], calls = [], chats = [], engi
 
   for (const t of taps) {
     if (t.routingType === 'DIRECT_WA') add(toId(t.agentId), 'whatsappDirect', t.count);
+    // A VIA_LUKKA tap opens our number: the message the customer then sends
+    // is counted as a WhatsApp enquiry (a lead, with its agent) — counting the
+    // tap too would count one contact twice (2026-11-09).
+    else if (t.routingType === 'VIA_LUKKA') continue;
     else central.whatsapp += Number(t.count) || 0;
   }
   for (const c of calls) {

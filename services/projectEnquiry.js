@@ -82,6 +82,28 @@ async function loadProject(developmentId, interest) {
   return { project, picked };
 }
 
+/**
+ * The public project a page link names (`/projets/<slug>`), for the WhatsApp
+ * message the project page pre-types (services/contactRelay.js). Same public
+ * gate as loadProject; null when not public, unknown, or Postgres is down.
+ */
+async function findPublicProjectBySlug(slug) {
+  if (!isConfigured() || !slug) return null;
+  try {
+    const { rows } = await getPool().query(
+      `SELECT d.id, d.slug, d.name, d.commune, d.agent_id, d.developer_name
+         FROM developments d
+        WHERE LOWER(d.slug) = LOWER($1) AND d.status = 1 AND d.approve_status = 1
+        LIMIT 1`,
+      [String(slug)],
+    );
+    return rows[0] || null;
+  } catch (err) {
+    console.error(`[project-enquiry] project lookup by slug '${slug}' failed: ${err.message}`);
+    return null;
+  }
+}
+
 function projectLink(project) {
   return `${SITE_URL}/projets/${project.slug}`;
 }
@@ -208,6 +230,7 @@ async function handleProjectEnquiry({ developmentId, waId, name, interest, messa
 
 module.exports = {
   handleProjectEnquiry,
+  findPublicProjectBySlug,
   // Exposed for scripts/verify-pipeline.js.
   developerMessage,
   opsMessage,

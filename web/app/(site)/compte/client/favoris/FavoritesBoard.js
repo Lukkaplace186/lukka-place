@@ -246,7 +246,9 @@ function FavoriteCard({ listing, selected, disabled, onToggle, onRemove, onReque
   // when their number is verified, Lukka Place's otherwise. This card used to
   // send every contact to Lukka Place's number, whoever the agent was.
   const { href: contactHref, routingType } = resolveWhatsAppRouting(listing);
-  const direct = routingType === ROUTING_TYPES.direct;
+  // VIA_LUKKA still reaches the agent (our number hands the customer their
+  // WhatsApp at once), so the button keeps naming the agent.
+  const direct = routingType === ROUTING_TYPES.direct || routingType === ROUTING_TYPES.viaLukka;
 
   return (
     <PortalPanel as="article" className="flex flex-col overflow-hidden">

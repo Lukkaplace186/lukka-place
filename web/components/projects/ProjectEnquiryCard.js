@@ -3,7 +3,7 @@ import { Phone } from 'lucide-react';
 import AgentMonogram from '@/components/AgentMonogram';
 import PhoneField from '@/components/PhoneField';
 import { submitProjectEnquiryAction } from '@/app/(site)/projets/[slug]/actions';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { contactWhatsAppHref } from '@/lib/leadRouting';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -33,8 +33,15 @@ export default async function ProjectEnquiryCard({ project, interest, sent, erro
   const name = displayableAgencyName(project.agency_name) || project.developer_name || null;
   const phone = String(project.agent_phone || '').replace(/\D/g, '');
   const link = `${SITE_URL}/projets/${project.slug}`;
+  // Through the Lukka Place number (2026-11-09): services/contactRelay.js
+  // reads the project link, records the lead (as the form does), alerts the
+  // developer and hands the customer the developer's WhatsApp.
   const waHref = phone
-    ? buildWhatsAppLink(phone, `Bonjour, je vous contacte via Lukka Place au sujet du projet « ${project.name} »${project.commune ? ` (${project.commune})` : ''}.\n\nPouvez-vous m'envoyer plus d'informations ?\n\n${link}`)
+    ? contactWhatsAppHref({
+      agentPhone: phone,
+      message: `Bonjour, je vous contacte via Lukka Place au sujet du projet « ${project.name} »${project.commune ? ` (${project.commune})` : ''}.\n\nPouvez-vous m'envoyer plus d'informations ?`,
+      link,
+    })
     : null;
 
   const options = [

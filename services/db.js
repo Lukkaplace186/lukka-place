@@ -2228,6 +2228,9 @@ function recordTeamIntroductionLead({ agentId, assignedAgent, ...data }) {
  */
 const INTERACTION_LEAD_SOURCES = [
   'listing-whatsapp-enquiry', 'agent-profile-inquiry', 'project-enquiry', 'team-introduction',
+  // WhatsApp from an agent's profile / the directory, through our number
+  // (services/contactRelay.js, 2026-11-09).
+  'agent-profile-whatsapp',
 ];
 
 /**
@@ -3916,6 +3919,43 @@ function recordAgentContactAttempt({
   return { recorded: true, id, leadMoved };
 }
 
+/**
+ * The most recent lead from this customer about the same listing, agent or
+ * project within `hours` — so a customer who taps the WhatsApp button twice
+ * (or writes again) is one lead and one agent alert, not several.
+ */
+function findRecentLeadFor({ waId, propertyId = null, agentId = null, developmentId = null, hours = 24 } = {}) {
+  const wa = String(waId || '').replace(/\D/g, '');
+  if (!wa) return null;
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  let clause;
+  let value;
+  if (propertyId != null) [clause, value] = ['property_id = ?', Number(propertyId)];
+  else if (developmentId != null) [clause, value] = ['development_id = ?', Number(developmentId)];
+  else if (agentId != null) [clause, value] = ['agent_id = ? AND property_id IS NULL', Number(agentId)];
+  else return null;
+  return db
+    .prepare(`SELECT * FROM leads WHERE wa_id = ? AND ${clause} AND datetime(created_at) >= datetime(?) ORDER BY id DESC LIMIT 1`)
+    .get(wa, value, since) || null;
+}
+
+/**
+ * This customer's open visit on this listing (PENDING / RESCHEDULED /
+ * CONFIRMED), whatever its age — a customer writing from their Espace Client
+ * visit card is following up that visit, not making a new request.
+ */
+function findOpenViewingFor({ waId, propertyId } = {}) {
+  const wa = String(waId || '').replace(/\D/g, '');
+  if (!wa || propertyId == null) return null;
+  return db
+    .prepare(
+      `SELECT v.* FROM viewing_requests v JOIN leads l ON l.id = v.lead_id
+        WHERE l.wa_id = ? AND v.property_id = ? AND v.status IN ('PENDING', 'RESCHEDULED', 'CONFIRMED')
+        ORDER BY v.id DESC LIMIT 1`,
+    )
+    .get(wa, Number(propertyId)) || null;
+}
+
 function listAgentContactAttempts({ leadId = null, viewingRequestId = null } = {}) {
   if (leadId != null) return db.prepare('SELECT * FROM agent_contact_attempts WHERE lead_id = ? ORDER BY id DESC').all(leadId);
   if (viewingRequestId != null) {
@@ -4717,6 +4757,8 @@ module.exports = {
   listWhatsAppMessages,
   recordAgentContactAttempt,
   listAgentContactAttempts,
+  findRecentLeadFor,
+  findOpenViewingFor,
   CONTACT_ATTEMPT_CHANNELS,
   CONTACT_ATTEMPT_SOURCES,
   markViewingProposalSent,

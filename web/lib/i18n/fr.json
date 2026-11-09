@@ -2942,7 +2942,8 @@
     },
     "routing": {
       "DIRECT_WA": "WhatsApp direct",
-      "CENTRAL_FALLBACK": "Numéro central"
+      "CENTRAL_FALLBACK": "Numéro central",
+      "VIA_LUKKA": "Via Lukka Place"
     },
     "declineReason": {
       "PRICE_TOO_HIGH": "Prix trop élevé",
@@ -4096,7 +4097,8 @@
         "routing": {
           "DIRECT_WA": "Directement à l’agent",
           "CENTRAL_FALLBACK": "Numéro central Lukka Place",
-          "inconnu": "Avant le suivi"
+          "inconnu": "Avant le suivi",
+          "VIA_LUKKA": "Via Lukka Place, puis l’agent"
         },
         "placement": {
           "card": "Carte d’annonce (liste, accueil)",
@@ -5282,7 +5284,8 @@
         "listing_desktop": "Page annonce (ordinateur)",
         "listing_mobile_bar": "Page annonce (téléphone)",
         "map_card": "Carte (plan)"
-      }
+      },
+      "viaLukka": "Via Lukka Place (annonce d'un agent vérifié)"
     },
     "table": {
       "all": "Tous",

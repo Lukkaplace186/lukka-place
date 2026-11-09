@@ -43,8 +43,25 @@ const LISTING = {
   purpose: 'rent',
 };
 
-test('a verified agent routes DIRECT_WA to their own number, with the storefront message', () => {
+// 2026-11-09, owner decision: a verified agent's listing goes through the
+// Lukka Place number first (the engine hands the customer the agent's
+// WhatsApp at once), with the very same message.
+test('a verified agent routes VIA_LUKKA to our number by default, with the storefront message', () => {
   const { routingType, href } = resolveWhatsAppRouting({ ...LISTING, agent_phone: '243821122937' });
+  assert.equal(routingType, ROUTING_TYPES.viaLukka);
+  assert.ok(href.startsWith(`https://wa.me/${CENTRAL}?text=`), href);
+  assert.match(messageOf(href), /https:\/\/lukkaplace\.com\/listings\/293$/);
+});
+
+test('NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=on restores DIRECT_WA to the agent, with the storefront message', () => {
+  process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT = 'on';
+  let routingType;
+  let href;
+  try {
+    ({ routingType, href } = resolveWhatsAppRouting({ ...LISTING, agent_phone: '243821122937' }));
+  } finally {
+    delete process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT;
+  }
   assert.equal(routingType, ROUTING_TYPES.direct);
   assert.ok(href.startsWith('https://wa.me/243821122937?text='), href);
   const text = messageOf(href);

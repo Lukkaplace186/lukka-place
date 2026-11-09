@@ -66,6 +66,7 @@ const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleTapButtonReply } = require('../services/contactTapAlert');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
+const { handleContactLink } = require('../services/contactRelay');
 const salesReferral = require('../services/salesReferral');
 const opsDesk = require('../services/opsDesk');
 const listingQuota = require('../services/listingQuota');
@@ -1185,6 +1186,14 @@ async function processGroup(messages) {
       } catch (err) {
         // Never costs the sender a reply: fall through to the ordinary path.
         console.error(`[enquiry] handling a listing enquiry from ${from} failed: ${err.message}`);
+      }
+      // The same, from an agent's profile / the directory (/agents/<id>) or a
+      // project page (/projets/<slug>) — services/contactRelay.js. Same guards.
+      try {
+        const contact = await handleContactLink({ from, text, primaryWamid });
+        if (contact.handled) return;
+      } catch (err) {
+        console.error(`[contact-relay] handling a contact link from ${from} failed: ${err.message}`);
       }
     }
 

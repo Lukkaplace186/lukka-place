@@ -17,9 +17,9 @@ import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
 import { COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { publicRatingSummary, formatAverage } from '@/lib/agentReviews';
 import { agencyInitials } from '@/lib/agentIdentity';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { contactWhatsAppHref } from '@/lib/leadRouting';
 import { telHref } from '@/lib/phone';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
 import DirectorySelect from './DirectorySelect';
@@ -351,7 +351,11 @@ function DirectoryCard({ agent, t, locale }) {
   const initials = agencyInitials(name);
   const rating = publicRatingSummary(agent);
   const communes = [...new Set([...(agent.primary_communes || []), ...(agent.serviced_communes || [])])].map(communeLabel);
-  const whatsappHref = agent.contact_phone ? buildWhatsAppLink(String(agent.contact_phone).replace(/\D/g, ''), CONTACT_MESSAGE) : null;
+  // Through the Lukka Place number with the agent's profile link (2026-11-09):
+  // the engine records the customer and hands them this agent's WhatsApp.
+  const whatsappHref = agent.contact_phone
+    ? contactWhatsAppHref({ agentPhone: agent.contact_phone, message: CONTACT_MESSAGE, link: `${SITE_URL}/agents/${agent.id}` })
+    : null;
   const callHref = agent.contact_phone ? telHref(agent.contact_phone) : null;
   const profileHref = `/agents/${agent.id}`;
 

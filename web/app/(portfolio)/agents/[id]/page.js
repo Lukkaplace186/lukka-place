@@ -5,7 +5,8 @@ import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
 import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
-import { buildWhatsAppLink, buildWhatsAppShareLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { buildWhatsAppShareLink } from '@/lib/whatsapp';
+import { contactWhatsAppHref } from '@/lib/leadRouting';
 import { listingImages, typeLabel, specItems, feedLocationLine, LISTING_TIME_ZONE } from '@/lib/listingView';
 import { placeLabel } from '@/lib/placeLabel';
 import { isVerifiedLevel, LEVEL_LABEL_KEYS } from '@/lib/verificationLevels';
@@ -101,7 +102,14 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   const routablePhone = agent.phone && agent.phone_verified_at && agent.direct_routing_enabled !== false
     ? String(agent.phone).replace(/\D/g, '')
     : null;
-  const whatsappTo = (message) => (routablePhone ? buildWhatsAppLink(routablePhone, message) : getCentralWhatsAppHref(message));
+  // Through the Lukka Place number with the profile's link (2026-11-09):
+  // services/contactRelay.js records the customer, alerts the agent and
+  // hands the customer the agent's WhatsApp (lib/leadRouting.js).
+  const whatsappTo = (message) => contactWhatsAppHref({
+    agentPhone: routablePhone,
+    message,
+    link: `${SITE_URL}/agents/${agent.id}`,
+  });
 
   const contactName = agentContactName(agent);
   const subline = [

@@ -60,6 +60,7 @@ const agentEnquiryAlert = require('./agentEnquiryAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
+const { agentHandoffReply } = require('./contactHandoff');
 
 /**
  * Lukka Place's own desk. Same variable, same no-default reasoning as
@@ -197,7 +198,7 @@ function agentMessage({ listing, propertyId, from, quotedReference }) {
   if (placeLabel(listing || {})) lines.push(`🗺️ Lieu : ${placeLabel(listing)}`);
   lines.push(
     '',
-    'Le client a été informé que vous le recontactez rapidement.',
+    'Le client a reçu votre numéro WhatsApp : écrivez-lui vite, il attend votre réponse.',
     listingLink(listing, propertyId),
   );
   return lines.join('\n');
@@ -376,17 +377,50 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
     console.error(`[enquiry] could not record the conversation for ${from}: ${err.message}`);
   }
 
-  // Recorded before the alert: the agent's template button opens this lead.
-  const lead = recordEnquiryLead({ from, propertyId, listing, conversationId: conversation?.id ?? null });
+  // The same customer about the same listing within 24 h (a second tap, a
+  // follow-up): one lead and one agent alert, not one per message.
+  // An open visit on this listing counts the same way: the customer is
+  // following it up (Espace Client "Écrire à l'agent"), not asking afresh.
+  let recent = null;
+  try {
+    recent = db.findRecentLeadFor({ waId: from, propertyId }) || db.findOpenViewingFor({ waId: from, propertyId });
+  } catch (err) {
+    console.error(`[enquiry] recent-lead lookup for ${from} failed: ${err.message}`);
+  }
+  const routable = !propertyRepository.directRoutingBlocker(listing);
 
-  // Fire the alert BEFORE replying: the customer's reply states whether
-  // somebody was reached, so it cannot be written until we know.
-  const { agentNotified, opsNotified } = await notifyEnquiry({
-    listing, propertyId, from, quotedReference, leadId: lead?.id ?? null,
-  });
-  const reached = agentNotified || opsNotified;
+  let agentNotified = false;
+  let opsNotified = false;
+  if (!recent) {
+    // Recorded before the alert: the agent's template button opens this lead.
+    const lead = recordEnquiryLead({ from, propertyId, listing, conversationId: conversation?.id ?? null });
+    if (lead && routable) {
+      try {
+        db.assignLead(lead.id, { agentId: listing.agent_id, assignedAgent: listing.agent_name || null });
+      } catch (err) {
+        console.error(`[enquiry] could not assign lead #${lead.id} to agent #${listing.agent_id}: ${err.message}`);
+      }
+    }
+    // Fire the alert BEFORE replying: the customer's reply states whether
+    // somebody was reached, so it cannot be written until we know.
+    ({ agentNotified, opsNotified } = await notifyEnquiry({
+      listing, propertyId, from, quotedReference, leadId: lead?.id ?? null,
+    }));
+  } else {
+    console.log(`[enquiry] property #${propertyId} from ${from} — follow-up of #${recent.id} (${recent.lead_id ? "visit" : "lead"}), no new alert`);
+  }
+  const reached = agentNotified || opsNotified || Boolean(recent);
 
-  const reply = customerReply({ listing, propertyId, quotedReference, reached });
+  // Via Lukka Place (2026-11-09): when the listing's verified agent was told
+  // (or already was), the customer gets that agent's WhatsApp at once.
+  const reply = routable && (agentNotified || recent)
+    ? agentHandoffReply({
+      agentName: listing.agent_name,
+      agentPhone: listing.agent_phone,
+      about: listingPhrase(listing, propertyId),
+      repeat: Boolean(recent),
+    })
+    : customerReply({ listing, propertyId, quotedReference, reached });
 
   try {
     await chakra.sendWhatsAppMessage(from, reply, {

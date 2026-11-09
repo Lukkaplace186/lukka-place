@@ -22,7 +22,11 @@ import { VIEWER_KINDS, viewerKindSql } from './trackIngest';
  * in the INSERT). Before the engagement migration runs, the INSERT is retried
  * without `visitor_id` / `viewer_kind`.
  */
-export const LEAD_CLICK_ROUTING_TYPES = ['DIRECT_WA', 'CENTRAL_FALLBACK'];
+// VIA_LUKKA (2026-11-09): a verified agent's listing whose button now opens
+// the Lukka Place number (lib/leadRouting.js). Allowed by
+// migrations/20261109_whatsapp_via_lukka.sql; before it runs the row is kept
+// with no routing type rather than lost (recordLeadClick).
+export const LEAD_CLICK_ROUTING_TYPES = ['DIRECT_WA', 'CENTRAL_FALLBACK', 'VIA_LUKKA'];
 
 export const RECORD_LEAD_CLICK_SQL = `
   INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id, visitor_id, viewer_kind)
@@ -76,6 +80,22 @@ export async function recordLeadClick(pool, {
   if (!LEAD_CLICK_ROUTING_TYPES.includes(routingType)) {
     throw new Error(`recordLeadClick: unknown routing type '${routingType}'`);
   }
+  try {
+    return await insertLeadClick(pool, {
+      listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement,
+    });
+  } catch (err) {
+    // 23514: the routing-type CHECK predates VIA_LUKKA (migration not run yet).
+    if (err?.code !== '23514' || routingType !== 'VIA_LUKKA') throw err;
+    return insertLeadClick(pool, {
+      listingId, commune, device, source, price, routingType: null, visitorId, viewerKind, agentId, placement,
+    });
+  }
+}
+
+async function insertLeadClick(pool, {
+  listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement,
+}) {
   const base = [listingId, commune || null, device, source, price, routingType];
   const kind = VIEWER_KINDS.includes(viewerKind) ? viewerKind : 'visitor';
   const tracked = [...base, visitorId || null, kind, agentId || null];

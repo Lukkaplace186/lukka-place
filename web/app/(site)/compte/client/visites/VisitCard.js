@@ -6,11 +6,11 @@ import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { customerToAgentMessage } from '@/lib/customerAgenda';
 import { needsAgentRating, needsCheckin, proposalExpired, proposedSlotAt } from '@/lib/clientPortalView';
 import { formatVisitDay, formatVisitTime, visitCountdown } from '@/lib/visitAgenda';
-import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { contactWhatsAppHref } from '@/lib/leadRouting';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import CustomerVisitActions from './CustomerVisitActions';
 import VisitAgentRating from './VisitAgentRating';
@@ -108,7 +108,14 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
   const agentName = displayableAgencyName(listing?.agency_name) || null;
   const agentPhone = listing?.agent_phone ? String(listing.agent_phone).replace(/\D/g, '') : null;
   const message = customerToAgentMessage({ agentName, phrase: visit.phrase, listing });
-  const whatsappHref = agentPhone ? buildWhatsAppLink(agentPhone, message) : getCentralWhatsAppHref(message);
+  // Through the Lukka Place number with the listing's link (2026-11-09): the
+  // engine sees the customer's open visit, records the message and hands them
+  // the agent's WhatsApp (lib/leadRouting.js contactWhatsAppHref).
+  const whatsappHref = contactWhatsAppHref({
+    agentPhone,
+    message,
+    link: listing?.id != null ? `${SITE_URL}/listings/${listing.id}` : null,
+  });
   const centralDigits = String(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '');
   const callHref = agentPhone ? `tel:+${agentPhone}` : centralDigits ? `tel:+${centralDigits}` : null;
   const image = listing ? listingImages(listing)[0] : null;

@@ -254,10 +254,10 @@ export async function getLeadClickTotals({ days = 30, repId = null, visitorsOnly
       GROUP BY routing_type`,
     scoped ? [days, Number(repId) || 0] : [days],
   );
-  const totals = { DIRECT_WA: 0, CENTRAL_FALLBACK: 0, UNKNOWN: 0 };
+  const totals = { DIRECT_WA: 0, CENTRAL_FALLBACK: 0, VIA_LUKKA: 0, UNKNOWN: 0 };
   for (const row of rows) {
     const key = row.routing_type && row.routing_type in totals ? row.routing_type : 'UNKNOWN';
     totals[key] += Number(row.total) || 0;
   }
-  return { ...totals, total: totals.DIRECT_WA + totals.CENTRAL_FALLBACK + totals.UNKNOWN };
+  return { ...totals, total: totals.DIRECT_WA + totals.CENTRAL_FALLBACK + totals.VIA_LUKKA + totals.UNKNOWN };
 }

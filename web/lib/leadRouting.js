@@ -23,7 +23,44 @@ import { buildWhatsAppLink, buildWhatsAppMessage, getCentralWhatsAppHref } from 
  * harmless today and a silent break the day an agent forwards one to the
  * central number.
  */
-export const ROUTING_TYPES = Object.freeze({ direct: 'DIRECT_WA', central: 'CENTRAL_FALLBACK' });
+export const ROUTING_TYPES = Object.freeze({ direct: 'DIRECT_WA', central: 'CENTRAL_FALLBACK', viaLukka: 'VIA_LUKKA' });
+
+/**
+ * VIA_LUKKA (2026-11-09, owner decision): a verified agent's listing button
+ * opens the Lukka Place number with the same pre-typed message, not the
+ * agent's own WhatsApp. The engine (services/listingEnquiry.js) records the
+ * customer and a lead, alerts the agent, and replies at once with the agent's
+ * name and WhatsApp — one extra tap for the customer, and the contact is no
+ * longer invisible (102 direct taps in 30 days had left nothing behind).
+ * The agent's number stays on the page for calls.
+ *
+ * `NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=on` (build time) restores the direct
+ * link; it also applies whenever no central number is configured, since there
+ * would be nothing to route through.
+ */
+export function routesViaLukka() {
+  return process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT !== 'on' && Boolean(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
+}
+
+/**
+ * Any other "write to this agent / developer" WhatsApp button — the agent
+ * profile, the agent directory, a project page, the Espace Client's visit and
+ * proposal cards (2026-11-09). The message ends with the page's own link
+ * (`/agents/<id>`, `/projets/<slug>`, `/listings/<id>`), which is how the
+ * engine (services/contactRelay.js, services/listingEnquiry.js) knows who the
+ * customer wants and hands them that agent's WhatsApp. With VIA_LUKKA off and
+ * a routable agent, the agent's own number as before; with no routable agent,
+ * our number either way.
+ *
+ * @param {{agentPhone?: string|null, message: string, link: string}} p
+ * @returns {string|null}
+ */
+export function contactWhatsAppHref({ agentPhone, message, link }) {
+  const text = link ? `${message}\n\n${link}` : message;
+  const phone = String(agentPhone || '').replace(/\D/g, '');
+  if (phone && !routesViaLukka()) return buildWhatsAppLink(phone, text);
+  return getCentralWhatsAppHref(text) || (phone ? buildWhatsAppLink(phone, text) : null);
+}
 
 export function listingWhatsAppMessage(listing) {
   return buildWhatsAppMessage({
@@ -40,13 +77,16 @@ export function listingWhatsAppMessage(listing) {
 
 /**
  * @param {Object} listing A row from lib/listings.js.
- * @returns {{routingType: 'DIRECT_WA'|'CENTRAL_FALLBACK', href: string|null}}
+ * @returns {{routingType: 'DIRECT_WA'|'CENTRAL_FALLBACK'|'VIA_LUKKA', href: string|null}}
  *   `href` is null only when routing is central and no central number is
  *   configured — callers render their honest disabled state for that.
  */
 export function resolveWhatsAppRouting(listing) {
   const message = listingWhatsAppMessage(listing);
   const agentPhone = String(listing?.agent_phone || '').replace(/\D/g, '');
+  if (agentPhone && routesViaLukka()) {
+    return { routingType: ROUTING_TYPES.viaLukka, href: getCentralWhatsAppHref(message) };
+  }
   if (agentPhone) {
     return { routingType: ROUTING_TYPES.direct, href: buildWhatsAppLink(agentPhone, message) };
   }

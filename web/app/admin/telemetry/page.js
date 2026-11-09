@@ -93,7 +93,9 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
   const enquiries = a?.leadsBySource?.['listing-whatsapp-enquiry'] || 0;
   const visitRequests = a?.leadsBySource?.['listing-visit-request'] || 0;
   const trackedLeads = a ? Object.values(a.leadsBySource).reduce((sum, n) => sum + n, 0) : 0;
-  const centralTaps = totals.value?.CENTRAL_FALLBACK || 0;
+  // Both open our number, so both can turn into a recorded WhatsApp enquiry
+  // (VIA_LUKKA since 2026-11-09: a verified agent's listing routed through us).
+  const centralTaps = (totals.value?.CENTRAL_FALLBACK || 0) + (totals.value?.VIA_LUKKA || 0);
   const directTaps = totals.value?.DIRECT_WA || 0;
   const conversion = pct(enquiries, centralTaps);
   const pushesSent = (a?.pushes?.notified || 0) + (a?.pushes?.failed || 0);
@@ -221,6 +223,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
         <Stat label={t('admin.telemetry.clicks', { days })} value={totals.value?.total ?? '—'} />
         <Stat label={t('admin.telemetry.direct')} value={totals.value?.DIRECT_WA ?? '—'} />
         <Stat label={t('admin.telemetry.central')} value={totals.value?.CENTRAL_FALLBACK ?? '—'} />
+        <Stat label={t('admin.telemetry.viaLukka')} value={totals.value?.VIA_LUKKA ?? '—'} />
         <Stat label={t('admin.telemetry.unknown')} value={totals.value?.UNKNOWN ?? '—'} />
       </div>
 

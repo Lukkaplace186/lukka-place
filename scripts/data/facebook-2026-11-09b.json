@@ -1,0 +1,20 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-09",
+  "note": "Second Facebook paste of 2026-11-09, same rules as facebook-2026-11-09.json. Left out as already imported earlier the same day or the same flat under another poster: Temps kairos' Huilerie flat (twice), Immo trouver votre maison's 2500$ GB house, Claris Bora's Lutendele land (Alain Akili's text and number), Leon Coeur's Lemba-Terminus house (Rubin He Medi's), Cojul Mbikila's 800$ Macampagne house (the Église Kamanda house), Heaven Agence Immo's Lingwala flats (Honore Mponda's post; Heaven is also kept off the invite list at the owner's request, 2026-11-03). The first post has no author line; its number is filed without a name.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-09b-01", "studio", 120, null, "Limete", "Résidentiel", null, "+243 969074933", null, null, "rent"],
+    ["fb-2026-11-09b-02", "maison", 38000, null, "Lemba", "Livulu", 0, "0892716152", "Omba Kashala", null, "sale"],
+    ["fb-2026-11-09b-03", "immeuble", 550000, null, "Limete", "Funa", 0, "+243863952447", "Andre Cinta", null, "sale"],
+    ["fb-2026-11-09b-04", "terrain", 60000, null, "Limete", "Industriel", 0, "+243 822373024", "Fifi Nunga", null, "sale"],
+    ["fb-2026-11-09b-05", "bureau", 700, null, "Gombe", null, 0, "+ 243 81 27 93 646", null, "BMK", "rent"],
+    ["fb-2026-11-09b-06", "appartement", 1800, 2, "Ngaliema", "GB", 0, "0819656738", "Honore Mponda", null, "rent"],
+    ["fb-2026-11-09b-07", "appartement", 750, 3, "Kinshasa", null, 0, "0819656738", "Honore Mponda", null, "rent"],
+    ["fb-2026-11-09b-08", "appartement", 400, 2, "Ngaliema", "Kinsuka Pêcheurs", 0, "+243 83 341 4741", "Mk Kabange", "Agence immobilier JKK", "rent"],
+    ["fb-2026-11-09b-09", "appartement", 300, 1, "Limete", "Industriel", 0, "0985636577", "Didi B Gunsho", null, "rent"],
+    ["fb-2026-11-09b-10", "appartement", 250, 1, "Limete", "Industriel", 0, "0985636577", "Didi B Gunsho", null, "rent"],
+    ["fb-2026-11-09b-11", "appartement", 550, 2, "Limete", "Résidentiel", 0, "0980673183", "Tegra Mokonzi", "Agence immobilière tm", "rent"],
+    ["fb-2026-11-09b-12", "appartement", 750, 2, "Ngaliema", "Macampagne", 0, "0892209022", "Cojul Mbikila", null, "rent"]
+  ]
+}

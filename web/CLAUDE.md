@@ -126,7 +126,11 @@ Conflating any two of these is the bug that keeps recurring:
   filter already excludes. No new visibility mechanism was invented; the only
   new column is `archived_at`, which records *when*, so an agent archive is
   distinguishable from a listing that was simply never enabled.
-- **Closing a transaction requires a real price AND a real date.**
+- **Closing a transaction requires a real date; the price is optional since
+  2026-11-09** ("Faites le point" below — a close the agent would not price
+  is kept with `sold_price` NULL rather than lost; only the old paragraph
+  below assumes a price).
+- **(History) Closing a transaction requires a real price AND a real date.**
   `markListingSoldAction` writes `sold_price` + `sold_at` and sets
   `status = 0`, so a concluded property leaves public search. `sold_at` exists
   because days-on-market was previously derived from `updated_at`, which moves
@@ -1482,6 +1486,51 @@ days.
 - Traefik routing lives outside this repo, on the VPS at `/docker/n8n/dynamic/lukkaplace.yml` (file-provider dynamic config, same pattern as `engine.lukkaplace.com`'s router — `host.docker.internal:3002`).
 - Deploy = tar (excluding `node_modules`, `.next`, `.env.local`) → scp → extract over the existing `/var/www/lukka-place-web` → full `npm install` → `npm run build` → `pm2 restart lukka-place-web --update-env`.
 - `.env.local` on the VPS is hand-maintained, not part of the deploy archive — don't overwrite it by including it in the tarball.
+
+## "Faites le point" — one page for every listing (2026-11-09)
+
+The agent's answer to the engine's one-per-agent WhatsApp request (root
+docs/claude/whatsapp-intake-and-agents.md, "Faites le point"), replacing the
+per-listing question. `lib/statusCheck.js` (SQL + rules),
+`lib/statusCheckItems.js` (labels), `components/statusCheck/StatusCheckBoard.js`,
+`app/(site)/point/[token]/page.js` (from the link, no login),
+`app/compte/agent/point/page.js` (signed in; the to-do row "listings to
+confirm" now opens it), `app/(site)/point/actions.js`. French only, like the
+landlord report. `tests/unit/status-check.test.js`.
+
+- **The link**: 32 base64url characters; `agent_status_requests` holds only
+  its SHA-256. Valid 7 days, the agent active and not deleted; an expired one
+  says so and points to the dashboard, an unknown one is a 404. It can only
+  answer this page's questions about that agent's own listings — every write
+  has `AND p.agent_id = $2` and the state the answer applies to. Never
+  indexed, `force-dynamic`. The `/point` path is outside middleware.
+- **Per listing, one tap**: Disponible (stamps; on an under-offer listing it
+  means "back on the market"), Sous offre (stays public with its badge,
+  stamped), Loué / Vendu, Retiré (archive, never a transaction), and
+  "Le prix a changé ?" (engine price path, then stamped). Under-offer rows
+  get "Toujours sous offre / Loué / De nouveau dispo / Retiré". The sticky
+  bottom button confirms everything not yet answered.
+- **Loué / Vendu asks the price as one tap** ("au prix affiché ?" Oui / Non,
+  à un autre prix), then the date (default today, not future, not before
+  publication) and an optional "via Lukka Place ?". **The price is optional**
+  (owner decision 2026-11-09: a forced price makes agents tap "Retiré" and
+  the deal is lost). A close without one is `listing_status = 'closed'`,
+  `sold_at` set, `sold_price` and `price_source` NULL — this changes the old
+  rule that `closed` always carries a price; `lib/dataExport.js` leaves the
+  delta empty and `lib/marketBenchmarks.js` already excludes it. A figure
+  more than 50 % from the asking price is read back before saving. A priced
+  close is `price_source = 'DIRECT_INPUT'`.
+- **Freed slot**: after Loué / Retiré on a capped plan the row says
+  "1 place libérée sur votre forfait (N disponibles sur M)".
+- **Auto-paused listings** (engine, OFF until `LISTING_AUTO_PAUSE=on`):
+  `status = 0` + `auto_paused_at`, not archived; listed first with
+  "Réactiver" (subject to the plan's listing limit), Loué / Vendu, Retiré.
+  Read through `to_jsonb(p)` so the page works before the migration.
+- Every answer is also a `listing_availability_checks` row (`LINK` from the
+  link with `request_id`, `DASHBOARD` signed in), never blocking the answer.
+- **"Disponibilité confirmée" is never shown on an under-offer listing**
+  (`AvailabilityConfirmedBadge` takes `listingStatus`): "Toujours sous offre"
+  stamps the same column.
 
 ## "Toujours disponible ?" — weekly availability check (2026-09-22)
 
@@ -4785,3 +4834,42 @@ Owner request after a friction review of the agent side.
   0 — `missing_price` is a BLOCKING moderation flag, so a "prix sur demande"
   listing could not be approved; the Free plan's 2-listing cap vs the launch
   policy's 3 is pricing.
+
+## Incentives for keeping listings up to date (2026-11-09)
+
+Owner decision, alongside the fortnightly "Point sur vos annonces" check that
+replaces the per-listing "Toujours disponible ?": give agents a reason to
+answer it. "Up to date" is one rule everywhere — `UP_TO_DATE_SQL` in
+`lib/listings.js`: `availability_confirmed_at`, else the moment the listing
+went public (the "Nouveau" badge's `GREATEST(created_at, moderated_at)`),
+within `CONFIRM_AFTER_DAYS` (14). A brand-new listing is therefore up to date.
+Both columns are read through `to_jsonb(p)`, so nothing 42703s before a
+migration. The engine copy (`services/agentRanking.js`) must change with it.
+`tests/unit/listing-up-to-date-incentives.test.js`; engine verify §92.
+
+- **Search order.** The default sort (`complete`, i.e. no `sort` or the
+  "complètes d'abord" option) ranks up-to-date listings first, then the
+  completeness order inside each tier (`UP_TO_DATE_TIER_SQL`; no date at all
+  counts as stale). This covers /listings, the homepage rails, collections,
+  guides, SEO landings and the agent storefront, which all read `getListings`'
+  default. "Plus récents" and the price orders are untouched, and so is the
+  map (its set and its order). The sort's label still says "complètes
+  d'abord"; renaming it is a copy decision left to the owner.
+- **Card badge.** `PropertyCard` shows "✓ Confirmée le 9 nov." in the date
+  slot (publication date moves to the tooltip, so every card keeps one row).
+  Decided on the server by `availabilityBadge` (`badgeConfirmationDate`, ≤ 30
+  days, active or NULL `listing_status` only) and formatted there in FR and EN,
+  because the card is a client component and `lib/listingAvailability.js` is
+  server-only; rows from `getListings`, `getListingsByIds` and
+  `getSimilarListings` carry `availability_badge`. `availability_confirmed_at`
+  is now in `SELECT_FIELDS` (the detail page read it separately before).
+- **Agent profile** (`/agents/[id]`, `getAgentTrackRecord` in
+  `lib/agencies.js`, never throws). "N biens loués ou vendus" = the agent's
+  listings with `approve_status = 1 AND listing_status = 'closed'` — not the
+  public gate, since a closed listing has `status = 0`; a count, never a price,
+  shown from 1. "Annonces à jour" chip = at least one public live listing
+  (`status = 1 AND approve_status = 1 AND listing_status IS DISTINCT FROM
+  'closed'`) and every one of them up to date. Neither renders a negative
+  ("pas à jour") state.
+- **Lead routing** (engine): root `docs/claude/leads-and-enquiries.md`,
+  "Automated Agent Matching".

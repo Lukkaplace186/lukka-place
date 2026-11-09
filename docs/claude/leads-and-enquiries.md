@@ -172,6 +172,19 @@ WhatsApp *at the moment it is created* — nobody has to open a feed.
 - **Adjustment + dispatch** — `services/leadDispatch.js` weights that raw
   score by responsiveness and by recent volume (both from this engine's own
   SQLite), records one `lead_matches` row **before** each send, then notifies.
+- **Up-to-date portfolio preference (2026-11-09, owner decision)** — an
+  incentive to answer the fortnightly availability check. An agency whose
+  public live listings (`status = 1 AND approve_status = 1 AND listing_status
+  IS DISTINCT FROM 'closed'`, at least one) are ALL up to date gets ×1.05 on
+  its adjusted score and wins an exact tie (`UP_TO_DATE_BOOST` in
+  `leadDispatch.js`, `upToDateAgentIds` in `agentRanking.js`). Up to date =
+  `availability_confirmed_at`, else the later of `created_at` / `moderated_at`,
+  within 14 days — the same rule as web's `UP_TO_DATE_SQL` (web/CLAUDE.md,
+  "Incentives for keeping listings up to date"); change both together. Smaller
+  than the responsiveness and fairness bands on purpose: it reorders near-ties,
+  never outranks a clearly better match, and never removes anyone. The columns
+  are read through `to_jsonb(p)`; any read failure means no boost for anyone.
+  The shared agent gate is unchanged. verify-pipeline §92.
 - **`lead_matches` vs `lead_proposals` are NOT the same fact and must stay
   separate tables.** `lead_matches` = "we chose this agency and notified
   them" (our action, no property, no cost to them). `lead_proposals` = "the

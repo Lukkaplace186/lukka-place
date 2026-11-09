@@ -149,7 +149,8 @@ function listingConfirmItem(listing) {
     // Longest unconfirmed first: negate so the ascending sort puts it on top.
     sortAt: Number.isFinite(Number(listing.daysSince)) ? -Number(listing.daysSince) : null,
     // The availability prompt is on the listing's editor page (and Mes biens).
-    primary: { type: 'confirm-availability', href: `/compte/agent/biens/${encodeURIComponent(listing.id)}/edit` },
+    // One screen for every listing (lib/statusCheck.js), not the listing's editor.
+    primary: { type: 'confirm-availability', href: '/compte/agent/point' },
     listing,
   };
 }

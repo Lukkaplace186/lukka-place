@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatDistance } from '@/lib/landmarks';
 import Link from '@/components/LocaleLink';
-import { Camera } from 'lucide-react';
+import { Camera, CalendarCheck } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
@@ -111,6 +111,10 @@ export default function PropertyCard({
   const type = typeLabel(listing, t);
   const where = feedLocationLine(listing);
   const freshness = formatFreshness(createdAt, t);
+  // "Confirmée le 9 nov." — the agent's own last "still available", decided
+  // and formatted on the server (lib/listings.js availabilityBadge: a real
+  // stamp ≤ 30 days old, active listing only). Null for everything else.
+  const confirmedDate = listing.availability_badge?.[t.locale] || listing.availability_badge?.fr || null;
   const amenities = matchedAmenities(listing, 3);
   // Only when this listing genuinely has an agency attached. AgencyLogo's own
   // no-agent fallback is the Lukka Place wordmark, which is honest on a
@@ -400,7 +404,7 @@ export default function PropertyCard({
           </div>
         ) : null}
 
-        {(freshness || reference) ? (
+        {(freshness || reference || confirmedDate) ? (
           // One line, whatever the reference's length: the date keeps its
           // width and a long repère ("Petit Boulevard, 2ᵉ Rue Industrielle")
           // truncates instead of pushing the date onto two lines and the
@@ -418,7 +422,23 @@ export default function PropertyCard({
                 text element on the card is now the single `ink-70` token,
                 with the price figure alone left at full `ink` so it is the
                 one thing that stands out. */}
-            <span className="shrink-0 whitespace-nowrap text-[0.75rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
+            {/* A recent availability confirmation takes the date's slot
+                (2026-11-09, owner decision: an incentive to keep listings
+                up to date): it is the fresher and more useful fact, and one
+                slot keeps every card the same height. The publication date
+                stays in the tooltip. */}
+            {confirmedDate ? (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[0.75rem] font-normal tracking-normal text-ink"
+                title={[t('listings.availability.confirmedOn', { date: confirmedDate }), freshness].filter(Boolean).join(' · ')}
+              >
+                <CalendarCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
+                <span className="sr-only">{t('listings.availability.confirmedOn', { date: confirmedDate })}</span>
+                <span aria-hidden="true">{t('listings.availability.confirmedShort', { date: confirmedDate })}</span>
+              </span>
+            ) : (
+              <span className="shrink-0 whitespace-nowrap text-[0.75rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
+            )}
             {/* Labelled "Réf: …", never the bare code. On its own, a
                 reference like "Demiap" reads as a place or an agency name
                 rather than as this listing's identifier — which is exactly

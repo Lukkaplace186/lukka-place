@@ -37,7 +37,7 @@
 
 const db = require('./db');
 const chakra = require('./chakra');
-const { rankAgentsForRequest, MAX_AGENTS_PER_LEAD } = require('./agentRanking');
+const { rankAgentsForRequest, upToDateAgentIds, MAX_AGENTS_PER_LEAD } = require('./agentRanking');
 const { leadCommunes } = require('./leadCommunes');
 
 /**
@@ -81,6 +81,17 @@ const RESPONSIVENESS_CEILING = 1.25;
  */
 const FAIRNESS_SOFT_CAP = 15;
 const FAIRNESS_FLOOR = 0.8;
+
+/**
+ * Up-to-date portfolio preference (2026-11-09, owner decision): an agency
+ * whose every live listing was confirmed (or published) in the last 14 days
+ * (services/agentRanking.js upToDateAgentIds) gets ×1.05 and wins an exact
+ * tie. Deliberately tiny — smaller than either history signal — so it
+ * reorders agencies that are otherwise equal or within ~5 %, and never
+ * outranks a clearly better match. Never an exclusion: a stale agency keeps
+ * its place in the rotation.
+ */
+const UP_TO_DATE_BOOST = 1.05;
 
 function windowStartIso(days = HISTORY_WINDOW_DAYS) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -223,7 +234,7 @@ function agentLink(leadId) {
  * @param {number} [options.limit] How many agencies to push to.
  * @returns {Promise<{dispatched: number, notified: number, failed: number, skipped?: string}>}
  */
-async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD, rank = rankAgentsForRequest } = {}) {
+async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD, rank = rankAgentsForRequest, freshness = upToDateAgentIds } = {}) {
   if (!lead || !lead.id) return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-lead' };
 
   // A request with no commune cannot be routed to anyone honestly — coverage
@@ -278,6 +289,15 @@ async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD, rank = rankAgen
     console.warn(`[dispatch] responsiveness unavailable: ${err.message}`);
   }
 
+  // Which ranked agencies keep their whole portfolio up to date. Any failure
+  // means no boost for anyone — the ranking as it was before this signal.
+  let upToDate = new Set();
+  try {
+    upToDate = (await freshness(ranked.map((agent) => agent.agent_id))) || new Set();
+  } catch (err) {
+    console.warn(`[dispatch] portfolio freshness unavailable: ${err.message}`);
+  }
+
   const selected = ranked
     .map((agent) => {
       let recent = 0;
@@ -286,13 +306,18 @@ async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD, rank = rankAgen
       } catch {
         recent = 0;
       }
+      const portfolioUpToDate = upToDate.has(agent.agent_id);
       const score =
         agent.base_score *
         responsivenessMultiplier(responsiveness.get(agent.agent_id)) *
-        fairnessMultiplier(recent);
-      return { ...agent, score };
+        fairnessMultiplier(recent) *
+        (portfolioUpToDate ? UP_TO_DATE_BOOST : 1);
+      return { ...agent, score, portfolio_up_to_date: portfolioUpToDate };
     })
-    .sort((a, b) => b.score - a.score || b.matching_listings - a.matching_listings || a.agent_id - b.agent_id)
+    .sort((a, b) => b.score - a.score
+      || Number(b.portfolio_up_to_date) - Number(a.portfolio_up_to_date)
+      || b.matching_listings - a.matching_listings
+      || a.agent_id - b.agent_id)
     .slice(0, limit);
 
   const link = agentLink(lead.id);

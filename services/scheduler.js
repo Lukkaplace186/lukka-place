@@ -298,16 +298,17 @@ registerJob({
 }
 
 /**
- * "Toujours disponible ?" on WhatsApp (services/availabilityCheck.js): once a
- * day at AVAILABILITY_CHECK_HOUR, every live listing unconfirmed for 14 days
- * gets one question to its verified agent — at most three per agent per day,
- * none to an agent who still owes us another answer. After the digest, so an
- * agent's morning starts with the summary rather than a question.
+ * "Faites le point sur vos annonces" (services/agentStatusCheck.js): once a day
+ * at AVAILABILITY_CHECK_HOUR, ONE WhatsApp per agent with a listing unconfirmed
+ * for 14 days and no request in 14 days — a link to a page answering for
+ * every listing, plus a one-tap "Rien n'a changé". Replaced the per-listing
+ * question on 2026-11-09; same job name and AVAILABILITY_CHECK=off switch.
+ * After the digest, so an agent's morning starts with the summary.
  */
 {
   // eslint-disable-next-line global-require
-  const { availabilityCheckJob } = require('./availabilityCheck');
-  registerJob(availabilityCheckJob);
+  const { statusCheckJob } = require('./agentStatusCheck');
+  registerJob(statusCheckJob);
 }
 
 /**
@@ -399,6 +400,16 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 {
   // eslint-disable-next-line global-require
   registerJob(require('./moveFollowup').moveFollowupJob);
+}
+
+/**
+ * Auto-pause (services/listingAutoPause.js) — OFF unless LISTING_AUTO_PAUSE=on.
+ * A listing unconfirmed for 30 days whose agent was sent "Faites le point"
+ * and did not answer is hidden (auto_paused_at), never deleted.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./listingAutoPause').autoPauseJob);
 }
 
 /**

@@ -12,6 +12,7 @@ import { VIDEOS_SQL } from './listingVideos';
 import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
 import { DETAILS_SQL, PLOT_M2_SQL, plotBounds } from './listingDetails';
 import { SIMILAR_PRICE_HIGH, SIMILAR_PRICE_LOW } from './similarSearch';
+import { CONFIRM_AFTER_DAYS, badgeConfirmationDate, formatConfirmationDate } from './listingAvailability';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -178,6 +179,18 @@ const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->
 
 /** Days a listing carries the "Nouveau" badge after it went public. */
 export const FRESH_LISTING_DAYS = 3;
+
+/**
+ * "À jour" (web/CLAUDE.md, "Incentives for keeping listings up to date"):
+ * the listing's own agent confirmed it within CONFIRM_AFTER_DAYS, or — never
+ * confirmed — it went public within that window, so a brand-new listing is up
+ * to date. The stamp is read through to_jsonb(p) so a database without
+ * migrations/20260922_listing_availability.sql reads it as NULL (never a
+ * 42703). A row with no created_at at all is NULL here: callers treat NULL as
+ * stale. The same rule is in the engine's services/agentRanking.js
+ * (UP_TO_DATE_SQL) for lead routing — change one, change the other.
+ */
+export const UP_TO_DATE_SQL = `(COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, ${PUBLISHED_AT_EXPR}) >= NOW() - interval '${CONFIRM_AFTER_DAYS} days')`;
 /** Days a real price reduction stays flagged on the card. */
 export const PRICE_DROP_DAYS = 14;
 
@@ -239,6 +252,32 @@ export const PRICE_DROP_LATERAL = `LEFT JOIN LATERAL (
    WHERE ${IS_PRICE_CUT_SQL}
 ) pd ON true`;
 
+/**
+ * The card's "Confirmée le 9 nov." (components/PropertyCard.js), decided on
+ * the server with the detail badge's own rule (badgeConfirmationDate: a real
+ * stamp no older than BADGE_MAX_AGE_DAYS) and only for an active listing
+ * (NULL listing_status is a legacy active row) — "disponible" on an
+ * under-offer or let/sold card would contradict its status badge.
+ *
+ * Both locales are formatted here because PropertyCard is a client component
+ * and lib/listingAvailability.js is server-only; the strings travel as props,
+ * so server HTML and hydration always agree. null = no badge.
+ *
+ * @returns {{fr: string, en: string}|null}
+ */
+export function availabilityBadge(row, now = new Date()) {
+  if (!row) return null;
+  if (row.listing_status != null && row.listing_status !== 'active') return null;
+  const date = badgeConfirmationDate(row.availability_confirmed_at, now);
+  if (!date) return null;
+  return { fr: formatConfirmationDate(date, 'fr'), en: formatConfirmationDate(date, 'en') };
+}
+
+function withAvailabilityBadges(rows) {
+  const now = new Date();
+  return (rows || []).map((row) => ({ ...row, availability_badge: availabilityBadge(row, now) }));
+}
+
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   -- Card badges "Nouveau" and "Prix en baisse" (components/ListingBadges.js).
@@ -249,6 +288,10 @@ const SELECT_FIELDS = `
   p.currency, p.price_original,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
+  -- The agent's last "still available" (lib/listingAvailability.js): the
+  -- detail page's badge and the cards' "Confirmée le …" (availabilityBadge
+  -- below). Through to_jsonb so a database without the column reads NULL.
+  (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
   -- The listing's city (lib/cities.js): its commune normally says; this
@@ -839,8 +882,17 @@ const COMPLETENESS_SCORE = `(
   + (CASE WHEN p.deposit_months IS NOT NULL THEN 1 ELSE 0 END)
 )`;
 
+/**
+ * The default order puts up-to-date listings (UP_TO_DATE_SQL) before stale
+ * ones, then the completeness order inside each tier — the agents' reason to
+ * answer the fortnightly availability check. Only the default: a visitor who
+ * picked "newest" or a price order gets exactly that. NULL (no date at all)
+ * sorts as stale.
+ */
+export const UP_TO_DATE_TIER_SQL = `(CASE WHEN ${UP_TO_DATE_SQL} THEN 0 ELSE 1 END)`;
+
 const SORT_COLUMNS = {
-  complete: `${COMPLETENESS_SCORE} DESC, p.created_at DESC`,
+  complete: `${UP_TO_DATE_TIER_SQL} ASC, ${COMPLETENESS_SCORE} DESC, p.created_at DESC`,
   newest: 'p.created_at DESC',
   price_asc: 'p.price ASC',
   price_desc: 'p.price DESC',
@@ -1021,7 +1073,7 @@ export async function getListings(options = {}) {
     limit,
     offset,
     count: data.length,
-    data,
+    data: withAvailabilityBadges(data),
     locationRelaxed,
     relaxedFromCommune: locationRelaxed ? options.commune : null,
     // Radius ladder (FilterBar.js's Rayon pill): requestedRadius is exactly
@@ -1223,7 +1275,7 @@ export async function getListingsByIds(ids) {
     `SELECT ${SELECT_FIELDS} ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND p.id = ANY($1) ORDER BY p.created_at DESC`,
     [numericIds],
   );
-  return rows;
+  return withAvailabilityBadges(rows);
 }
 
 /**
@@ -1587,15 +1639,12 @@ export async function getListingById(id) {
   if (!Number.isFinite(numericId)) return null;
 
   const pool = getPool();
-  // availability_confirmed_at feeds the "Disponibilité confirmée le …" badge
-  // (lib/listingAvailability.js). Read through to_jsonb(p), like
-  // verification_level above, so this page keeps working before
-  // migrations/20260922_listing_availability.sql runs: a missing column is
-  // NULL (no badge), not a 42703 on every listing page. Detail page only —
-  // the cards don't show it, so the feed queries don't pay for the jsonb.
+  // availability_confirmed_at (the "Disponibilité confirmée le …" badge,
+  // lib/listingAvailability.js) is in SELECT_FIELDS since 2026-11-09, read
+  // through to_jsonb(p) so this page keeps working before
+  // migrations/20260922_listing_availability.sql runs.
   const { rows } = await pool.query(
     `SELECT ${SELECT_FIELDS},
-       (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
        (to_jsonb(p) ->> 'development_id') AS development_id,
        (to_jsonb(p) ->> 'unit_label') AS unit_label,
        ${VIDEOS_SQL} AS videos
@@ -1826,7 +1875,7 @@ export async function getSimilarListings(id, limit = 6) {
      LIMIT $2`,
     [numericId, limit, SIMILAR_PRICE_LOW, SIMILAR_PRICE_HIGH],
   );
-  return rows;
+  return withAvailabilityBadges(rows);
 }
 
 export async function getPropertyTypeFacets({ city = null } = {}) {

@@ -4,7 +4,8 @@ import AgentProfileView from './AgentProfileView';
 import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
 import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
-import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
+import { getAgentProfile, getAgentListings, getAgentTrackRecord, agentContactName, agentPublicName } from '@/lib/agencies';
+import { CONFIRM_AFTER_DAYS } from '@/lib/listingAvailability';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
 import { contactWhatsAppHref } from '@/lib/leadRouting';
 import { listingImages, typeLabel, specItems, feedLocationLine, LISTING_TIME_ZONE } from '@/lib/listingView';
@@ -69,7 +70,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   // switches without a round trip. Projects never take the profile down.
   // No rating on the profile for now (owner decision, 2026-11-04: the
   // ratings feature is not launched) — lib/agentReviews.js is untouched.
-  const [rentals, sales, projects, locale] = await Promise.all([
+  const [rentals, sales, projects, locale, trackRecord] = await Promise.all([
     getAgentListings(agent.id, { transactionType: 'location', limit: LISTINGS_PER_TAB }),
     getAgentListings(agent.id, { transactionType: 'vente', limit: LISTINGS_PER_TAB }),
     getPublicProjects({ agentId: agent.id }).catch((err) => {
@@ -77,6 +78,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
       return [];
     }),
     getLocale(),
+    // "N biens loués ou vendus" and "Annonces à jour" (web/CLAUDE.md,
+    // "Incentives for keeping listings up to date"); never throws.
+    getAgentTrackRecord(agent.id),
   ]);
 
   // A shared ?tab= wins; otherwise open on À louer unless it is empty and
@@ -183,6 +187,10 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     communes: communes.map((c) => communeLabel(c)),
     verifiedLabel: isVerifiedLevel(agent.verification_level) ? t(LEVEL_LABEL_KEYS[agent.verification_level]) : null,
     memberSince,
+    // Shown only when every public live listing is up to date (and there is
+    // at least one) — absent otherwise, never "pas à jour".
+    upToDateLabel: trackRecord.upToDate ? t('agent.portfolio.upToDate') : null,
+    upToDateHint: trackRecord.upToDate ? t('agent.portfolio.upToDateHint', { days: CONFIRM_AFTER_DAYS }) : null,
     coverImage,
     // The contact rail's person: the agent's own name, shown only when it
     // differs from the heading (an agency name), with their initials.
@@ -219,6 +227,10 @@ ${profileUrl}`),
     liveCount,
     liveCountLabel: t('agent.portfolio.statListings', { count: liveCount }),
     communesCountLabel: t('agent.portfolio.statCommunes', { count: communes.length }),
+    // Let / sold listings the agent closed with us: a count, never a price,
+    // and no cell at all before the first one.
+    closedCount: trackRecord.closedCount,
+    closedCountLabel: trackRecord.closedCount >= 1 ? t('agent.portfolio.statClosed', { count: trackRecord.closedCount }) : null,
     sorts: {
       recent: t('agent.portfolio.sortRecent'),
       priceAsc: t('agent.portfolio.sortPriceAsc'),

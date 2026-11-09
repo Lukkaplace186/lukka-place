@@ -62,6 +62,7 @@ const {
   handleAvailabilityButtonReply,
   handleAvailabilityTextReply,
 } = require('../services/availabilityCheck');
+const { handleStatusButtonReply } = require('../services/agentStatusCheck');
 const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleTapButtonReply } = require('../services/contactTapAlert');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
@@ -812,6 +813,16 @@ async function processGroup(messages) {
       if (feedback.handled) return;
     } catch (err) {
       console.error(`[checkin] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
+      // "Rien n'a changé" on the per-agent request (services/agentStatusCheck.js).
+      // The id names the request; the handler re-checks the sender is its
+      // agent's verified number and that the request's link is still valid.
+      const statusCheck = await handleStatusButtonReply({ from, replyId: buttonReplyId });
+      if (statusCheck.handled) return;
+    } catch (err) {
+      console.error(`[status-check] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
     try {

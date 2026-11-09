@@ -202,7 +202,11 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   reworked).** `AVAILABILITY_CHECK=off` in production makes the
   `listing-availability-check` job never run (`availabilityCheck.checkEnabled`,
   read at call time); answers to questions already sent are still handled.
-  Delete the line and restart to resume. §74.
+  Delete the line and restart to resume. §74. **Reworked 2026-11-09**: the
+  same job now sends one "Faites le point" request per agent
+  (whatsapp-intake-and-agents.md) and needs the new template
+  `LISTING_STATUS_TEMPLATE` (`disponibilite_annonce_agent` is per listing and
+  no longer sent). Resume only after the migration and the template.
 - **The agent morning digest is PAUSED (2026-11-06, owner).** `AGENT_DIGEST=off`
   in production makes the `agent-daily-digest` job never run
   (`agentDigest.digestEnabled`, read at call time) — no 08:00 "Votre journée

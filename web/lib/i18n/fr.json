@@ -886,7 +886,8 @@
       "add": "Ajouter aux favoris"
     },
     "availability": {
-      "confirmedOn": "Disponibilité confirmée le {date}"
+      "confirmedOn": "Disponibilité confirmée le {date}",
+      "confirmedShort": "Confirmée le {date}"
     },
     "depositRange": {
       "any": "Toutes",
@@ -1667,6 +1668,12 @@
         "one": "commune couverte",
         "other": "communes couvertes"
       },
+      "statClosed": {
+        "one": "bien loué ou vendu",
+        "other": "biens loués ou vendus"
+      },
+      "upToDate": "Annonces à jour",
+      "upToDateHint": "Chaque annonce en ligne a été confirmée disponible par l'agence ces {days} derniers jours, ou publiée pendant cette période.",
       "backToAgencies": "Agences",
       "aboutEyebrow": "À propos de l'agence",
       "listingsHeading": "Les biens de {name}",

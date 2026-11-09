@@ -177,7 +177,7 @@ test('listing items link to the listing, leads to their focused inbox row; dupli
   assert.equal(todo.total, 3);
   const byKind = Object.fromEntries(todo.items.map((i) => [i.kind, i]));
   assert.deepEqual(byKind.lead.primary, { type: 'open-lead', href: '/compte/agent/demandes?lead=5' });
-  assert.deepEqual(byKind['listing-confirm'].primary, { type: 'confirm-availability', href: '/compte/agent/biens/42/edit' });
+  assert.deepEqual(byKind['listing-confirm'].primary, { type: 'confirm-availability', href: '/compte/agent/point' });
   assert.deepEqual(byKind['listing-incomplete'].primary, { type: 'complete', href: '/compte/agent/biens/43/edit' });
   assert.deepEqual(byKind['listing-incomplete'].listing.gaps, []);
 });

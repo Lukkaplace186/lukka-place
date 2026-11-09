@@ -339,7 +339,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
               {/* The agent's own weekly "still available" answer — only a
                   real one, at most 30 days old; nothing otherwise. */}
-              <AvailabilityConfirmedBadge confirmedAt={listing.availability_confirmed_at} />
+              <AvailabilityConfirmedBadge confirmedAt={listing.availability_confirmed_at} listingStatus={listing.listing_status ?? null} />
 
               {/* Real distinct visitors in the last 7 days, from 1 up;
                   streamed in so the count never delays the page. */}

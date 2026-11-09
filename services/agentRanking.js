@@ -86,6 +86,59 @@ const COMMUNE_MATCH = `
 `;
 
 /**
+ * "Portfolio up to date" (2026-11-09, owner decision: an incentive to answer
+ * the fortnightly availability check). A listing is up to date when its own
+ * agent confirmed it within UP_TO_DATE_DAYS (properties.availability_confirmed_at)
+ * or — never confirmed — it went public within that window (the later of
+ * created_at and moderated_at, web/lib/listings.js PUBLISHED_AT_EXPR), so a
+ * brand-new listing counts. Both columns are read through to_jsonb(p) so a
+ * database without them reads NULL instead of raising 42703. Same rule as
+ * web/lib/listings.js UP_TO_DATE_SQL (and its 14 days is web's
+ * CONFIRM_AFTER_DAYS) — change one, change the other.
+ */
+const UP_TO_DATE_DAYS = 14;
+const UP_TO_DATE_SQL = `(COALESCE(
+    NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+    GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))
+  ) >= NOW() - interval '${UP_TO_DATE_DAYS} days')`;
+
+/** Public and still on the market: the public gate, not let / sold. */
+const LIVE_LISTING_FILTER = `${PUBLIC_LISTING_FILTER} AND p.listing_status IS DISTINCT FROM 'closed'`;
+
+/**
+ * The agents among `agentIds` whose portfolio is up to date: at least one
+ * live listing, and every live listing up to date (a NULL date counts as
+ * stale). Used by services/leadDispatch.js as a small boost and tie-breaker,
+ * never as a filter — an agent missing from this set is still ranked.
+ *
+ * Never throws: any failure (Postgres down, an unexpected 42703) is logged and
+ * answers "nobody", i.e. no boost for anyone, which is today's ranking.
+ *
+ * @param {number[]} agentIds
+ * @returns {Promise<Set<number>>}
+ */
+async function upToDateAgentIds(agentIds) {
+  const ids = [...new Set((agentIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  if (ids.length === 0 || !isConfigured()) return new Set();
+  try {
+    const { rows } = await getPool().query(UP_TO_DATE_AGENTS_SQL, [ids]);
+    return new Set(rows.map((r) => Number(r.agent_id)));
+  } catch (err) {
+    console.warn(`[agentRanking] portfolio freshness unavailable (${err.code || 'error'}): ${err.message} — no boost`);
+    return new Set();
+  }
+}
+
+const UP_TO_DATE_AGENTS_SQL = `
+  SELECT p.agent_id
+    FROM properties p
+   WHERE p.agent_id = ANY($1::int[])
+     AND ${LIVE_LISTING_FILTER}
+   GROUP BY p.agent_id
+  HAVING COUNT(*) > 0
+     AND COUNT(*) FILTER (WHERE ${UP_TO_DATE_SQL} IS NOT TRUE) = 0`;
+
+/**
  * @param {Object} request
  * @param {string} request.commune           Canonical commune name (already resolved via services/locations.js).
  * @param {number|null} [request.priceMax]   Budget ceiling in USD.
@@ -224,5 +277,9 @@ async function rankAgentsForRequest(
 
 module.exports = {
   rankAgentsForRequest,
+  upToDateAgentIds,
   MAX_AGENTS_PER_LEAD,
+  UP_TO_DATE_DAYS,
+  UP_TO_DATE_SQL,
+  UP_TO_DATE_AGENTS_SQL,
 };

@@ -7149,7 +7149,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'sqlite-backup',
     ]);
   });
 
@@ -10207,7 +10207,7 @@ console.log('\n2. services/openai.js');
   check('the job is registered after the morning digest, the sales run still last', () => {
     const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'scheduler.js'), 'utf8');
     const digestAt = source.indexOf('registerJob(agentDigestJob)');
-    const availAt = source.indexOf('registerJob(availabilityCheckJob)');
+    const availAt = source.indexOf('registerJob(statusCheckJob)');
     const salesAt = source.indexOf('registerJob({ name: SALES_JOB_NAME');
     assert.ok(digestAt > 0 && availAt > digestAt && salesAt > availAt);
   });
@@ -10503,13 +10503,17 @@ console.log('\n2. services/openai.js');
     }
   });
 
-  await checkAsync('a dynamic link button is one url component at index 0; it cannot be mixed with quick replies or be blank', async () => {
+  await checkAsync('a dynamic link button is one url component at index 0; mixed with quick replies they start at 1; never blank', async () => {
     httpCalls.length = 0;
     await chakra.sendTemplate('243900000001', 'x', { bodyParams: ['a'], urlButton: 47 });
     const sent = httpCalls.filter((c) => c.method === 'post').map((c) => c.data).find((d) => d.type === 'template');
     assert.deepStrictEqual(sent.template.components.at(-1), { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '47' }] });
     await assert.rejects(() => chakra.sendTemplate('243900000001', 'x', { urlButton: ' ' }), /urlButton/);
-    await assert.rejects(() => chakra.sendTemplate('243900000001', 'x', { urlButton: '1', buttons: [{ id: 'a' }] }), /urlButton/);
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'x', { urlButton: 'tok', buttons: [{ id: 'status_ok:5' }] });
+    const mixed = httpCalls.filter((c) => c.method === 'post').map((c) => c.data).find((d) => d.type === 'template');
+    const buttons = mixed.template.components.filter((c) => c.type === 'button').map((c) => [c.sub_type, c.index]);
+    assert.deepStrictEqual(buttons.sort(), [['quick_reply', '1'], ['url', '0']]);
   });
 
   const dashPicked43 = pickedRequest(inDays(4, 11));
@@ -15675,6 +15679,265 @@ console.log('\n2. services/openai.js');
       projectEnquiry91.findPublicProjectBySlug = findProject91;
       projectEnquiry91.handleProjectEnquiry = handleProject91;
       if (savedOps91 === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = savedOps91;
+    }
+  }
+
+  // §92 Lead routing prefers agencies whose portfolio is up to date (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Incentive for the fortnightly availability check: an agency whose every
+  // live listing was confirmed (or published) in the last 14 days gets a ×1.05
+  // boost and wins ties in services/leadDispatch.js. Never an exclusion.
+  console.log('\n§92 lead dispatch prefers an up-to-date portfolio on a near tie, never drops a stale agency');
+  {
+    const ranking92 = require('../services/agentRanking');
+    const dispatch92 = require('../services/leadDispatch');
+    const freshLead = () => dbService.createLead({
+      wa_id: '243950009200', source: 'espace-client-request', transaction_type: 'location', commune: 'Gombe',
+    });
+    const tie = async () => [
+      { agent_id: 9201, phone: '243950009201', base_score: 60, matching_listings: 1 },
+      { agent_id: 9202, phone: '243950009202', base_score: 60, matching_listings: 1 },
+    ];
+    const order = (lead) => dbService.getLeadMatches(lead.id).map((m) => m.agent_id);
+
+    await checkAsync('on an equal score the up-to-date agency is ranked first', async () => {
+      const lead = freshLead();
+      await dispatch92.dispatchLead(lead, { rank: tie, freshness: async () => new Set([9202]) });
+      assert.deepStrictEqual(order(lead), [9202, 9201]);
+    });
+    await checkAsync('without the signal the order is unchanged (id tie-break)', async () => {
+      const lead = freshLead();
+      await dispatch92.dispatchLead(lead, { rank: tie, freshness: async () => new Set() });
+      assert.deepStrictEqual(order(lead), [9201, 9202]);
+    });
+    await checkAsync('a clearly better stale agency keeps first place, and is never dropped', async () => {
+      const lead = freshLead();
+      const rank = async () => [
+        { agent_id: 9203, phone: '243950009203', base_score: 80, matching_listings: 3 },
+        { agent_id: 9204, phone: '243950009204', base_score: 60, matching_listings: 1 },
+      ];
+      const result = await dispatch92.dispatchLead(lead, { rank, freshness: async () => new Set([9204]) });
+      assert.strictEqual(result.dispatched, 2);
+      assert.deepStrictEqual(order(lead), [9203, 9204]);
+    });
+    await checkAsync('a failing freshness read means no boost, and the lead is still dispatched', async () => {
+      const lead = freshLead();
+      const result = await dispatch92.dispatchLead(lead, {
+        rank: tie,
+        freshness: async () => { const e = new Error('column "availability_confirmed_at" does not exist'); e.code = '42703'; throw e; },
+      });
+      assert.strictEqual(result.dispatched, 2);
+      assert.deepStrictEqual(order(lead), [9201, 9202]);
+    });
+    await checkAsync('upToDateAgentIds answers an empty set when Postgres is not configured', async () => {
+      const set = await ranking92.upToDateAgentIds([9201, 9202]);
+      assert.ok(set instanceof Set);
+      assert.strictEqual(set.size, 0);
+    });
+    check('the freshness SQL: public gate, not closed, stamp read through to_jsonb, NULL counts as stale', () => {
+      const sql = ranking92.UP_TO_DATE_AGENTS_SQL;
+      assert.match(sql, /p\.status = 1 AND p\.approve_status = 1/);
+      assert.match(sql, /p\.listing_status IS DISTINCT FROM 'closed'/);
+      assert.match(sql, /to_jsonb\(p\) ->> 'availability_confirmed_at'/);
+      assert.match(sql, /to_jsonb\(p\) ->> 'moderated_at'/);
+      assert.doesNotMatch(sql, /p\.availability_confirmed_at/, 'a plain column reference raises 42703 before the migration');
+      assert.match(sql, /IS NOT TRUE\) = 0/);
+      assert.match(sql, /HAVING COUNT\(\*\) > 0/);
+    });
+    check('14 days, the same window as web (CONFIRM_AFTER_DAYS) and the web ranking rule', () => {
+      assert.strictEqual(ranking92.UP_TO_DATE_DAYS, 14);
+      const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'listingAvailability.js'), 'utf8');
+      assert.match(web, /export const CONFIRM_AFTER_DAYS = 14;/);
+      const webListings = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'listings.js'), 'utf8');
+      assert.match(webListings, /export const UP_TO_DATE_SQL = `\(COALESCE\(NULLIF\(to_jsonb\(p\) ->> 'availability_confirmed_at', ''\)::timestamptz, \$\{PUBLISHED_AT_EXPR\}\)/);
+    });
+    check('the shared agent gate is untouched by the boost', () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
+      assert.match(src, /AND a\.phone_verified_at IS NOT NULL/);
+      assert.match(src, /AND a\.deleted_at IS NULL/);
+      assert.match(src, /AND a\.direct_routing_enabled IS DISTINCT FROM false/);
+    });
+  }
+
+  // §93 "Faites le point": one request per agent, one tap for all, auto-pause off (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Replaces the per-listing "Toujours disponible ?" (§40): the agent with 49
+  // listings was asked every day, and the multi-step chat lost the price.
+  // One WhatsApp per agent per 14 days with a private link (web /point/<token>)
+  // and a "Rien n'a changé" quick reply. The auto-pause is built but OFF.
+  console.log('\n§93 one status request per agent with a private link; "Rien n\'a changé" confirms all; auto-pause only when switched on');
+  {
+    const statusCheck = require('../services/agentStatusCheck');
+    const availability93 = require('../services/availabilityCheck');
+    const autoPause = require('../services/listingAutoPause');
+    const chakra93 = require('../services/chakra');
+    const pg93 = require('../services/postgres');
+    const sw93 = require('../services/sessionWindow');
+    const crypto93 = require('crypto');
+
+    function statusFakePg({ agents = [], requests = [], missingTable = false, stamped = [] } = {}) {
+      const log = [];
+      const rows = { requests: requests.map((r) => ({ ...r })) };
+      const query = async (sql, params = []) => {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        log.push({ sql: text, params });
+        if (text.startsWith('SELECT to_regclass')) return { rows: [{ t: missingTable ? null : params[0] }] };
+        if (text.includes('FROM agents a JOIN properties p')) return { rows: agents.map((a) => ({ ...a })) };
+        if (text.startsWith('INSERT INTO agent_status_requests')) {
+          const id = 100 + rows.requests.length;
+          rows.requests.push({ id, agent_id: params[0], token_hash: params[1], delivery: null });
+          return { rows: [{ id }] };
+        }
+        if (text.startsWith('UPDATE agent_status_requests SET delivery')) {
+          const r = rows.requests.find((x) => x.id === params[0]);
+          if (r) r.delivery = params[1];
+          return { rows: [], rowCount: 1 };
+        }
+        if (text.startsWith('DELETE FROM agent_status_requests')) {
+          rows.requests = rows.requests.filter((x) => x.id !== params[0]);
+          return { rows: [], rowCount: 1 };
+        }
+        if (text.includes('FROM agent_status_requests r JOIN agents a')) {
+          return { rows: rows.requests.filter((x) => x.id === Number(params[0])).map((x) => ({ ...x })) };
+        }
+        if (text.startsWith('UPDATE properties p SET availability_confirmed_at = NOW() WHERE p.agent_id = $1')) return { rows: stamped };
+        return { rows: [], rowCount: 0 };
+      };
+      return { log, rows, pool: { query } };
+    }
+
+    const AGENT93 = { agent_id: 67, phone: '+243811400067', first_name: 'Patrick', listings_count: 12 };
+    const saved93 = {
+      sendTemplate: chakra93.sendTemplate, buttons: chakra93.sendInteractiveButtons, text: chakra93.sendWhatsAppMessage,
+      inside: sw93.insideSessionWindow, isConfigured: pg93.isConfigured, getPool: pg93.getPool,
+      template: process.env.LISTING_STATUS_TEMPLATE, pause: process.env.LISTING_AUTO_PAUSE,
+    };
+    const sent93 = [];
+    chakra93.sendTemplate = async (to, name, opts) => { sent93.push({ kind: 'template', to, name, opts }); return {}; };
+    chakra93.sendInteractiveButtons = async (to, body, buttons) => { sent93.push({ kind: 'buttons', to, body, buttons }); return {}; };
+    chakra93.sendWhatsAppMessage = async (to, body) => { sent93.push({ kind: 'text', to, body }); return {}; };
+    try {
+      check('the link is 24 random bytes (32 base64url characters), stored only as its SHA-256', () => {
+        const token = statusCheck.newToken();
+        assert.match(token, /^[A-Za-z0-9_-]{32}$/);
+        assert.strictEqual(statusCheck.hashToken(token), crypto93.createHash('sha256').update(token).digest('hex'));
+        assert.match(statusCheck.linkUrl('abc'), /\/point\/abc$/);
+        assert.deepStrictEqual(statusCheck.parseStatusButtonId('status_ok:42'), { requestId: 42 });
+        assert.strictEqual(statusCheck.parseStatusButtonId('avail_yes:42'), null);
+        assert.deepStrictEqual(statusCheck.templateParams(AGENT93), ['Patrick', '12 annonces']);
+        assert.strictEqual(statusCheck.countPhrase(1), '1 annonce');
+      });
+
+      check('an agent is due once per 14 days, verified, active, not deleted, with a stale public listing', () => {
+        const sql = statusCheck.DUE_AGENTS_SQL.replace(/\s+/g, ' ');
+        assert.match(sql, /a\.status = 1 AND a\.phone_verified_at IS NOT NULL/);
+        assert.match(sql, /\(to_jsonb\(a\) ->> 'deleted_at'\) IS NULL/);
+        assert.match(sql, /NOT EXISTS \( SELECT 1 FROM agent_status_requests r WHERE r\.agent_id = a\.id AND r\.created_at > NOW\(\) - \(\$1/);
+        assert.match(sql, /p\.approve_status = 1/);
+        assert.strictEqual(statusCheck.REQUEST_INTERVAL_DAYS, 14);
+        assert.match(statusCheck.STAMP_ALL_SQL.replace(/\s+/g, ' '), /WHERE p\.agent_id = \$1 AND p\.status = 1 AND p\.approve_status = 1/, 'one tap never reactivates a hidden listing');
+      });
+
+      await checkAsync('with the template: ONE message per agent, link button + one-tap payload, the claim kept', async () => {
+        process.env.LISTING_STATUS_TEMPLATE = 'point_annonces_agent';
+        sent93.length = 0;
+        const fake = statusFakePg({ agents: [AGENT93] });
+        const tally = await statusCheck.runStatusCheck({ pool: fake.pool, gapMs: 0 });
+        assert.strictEqual(tally.sent, 1);
+        assert.strictEqual(sent93.length, 1, 'one message, whatever the number of listings');
+        const { opts } = sent93[0];
+        assert.deepStrictEqual(opts.bodyParams, ['Patrick', '12 annonces']);
+        assert.match(String(opts.urlButton), /^[A-Za-z0-9_-]{32}$/);
+        assert.deepStrictEqual(opts.buttons, [{ id: 'status_ok:100' }]);
+        assert.strictEqual(fake.rows.requests[0].token_hash, statusCheck.hashToken(opts.urlButton));
+        assert.strictEqual(fake.rows.requests[0].delivery, 'template');
+      });
+
+      await checkAsync('without a template, an agent outside the 24h window is sent nothing and not marked as asked', async () => {
+        delete process.env.LISTING_STATUS_TEMPLATE;
+        sw93.insideSessionWindow = () => false;
+        sent93.length = 0;
+        const fake = statusFakePg({ agents: [AGENT93] });
+        const tally = await statusCheck.runStatusCheck({ pool: fake.pool, gapMs: 0 });
+        assert.strictEqual(tally.outsideWindow, 1);
+        assert.strictEqual(sent93.length, 0);
+        assert.strictEqual(fake.rows.requests.length, 0, 'the claim is released, so tomorrow can try again');
+
+        sw93.insideSessionWindow = () => true;
+        const inside = statusFakePg({ agents: [AGENT93] });
+        await statusCheck.runStatusCheck({ pool: inside.pool, gapMs: 0 });
+        assert.strictEqual(sent93[0].kind, 'buttons');
+        assert.match(sent93[0].body, /\/point\/[A-Za-z0-9_-]{32}/);
+        assert.strictEqual(inside.rows.requests[0].delivery, 'session-link');
+      });
+
+      await checkAsync('without its table the run refuses to start rather than ask every day', async () => {
+        const fake = statusFakePg({ agents: [AGENT93], missingTable: true });
+        await assert.rejects(() => statusCheck.runStatusCheck({ pool: fake.pool, gapMs: 0 }), /20261109_agent_status_requests/);
+      });
+
+      await checkAsync('the one tap confirms every live listing, for the request\'s own agent only, while the link is valid', async () => {
+        pg93.isConfigured = () => true;
+        const request = { id: 7, agent_id: 67, agent_phone: '+243811400067', phone_verified_at: '2026-09-01', created_at: '2026-11-09T09:00:00Z', expires_at: '2026-11-16T09:00:00Z' };
+        const fake = statusFakePg({ requests: [request], stamped: [{ id: 1, listing_status: 'active', price: '800' }, { id: 2, listing_status: 'under_offer', price: '900' }] });
+        pg93.getPool = () => fake.pool;
+        sent93.length = 0;
+
+        const stranger = await statusCheck.handleStatusButtonReply({ from: '243811400099', replyId: 'status_ok:7', now: new Date('2026-11-10T09:00:00Z') });
+        assert.strictEqual(stranger.ignored, 'not-authorised');
+        assert.strictEqual(sent93.length, 0, 'a stranger is told nothing');
+
+        const late = await statusCheck.handleStatusButtonReply({ from: '243811400067', replyId: 'status_ok:7', now: new Date('2026-11-20T09:00:00Z') });
+        assert.strictEqual(late.action, 'expired');
+        assert.ok(!fake.log.some((l) => l.sql.startsWith('UPDATE properties')), 'an expired tap confirms nothing');
+
+        const ok = await statusCheck.handleStatusButtonReply({ from: '243811400067', replyId: 'status_ok:7', now: new Date('2026-11-10T09:00:00Z') });
+        assert.deepStrictEqual([ok.action, ok.confirmed, ok.underOffer], ['all-confirmed', 2, 1]);
+        const stamp = fake.log.find((l) => l.sql.startsWith('UPDATE properties p SET availability_confirmed_at'));
+        assert.deepStrictEqual(stamp.params, [67]);
+        const record = fake.log.find((l) => l.sql.startsWith('INSERT INTO listing_availability_checks'));
+        assert.deepStrictEqual(record.params[4], ['AVAILABLE', 'STILL_UNDER_OFFER']);
+        assert.match(sent93.at(-1).body, /2 annonces confirmées/);
+        assert.match(sent93.at(-1).body, /un tap suffit/);
+      });
+
+      check('the job keeps the old slot, hour and AVAILABILITY_CHECK=off switch; the webhook routes the tap', () => {
+        assert.strictEqual(statusCheck.statusCheckJob.name, 'listing-availability-check');
+        assert.strictEqual(statusCheck.statusCheckJob.shouldRun, availability93.checkDue);
+        const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.ok(webhook.indexOf('handleStatusButtonReply({ from, replyId: buttonReplyId })') > 0);
+      });
+
+      await checkAsync('auto-pause does nothing unless LISTING_AUTO_PAUSE=on', async () => {
+        delete process.env.LISTING_AUTO_PAUSE;
+        const calls = [];
+        const pool = { query: async (sql) => { calls.push(sql); return { rows: [] }; } };
+        assert.deepStrictEqual(await autoPause.runAutoPause({ pool }), { paused: 0, skipped: 'off' });
+        assert.strictEqual(calls.length, 0);
+        assert.strictEqual(autoPause.pauseDue(new Date('2026-11-10T05:05:00Z')), false);
+        process.env.LISTING_AUTO_PAUSE = 'on';
+        const result = await autoPause.runAutoPause({ pool: { query: async () => ({ rows: [{ id: 5, agent_id: 67 }] }) } });
+        assert.deepStrictEqual([result.paused, result.agents], [1, 1]);
+      });
+
+      check('auto-pause hides only listings 30 days stale whose agent was sent a request after that and did not answer for 3 days', () => {
+        const sql = autoPause.PAUSE_SQL.replace(/\s+/g, ' ');
+        assert.match(sql, /SET status = 0, auto_paused_at = NOW\(\)/);
+        assert.match(sql, /r\.delivery IS NOT NULL/);
+        assert.match(sql, /r\.created_at > COALESCE/);
+        assert.match(sql, /r\.created_at < NOW\(\) - \(\$2/);
+        assert.doesNotMatch(sql, /DELETE|listing_status = 'closed'/);
+        assert.deepStrictEqual([autoPause.PAUSE_AFTER_DAYS, autoPause.GRACE_DAYS], [30, 3]);
+      });
+    } finally {
+      chakra93.sendTemplate = saved93.sendTemplate;
+      chakra93.sendInteractiveButtons = saved93.buttons;
+      chakra93.sendWhatsAppMessage = saved93.text;
+      sw93.insideSessionWindow = saved93.inside;
+      pg93.isConfigured = saved93.isConfigured;
+      pg93.getPool = saved93.getPool;
+      if (saved93.template === undefined) delete process.env.LISTING_STATUS_TEMPLATE; else process.env.LISTING_STATUS_TEMPLATE = saved93.template;
+      if (saved93.pause === undefined) delete process.env.LISTING_AUTO_PAUSE; else process.env.LISTING_AUTO_PAUSE = saved93.pause;
     }
   }
 

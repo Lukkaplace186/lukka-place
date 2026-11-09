@@ -886,7 +886,8 @@
       "add": "Add to saved"
     },
     "availability": {
-      "confirmedOn": "Availability confirmed on {date}"
+      "confirmedOn": "Availability confirmed on {date}",
+      "confirmedShort": "Confirmed {date}"
     },
     "depositRange": {
       "any": "Any",
@@ -1667,6 +1668,12 @@
         "one": "commune covered",
         "other": "communes covered"
       },
+      "statClosed": {
+        "one": "property let or sold",
+        "other": "properties let or sold"
+      },
+      "upToDate": "Listings up to date",
+      "upToDateHint": "Every listing online was confirmed available by the agency in the last {days} days, or published in that time.",
       "backToAgencies": "Agencies",
       "aboutEyebrow": "About the Agency",
       "listingsHeading": "Listings from {name}",

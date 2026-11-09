@@ -417,7 +417,7 @@ agree; changing one without the other reintroduces the gap.
   viewing-agent-done, ops-health-alerts, listing-stats-rollup,
   draft-auto-submit, trusted-auto-approve, agent-daily-digest, listing-availability-check,
   market-snapshot, ops-desk-keepalive, sales-commissions, sqlite-backup
-  (pinned in §24).
+  (pinned in §24; `listing-auto-pause` now sits just before `sqlite-backup`).
 
 ## WhatsApp commands for agents (2026-09-29)
 
@@ -431,7 +431,50 @@ Bearer `CRON_SECRET`, `WEB_BASE_URL`), so the caption is the share kit's own
 and ownership / public rules are checked there; web unreachable → "réessayez",
 never an engine-made caption. No model call, nothing stored in SQLite. §44.
 
-## "Toujours disponible ?" on WhatsApp — every 14 days (2026-09-29)
+## "Faites le point sur vos annonces" — one request per agent (2026-11-09)
+
+Replaces the per-listing question below (owner decision). Measured before the
+change: 35 agents hold ~380 live listings, 12 of them three quarters; one has
+49, so at 3 questions a day every 14 days that agent was asked every day. The
+three days it ran (2026-11-03→05) sent 13 questions: 4 "disponible", 8 never
+answered, 1 "loué" that never gave its price. 4 of 380 listings had ever been
+confirmed, and no rental or sale had a recorded price.
+
+- **The job** (`services/agentStatusCheck.js`, still job `listing-availability-check`,
+  same `AVAILABILITY_CHECK_HOUR` and `AVAILABILITY_CHECK=off` switch, which is
+  still set in production): ONE message per agent with a verified phone,
+  active and not deleted, who has a public listing (active, under offer, or
+  auto-paused) unconfirmed for 14 days, and no request in 14 days. Confirming
+  everything puts the whole portfolio on one clock. No reminder is ever sent.
+  An agent who still owes another answer (`hasOpenAgentQuestion`) waits a day.
+- **Record**: Postgres `agent_status_requests`
+  (`migrations/20261109_agent_status_requests.sql`): one row per request, only
+  the SHA-256 of the link's token, `expires_at` (7 days), delivery, opened_at,
+  answers_count, all_confirmed_at. Claimed before the send, deleted when
+  nothing went out. Without the table the job refuses to run.
+- **Delivery**: template `LISTING_STATUS_TEMPLATE` (read at call time; link
+  button first = `https://lukkaplace.com/point/{{1}}`, then the quick reply
+  "Rien n'a changé" with payload `status_ok:<request id>`; `chakra.sendTemplate`
+  now numbers quick replies from 1 when a link button is present). Without it,
+  a session message with the link and an interactive button — and an agent
+  outside the 24 h window is skipped WITHOUT claiming the cycle.
+- **"Rien n'a changé"** (`handleStatusButtonReply`, routed before the old
+  availability buttons): only the request's agent from their verified number,
+  only while the link is valid; stamps every live listing (never an
+  auto-paused one), writes one `listing_availability_checks` row each
+  (`AVAILABLE` / `STILL_UNDER_OFFER`, `request_id`), and replies with a soft
+  "si l'une d'elles est louée, touchez « Mettre à jour »".
+- **The page** is web's (`/point/<token>`, web/CLAUDE.md "Faites le point").
+- **Auto-pause** (`services/listingAutoPause.js`, job `listing-auto-pause`
+  before `sqlite-backup`, 6h Kinshasa): **OFF** unless `LISTING_AUTO_PAUSE=on`
+  (owner: switch on in about a month). Hides (`status = 0`,
+  `properties.auto_paused_at`) a listing unconfirmed for 30 days whose agent
+  was sent a request after that date, at least 3 days ago. Never deletes,
+  never messages; the page lists it first with "Réactiver".
+- The old per-listing answer handlers below still serve questions already
+  sent; `runAvailabilityCheck` is no longer scheduled. §93 (and §40).
+
+## "Toujours disponible ?" on WhatsApp — every 14 days (2026-09-29) — REPLACED 2026-11-09, see above
 
 `services/availabilityCheck.js`, scheduler job `listing-availability-check`
 (daily at `AVAILABILITY_CHECK_HOUR`, default 10 Kinshasa, after the digest).

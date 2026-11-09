@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { getAgentById } from './agents';
-import { getListings } from './listings';
+import { getListings, UP_TO_DATE_SQL } from './listings';
 import { displayableAgencyName } from './agentIdentity';
 
 /**
@@ -54,6 +54,53 @@ export async function getAgentProfile(id) {
     direct_routing_enabled: rows[0]?.direct_routing_enabled ?? null,
     member_since: rows[0]?.member_since || null,
   };
+}
+
+// getAgentTrackRecord's one query (exported for the SQL-text test).
+export const AGENT_TRACK_RECORD_SQL = `
+  SELECT
+    COUNT(*) FILTER (WHERE p.approve_status = 1 AND p.listing_status = 'closed') AS closed_count,
+    COUNT(*) FILTER (WHERE p.status = 1 AND p.approve_status = 1
+                       AND p.listing_status IS DISTINCT FROM 'closed') AS live_count,
+    COUNT(*) FILTER (WHERE p.status = 1 AND p.approve_status = 1
+                       AND p.listing_status IS DISTINCT FROM 'closed'
+                       AND ${UP_TO_DATE_SQL} IS NOT TRUE) AS stale_count
+  FROM properties p
+  WHERE p.agent_id = $1`;
+
+/**
+ * The public profile's track record (web/CLAUDE.md, "Incentives for keeping
+ * listings up to date"), counted from the agent's own rows:
+ *
+ *  - `closedCount`: listings the agent marked let / sold — approved by
+ *    moderation (`approve_status = 1`) and `listing_status = 'closed'`. NOT
+ *    the public gate: a closed listing has `status = 0` (it left the
+ *    storefront). A count only, never a price.
+ *  - `upToDate`: the agent has at least one public live listing (public gate,
+ *    not closed) and every one of them is up to date by UP_TO_DATE_SQL —
+ *    the same rule the default search order uses. False with nothing live:
+ *    an empty portfolio is not "à jour".
+ *
+ * Never throws: a failed read shows neither line, it never takes the profile
+ * down.
+ *
+ * @returns {Promise<{closedCount: number, liveCount: number, upToDate: boolean}>}
+ */
+export async function getAgentTrackRecord(agentId) {
+  const none = { closedCount: 0, liveCount: 0, upToDate: false };
+  const id = Number.parseInt(agentId, 10);
+  if (!Number.isFinite(id)) return none;
+  try {
+    const { rows } = await getPool().query(AGENT_TRACK_RECORD_SQL, [id]);
+    const row = rows[0] || {};
+    const closedCount = Number(row.closed_count) || 0;
+    const liveCount = Number(row.live_count) || 0;
+    const staleCount = Number(row.stale_count) || 0;
+    return { closedCount, liveCount, upToDate: liveCount > 0 && staleCount === 0 };
+  } catch (err) {
+    console.error(`[agents/${id}] track record unavailable: ${err.message}`);
+    return none;
+  }
 }
 
 /**

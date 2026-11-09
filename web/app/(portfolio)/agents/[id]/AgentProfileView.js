@@ -8,6 +8,7 @@ import {
   BadgeCheck,
   Bell,
   Building2,
+  CalendarCheck,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -48,6 +49,9 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 const SORTS = ['recent', 'priceAsc', 'priceDesc'];
 // A description longer than this is clamped to three lines with "Lire la suite".
 const BIO_CLAMP_CHARS = 220;
+// The stats band's columns by number of figures — literal class names so
+// Tailwind generates each one.
+const STAT_GRID_COLS = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3' };
 const DESKTOP_QUERY = '(min-width: 1024px)';
 
 function subscribeDesktop(onChange) {
@@ -346,12 +350,23 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col gap-2.5 lg:pt-1">
-              {agent.verifiedLabel || agent.memberSince ? (
+              {agent.verifiedLabel || agent.upToDateLabel || agent.memberSince ? (
                 <div className="flex flex-wrap gap-2">
                   {agent.verifiedLabel ? (
                     <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-brass-tint pl-2 pr-3 text-xs font-bold text-brass-deep">
                       <BadgeCheck strokeWidth={2} className="h-4 w-4 text-brass" aria-hidden="true" />
                       {agent.verifiedLabel}
+                    </span>
+                  ) : null}
+                  {/* "Annonces à jour": every listing online confirmed or
+                      published within the check's window (page.js decides). */}
+                  {agent.upToDateLabel ? (
+                    <span
+                      title={agent.upToDateHint || undefined}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-success-tint pl-2.5 pr-3 text-xs font-bold text-success"
+                    >
+                      <CalendarCheck strokeWidth={2} className="h-3.5 w-3.5" aria-hidden="true" />
+                      {agent.upToDateLabel}
                     </span>
                   ) : null}
                   {agent.memberSince ? (
@@ -404,8 +419,9 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             </div>
           </div>
 
-          {/* Two figures, both facts: live listings and communes covered. */}
-          <dl className={`grid border-t border-line/70 ${communes.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {/* Figures, all facts: live listings, communes covered, and — from
+              the first one — listings let or sold (a count, never a price). */}
+          <dl className={`grid border-t border-line/70 ${STAT_GRID_COLS[1 + (communes.length ? 1 : 0) + (labels.closedCountLabel ? 1 : 0)]}`}>
             <div className="flex flex-col gap-0.5 px-5 py-4 lg:px-10 lg:py-5">
               <dt className="sr-only">{labels.liveCountLabel}</dt>
               <dd className="u-tabular text-[1.375rem] font-extrabold leading-tight tracking-tight text-ink lg:text-[1.875rem]">{labels.liveCount}</dd>
@@ -415,10 +431,17 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               <div className="flex min-w-0 flex-col gap-0.5 border-l border-line/70 px-5 py-4 lg:px-10 lg:py-5">
                 <dt className="sr-only">{labels.communesLabel}</dt>
                 <dd className="u-tabular text-[1.375rem] font-extrabold leading-tight tracking-tight text-ink lg:text-[1.875rem]">{agent.communesCount}</dd>
-                <dd className="truncate text-xs text-ink-45 lg:text-[0.8125rem]">
+                <dd className="text-xs text-ink-45 lg:truncate lg:text-[0.8125rem]">
                   <span className="lg:hidden">{labels.communesCountLabel}</span>
                   <span className="hidden lg:inline">{communes.join(', ')}</span>
                 </dd>
+              </div>
+            ) : null}
+            {labels.closedCountLabel ? (
+              <div className="flex min-w-0 flex-col gap-0.5 border-l border-line/70 px-5 py-4 lg:px-10 lg:py-5">
+                <dt className="sr-only">{labels.closedCountLabel}</dt>
+                <dd className="u-tabular text-[1.375rem] font-extrabold leading-tight tracking-tight text-ink lg:text-[1.875rem]">{labels.closedCount}</dd>
+                <dd className="text-xs text-ink-45 lg:text-[0.8125rem]">{labels.closedCountLabel}</dd>
               </div>
             ) : null}
           </dl>

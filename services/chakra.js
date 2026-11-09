@@ -317,7 +317,13 @@ async function sendTemplate(
       throw new Error('sendTemplate requires 1-3 quick-reply buttons when buttons is given');
     }
     template.components = template.components || [];
-    buttons.forEach((button, index) => {
+    // A template that also carries a link button declares it FIRST (Meta
+    // keeps a template's buttons grouped by kind), so its quick replies
+    // start at index 1 — agent_status_requests' "Mettre à jour" + "Rien n'a
+    // changé" (services/agentStatusCheck.js).
+    const offset = urlButton !== undefined && urlButton !== null ? 1 : 0;
+    buttons.forEach((button, position) => {
+      const index = position + offset;
       const payload = button?.id;
       if (!payload || !String(payload).trim()) {
         throw new Error('each quick-reply button needs an id (the payload)');
@@ -345,7 +351,6 @@ async function sendTemplate(
   if (urlButton !== undefined && urlButton !== null) {
     const value = String(urlButton).trim();
     if (otpCode) throw new Error('sendTemplate cannot combine otpCode with urlButton');
-    if (buttons !== undefined) throw new Error('sendTemplate cannot combine quick-reply buttons with urlButton');
     if (!value || /\s/.test(value)) throw new Error('sendTemplate urlButton must be a non-empty value without spaces');
     template.components = template.components || [];
     template.components.push({

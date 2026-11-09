@@ -16,7 +16,10 @@ import { badgeConfirmationDate, formatConfirmationDate } from '@/lib/listingAvai
  * Deliberately worded as the agent's confirmation, not "Vérifié": that word
  * belongs to properties.verified_at, a check by our own team.
  */
-export default async function AvailabilityConfirmedBadge({ confirmedAt }) {
+export default async function AvailabilityConfirmedBadge({ confirmedAt, listingStatus = null }) {
+  // "Faites le point" (lib/statusCheck.js) also stamps an under-offer listing
+  // the agent says is still under offer: that is not "disponible".
+  if (listingStatus != null && listingStatus !== 'active') return null;
   const date = badgeConfirmationDate(confirmedAt);
   if (!date) return null;
   const t = await getT();

@@ -3,7 +3,11 @@
 /**
  * services/availabilityCheck.js
  *
- * "Toujours disponible ?" on WhatsApp, every 14 days per listing.
+ * "Toujours disponible ?" on WhatsApp, every 14 days per listing — REPLACED on
+ * 2026-11-09 by one request per agent (services/agentStatusCheck.js). What
+ * stays live here: the answers to per-listing questions already sent (their
+ * buttons and typed replies), checkDue (the shared job's hour and
+ * AVAILABILITY_CHECK=off switch) and the helpers.
  *
  * Agents live in WhatsApp, not in the dashboard, so the web prompt
  * (web/lib/listingAvailability.js) alone left most listings unconfirmed and
@@ -848,6 +852,11 @@ function checkDue(now = new Date()) {
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 /**
+ * NO LONGER SCHEDULED (2026-11-09): the daily job now sends one request per
+ * agent (services/agentStatusCheck.js). This per-listing pass is kept only
+ * because §40 pins its claim/release and delivery rules, which the new job
+ * repeats; the answer handlers above still serve questions already sent.
+ *
  * One daily pass. Returns what it did; throws only when it could not start
  * (the question log is missing), so the scheduler records a failure instead
  * of the job quietly asking again tomorrow.
@@ -930,8 +939,6 @@ async function runAvailabilityCheck({ now = new Date(), pool = pg.getPool(), gap
   return tally;
 }
 
-const availabilityCheckJob = { name: JOB_NAME, shouldRun: checkDue, run: () => runAvailabilityCheck() };
-
 module.exports = {
   JOB_NAME,
   CONFIRM_AFTER_DAYS,
@@ -962,6 +969,5 @@ module.exports = {
   runAvailabilityCheck,
   handleAvailabilityButtonReply,
   handleAvailabilityTextReply,
-  availabilityCheckJob,
   checkEnabled,
 };

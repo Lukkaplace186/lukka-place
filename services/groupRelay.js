@@ -15,8 +15,9 @@
  *
  * One path for both. A group post is stored as its own listing row. Since
  * 2026-11-05 (owner) it is NOT published: it only feeds the price guide
- * (marketSources/whatsappGroup.js). GROUP_CAPTURE_PUBLISH=on restores the old
- * behaviour, described next: sent to the approval queue at once — nobody is
+ * (marketSources/whatsappGroup.js). GROUP_CAPTURE_PUBLISH_GROUPS (one group at a
+ * time, with its admins' consent) or GROUP_CAPTURE_PUBLISH=on (every group)
+ * restores the old behaviour, described next: sent to the approval queue at once — nobody is
  * asked for "OK", nobody is onboarded,
  * nothing is ever sent to the poster or into a group. The relay phone (our
  * staff) gets one receipt per burst. Duplicates — the same post forwarded from
@@ -40,13 +41,26 @@ const { standsAloneAsListing } = require('./listingBoundary');
 
 const SOURCE = 'whatsapp-group';
 
+/** Groups (JIDs) whose posts are published: GROUP_CAPTURE_PUBLISH_GROUPS, read at call time. */
+function publishingGroups() {
+  return String(process.env.GROUP_CAPTURE_PUBLISH_GROUPS || '')
+    .split(/[,;\s]+/)
+    .map((jid) => jid.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 /**
- * Whether a capture is published into the approval queue. Off unless
- * GROUP_CAPTURE_PUBLISH=on (read at call time): since 2026-11-05 (owner) group
- * posts are kept for the price guide only and never become listings.
+ * Whether a capture is published into the approval queue. Since 2026-11-05
+ * (owner) group posts are kept for the price guide only and never become
+ * listings, except: GROUP_CAPTURE_PUBLISH=on publishes every group, and
+ * GROUP_CAPTURE_PUBLISH_GROUPS names the groups whose admins agreed to have
+ * their listings taken (owner, 2026-11-09: Prince immo tout kin). A relay
+ * burst names no group, so it follows GROUP_CAPTURE_PUBLISH alone.
  */
-function capturesPublish() {
-  return String(process.env.GROUP_CAPTURE_PUBLISH || '').trim().toLowerCase() === 'on';
+function capturesPublish(groupJid) {
+  if (String(process.env.GROUP_CAPTURE_PUBLISH || '').trim().toLowerCase() === 'on') return true;
+  const jid = String(groupJid || '').trim().toLowerCase();
+  return Boolean(jid) && publishingGroups().includes(jid);
 }
 const FINGERPRINT_DAYS = 30;
 /** Below this many folded characters a text says too little to be called the same post. */
@@ -297,12 +311,12 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
   if (raced) return { outcome: 'duplicate', listingId: id };
   recordFingerprints(id, fingerprints);
 
-  if (!capturesPublish()) {
+  if (!capturesPublish(groupJid)) {
     // Owner, 2026-11-05: group posts feed the market prices only. The row
     // stays a draft nobody confirms (findLatestPendingListing and
     // draftAutoSubmit both skip group captures); marketSources/whatsappGroup
     // reads its price like any capture.
-    console.log(`[group-capture] ${label}: listing #${id} kept for market prices — not published (GROUP_CAPTURE_PUBLISH off)`);
+    console.log(`[group-capture] ${label}: listing #${id} kept for market prices — not published (group not in GROUP_CAPTURE_PUBLISH_GROUPS)`);
     return { outcome: 'stored', listingId: id, ids: [id], published: false, pricesOnly: true };
   }
   if (!photos.length && !videos.length) {

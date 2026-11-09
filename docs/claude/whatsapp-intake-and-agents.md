@@ -197,7 +197,13 @@ brings them in. `services/groupRelay.js` is the one path for both ways in:
   the default is off: a capture stays a draft that is never published and
   only feeds the price guide** (marketSources/whatsappGroup.js reads it);
   draftAutoSubmit skips group captures, and the relay receipt says
-  "enregistrée pour les prix du marché (non publiée)". With publishing on:
+  "enregistrée pour les prix du marché (non publiée)". **Per group
+  (2026-11-09, owner): `GROUP_CAPTURE_PUBLISH_GROUPS`** (comma-separated
+  JIDs, read at call time) publishes only the groups whose admins agreed to
+  have their listings taken — Prince immo tout kin
+  (120363344702370143@g.us) first; the other groups stay prices-only. A
+  relay burst names no group and follows `GROUP_CAPTURE_PUBLISH` alone.
+  With publishing on:
   no photo → kept as a draft (photo rule), named in the receipt.
   Chatter is dropped only when the model says no listing AND the text names
   no property + price AND there are no photos.

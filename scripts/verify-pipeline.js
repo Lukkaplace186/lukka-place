@@ -12625,6 +12625,44 @@ console.log('\n2. services/openai.js');
         assert.match(receipt, /1 annonce enregistrée pour les prix du marché\* \(non publiée\)/);
         assert.doesNotMatch(receipt, /modération/);
       });
+
+      // Owner, 2026-11-09: one group (its admins agreed) is published again,
+      // the others stay prices-only. GROUP_CAPTURE_PUBLISH_GROUPS names it.
+      const savedGroups62 = process.env.GROUP_CAPTURE_PUBLISH_GROUPS;
+      process.env.GROUP_CAPTURE_PUBLISH_GROUPS = ` ${readerBody.groupJid.toUpperCase()} ,120363000000000099@g.us`;
+      try {
+        check('only the listed groups publish; a relay burst (no group) and other groups stay prices-only', () => {
+          assert.strictEqual(relay62.capturesPublish(readerBody.groupJid), true, 'listed, whatever the case and spacing');
+          assert.strictEqual(relay62.capturesPublish('120363000000000063@g.us'), false);
+          assert.strictEqual(relay62.capturesPublish(null), false);
+          assert.strictEqual(relay62.capturesPublish(''), false);
+        });
+        completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Limete', quartier: null, price: 250, bedrooms: 1 }, '…'));
+        const listed62 = await adminRequest('POST', '/internal/group-posts', {
+          ...readerBody,
+          text: 'Appartement à louer à Limete 7e rue, 1 chambre, salon, cuisine, loyer 250$ par mois, garantie 5+1.',
+          wamids: ['grpmsg-62-listed'],
+        });
+        completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Kalamu', quartier: null, price: 300, bedrooms: 1 }, '…'));
+        const unlisted62 = await adminRequest('POST', '/internal/group-posts', {
+          ...readerBody,
+          groupJid: '120363000000000063@g.us',
+          groupName: 'Autre groupe',
+          text: 'Appartement à louer à Kalamu Matonge, 1 chambre, salon, cuisine, loyer 300$ par mois, garantie 3+1.',
+          wamids: ['grpmsg-62-unlisted'],
+        });
+        check('a post from a listed group goes to moderation; one from another group is kept for prices', () => {
+          assert.strictEqual(listed62.body.outcome, 'stored');
+          assert.strictEqual(listed62.body.published, true);
+          assert.strictEqual(dbService.getListing(listed62.body.listingId).status, 'published');
+          assert.strictEqual(unlisted62.body.outcome, 'stored');
+          assert.strictEqual(unlisted62.body.pricesOnly, true);
+          assert.strictEqual(dbService.getListing(unlisted62.body.listingId).status, 'pending_confirmation');
+        });
+      } finally {
+        if (savedGroups62 === undefined) delete process.env.GROUP_CAPTURE_PUBLISH_GROUPS;
+        else process.env.GROUP_CAPTURE_PUBLISH_GROUPS = savedGroups62;
+      }
       process.env.GROUP_CAPTURE_PUBLISH = 'on';
 
       // Moderation verdict: never to a group poster.

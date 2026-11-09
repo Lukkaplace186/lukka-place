@@ -1,0 +1,9 @@
+{
+  "source": "other",
+  "entered": "2026-11-09",
+  "note": "One advert from X (Twitter), copied by hand by the owner and pasted in chat on 2026-11-09 (already summarised: agency, phone, type, commune, quartier, bedrooms, rent). Hand-entered like Facebook: no automated collection from X. No posting date given (daysAgo null).",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["x-2026-11-09-immo-shungu-mimosas-3ch", "appartement", 800, 3, "Ngaliema", "Mimosas", null, "+243 822 107 700", null, "Immo Shungu", "rent"]
+  ]
+}

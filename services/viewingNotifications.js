@@ -567,6 +567,20 @@ async function notifyViewingRequest({
           viewingRequestId: viewingRequest.id,
         });
       }
+      // A template alert carries no answer buttons, so an agent who replies on
+      // WhatsApp types it ("ok je confirme"). Claim their next message for
+      // this request too, or it reaches listing intake and is lost.
+      if (channel === 'template' && viewingRequest?.id) {
+        try {
+          dbService.setPendingAgentAction({
+            waId: String(listing.agent_phone).replace(/\D/g, ''),
+            kind: PENDING_KINDS.viewingAlert,
+            viewingRequestId: viewingRequest.id,
+          });
+        } catch (err) {
+          console.error(`[viewing] pending reply claim for request #${viewingRequest.id} failed: ${err.message}`);
+        }
+      }
       console.log(
         `[viewing] request #${viewingRequest?.id} (property #${id}) -> agent #${listing.agent_id} accepted via ${channel}`,
       );
@@ -778,7 +792,53 @@ const PENDING_KINDS = {
   scheduleTime: 'SCHEDULE_TIME',
   // "Avez-vous déjà contacté le client ?" when its buttons did not go out.
   contactCheck: 'CONTACT_CHECK',
+  // The alert went out as a Meta TEMPLATE, whose only button is a link: the
+  // agent never saw Accepter / Autre créneau / Décliner. Their next WhatsApp
+  // message is still about this visit (2026-11-09, request #19) — see
+  // handleAgentTextReply.
+  viewingAlert: 'VIEWING_ALERT',
 };
+
+/**
+ * Words that say "yes, the visit is on" — and nothing else. A message counts
+ * only when EVERY word in it is one of these or a filler word, at least one is
+ * a real yes, and none is a negation: "ok je confirme" and "c'est bon pour la
+ * visite" accept, "pas possible", "déjà loué" or "ok mais demain" do not.
+ * Anything else is unclear, and an unclear answer is asked again rather than
+ * guessed — the customer is messaged on an accept.
+ */
+const ACCEPT_WORDS = new Set([
+  'ok', 'okay', 'oki', 'oui', 'yes', 'accord', 'dac', 'daccord',
+  'confirme', 'confirmee', 'confirmer', 'confirmons', 'accepte', 'acceptee', 'accepter',
+  'valide', 'validee', 'entendu', 'disponible', 'dispo', 'marche',
+]);
+const ACCEPT_FILLER = new Set([
+  'je', 'j', 'vous', 'nous', 'la', 'le', 'l', 'les', 'pour', 'visite', 'client', 'cliente',
+  'c', 'est', 'ca', 'cela', 'bon', 'bien', 'merci', 'bonjour', 'bonsoir', 'monsieur', 'madame',
+  'mr', 'mme', 'suis', 'sommes', 'd', 'de', 'du', 'et', 'parfait', 'super', 'tres', 'top',
+  'recu', 'demande', 'rdv', 'rendez', 'vous', 'boss', 'chef', 'cher', 'chere',
+]);
+const ACCEPT_NEGATIONS = new Set([
+  'pas', 'non', 'ne', 'n', 'plus', 'jamais', 'deja', 'loue', 'louee', 'vendu', 'vendue',
+  'indisponible', 'occupe', 'occupee', 'mais', 'sauf', 'annule', 'annuler', 'autre',
+]);
+
+function isPlainAccept(text) {
+  const raw = String(text || '');
+  if (raw.length > 80) return false;
+  const thumbs = /👍|✅|👌/u.test(raw);
+  const words = fold(raw).split(/[^a-z]+/).filter(Boolean);
+  if (words.length > 12) return false;
+  if (/\d/.test(raw)) return false;
+  // "c'est bon" is a yes; "bon" alone is not.
+  let yes = thumbs || words.some((w, i) => w === 'bon' && words[i - 1] === 'est');
+  for (const word of words) {
+    if (ACCEPT_NEGATIONS.has(word)) return false;
+    if (ACCEPT_WORDS.has(word)) yes = true;
+    else if (!ACCEPT_FILLER.has(word)) return false;
+  }
+  return yes;
+}
 
 const DECLINE_REASONS = {
   1: 'Bien déjà loué / vendu',
@@ -1918,7 +1978,62 @@ async function handleViewingButtonReply({ from, replyId }) {
  * and it is what keeps a real property advert from being eaten because a
  * questionnaire happened to be open.
  */
-async function handleAgentTextReply({ from, text }) {
+/**
+ * The agent's first message after a TEMPLATE alert (pending VIEWING_ALERT).
+ *
+ *   - "1"/"2"/"3", or a plain yes ("ok je confirme") -> answered, exactly as a
+ *     tap would be;
+ *   - any other short text with no photo and no figure ("comment faire ?",
+ *     "c'est où ?") -> asked once which of the three they mean, with the
+ *     buttons (numbered text when buttons fail); the pending question becomes
+ *     VIEWING_RESPONSE, so the next "1" or "ok" lands;
+ *   - anything longer, with a figure or with media -> not ours: it falls
+ *     through to listing intake, and the claim stays for the next message.
+ *
+ * Only while the request is still PENDING and the sender is still its agent.
+ */
+async function handleTemplateAlertReply({ ctx, from, text, hasMedia = false }) {
+  if (!ctx.authorised || ctx.request.status !== 'PENDING') {
+    dbService.clearPendingAgentAction(from);
+    return { handled: false };
+  }
+  const args = { ...ctx, from };
+  const choice = parseNumberedChoice(text);
+  if (choice === 2) return { handled: true, ...(await handleReschedule(args)) };
+  if (choice === 3) return { handled: true, ...(await handleDecline(args)) };
+  if (choice === 1 || (!hasMedia && isPlainAccept(text))) {
+    console.log(`[viewing] request #${ctx.request.id}: typed reply to the template alert read as an accept`);
+    return { handled: true, ...(await handleAccept(args)) };
+  }
+
+  const raw = String(text || '').trim();
+  if (hasMedia || !raw || raw.length > 80 || /\d/.test(raw)) return { handled: false };
+
+  const question = [
+    `${HEADER_BRAND} Votre réponse concerne la demande de visite ?`,
+    `📍 ${listingLabel(ctx.listing, ctx.propertyId)}`,
+    `👤 ${ctx.request.lead_name || 'Client'}`,
+    `📅 ${ctx.request.requested_time || 'Créneau à convenir'}`,
+  ].join('\n');
+  const to = String(from).replace(/\D/g, '');
+  let sent = false;
+  try {
+    await chakra.sendInteractiveButtons(to, question, viewingButtons(ctx.request.id));
+    sent = true;
+  } catch (err) {
+    console.warn(`[viewing] clarify buttons failed for ${to} (${err.message}) — numbered text`);
+    sent = await trySend(to, `${question}\n${buttonFallbackText()}`, 'alert clarify');
+  }
+  dbService.setPendingAgentAction({
+    waId: to,
+    kind: PENDING_KINDS.viewingResponse,
+    viewingRequestId: ctx.request.id,
+  });
+  console.log(`[viewing] request #${ctx.request.id}: unclear reply to the template alert — asked which answer (sent: ${sent})`);
+  return { handled: true, action: 'clarify', sent };
+}
+
+async function handleAgentTextReply({ from, text, hasMedia = false }) {
   const pending = dbService.getPendingAgentAction(from);
   if (!pending) return { handled: false };
 
@@ -1935,8 +2050,12 @@ async function handleAgentTextReply({ from, text }) {
     return require('./visitReceipt').handleVisitDoneTextReply({ from, text, pending });
   }
 
+  if (pending.kind === PENDING_KINDS.viewingAlert) {
+    return handleTemplateAlertReply({ ctx, from, text, hasMedia });
+  }
+
   if (pending.kind === PENDING_KINDS.viewingResponse) {
-    const choice = parseNumberedChoice(text);
+    const choice = parseNumberedChoice(text) || (isPlainAccept(text) ? 1 : null);
     if (!choice) return { handled: false };
     const args = { ...ctx, from };
     if (choice === 1) return { handled: true, ...(await handleAccept(args)) };
@@ -2209,6 +2328,7 @@ module.exports = {
   opsDashboardAnswerText,
   parseViewingButtonId,
   parseNumberedChoice,
+  isPlainAccept,
   parseDeclineReason,
   parseClosingPrice,
   isPriceDeclined,

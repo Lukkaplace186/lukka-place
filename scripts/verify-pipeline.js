@@ -15057,6 +15057,102 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §86 A typed reply to a TEMPLATE visit alert is not lost (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Request #19: the alert went out as demande_visite_agent_v2 (a link button,
+  // no Accepter), the agent answered on WhatsApp, and the text went to listing
+  // intake — the request stayed PENDING and escalated.
+  console.log('\n§86 an agent\'s typed answer to a template visit alert reaches the visit');
+  {
+    const tpl86 = process.env.VIEWING_REQUEST_TEMPLATE;
+    const repo86 = propertyRepo.getListingContactById;
+    const alert86 = async () => {
+      const r = freshViewingRequest('lundi 9 novembre à 16h15');
+      dbService.clearPendingAgentAction(AGENT_WA);
+      await viewingNotifications.notifyViewingRequest({
+        viewingRequest: r,
+        lead: { name: 'Henoc Mimbo', wa_id: '243990111222' },
+      });
+      return r.id;
+    };
+    try {
+      process.env.VIEWING_REQUEST_TEMPLATE = 'demande_visite_agent_v2';
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+
+      check('a plain yes is an accept; a no, a "but", a figure or a stranger sentence is not', () => {
+        for (const yes of ['ok', 'Ok je confirme', "C'est bon pour la visite", "d'accord", 'Oui 👍', 'Je suis disponible', 'Confirmé merci boss', '✅']) {
+          assert.ok(viewingNotifications.isPlainAccept(yes), yes);
+        }
+        for (const no of ['pas disponible', 'non', 'ok mais demain', 'déjà loué', 'ok à 17h', 'comment faire ?', 'parfait', 'merci', 'je ne peux pas', 'autre créneau']) {
+          assert.ok(!viewingNotifications.isPlainAccept(no), no);
+        }
+      });
+
+      const accepted86 = await alert86();
+      check('a template alert claims the agent\'s next message for that request', () => {
+        const pending = dbService.getPendingAgentAction(AGENT_WA);
+        assert.strictEqual(pending.kind, 'VIEWING_ALERT');
+        assert.strictEqual(pending.viewing_request_id, accepted86);
+      });
+      httpCalls.length = 0;
+      const ok86 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'Ok je confirme' });
+      check('"Ok je confirme" confirms the visit and tells the customer', () => {
+        assert.strictEqual(ok86.handled, true);
+        assert.strictEqual(ok86.action, 'accept');
+        assert.strictEqual(dbService.getViewingRequest(accepted86).status, 'CONFIRMED');
+        assert.ok(httpCalls.some((c) => c.data && String(c.data.to) === '243990111222'), 'customer messaged');
+      });
+
+      const unclear86 = await alert86();
+      httpCalls.length = 0;
+      const ask86 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'Comment faire ?' });
+      check('an unclear short reply is asked once, with the three answers, and nothing is decided', () => {
+        assert.strictEqual(ask86.handled, true);
+        assert.strictEqual(ask86.action, 'clarify');
+        assert.strictEqual(dbService.getViewingRequest(unclear86).status, 'PENDING');
+        assert.ok(httpCalls.some((c) => JSON.stringify(c.data || {}).includes(`viewing_accept:${unclear86}`)), 'buttons name the request');
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'VIEWING_RESPONSE');
+      });
+      const one86 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: '1' });
+      check('then a typed 1 accepts it', () => {
+        assert.strictEqual(one86.action, 'accept');
+        assert.strictEqual(dbService.getViewingRequest(unclear86).status, 'CONFIRMED');
+      });
+
+      const advert86 = await alert86();
+      const listing86 = await viewingNotifications.handleAgentTextReply({
+        from: AGENT_WA,
+        text: 'Maison à louer Limete 3 chambres 400$ garantie 3 mois',
+      });
+      const photo86 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'Villa Gombe', hasMedia: true });
+      check('an advert or a captioned photo falls through to intake and the claim stays', () => {
+        assert.strictEqual(listing86.handled, false);
+        assert.strictEqual(photo86.handled, false);
+        assert.strictEqual(dbService.getViewingRequest(advert86).status, 'PENDING');
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'VIEWING_ALERT');
+      });
+
+      const answered86 = await alert86();
+      dbService.updateViewingRequest(answered86, { status: 'CONFIRMED' });
+      const late86 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'ok' });
+      check('a request answered elsewhere is not re-answered by a late "ok"', () => {
+        assert.strictEqual(late86.handled, false);
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA), undefined);
+      });
+
+      check('the webhook passes media to the typed handler and logs what was written', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(src, /handleAgentTextReply\(\{ from, text, hasMedia: mediaRefs\.length > 0 \}\)/);
+        assert.match(src, /message\.text \? ` : "\$\{String\(message\.text\)/);
+      });
+    } finally {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      propertyRepo.getListingContactById = repo86;
+      if (tpl86 === undefined) delete process.env.VIEWING_REQUEST_TEMPLATE;
+      else process.env.VIEWING_REQUEST_TEMPLATE = tpl86;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

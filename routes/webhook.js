@@ -1082,7 +1082,7 @@ async function processGroup(messages) {
     // because a questionnaire happened to be open.
     if (hasText) {
       try {
-        const outcome = await handleAgentTextReply({ from, text });
+        const outcome = await handleAgentTextReply({ from, text, hasMedia: mediaRefs.length > 0 });
         if (outcome.handled) return;
       } catch (err) {
         console.error(`[viewing] typed reply from ${from} failed: ${err.message}`);
@@ -1748,7 +1748,11 @@ router.post('/', verifyWebhookSecret, (req, res) => {
   for (const message of messages) {
     console.log(
       `[chakra] inbound ${message.type} from ${message.from} — ${message.wamid || 'no id'}` +
-        (message.media?.length ? ` (${message.media.length} media)` : ''),
+        (message.media?.length ? ` (${message.media.length} media)` : '') +
+        // What they wrote, short and on one line: agents' messages are stored
+        // nowhere else, and "what did the agent actually say?" was unanswerable
+        // when a visit reply went missing (2026-11-09, request #19).
+        (message.text ? ` : "${String(message.text).replace(/\s+/g, ' ').trim().slice(0, 160)}"` : ''),
     );
 
     // Opens (or keeps open) this number's 24 h window for plain texts —

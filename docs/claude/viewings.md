@@ -618,3 +618,30 @@ AGENT_DASHBOARD | DESK). First record wins.
   Répondez quand même ici" — in the session text only; an approved template's
   body is fixed in Meta.
 - §82 of verify-pipeline.
+
+## A typed reply to a TEMPLATE visit alert reaches the visit (2026-11-09)
+
+Request #19 (property #659, Prince Immo, agent #67): the alert went out as
+`demande_visite_agent_v2`, whose only button is the portal link — no
+Accepter / Autre créneau / Décliner. The agent answered on WhatsApp four minutes
+later; nothing tied that text to the visit (a pending claim was set only for
+the numbered session fallback), so it went to listing intake ("intent other"),
+their next "comment faire ?" got the sign-up quick reply, and the request
+stayed PENDING and escalated while the agent believed they had confirmed.
+
+- After a template alert, `notifyViewingRequest` sets pending kind
+  `VIEWING_ALERT` for the agent's number (24 h TTL, newer question wins).
+- `handleTemplateAlertReply`: "1"/"2"/"3" or a plain yes (`isPlainAccept`:
+  every word a yes or filler, at least one real yes, no negation / "mais" /
+  "autre" / figure — "ok je confirme", "c'est bon pour la visite", 👍) →
+  answered like a tap. Any other short text with no figure and no media →
+  asked ONCE which answer they mean, with the three buttons (numbered text if
+  buttons fail) and the claim becomes `VIEWING_RESPONSE`. Longer text, a
+  figure or media → falls through to intake, claim kept. Only while the
+  request is PENDING and the sender is its agent; otherwise the claim is
+  dropped.
+- `VIEWING_RESPONSE` (numbered menu shown) also takes a plain yes now.
+- The webhook's `[chakra] inbound … from …` log line carries the first 160
+  characters of the text: agents' messages are stored nowhere else, and what
+  Prince Immo wrote could not be read back.
+- §86 of verify-pipeline.

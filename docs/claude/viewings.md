@@ -667,3 +667,27 @@ console had reassign / nudge / "Fixer l'heure" (scheduled_at only) / cancel.
   time, the dialog says the customer and the agent are messaged; audited
   `viewing.desk_confirm` with whether each was told.
 - §87 of verify-pipeline.
+
+## The agent confirms with one tap, outside the 24 h window too (2026-11-09)
+
+The two gaps behind request #19, closed in code:
+
+- **Template alert with answer buttons.** `VIEWING_TEMPLATES_WITH_BUTTONS`
+  (comma list, read at call time): when `VIEWING_REQUEST_TEMPLATE` is listed,
+  `send` passes the three quick-reply payloads (`viewing_accept|reschedule|
+  decline:<id>`, index 0/1/2) instead of the link parameter and returns
+  `template-buttons`. A tap comes back as `button.payload` → `replyId` →
+  `handleViewingButtonReply`, exactly like a session button: Accepter
+  CONFIRMS and tells the customer. The typed-reply claim (VIEWING_ALERT) is
+  set as well. Needs a Meta template approved with three QUICK_REPLY buttons
+  in that order (drafted as `demande_visite_agent_v3`, intake account,
+  image header, same four body variables); until it is approved and listed,
+  nothing changes.
+- **"Oui, WhatsApp / appel / en personne" asks the next question.** On a
+  PENDING or RESCHEDULED request the contact-check answer now replies "Merci,
+  c'est noté. La visite est-elle fixée avec le client ?" with Accepter / Autre
+  créneau / Décliner (numbered text if buttons fail) and claims the next
+  message as VIEWING_RESPONSE, so a tap, "1" or "oui je confirme" confirms it.
+  Other statuses keep the plain thank-you.
+- §88 of verify-pipeline (§82's typed "2" check now expects the follow-up
+  question to be the open one).

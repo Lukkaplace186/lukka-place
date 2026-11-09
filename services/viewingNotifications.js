@@ -144,6 +144,11 @@ const LIFECYCLE_TEMPLATE_ENV = {
 const nameList = (key) =>
   String(process.env[key] || '').split(',').map((name) => name.trim()).filter(Boolean);
 const templateHasLink = (name) => nameList('VIEWING_TEMPLATES_WITH_LINK').includes(name);
+// Templates approved with the alert's three QUICK-REPLY buttons (Accepter /
+// Autre créneau / Décliner, in that order). Their payloads are the same
+// viewing_accept|reschedule|decline:<id> as the session buttons, so a tap on
+// the template answers the request with no typing and no portal (2026-11-09).
+const templateHasButtons = (name) => nameList('VIEWING_TEMPLATES_WITH_BUTTONS').includes(name);
 const templateFromSender = (name) => nameList('VIEWING_TEMPLATES_FROM_SENDER').includes(name);
 const templateHasImage = (name) => nameList('VIEWING_TEMPLATES_WITH_IMAGE').includes(name);
 
@@ -455,14 +460,16 @@ async function send(phone, text, templateParams, buttons = null, linkParam = nul
   if (TEMPLATE_NAME && templateParams) {
     try {
       const image = templateImage();
+      const withButtons = Boolean(buttons) && templateHasButtons(TEMPLATE_NAME);
       await chakra.sendTemplate(phone, TEMPLATE_NAME, {
         languageCode: templateLang(),
         bodyParams: templateParams,
         ...(image ? { headerImage: image } : {}),
-        ...(templateHasLink(TEMPLATE_NAME) && linkParam != null ? { urlButton: linkParam } : {}),
+        ...(withButtons ? { buttons: buttons.map((b) => ({ id: b.id })) } : {}),
+        ...(!withButtons && templateHasLink(TEMPLATE_NAME) && linkParam != null ? { urlButton: linkParam } : {}),
         ...(templateSender() ? { sender: templateSender() } : {}),
       });
-      return 'template';
+      return withButtons ? 'template-buttons' : 'template';
     } catch (templateErr) {
       console.warn(
         `[viewing] template '${TEMPLATE_NAME}' failed for ${phone}, falling back to a session message: ${templateErr.message}`,
@@ -570,7 +577,7 @@ async function notifyViewingRequest({
       // A template alert carries no answer buttons, so an agent who replies on
       // WhatsApp types it ("ok je confirme"). Claim their next message for
       // this request too, or it reaches listing intake and is lost.
-      if (channel === 'template' && viewingRequest?.id) {
+      if ((channel === 'template' || channel === 'template-buttons') && viewingRequest?.id) {
         try {
           dbService.setPendingAgentAction({
             waId: String(listing.agent_phone).replace(/\D/g, ''),
@@ -1959,6 +1966,35 @@ async function handleContactCheckAnswer({ request, listing, propertyId, from, ch
   dbService.clearPendingAgentAction(from);
   if (channel) {
     const recorded = dbService.recordViewingDirectContact(request.id, { channel, by: 'AGENT_WHATSAPP' });
+    // Still unanswered: "contacted" is not "agreed", so ask the one question
+    // left — with the three answers, so an agreed visit is CONFIRMED (and the
+    // customer told) from this tap, not left PENDING (2026-11-09, request #19).
+    // The agent has just tapped, so this session message arrives.
+    if (['PENDING', 'RESCHEDULED'].includes(request.status)) {
+      const question = [
+        `${HEADER_BRAND} Merci, c'est noté. 🙏 La visite est-elle fixée avec le client ?`,
+        `📍 ${listingLabel(listing, propertyId)}`,
+        `👤 ${request.lead_name || 'Client'}`,
+        `📅 ${request.requested_time || 'Créneau à convenir'}`,
+        '',
+        'Répondez avec un bouton : nous prévenons le client.',
+      ].join('\n');
+      const to = String(from).replace(/\D/g, '');
+      let asked = false;
+      try {
+        await chakra.sendInteractiveButtons(to, question, viewingButtons(request.id));
+        asked = true;
+      } catch (err) {
+        console.warn(`[viewing] request #${request.id}: "visite fixée ?" buttons failed (${err.message}) — numbered text`);
+        asked = await trySend(to, `${question}\n${buttonFallbackText()}`, 'visit fixed question');
+      }
+      // A typed "1" or "ok" answers it too (handleAgentTextReply).
+      dbService.setPendingAgentAction({ waId: to, kind: PENDING_KINDS.viewingResponse, viewingRequestId: request.id });
+      console.log(
+        `[viewing] request #${request.id}: agent ${from} says customer contacted by ${channel} (recorded: ${recorded}) — asked if the visit is fixed (sent: ${asked})`,
+      );
+      return { action: 'direct-contact', channel, recorded, askedIfFixed: asked };
+    }
     await trySend(from, CONTACT_RECORDED_TEXT, 'contact recorded');
     console.log(`[viewing] request #${request.id}: agent ${from} says customer contacted by ${channel} (recorded: ${recorded})`);
     return { action: 'direct-contact', channel, recorded };

@@ -79,6 +79,7 @@ for (const key of [
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
   'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
   'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_TEMPLATES_WITH_IMAGE', 'AGENT_DAY_TEMPLATE',
+  'VIEWING_TEMPLATES_WITH_BUTTONS',
   'AGENT_WEEKLY_TEMPLATE', 'AGENT_WEEKLY_DIGEST',
 ]) {
   process.env[key] = '';
@@ -14719,7 +14720,10 @@ console.log('\n2. services/openai.js');
       check('a typed "2" answers the numbered fallback: contacted by phone', () => {
         assert.strictEqual(typedOut82.handled, true);
         assert.strictEqual(dbService.getViewingRequest(typed82).direct_contact_channel, 'phone');
-        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA), undefined);
+        // §88: the contact check is settled and "is the visit fixed?" is now the open question.
+        const next = dbService.getPendingAgentAction(AGENT_WA);
+        assert.strictEqual(next.kind, 'VIEWING_RESPONSE');
+        assert.strictEqual(next.viewing_request_id, typed82);
       });
 
       const desk82 = mk82(30);
@@ -15210,6 +15214,84 @@ console.log('\n2. services/openai.js');
     } finally {
       dbService.clearPendingAgentAction(AGENT_WA);
       propertyRepo.getListingContactById = repo87;
+    }
+  }
+
+  // §88 The agent confirms with one tap and it lands on our side (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // Two gaps behind request #19: the template alert had only a link button,
+  // and "Oui, WhatsApp" to the contact check left the visit PENDING.
+  console.log('\n§88 a tap on the template\'s Accepter, or after "Oui, WhatsApp", confirms the visit');
+  {
+    const tpl88 = process.env.VIEWING_REQUEST_TEMPLATE;
+    const btn88 = process.env.VIEWING_TEMPLATES_WITH_BUTTONS;
+    const link88 = process.env.VIEWING_TEMPLATES_WITH_LINK;
+    const repo88 = propertyRepo.getListingContactById;
+    const templateSends88 = () => httpCalls.filter((c) => c.data && c.data.type === 'template' && String(c.data.to) === AGENT_WA);
+    try {
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      process.env.VIEWING_REQUEST_TEMPLATE = 'demande_visite_agent_v3';
+      process.env.VIEWING_TEMPLATES_WITH_BUTTONS = 'demande_visite_agent_v3';
+      process.env.VIEWING_TEMPLATES_WITH_LINK = 'demande_visite_agent_v3';
+
+      const r88 = freshViewingRequest('mardi 10h');
+      dbService.clearPendingAgentAction(AGENT_WA);
+      httpCalls.length = 0;
+      await viewingNotifications.notifyViewingRequest({ viewingRequest: r88, lead: { name: 'Henoc Mimbo', wa_id: '243990111222' } });
+      const sent88 = templateSends88();
+      check('a template listed WITH_BUTTONS carries the three payloads naming the request, and no link parameter', () => {
+        assert.strictEqual(sent88.length, 1);
+        const buttons = sent88[0].data.template.components.filter((c) => c.type === 'button');
+        assert.deepStrictEqual(
+          buttons.map((b) => [b.sub_type, b.index, b.parameters[0].payload]),
+          [
+            ['quick_reply', '0', `viewing_accept:${r88.id}`],
+            ['quick_reply', '1', `viewing_reschedule:${r88.id}`],
+            ['quick_reply', '2', `viewing_decline:${r88.id}`],
+          ],
+        );
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'VIEWING_ALERT', 'a typed reply still lands too');
+      });
+      const tap88 = await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_accept:${r88.id}` });
+      check('the agent\'s tap on Accepter confirms it on our side', () => {
+        assert.strictEqual(tap88.action, 'accept');
+        assert.strictEqual(dbService.getViewingRequest(r88.id).status, 'CONFIRMED');
+      });
+
+      delete process.env.VIEWING_TEMPLATES_WITH_BUTTONS;
+      const r88b = freshViewingRequest('mardi 11h');
+      httpCalls.length = 0;
+      await viewingNotifications.notifyViewingRequest({ viewingRequest: r88b, lead: { name: 'Henoc Mimbo', wa_id: '243990111222' } });
+      check('a template not listed keeps its link button, as before', () => {
+        const buttons = templateSends88()[0].data.template.components.filter((c) => c.type === 'button');
+        assert.deepStrictEqual(buttons.map((b) => b.sub_type), ['url']);
+      });
+
+      delete process.env.VIEWING_REQUEST_TEMPLATE;
+      const r88c = freshViewingRequest('mercredi 15h');
+      httpCalls.length = 0;
+      const yes88 = await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_contact_wa:${r88c.id}` });
+      const asked88 = httpCalls.filter((c) => c.data && String(c.data.to) === AGENT_WA);
+      check('"Oui, WhatsApp" records the contact and asks at once whether the visit is fixed, with the three answers', () => {
+        assert.strictEqual(yes88.action, 'direct-contact');
+        assert.strictEqual(yes88.askedIfFixed, true);
+        assert.ok(dbService.getViewingRequest(r88c.id).direct_contact_at);
+        assert.strictEqual(asked88.length, 1, 'one message, the question');
+        assert.match(JSON.stringify(asked88[0].data), /La visite est-elle fixée/);
+        assert.match(JSON.stringify(asked88[0].data), new RegExp(`viewing_accept:${r88c.id}`));
+        assert.strictEqual(dbService.getViewingRequest(r88c.id).status, 'PENDING', 'nothing decided yet');
+      });
+      const ok88 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'oui je confirme' });
+      check('then "oui je confirme" (or the Accepter tap) confirms it and the customer is told', () => {
+        assert.strictEqual(ok88.action, 'accept');
+        assert.strictEqual(dbService.getViewingRequest(r88c.id).status, 'CONFIRMED');
+      });
+    } finally {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      propertyRepo.getListingContactById = repo88;
+      for (const [k, v] of [['VIEWING_REQUEST_TEMPLATE', tpl88], ['VIEWING_TEMPLATES_WITH_BUTTONS', btn88], ['VIEWING_TEMPLATES_WITH_LINK', link88]]) {
+        if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
     }
   }
 

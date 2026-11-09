@@ -5090,7 +5090,10 @@
       "confirmedNotNotified": "Visit confirmed, but the message to the customer could not be sent.",
       "confirmAlready": "This visit was already confirmed.",
       "confirmPast": "That time has already passed: pick the upcoming time that was agreed.",
-      "confirmClosed": "This request can no longer be confirmed (declined, cancelled or finished)."
+      "confirmClosed": "This request can no longer be confirmed (declined, cancelled or finished).",
+      "awaitingCustomer": "Awaiting customer",
+      "proposalReminded": "Customer reminded",
+      "proposalRefused": "Time refused — agent asked again"
     },
     "marketData": {
       "title": "Market Data",

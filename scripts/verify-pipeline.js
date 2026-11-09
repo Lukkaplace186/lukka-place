@@ -6174,7 +6174,9 @@ console.log('\n2. services/openai.js');
   check('the proposed slot is stored and forwarded to the client', () => {
     assert.strictEqual(proposedOutcome.action, 'reschedule-proposed');
     assert.strictEqual(dbService.getViewingRequest(reschedTarget.id).requested_time, 'samedi 16h');
-    const toClient = httpCalls.find((c) => c.data.to === '243990111222').data.text.body;
+    // Since §89 it goes with the customer's two answer buttons (interactive).
+    const sent = httpCalls.find((c) => c.data.to === '243990111222').data;
+    const toClient = sent.text?.body || sent.interactive?.body?.text;
     assert.match(toClient, /samedi 16h/);
     assert.match(toClient, /propose un autre créneau/);
   });
@@ -7146,7 +7148,7 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
+      'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
       'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'sqlite-backup',
     ]);
   });
@@ -15291,6 +15293,142 @@ console.log('\n2. services/openai.js');
       propertyRepo.getListingContactById = repo88;
       for (const [k, v] of [['VIEWING_REQUEST_TEMPLATE', tpl88], ['VIEWING_TEMPLATES_WITH_BUTTONS', btn88], ['VIEWING_TEMPLATES_WITH_LINK', link88]]) {
         if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
+    }
+  }
+
+  // §89 The customer answers the agent's new time; the desk sees it (2026-11-09)
+  // ---------------------------------------------------------------------------
+  // "Ce créneau vous convient-il ? Répondez à ce message" left the visit
+  // RESCHEDULED until somebody acted, nobody at the desk was told, and a
+  // customer who never answered was never chased.
+  console.log('\n§89 the customer accepts or refuses the new time with a tap; the desk is told; silence is chased once');
+  {
+    const sweeps89 = require('../services/viewingSweeps');
+    const repo89 = propertyRepo.getListingContactById;
+    const saved89 = {};
+    const ENV89 = ['OPS_WHATSAPP_NUMBER', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_TEMPLATES_WITH_BUTTONS', 'VIEWING_PROPOSAL_FOLLOWUP', 'DESK_ALERT_TEMPLATE'];
+    for (const k of ENV89) saved89[k] = process.env[k];
+    const CUSTOMER89 = '243990111222';
+    const DESK89 = '243815550000';
+    const to89 = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+    const propose89 = async (slot) => {
+      const r = freshViewingRequest('lundi 10h');
+      dbService.updateViewingRequest(r.id, { status: 'RESCHEDULED' });
+      dbService.setPendingAgentAction({ waId: AGENT_WA, kind: 'RESCHEDULE_TIME', viewingRequestId: r.id });
+      dbService.clearPendingCustomerAction(CUSTOMER89);
+      httpCalls.length = 0;
+      const out = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: slot });
+      return { id: r.id, out };
+    };
+    try {
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      process.env.OPS_WHATSAPP_NUMBER = DESK89;
+      for (const k of ['VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_TEMPLATES_WITH_BUTTONS', 'VIEWING_PROPOSAL_FOLLOWUP', 'DESK_ALERT_TEMPLATE']) delete process.env[k];
+
+      check('a plain no is read as a refusal; a yes or an advert is not', () => {
+        for (const no of ['non', 'Non merci', 'pas possible', 'ça ne me convient pas', 'Je ne peux pas']) {
+          assert.ok(viewingNotifications.isPlainRefusal(no), no);
+        }
+        for (const other of ['oui', 'ok', 'non je veux mardi 15h', 'Maison à louer']) assert.ok(!viewingNotifications.isPlainRefusal(other), other);
+        assert.deepStrictEqual(viewingNotifications.parseProposalButtonId('proposal_no:7'), { accept: false, viewingRequestId: 7 });
+        assert.strictEqual(viewingNotifications.parseProposalButtonId('viewing_accept:7'), null, 'the agent\'s buttons are not the customer\'s');
+        for (const b of viewingNotifications.proposalButtons(9)) assert.ok([...b.title].length <= 20, b.title);
+      });
+
+      const a89 = await propose89('mardi 10 novembre à 10h');
+      const row89 = dbService.getViewingRequest(a89.id);
+      check('the agent\'s new time reaches the customer with two buttons, is stamped, and the desk is told', () => {
+        assert.strictEqual(a89.out.action, 'reschedule-proposed');
+        const toCustomer = JSON.stringify(to89(CUSTOMER89));
+        assert.match(toCustomer, new RegExp(`proposal_yes:${a89.id}`));
+        assert.match(toCustomer, new RegExp(`proposal_no:${a89.id}`));
+        assert.ok(row89.proposal_sent_at);
+        assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER89).kind, 'SLOT_PROPOSAL');
+        assert.match(JSON.stringify(to89(DESK89)), /Nouveau créneau proposé/);
+      });
+
+      const stranger89 = await viewingNotifications.handleProposalButtonReply({ from: STRANGER_WA, replyId: `proposal_yes:${a89.id}` });
+      httpCalls.length = 0;
+      const yes89 = await viewingNotifications.handleProposalButtonReply({ from: CUSTOMER89, replyId: `proposal_yes:${a89.id}` });
+      check('only the customer\'s "Ce créneau me va" confirms it; agent, customer and desk are told', () => {
+        assert.strictEqual(stranger89.ok, false);
+        assert.strictEqual(yes89.ok, true);
+        assert.strictEqual(dbService.getViewingRequest(a89.id).status, 'CONFIRMED');
+        assert.ok(to89(AGENT_WA).length >= 1, 'agent told');
+        assert.match(JSON.stringify(to89(CUSTOMER89)), /C'est confirmé/);
+        assert.ok(to89(DESK89).length >= 1, 'desk told');
+      });
+
+      const b89 = await propose89('mercredi 11 novembre à 15h');
+      httpCalls.length = 0;
+      const no89 = await sweeps89.handleCustomerTextReply({ from: CUSTOMER89, text: 'non' });
+      const refusedRow89 = dbService.getViewingRequest(b89.id);
+      check('a typed "non" keeps it RESCHEDULED, asks the agent for another time, and tells customer and desk', () => {
+        assert.strictEqual(no89.handled, true);
+        assert.strictEqual(no89.action, 'refuse-slot');
+        assert.strictEqual(refusedRow89.status, 'RESCHEDULED');
+        assert.ok(refusedRow89.proposal_refused_at);
+        assert.match(JSON.stringify(to89(AGENT_WA)), /Le client ne peut pas à ce créneau/);
+        assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'RESCHEDULE_TIME');
+        assert.match(JSON.stringify(to89(DESK89)), /refuse le créneau/);
+        assert.ok(!dbService.listAllViewingRequests({ view: 'awaiting_customer', limit: 500 }).data.some((r) => r.id === b89.id), 'a refused proposal is the agent\'s move, not the customer\'s');
+      });
+      httpCalls.length = 0;
+      await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'jeudi 12 novembre à 9h' });
+      const again89 = dbService.getViewingRequest(b89.id);
+      check('the agent\'s next message is the next proposal, and the clock starts again', () => {
+        assert.strictEqual(again89.proposal_refused_at, null);
+        assert.match(JSON.stringify(to89(CUSTOMER89)), new RegExp(`proposal_yes:${b89.id}`));
+        assert.ok(dbService.listAllViewingRequests({ view: 'awaiting_customer', limit: 500 }).data.some((r) => r.id === b89.id));
+      });
+
+      const c89 = await propose89('vendredi 13 novembre à 10h');
+      const noon89 = new Date('2026-11-12T11:00:00Z');
+      const night89 = new Date('2026-11-12T23:00:00Z');
+      dbService.markViewingProposalSent(c89.id, new Date(noon89.getTime() - 4 * 3600 * 1000).toISOString());
+      httpCalls.length = 0;
+      await sweeps89.runProposalFollowupSweep(night89);
+      const atNight89 = to89(CUSTOMER89).length;
+      await sweeps89.runProposalFollowupSweep(noon89);
+      const reminded89 = JSON.stringify(to89(CUSTOMER89));
+      const desk89 = JSON.stringify(to89(DESK89));
+      httpCalls.length = 0;
+      await sweeps89.runProposalFollowupSweep(noon89);
+      check('after 3 h of silence: one reminder (daytime only) with the buttons, and the desk is told', () => {
+        assert.strictEqual(atNight89, 0, 'nobody is reminded at night');
+        assert.match(reminded89, /Rappel/);
+        assert.match(reminded89, new RegExp(`proposal_yes:${c89.id}`));
+        assert.match(desk89, /n'a pas répondu au nouveau créneau/);
+        assert.ok(dbService.getViewingRequest(c89.id).proposal_reminded_at);
+        assert.strictEqual(to89(CUSTOMER89).filter((c) => JSON.stringify(c.data).includes(`proposal_yes:${c89.id}`)).length, 0, 'never twice');
+      });
+
+      process.env.VIEWING_PROPOSAL_TEMPLATE = 'visite_proposition_client_v2';
+      process.env.VIEWING_TEMPLATES_WITH_BUTTONS = 'visite_proposition_client_v2';
+      const d89 = await propose89('samedi 14 novembre à 10h');
+      const tpl89 = to89(CUSTOMER89).find((c) => c.data.type === 'template');
+      check('the proposal template approved with quick replies carries both payloads', () => {
+        assert.ok(tpl89, 'sent as a template');
+        const buttons = tpl89.data.template.components.filter((c) => c.type === 'button');
+        assert.deepStrictEqual(
+          buttons.map((b) => [b.sub_type, b.index, b.parameters[0].payload]),
+          [['quick_reply', '0', `proposal_yes:${d89.id}`], ['quick_reply', '1', `proposal_no:${d89.id}`]],
+        );
+      });
+
+      check('the webhook routes the customer\'s buttons and the scheduler runs the follow-up', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(src, /handleProposalButtonReply\(\{ from, replyId: buttonReplyId \}\)/);
+        assert.strictEqual(sweeps89.proposalFollowupJob.name, 'viewing-proposal-followup');
+        assert.ok(dbService.VIEWING_FEED_VIEWS.awaiting_customer);
+      });
+    } finally {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      dbService.clearPendingCustomerAction(CUSTOMER89);
+      propertyRepo.getListingContactById = repo89;
+      for (const k of ENV89) {
+        if (saved89[k] === undefined) delete process.env[k]; else process.env[k] = saved89[k];
       }
     }
   }

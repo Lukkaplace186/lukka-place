@@ -174,14 +174,18 @@ function templateValue(value, fallback = 'Non précisé') {
  * Send one lifecycle template. True when it was accepted; false when none is
  * configured for this kind or the send failed (the caller then sends its text).
  */
-async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam } = {}, label = kind) {
+async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam, buttons } = {}, label = kind) {
   const name = (process.env[LIFECYCLE_TEMPLATE_ENV[kind]] || '').trim();
   if (!name || !phone) return false;
+  // A template approved with quick replies (VIEWING_TEMPLATES_WITH_BUTTONS)
+  // gets the payloads; otherwise its link button, as before.
+  const withButtons = Array.isArray(buttons) && buttons.length > 0 && templateHasButtons(name);
   try {
     await chakra.sendTemplate(String(phone).replace(/\D/g, ''), name, {
       languageCode: templateLang(),
       bodyParams: bodyParams.map((value) => templateValue(value)),
-      ...(templateHasLink(name) && linkParam != null ? { urlButton: linkParam } : {}),
+      ...(withButtons ? { buttons: buttons.map((b) => ({ id: b.id })) } : {}),
+      ...(!withButtons && templateHasLink(name) && linkParam != null ? { urlButton: linkParam } : {}),
       ...templateOptions(name),
     });
     return true;
@@ -1071,7 +1075,7 @@ function tenantRescheduleText(listing, proposedTime, propertyId) {
     `📍 ${listingLabel(listing, propertyId)}`,
     `📅 Nouvelle proposition : ${proposedTime}`,
     '',
-    'Ce créneau vous convient-il ? Répondez à ce message et nous transmettons.',
+    'Ce créneau vous convient-il ? Répondez avec un bouton ci-dessous.',
     listingLink(listing, propertyId),
   ].join('\n');
 }
@@ -1561,6 +1565,231 @@ const DASHBOARD_TRANSITIONS = Object.freeze({
  * @returns {Promise<{ok: true, status: string, unchanged: boolean, tenantNotified: boolean, scheduledAt?: string|null, alternatives?: number}
  *   | {ok: false, reason: string, current?: string}>}
  */
+// ---------------------------------------------------------------------------
+// The agent's new-time proposal: the customer answers with a tap (2026-11-09)
+// ---------------------------------------------------------------------------
+
+/** pending_customer_actions.kind while a proposal waits for the customer's yes/no. */
+const PROPOSAL_PENDING_KIND = 'SLOT_PROPOSAL';
+
+/** The customer's two answers. Ids name the request; titles within 20 characters. */
+function proposalButtons(viewingRequestId) {
+  return [
+    { id: `proposal_yes:${viewingRequestId}`, title: '✅ Ce créneau me va' },
+    { id: `proposal_no:${viewingRequestId}`, title: '❌ Ne me convient pas' },
+  ];
+}
+
+function parseProposalButtonId(replyId) {
+  const match = /^proposal_(yes|no):(\d+)$/.exec(String(replyId || '').trim());
+  if (!match) return null;
+  return { accept: match[1] === 'yes', viewingRequestId: Number.parseInt(match[2], 10) };
+}
+
+const PROPOSAL_FALLBACK_TEXT = ['', 'Répondez :', '1️⃣ Ce créneau me va', '2️⃣ Il ne me convient pas'].join('\n');
+
+/** "non", "pas possible", "ça ne me convient pas" — a short, plain no. */
+function isPlainRefusal(text) {
+  const raw = String(text || '').trim();
+  if (!raw || raw.length > 60 || /\d/.test(raw)) return false;
+  const folded = fold(raw).replace(/[’`]/g, "'").replace(/[.!?👎❌\s]+$/u, '').trim();
+  return /^(?:non|no|nope|pas possible|impossible|pas dispo(?:nible)?|je ne (?:peux|suis) pas(?: disponible)?|(?:ca |cela |il )?ne me convient pas|ca ne va pas|pas ce creneau)(?: merci)?$/.test(folded);
+}
+
+/**
+ * Send the agent's proposal to the customer and wait for their answer:
+ * the proposal template with its two quick replies when it is approved with
+ * them (VIEWING_TEMPLATES_WITH_BUTTONS), the plain template otherwise, else a
+ * session message with the two buttons (numbered text if buttons fail). A
+ * typed "oui" / "non" / 1 / 2 answers it whichever went out. Never throws.
+ *
+ * @returns {Promise<boolean>} whether a message was accepted for sending.
+ */
+async function sendProposalToCustomer({ request, listing, propertyId, proposed, reminder = false }) {
+  const to = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!to) return false;
+  const label = reminder ? 'proposal reminder' : 'reschedule proposal';
+  const buttons = proposalButtons(request.id);
+  let told = await sendLifecycleTemplate(
+    to,
+    { ...proposalTemplate(listing, request, propertyId, proposed), buttons },
+    label,
+  );
+  if (!told) {
+    const text = [
+      ...(reminder ? [`${HEADER_BRAND} Rappel : l'agent attend votre réponse.`, ''] : []),
+      tenantRescheduleText(listing, proposed, propertyId),
+    ].join('\n');
+    try {
+      await chakra.sendInteractiveButtons(to, text, buttons);
+      told = true;
+    } catch (err) {
+      console.warn(`[viewing] ${label}: buttons failed for ${to} (${err.message}) — numbered text`);
+      told = await trySend(to, `${text}\n${PROPOSAL_FALLBACK_TEXT}`, label);
+    }
+  }
+  try {
+    dbService.setPendingCustomerAction({ waId: to, kind: PROPOSAL_PENDING_KIND, viewingRequestId: request.id });
+  } catch (err) {
+    console.error(`[viewing] ${label}: pending answer claim for #${request.id} failed: ${err.message}`);
+  }
+  return told;
+}
+
+function opsProposalText({ listing, request, propertyId, proposed, headline, footer }) {
+  return [
+    `${HEADER_BRAND} ${headline}`,
+    '',
+    `• Bien : ${listingLabel(listing, propertyId)} (#${propertyId})`,
+    `• Client : ${request.lead_name || 'Non précisé'} (${displayPhone(request.lead_wa_id)})`,
+    `• Agent : ${listing?.agent_name || (request.agent_id ? `#${request.agent_id}` : 'Non attribué')}`,
+    `• Créneau proposé : ${proposed || request.requested_time || 'Non précisé'}`,
+    '',
+    footer,
+    `${SITE_URL}/admin/viewings`,
+  ].join('\n');
+}
+
+/**
+ * After an agent's new time went to the customer: stamp it (the reminder
+ * clock starts) and copy the desk. Used by the WhatsApp and dashboard paths.
+ */
+async function recordProposalSent({ request, listing, propertyId, proposed, tenantNotified }) {
+  try {
+    dbService.markViewingProposalSent(request.id);
+  } catch (err) {
+    console.error(`[viewing] proposal stamp for #${request.id} failed: ${err.message}`);
+  }
+  await notifyOps(
+    opsProposalText({
+      listing,
+      request,
+      propertyId,
+      proposed,
+      headline: "🕒 Nouveau créneau proposé par l'agent",
+      footer: tenantNotified ? 'En attente de la réponse du client.' : "⚠️ Le message au client n'a pas pu partir — à traiter.",
+    }),
+    'proposal ops copy',
+  );
+}
+
+/**
+ * The customer's answer to the agent's proposal, from a tap or a typed
+ * oui/non. Only the request's own customer may answer (the
+ * respondFromCustomer rule; anyone else is told nothing).
+ *   yes → ACCEPT_SLOT: CONFIRMED, agent and desk told (respondFromCustomer),
+ *         and the customer gets their confirmation.
+ *   no  → stays RESCHEDULED, proposal_refused_at stamped, the agent is asked
+ *         for another time (their next message is the new proposal), the
+ *         customer and the desk are told.
+ */
+async function answerProposalFromCustomer({ viewingRequestId, waId, accept }) {
+  const sender = String(waId || '').replace(/\D/g, '');
+  if (accept) {
+    const result = await respondFromCustomer({ viewingRequestId, waId: sender, action: 'ACCEPT_SLOT', via: 'WhatsApp' });
+    if (result.ok && !result.unchanged) {
+      const request = dbService.getViewingRequestWithLead(viewingRequestId);
+      await trySend(
+        sender,
+        [
+          `${HEADER_BRAND} C'est confirmé ✅`,
+          `📅 ${slotForTemplate(request, request?.scheduled_at)}`,
+          '',
+          "L'agent est prévenu. Bonne visite !",
+        ].join('\n'),
+        'proposal accepted ack',
+      );
+    }
+    return { ...result, action: 'accept-slot' };
+  }
+
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  const owner = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!request || !owner || owner !== sender) return { ok: false, reason: 'unknown-request' };
+  if (request.status !== 'RESCHEDULED') return { ok: false, reason: 'invalid-transition', current: request.status };
+  if (request.proposal_refused_at) return { ok: true, action: 'refuse-slot', unchanged: true, agentNotified: false };
+
+  dbService.markViewingProposalRefused(request.id);
+  dbService.clearPendingCustomerActionsForViewing(request.id);
+
+  const propertyId = request.property_id;
+  let listing = null;
+  if (propertyId) {
+    try {
+      listing = await propertyRepository.getListingContactById(propertyId);
+    } catch (err) {
+      console.error(`[viewing] proposal refused: listing #${propertyId} lookup failed: ${err.message}`);
+    }
+  }
+  if (listing && request.reassigned_at && request.agent_id) {
+    try {
+      const assigned = await propertyRepository.getAgentContactById(request.agent_id);
+      if (assigned) listing = withAgent(listing, assigned);
+    } catch (err) {
+      console.error(`[viewing] proposal refused: assigned agent #${request.agent_id} lookup failed: ${err.message}`);
+    }
+  }
+
+  // Same gate as respondFromCustomer: only a verified agent is messaged.
+  const agentPhone = listing?.phone_verified_at ? String(listing.agent_phone || '').replace(/\D/g, '') : '';
+  let agentNotified = false;
+  if (agentPhone) {
+    dbService.setPendingAgentAction({ waId: agentPhone, kind: PENDING_KINDS.reschedule, viewingRequestId: request.id });
+    agentNotified = await trySend(
+      agentPhone,
+      [
+        `${HEADER_BRAND} Le client ne peut pas à ce créneau`,
+        `📍 ${listingLabel(listing, propertyId)}`,
+        `👤 ${request.lead_name || 'Client'}`,
+        `📅 Proposé : ${request.requested_time || 'Non précisé'}`,
+        '',
+        "Quel autre créneau proposez-vous ? Répondez avec la date et l'heure (ex. _samedi 14h_) et nous le transmettons au client.",
+      ].join('\n'),
+      'proposal refused agent ask',
+    );
+  }
+  await trySend(
+    sender,
+    `${HEADER_BRAND} C'est noté. Nous demandons un autre créneau à l'agent et revenons vers vous.`,
+    'proposal refused ack',
+  );
+  await notifyOps(
+    opsProposalText({
+      listing,
+      request,
+      propertyId,
+      proposed: request.requested_time,
+      headline: '❌ Le client refuse le créneau proposé',
+      footer: agentNotified ? "L'agent est relancé pour un autre créneau." : "⚠️ L'agent n'a pas pu être relancé — à traiter.",
+    }),
+    'proposal refused ops copy',
+  );
+  console.log(`[viewing] request #${request.id}: customer refused the proposed time — agent asked again: ${agentNotified}`);
+  return { ok: true, action: 'refuse-slot', unchanged: false, agentNotified };
+}
+
+async function handleProposalButtonReply({ from, replyId }) {
+  const parsed = parseProposalButtonId(replyId);
+  if (!parsed) return { handled: false };
+  const result = await answerProposalFromCustomer({ viewingRequestId: parsed.viewingRequestId, waId: from, accept: parsed.accept });
+  if (!result.ok) console.warn(`[viewing] proposal button '${replyId}' from ${from} refused — ${result.reason}`);
+  return { handled: true, ...result };
+}
+
+/** A typed answer while a proposal waits (pending SLOT_PROPOSAL). Anything else falls through. */
+async function handleProposalTextReply({ from, text, pending }) {
+  const choice = parseNumberedChoice(text);
+  const accept = choice === 1 || (choice === null && isPlainAccept(text));
+  const refuse = choice === 2 || (choice === null && isPlainRefusal(text));
+  if (!accept && !refuse) return { handled: false };
+  const result = await answerProposalFromCustomer({ viewingRequestId: pending.viewing_request_id, waId: from, accept });
+  if (!result.ok) {
+    dbService.clearPendingCustomerAction(from);
+    return { handled: false };
+  }
+  return { handled: true, ...result };
+}
+
 /**
  * The DESK confirms a visit the agent agreed outside our loop — on the phone,
  * or on WhatsApp from their own number (2026-11-09, request #19: the agent
@@ -1735,12 +1964,8 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     const slot = parseFrenchSlot(proposed, undefined, visitClock(request, listing));
     scheduledAtOut = slot ? slot.iso : null;
     dbService.setViewingScheduledAt(request.id, scheduledAtOut);
-    tenantNotified = await trySend(
-      request.lead_wa_id,
-      tenantRescheduleText(listing, proposed, propertyId),
-      'dashboard reschedule proposal',
-      proposalTemplate(listing, request, propertyId, proposed),
-    );
+    tenantNotified = await sendProposalToCustomer({ request, listing, propertyId, proposed });
+    await recordProposalSent({ request, listing, propertyId, proposed, tenantNotified });
   } else if (status === 'DECLINED') {
     dbService.updateViewingRequest(request.id, { status: 'DECLINED' });
     await recordAgentResponse(request, 'DECLINED', 'DASHBOARD');
@@ -1849,7 +2074,7 @@ function opsCustomerAnswerText({ listing, viewingRequest, propertyId, action, ag
  * The agent and the desk are told; the customer is not messaged on WhatsApp
  * about something they just did on the web.
  */
-async function respondFromCustomer({ viewingRequestId, waId, action } = {}) {
+async function respondFromCustomer({ viewingRequestId, waId, action, via = 'the Espace Client' } = {}) {
   const rule = CUSTOMER_TRANSITIONS[action];
   if (!rule) return { ok: false, reason: 'invalid-action' };
 
@@ -1910,7 +2135,7 @@ async function respondFromCustomer({ viewingRequestId, waId, action } = {}) {
     `customer ${action.toLowerCase()} ops copy`,
   );
 
-  console.log(`[viewing] request #${request.id} ${rule.to} by its customer from the Espace Client — agent told: ${agentNotified}`);
+  console.log(`[viewing] request #${request.id} ${rule.to} by its customer from ${via} — agent told: ${agentNotified}`);
   return { ok: true, status: rule.to, unchanged: false, agentNotified };
 }
 
@@ -2219,13 +2444,13 @@ async function handleAgentTextReply({ from, text, hasMedia = false }) {
     if (rescheduled) dbService.setViewingScheduledAt(ctx.request.id, rescheduled.iso);
     dbService.clearPendingAgentAction(from);
 
-    const told = await trySend(
-      ctx.request.lead_wa_id,
-      tenantRescheduleText(ctx.listing, proposed, ctx.propertyId),
-      'reschedule proposal',
-      proposalTemplate(ctx.listing, ctx.request, ctx.propertyId, proposed),
-    );
+    const told = await sendProposalToCustomer({
+      request: ctx.request, listing: ctx.listing, propertyId: ctx.propertyId, proposed,
+    });
     if (told) markCustomerNotified(ctx.request.id);
+    await recordProposalSent({
+      request: ctx.request, listing: ctx.listing, propertyId: ctx.propertyId, proposed, tenantNotified: told,
+    });
     await trySend(
       from,
       `${HEADER_BRAND} Nouveau créneau transmis au client : ${proposed} ✅`,
@@ -2442,6 +2667,15 @@ module.exports = {
   handleAgentTextReply,
   respondFromDashboard,
   confirmFromDesk,
+  PROPOSAL_PENDING_KIND,
+  proposalButtons,
+  parseProposalButtonId,
+  isPlainRefusal,
+  sendProposalToCustomer,
+  answerProposalFromCustomer,
+  handleProposalButtonReply,
+  handleProposalTextReply,
+  opsProposalText,
   DASHBOARD_TRANSITIONS,
   respondFromCustomer,
   CUSTOMER_TRANSITIONS,

@@ -212,10 +212,15 @@ registerJob({
  */
 {
   // eslint-disable-next-line global-require
-  const { contactCheckJob, slaJob, checkinJob } = require('./viewingSweeps');
+  const {
+    contactCheckJob, slaJob, checkinJob, proposalFollowupJob,
+  } = require('./viewingSweeps');
   // 'Avez-vous déjà contacté le client ?' 2 h after an unanswered request.
   registerJob(contactCheckJob);
   registerJob(slaJob);
+  // The customer has not answered the agent's new time after 3 h: one
+  // reminder and a desk alert, Kinshasa daytime only.
+  registerJob(proposalFollowupJob);
   registerJob(checkinJob);
   // Bon de visite: one hour after a confirmed slot, ask the agent whether it
   // took place (services/visitReceipt.js).

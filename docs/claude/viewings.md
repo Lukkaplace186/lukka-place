@@ -691,3 +691,38 @@ The two gaps behind request #19, closed in code:
   Other statuses keep the plain thank-you.
 - §88 of verify-pipeline (§82's typed "2" check now expects the follow-up
   question to be the open one).
+
+## The customer answers the agent's new time; the desk sees it (2026-11-09)
+
+Before: "Ce créneau vous convient-il ? Répondez à ce message et nous
+transmettons" — a customer's "oui" confirmed nothing (only the Espace Client
+button did), the desk was not told of a new time, and a silent customer was
+never chased.
+
+- **Proposal with two answers** (`sendProposalToCustomer`, both the WhatsApp
+  and the dashboard reschedule paths): `VIEWING_PROPOSAL_TEMPLATE` with quick
+  replies when it is listed in `VIEWING_TEMPLATES_WITH_BUTTONS` (payloads
+  `proposal_yes|proposal_no:<id>`, index 0/1 — drafted as
+  `visite_proposition_client_v2`), the plain template otherwise, else a
+  session message with "✅ Ce créneau me va" / "❌ Ne me convient pas"
+  (numbered text if buttons fail). Pending customer kind `SLOT_PROPOSAL` so a
+  typed oui/non/1/2 works whichever went out (`handleProposalTextReply`,
+  reached through viewingSweeps.handleCustomerTextReply).
+- **Yes** → `respondFromCustomer` ACCEPT_SLOT (CONFIRMED, scheduled_at, agent
+  and desk told) + "C'est confirmé" to the customer. **No** → stays
+  RESCHEDULED, `proposal_refused_at`, the agent is asked for another time
+  (pending RESCHEDULE_TIME: their next message is the next proposal), customer
+  and desk told. Only the request's own customer is honoured.
+- **Desk**: "🕒 Nouveau créneau proposé par l'agent" on every proposal,
+  "❌ Le client refuse le créneau proposé" on a refusal.
+- **Silence** (`viewing-proposal-followup`, viewingSweeps): RESCHEDULED, no
+  answer 3 h after `proposal_sent_at`, sent within 48 h → one reminder (the
+  same proposal with its buttons) and "⏳ Le client n'a pas répondu" to the
+  desk; Kinshasa 8h–20h only; once per proposal (`proposal_reminded_at`).
+  `VIEWING_PROPOSAL_FOLLOWUP=off` disables it.
+- SQLite `viewing_requests.proposal_sent_at / proposal_reminded_at /
+  proposal_refused_at`; feed view `awaiting_customer` (RESCHEDULED, not
+  refused). `/admin/viewings`: quick filter and status option "En attente du
+  client", row chips "En attente du client" / "Client relancé" / "Créneau
+  refusé — agent relancé".
+- §89 of verify-pipeline.

@@ -5090,7 +5090,10 @@
       "confirmedNotNotified": "Visite confirmée, mais le message au client n'a pas pu partir.",
       "confirmAlready": "Cette visite était déjà confirmée.",
       "confirmPast": "Cette heure est déjà passée : choisissez l'heure à venir convenue.",
-      "confirmClosed": "Cette demande ne peut plus être confirmée (déclinée, annulée ou terminée)."
+      "confirmClosed": "Cette demande ne peut plus être confirmée (déclinée, annulée ou terminée).",
+      "awaitingCustomer": "En attente du client",
+      "proposalReminded": "Client relancé",
+      "proposalRefused": "Créneau refusé — agent relancé"
     },
     "marketData": {
       "title": "Données marché",

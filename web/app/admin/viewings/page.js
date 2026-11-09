@@ -33,6 +33,9 @@ export const dynamic = 'force-dynamic';
 
 /** A filter value, not a status: the SLA-alerted PENDING slice (engine VIEWING_FEED_VIEWS.escalated). */
 const ESCALATED = 'ESCALATED';
+/** Also a filter, not a status: the agent proposed a new time, the customer has not answered (engine VIEWING_FEED_VIEWS.awaiting_customer). */
+const AWAITING_CUSTOMER = 'AWAITING_CUSTOMER';
+const VIEW_FILTERS = { [ESCALATED]: 'escalated', [AWAITING_CUSTOMER]: 'awaiting_customer' };
 const CANCELLABLE = ['PENDING', 'CONFIRMED', 'RESCHEDULED'];
 
 // A direct contact (the agent reached the customer from their own phone) can
@@ -72,7 +75,7 @@ export default async function AdminViewingsPage({ searchParams }) {
   const statusParam = firstParam(raw.status);
   const filters = {
     q: firstParam(raw.q) || undefined,
-    status: VIEWING_REQUEST_STATUSES.includes(statusParam) || statusParam === ESCALATED ? statusParam : undefined,
+    status: VIEWING_REQUEST_STATUSES.includes(statusParam) || VIEW_FILTERS[statusParam] ? statusParam : undefined,
     routing: ROUTING_TYPES.includes(firstParam(raw.routing)) ? firstParam(raw.routing) : undefined,
     commune: firstParam(raw.commune) || undefined,
     from: DATE_PATTERN.test(firstParam(raw.from) || '') ? firstParam(raw.from) : undefined,
@@ -86,8 +89,8 @@ export default async function AdminViewingsPage({ searchParams }) {
   try {
     const agentIds = filters.q ? await searchAgentIds(filters.q).catch(() => []) : undefined;
     feed = await listViewingFeed({
-      status: filters.status === ESCALATED ? undefined : filters.status,
-      view: filters.status === ESCALATED ? 'escalated' : undefined,
+      status: VIEW_FILTERS[filters.status] ? undefined : filters.status,
+      view: VIEW_FILTERS[filters.status],
       routingType: filters.routing,
       q: filters.q,
       agentIds,
@@ -118,12 +121,14 @@ export default async function AdminViewingsPage({ searchParams }) {
   const byStatus = feed?.summary?.byStatus || {};
   const byRouting = feed?.summary?.byRouting || {};
   const escalated = feed?.summary?.byView?.escalated || 0;
+  const awaitingCustomer = feed?.summary?.byView?.awaiting_customer || 0;
   const allCount = Object.values(byStatus).reduce((sum, n) => sum + n, 0);
 
   const quick = [
     { key: 'all', label: t('admin.viewings.all'), count: allCount, href: buildHref('/admin/viewings', params, { status: '', routing: '' }), active: !filters.status && !filters.routing },
     { key: 'PENDING', label: t(VIEWING_REQUEST_STATUS_LABEL_KEYS.PENDING), count: byStatus.PENDING || 0, href: buildHref('/admin/viewings', params, { status: 'PENDING' }), active: filters.status === 'PENDING' },
     { key: ESCALATED, label: t('admin.viewings.escalated'), count: escalated, href: buildHref('/admin/viewings', params, { status: ESCALATED }), active: filters.status === ESCALATED, tone: escalated ? 'danger' : undefined },
+    { key: AWAITING_CUSTOMER, label: t('admin.viewings.awaitingCustomer'), count: awaitingCustomer, href: buildHref('/admin/viewings', params, { status: AWAITING_CUSTOMER }), active: filters.status === AWAITING_CUSTOMER, tone: awaitingCustomer ? 'warning' : undefined },
     { key: 'CONFIRMED', label: t(VIEWING_REQUEST_STATUS_LABEL_KEYS.CONFIRMED), count: byStatus.CONFIRMED || 0, href: buildHref('/admin/viewings', params, { status: 'CONFIRMED' }), active: filters.status === 'CONFIRMED' },
     ...ROUTING_TYPES.map((value) => ({
       key: value, label: t(ROUTING_TYPE_LABEL_KEYS[value]), count: byRouting[value] || 0,
@@ -149,7 +154,7 @@ export default async function AdminViewingsPage({ searchParams }) {
             }`}
           >
             {item.label}
-            <span className={`u-tabular ${item.tone === 'danger' ? 'text-danger' : 'text-ink-45'}`}>{item.count}</span>
+            <span className={`u-tabular ${item.tone === 'danger' ? 'text-danger' : item.tone === 'warning' ? 'text-warning' : 'text-ink-45'}`}>{item.count}</span>
           </Link>
         ))}
       </div>
@@ -165,6 +170,7 @@ export default async function AdminViewingsPage({ searchParams }) {
             options: [
               ...VIEWING_REQUEST_STATUSES.map((value) => ({ value, label: t(VIEWING_REQUEST_STATUS_LABEL_KEYS[value]) })),
               { value: ESCALATED, label: t('admin.viewings.escalated') },
+              { value: AWAITING_CUSTOMER, label: t('admin.viewings.awaitingCustomer') },
             ],
           },
           {
@@ -267,6 +273,14 @@ export default async function AdminViewingsPage({ searchParams }) {
                         {VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status] ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status]) : row.status}
                       </Chip>
                       {isEscalated ? <Chip tone="danger">{t('admin.viewings.escalated')}</Chip> : null}
+                      {/* The agent's new time: waiting on the customer, reminded once, or refused. */}
+                      {row.status === 'RESCHEDULED' && row.proposal_refused_at ? (
+                        <Chip tone="danger">{t('admin.viewings.proposalRefused')}</Chip>
+                      ) : row.status === 'RESCHEDULED' ? (
+                        <Chip tone="warning">
+                          {row.proposal_reminded_at ? t('admin.viewings.proposalReminded') : t('admin.viewings.awaitingCustomer')}
+                        </Chip>
+                      ) : null}
                       {/* The agent's answer, wherever it was given. Before the
                           dashboard went through the engine's response path, an
                           answer given there changed the status and left

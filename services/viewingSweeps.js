@@ -580,6 +580,12 @@ async function handleCustomerTextReply({ from, text, hasMedia = false }) {
     return recordFalloffReason({ from, viewingRequestId: pending.viewing_request_id, code });
   }
 
+  // "oui" / "non" / 1 / 2 to the agent's new-time proposal.
+  if (pending.kind === viewingNotifications.PROPOSAL_PENDING_KIND) {
+    if (hasMedia) return { handled: false };
+    return viewingNotifications.handleProposalTextReply({ from, text, pending });
+  }
+
   if (pending.kind !== PENDING_CUSTOMER_KIND) return { handled: false };
 
   const choice = viewingNotifications.parseNumberedChoice(text);
@@ -606,6 +612,78 @@ const slaJob = {
   shouldRun: (now = new Date()) =>
     dbService.listViewingRequestsAwaitingSla(SLA_MS, now.toISOString()).length > 0,
   run: () => runSlaSweep(),
+};
+
+// ---------------------------------------------------------------------------
+// The customer has not answered the agent's new time (2026-11-09)
+// ---------------------------------------------------------------------------
+
+/** Silence after a proposal before the one reminder and the desk alert. */
+const PROPOSAL_FOLLOWUP_MS = 3 * 60 * 60 * 1000;
+/** Proposals older than this are never chased (a deploy must not wake old ones). */
+const PROPOSAL_FOLLOWUP_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+/** `VIEWING_PROPOSAL_FOLLOWUP=off` stops it; unset is on. Read at call time. */
+function proposalFollowupEnabled() {
+  return String(process.env.VIEWING_PROPOSAL_FOLLOWUP || '').trim().toLowerCase() !== 'off';
+}
+
+/** Kinshasa daytime (UTC+1, no DST): nobody is reminded about a visit at 2 am. */
+function isKinshasaDaytime(now = new Date()) {
+  const hour = (now.getUTCHours() + 1) % 24;
+  return hour >= 8 && hour < 20;
+}
+
+/**
+ * One reminder to the customer (the same proposal, buttons included) and one
+ * desk alert per proposal left unanswered for PROPOSAL_FOLLOWUP_MS. Stamped
+ * proposal_reminded_at whatever the send did, so it is never repeated; a new
+ * proposal from the agent starts the clock again.
+ */
+async function runProposalFollowupSweep(now = new Date()) {
+  if (!proposalFollowupEnabled() || !isKinshasaDaytime(now)) return { reminded: 0 };
+  const due = dbService.listViewingProposalsAwaitingCustomer(
+    PROPOSAL_FOLLOWUP_MS, now.toISOString(), PROPOSAL_FOLLOWUP_MAX_AGE_MS,
+  );
+  let reminded = 0;
+  for (const row of due) {
+    const request = dbService.getViewingRequestWithLead(row.id);
+    if (!request) continue;
+    dbService.markViewingProposalReminded(request.id, now.toISOString());
+    let listing = null;
+    try {
+      listing = await propertyRepository.getListingContactById(request.property_id);
+    } catch (err) {
+      console.error(`[sweep] proposal follow-up: listing #${request.property_id} lookup failed: ${err.message}`);
+    }
+    const told = await viewingNotifications.sendProposalToCustomer({
+      request, listing, propertyId: request.property_id, proposed: request.requested_time, reminder: true,
+    });
+    const hours = Math.round(PROPOSAL_FOLLOWUP_MS / 3600000);
+    await viewingNotifications.notifyOps(
+      viewingNotifications.opsProposalText({
+        listing,
+        request,
+        propertyId: request.property_id,
+        proposed: request.requested_time,
+        headline: `⏳ Le client n'a pas répondu au nouveau créneau (${hours} h)`,
+        footer: told ? 'Rappel envoyé au client. À appeler si toujours rien.' : "⚠️ Le rappel au client n'a pas pu partir — à appeler.",
+      }),
+      'proposal follow-up ops copy',
+    );
+    console.log(`[sweep] viewing #${request.id} proposal unanswered — client reminded: ${told}`);
+    reminded += 1;
+  }
+  return { reminded };
+}
+
+const proposalFollowupJob = {
+  name: 'viewing-proposal-followup',
+  shouldRun: (now = new Date()) =>
+    proposalFollowupEnabled()
+    && isKinshasaDaytime(now)
+    && dbService.listViewingProposalsAwaitingCustomer(PROPOSAL_FOLLOWUP_MS, now.toISOString(), PROPOSAL_FOLLOWUP_MAX_AGE_MS).length > 0,
+  run: () => runProposalFollowupSweep(),
 };
 
 const contactCheckJob = {
@@ -646,6 +724,10 @@ module.exports = {
   FEEDBACK_THANKS,
   slaJob,
   checkinJob,
+  proposalFollowupJob,
+  runProposalFollowupSweep,
+  PROPOSAL_FOLLOWUP_MS,
+  isKinshasaDaytime,
   SLA_MS,
   CHECKIN_AFTER_MS,
   CHECKIN_PREFIX,

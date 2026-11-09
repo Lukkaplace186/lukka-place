@@ -51,6 +51,7 @@ const agentDigest = require('../services/agentDigest');
 const {
   handleViewingButtonReply,
   handleAgentTextReply,
+  handleProposalButtonReply,
 } = require('../services/viewingNotifications');
 const {
   handleCheckinButtonReply,
@@ -788,6 +789,15 @@ async function processGroup(messages) {
       // Never let the feedback loop take down the intake pipeline this
       // process also serves.
       console.error(`[viewing] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
+      // The CUSTOMER's answer to an agent's new time ("Ce créneau me va" /
+      // "Ne me convient pas"). Only that request's customer is honoured.
+      const proposal = await handleProposalButtonReply({ from, replyId: buttonReplyId });
+      if (proposal.handled) return;
+    } catch (err) {
+      console.error(`[viewing] proposal button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
     try {

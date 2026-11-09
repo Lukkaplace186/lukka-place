@@ -3196,6 +3196,14 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   ['direct_contact_at', 'TEXT'],
   ['direct_contact_channel', 'TEXT'],
   ['direct_contact_by', 'TEXT'],
+  // The agent's new-time proposal and the customer's answer (2026-11-09).
+  // `proposal_sent_at`: when the latest proposal was sent to the customer
+  // (each new proposal resets the other two). `proposal_reminded_at`: the one
+  // reminder, sent when the customer stayed silent. `proposal_refused_at`: the
+  // customer said the time does not suit them, and the agent was asked again.
+  ['proposal_sent_at', 'TEXT'],
+  ['proposal_reminded_at', 'TEXT'],
+  ['proposal_refused_at', 'TEXT'],
 ];
 
 /** viewing_requests.direct_contact_channel — same words as leads.contact_channel. */
@@ -4021,7 +4029,48 @@ const VIEWING_FEED_VIEWS = {
   awaiting_agent:
     "vr.routing_type = 'DIRECT_WA' AND vr.status IN ('PENDING', 'RESCHEDULED') AND vr.first_response_at IS NULL",
   checkins: "vr.scheduled_at IS NOT NULL AND vr.status IN ('CONFIRMED', 'COMPLETED')",
+  // The agent proposed another time and the customer has not said yes or no.
+  awaiting_customer: "vr.status = 'RESCHEDULED' AND vr.proposal_refused_at IS NULL",
 };
+
+/** A new time was sent to the customer: the reminder and refusal start over. */
+function markViewingProposalSent(id, at = new Date().toISOString()) {
+  db.prepare(
+    'UPDATE viewing_requests SET proposal_sent_at = ?, proposal_reminded_at = NULL, proposal_refused_at = NULL WHERE id = ?',
+  ).run(at, id);
+  return getViewingRequest(id);
+}
+
+function markViewingProposalReminded(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET proposal_reminded_at = ? WHERE id = ?').run(at, id);
+  return getViewingRequest(id);
+}
+
+function markViewingProposalRefused(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET proposal_refused_at = ? WHERE id = ?').run(at, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * RESCHEDULED requests whose customer has not answered the latest proposal
+ * after `silentMs`, never reminded, not refused, and sent within `maxAgeMs`
+ * (so a deploy never chases old proposals). ISO timestamps compare as text.
+ */
+function listViewingProposalsAwaitingCustomer(silentMs, nowIso = new Date().toISOString(), maxAgeMs = 48 * 60 * 60 * 1000) {
+  const now = new Date(nowIso).getTime();
+  return db
+    .prepare(
+      `SELECT * FROM viewing_requests
+        WHERE status = 'RESCHEDULED'
+          AND proposal_sent_at IS NOT NULL
+          AND proposal_sent_at <= ?
+          AND proposal_sent_at >= ?
+          AND proposal_reminded_at IS NULL
+          AND proposal_refused_at IS NULL
+        ORDER BY proposal_sent_at`,
+    )
+    .all(new Date(now - silentMs).toISOString(), new Date(now - maxAgeMs).toISOString());
+}
 
 function listAllViewingRequests({
   status, routingType, view, q, agentIds, commune, from, to, limit, offset,
@@ -4525,6 +4574,10 @@ module.exports = {
   INTERACTION_LEAD_SOURCES,
   recordTeamIntroductionLead,
   VIEWING_FEED_VIEWS,
+  markViewingProposalSent,
+  markViewingProposalReminded,
+  markViewingProposalRefused,
+  listViewingProposalsAwaitingCustomer,
   setViewingCommuneIfMissing,
   getWorkQueueCounts,
   getEngineHealth,

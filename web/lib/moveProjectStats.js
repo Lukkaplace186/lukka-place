@@ -59,6 +59,8 @@ export async function getMoveProjectStats() {
     const t = totals.rows[0];
     return {
       ...t,
+      // The rows below replace the count under the same name; keep the count.
+      stories_count: t.stories,
       median_days_to_found: t.median_days_to_found == null ? null : Math.round(Number(t.median_days_to_found)),
       reasons: reasons.rows,
       communes: communes.rows,

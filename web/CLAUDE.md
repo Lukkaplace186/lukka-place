@@ -284,6 +284,31 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   to the agent (engine `MODERATION_REJECTION_REASONS`). The listing page has a
   decision panel and a photo manager that can only reorder/cover/remove photos
   already on the listing.
+- **Duplicate listings** (2026-11-10, owner decision: same property with
+  another agent is fine, the same agent twice is not). Engine half — the hold
+  at "OK" and AUTRE — in docs/claude/whatsapp-intake-and-agents.md, "Same
+  agent, same listing". Here (`lib/moderationQueue.js`, `lib/moderation.js`):
+  - Photos are matched on the content fingerprint in the stored name
+    (`PHOTO_FINGERPRINT_PATTERN`, `whatsapp_|agent_` + 13 hex), never the URL
+    (it carries the listing id, so the old URL match never caught a re-send).
+    `DUPLICATE_INDEX_CTES` builds the fingerprint and description indexes once
+    per query (MATERIALIZED), live/pending listings only.
+  - `same_agent_resend` (`SAME_AGENT_MATCH`): same agent, the other copy
+    live/pending/not closed, same purpose, bedrooms equal or unstated, ≥1
+    shared photo or identical description (≥40 chars), created more than
+    `SAME_MESSAGE_SECONDS` (30 min) apart — the units of one paste share the
+    building's photos and are not re-sends. It is in `BLOCKING_FLAGS`; bulk
+    approve also asks `findSameAgentResends` and skips with the twins' ids
+    unless approved from the compare page (`confirmResend`).
+  - `duplicate_photo` now means a photo also on ANOTHER agent's listing, and
+    with `duplicate_listing` (title + price) is an `INFO_FLAGS` fact only.
+  - Every duplicate chip is a visible link ("Comparer ↗", "· même agent /
+    autre agent") to `/admin/listings/compare`, which marks same/other agent
+    against the first listing, shows a red banner for the same agent, and on
+    an older live copy offers "Retirer (doublon) — garder n° X"
+    (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
+    message `withdrawn_duplicate` with `keep_id`). The queue's banner links
+    `?status=approved&flag=same_agent_resend` ("Faire le ménage").
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while

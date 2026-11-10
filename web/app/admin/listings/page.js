@@ -56,11 +56,17 @@ export default async function AdminListingsPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const session = await getAdminSession();
-  const [queueResult, countsResult, locations] = await Promise.allSettled([
+  const [queueResult, countsResult, locations, resendResult] = await Promise.allSettled([
     listModerationQueue({ ...filters, status, limit, offset, cursor: parseCursor(raw) }),
     getModerationCounts(),
     getLocationHierarchySafe(),
+    // Live listings the same agent has online twice: the cleanup list
+    // (owner decision 2026-11-10). Only counted outside that view itself.
+    filters.flag === 'same_agent_resend' && status === 'approved'
+      ? Promise.resolve(null)
+      : listModerationQueue({ status: 'approved', flag: 'same_agent_resend', limit: 1 }),
   ]);
+  const liveResends = resendResult.status === 'fulfilled' && resendResult.value ? resendResult.value.total : 0;
   const queue = queueResult.status === 'fulfilled' ? queueResult.value : null;
   const counts = countsResult.status === 'fulfilled' ? countsResult.value : {};
   const communes = locations.status === 'fulfilled' ? locations.value.communes || [] : [];
@@ -110,6 +116,16 @@ export default async function AdminListingsPage({ searchParams }) {
           </Link>
         ))}
       </div>
+
+      {liveResends > 0 ? (
+        <Link
+          href="/admin/listings?status=approved&flag=same_agent_resend"
+          className="inline-flex max-w-3xl flex-wrap items-center gap-x-2 gap-y-1 self-start rounded-card border border-danger/40 bg-danger-tint px-4 py-2.5 text-sm text-danger transition-colors hover:border-danger"
+        >
+          <span className="font-semibold">{t('admin.moderation.compare.liveResends', { count: liveResends })}</span>
+          <span className="text-blue underline underline-offset-2">{t('admin.moderation.compare.cleanUp')} →</span>
+        </Link>
+      ) : null}
 
       <TableToolbar
         params={params}

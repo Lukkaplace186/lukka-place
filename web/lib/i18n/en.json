@@ -4745,11 +4745,12 @@
         "missing_content": "Missing title or description",
         "extraction_failure": "Extraction error text",
         "price_outlier": "Price far from commune median",
-        "duplicate_photo": "Photo used on another listing",
+        "duplicate_photo": "Photo also with another agent",
         "duplicate_listing": "Same title and price as another listing",
         "agent_unverified": "Agent number unverified",
         "no_agent": "No agent attached",
-        "availability_unanswered": "Availability: 2 checks unanswered"
+        "availability_unanswered": "Availability: 2 checks unanswered",
+        "same_agent_resend": "Already listed by the same agent"
       },
       "quartierChoose": "— Choose a quartier —",
       "quartierOther": "Other (type the name)…",
@@ -4790,7 +4791,17 @@
           "agent": "Agent",
           "created": "Received",
           "description": "Description"
-        }
+        },
+        "compareLink": "Compare",
+        "sameAgentShort": "same agent",
+        "otherAgentShort": "other agent",
+        "sameAgent": "Same agent",
+        "otherAgent": "Other agent",
+        "sameAgentBanner": "The same agent has this property more than once. A property is online only once: reject the pending copy, or take the older live copy offline and keep the newest.",
+        "withdraw": "Take offline (duplicate) — keep #{keep}",
+        "withdrawn": "Listing #{id} taken offline; #{keep} stays online. The agent is told.",
+        "liveResends": "{count} live listing(s) duplicated by the same agent",
+        "cleanUp": "Clean up"
       }
     },
     "subscriptions": {

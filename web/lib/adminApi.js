@@ -581,10 +581,11 @@ export async function parseMarketPaste(text) {
  * @param {{reasonCode?: string|null, note?: string|null}} [reason] a rejection's
  *   code and free-text note, which the engine turns into the agent's message.
  */
-export async function notifyListingModeration(propertyId, status, { reasonCode = null, note = null } = {}) {
+export async function notifyListingModeration(propertyId, status, { reasonCode = null, note = null, keepId = null } = {}) {
   return engineFetch(`/admin/properties/${propertyId}/notify`, {
     method: 'POST',
-    body: JSON.stringify({ status, reason_code: reasonCode, note }),
+    // keep_id: for 'withdrawn_duplicate', the listing that stays online.
+    body: JSON.stringify({ status, reason_code: reasonCode, note, ...(keepId ? { keep_id: keepId } : {}) }),
   });
 }
 

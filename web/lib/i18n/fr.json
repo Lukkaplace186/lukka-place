@@ -4745,11 +4745,12 @@
         "missing_content": "Titre ou description manquant",
         "extraction_failure": "Texte d’erreur d’extraction",
         "price_outlier": "Prix éloigné de la médiane",
-        "duplicate_photo": "Photo utilisée ailleurs",
+        "duplicate_photo": "Photo aussi chez un autre agent",
         "duplicate_listing": "Même titre et prix qu’une autre annonce",
         "agent_unverified": "Numéro de l’agent non vérifié",
         "no_agent": "Aucun agent rattaché",
-        "availability_unanswered": "Disponibilité : 2 questions sans réponse"
+        "availability_unanswered": "Disponibilité : 2 questions sans réponse",
+        "same_agent_resend": "Déjà publiée par le même agent"
       },
       "quartierChoose": "— Choisir un quartier —",
       "quartierOther": "Autre (saisir le nom)…",
@@ -4790,7 +4791,17 @@
           "agent": "Agent",
           "created": "Reçue le",
           "description": "Description"
-        }
+        },
+        "compareLink": "Comparer",
+        "sameAgentShort": "même agent",
+        "otherAgentShort": "autre agent",
+        "sameAgent": "Même agent",
+        "otherAgent": "Autre agent",
+        "sameAgentBanner": "Le même agent a ce bien plusieurs fois. Un bien ne doit être en ligne qu’une fois : refusez la copie en attente, ou retirez l’ancienne copie en ligne et gardez la plus récente.",
+        "withdraw": "Retirer (doublon) — garder n° {keep}",
+        "withdrawn": "Annonce #{id} retirée ; n° {keep} reste en ligne. L’agent est prévenu.",
+        "liveResends": "{count} annonce(s) en ligne en double chez le même agent",
+        "cleanUp": "Faire le ménage"
       }
     },
     "subscriptions": {

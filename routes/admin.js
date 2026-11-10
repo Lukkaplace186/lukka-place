@@ -1647,6 +1647,16 @@ const MODERATION_MESSAGES = {
       'Répondez simplement à ce message avec les corrections, et nous la revérifierons.',
     ].filter(Boolean).join('\n\n');
   },
+  // The team took a live listing offline because the same agent has the same
+  // property online twice (web /admin/listings/compare, services/resendGuard.js).
+  // `reason.keepId` is the copy that stays; no template exists for this one.
+  withdrawn_duplicate: (propertyId, reason) => {
+    const keep = Number.parseInt(reason?.keepId, 10);
+    return [
+      `Bonjour, votre annonce n° ${propertyId} a été retirée du site : c’est le même bien que ${Number.isInteger(keep) && keep > 0 ? `votre annonce n° ${keep}, qui reste en ligne` : 'une autre de vos annonces, qui reste en ligne'}.`,
+      'Un bien n’est publié qu’une fois. Pour changer le prix ou les photos, modifiez l’annonce existante dans votre espace : https://lukkaplace.com/compte/agent/biens',
+    ].join('\n\n');
+  },
 };
 
 /**
@@ -1788,7 +1798,7 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
   }
 
   setImmediate(async () => {
-    const reason = { code: req.body?.reason_code, note: req.body?.note };
+    const reason = { code: req.body?.reason_code, note: req.body?.note, keepId: req.body?.keep_id };
     try {
       await deliverModerationVerdict(status, listing, remotePropertyId, reason);
     } catch (err) {

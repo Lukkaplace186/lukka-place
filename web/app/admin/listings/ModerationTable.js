@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, BadgeCheck, CheckCircle2, ImageOff, Pencil, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, BadgeCheck, CheckCircle2, ImageOff, Link2, Pencil, Trash2, XCircle } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { useToast } from '@/components/Toast';
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { formatPrice } from '@/lib/format';
-import { QUALITY_FLAG_LABEL_KEYS, REJECTION_REASON_CODES, REJECTION_REASON_LABEL_KEYS } from '@/lib/moderation';
+import { BLOCKING_FLAGS, INFO_FLAGS, QUALITY_FLAG_LABEL_KEYS, REJECTION_REASON_CODES, REJECTION_REASON_LABEL_KEYS } from '@/lib/moderation';
 import { useT } from '@/lib/i18n/client';
 import { compareHref } from '@/lib/listingCompare';
 import { Chip } from '../LeadRoutingUI';
@@ -238,22 +238,36 @@ export default function ModerationTable({ rows, status, canModerate, canDelete =
                     <div className="flex max-w-[16rem] flex-wrap gap-1">
                       {row.blocking ? <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-danger" aria-label={t('admin.moderation.blocking')} /> : null}
                       {row.flags.map((flag) => {
-                        const chip = (
-                          <Chip tone={['missing_price', 'missing_content', 'extraction_failure', 'duplicate_photo', 'duplicate_listing'].includes(flag) ? 'danger' : 'warning'}>
-                            {t(QUALITY_FLAG_LABEL_KEYS[flag])}
-                          </Chip>
-                        );
+                        const tone = BLOCKING_FLAGS.has(flag) ? 'danger' : INFO_FLAGS.has(flag) ? 'neutral' : 'warning';
                         // A duplicate flag opens this listing next to the ones it matches.
                         const others = row.duplicates?.[flag];
-                        if (!others?.length) return <span key={flag}>{chip}</span>;
+                        if (!others?.length) {
+                          return <Chip key={flag} tone={tone}>{t(QUALITY_FLAG_LABEL_KEYS[flag])}</Chip>;
+                        }
+                        const whose = flag === 'duplicate_listing'
+                          ? t(row.duplicateListingSameAgent ? 'admin.moderation.compare.sameAgentShort' : 'admin.moderation.compare.otherAgentShort')
+                          : null;
                         return (
                           <Link
                             key={flag}
                             href={compareHref(row.id, others)}
                             title={t('admin.moderation.compare.openFromFlag', { count: others.length })}
-                            className="rounded-full underline decoration-danger/50 underline-offset-2 hover:decoration-danger focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue"
+                            className={`group inline-flex w-full min-w-[13rem] flex-wrap items-center gap-x-1 gap-y-0.5 rounded-xl border px-2 py-1 text-[0.6875rem] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue ${
+                              tone === 'danger'
+                                ? 'border-danger/40 bg-danger-tint text-danger hover:border-danger'
+                                : 'border-line bg-canvas-deep text-ink-70 hover:border-blue hover:text-blue'
+                            }`}
                           >
-                            {chip}
+                            <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            {/* Wraps rather than truncating: "· même agent" must stay readable. */}
+                            <span className="min-w-0 flex-1 text-left leading-tight">
+                              {t(QUALITY_FLAG_LABEL_KEYS[flag])}
+                              {whose ? <strong className="font-bold"> · {whose}</strong> : null}
+                            </span>
+                            <span className="shrink-0 whitespace-nowrap text-blue underline underline-offset-2">
+                              {t('admin.moderation.compare.compareLink')}
+                            </span>
+                            <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0 text-blue" aria-hidden="true" />
                           </Link>
                         );
                       })}

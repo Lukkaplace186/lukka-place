@@ -11,6 +11,7 @@ import { compareToFirst, photoSet } from '@/lib/listingCompare';
 import { cn } from '@/lib/utils';
 import { Chip } from '../../LeadRoutingUI';
 import CompareDecision from './CompareDecision';
+import WithdrawDuplicateButton from './WithdrawDuplicateButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,21 @@ export default async function CompareListingsPage({ searchParams }) {
   const marks = compareToFirst(listings);
   const reference = listings[0];
   const firstPhotos = reference ? new Set(photoSet(reference)) : new Set();
+  const sameAgentAsFirst = (listing) => Boolean(reference?.agent_id) && listing.agent_id === reference.agent_id;
+  const anySameAgent = listings.slice(1).some(sameAgentAsFirst);
+  // Older live copies of the same agent's listing get "Retirer (doublon)",
+  // keeping that agent's newest live copy online (owner, 2026-11-10).
+  const newestLiveByAgent = new Map();
+  for (const listing of listings) {
+    if (!listing.agent_id || compareState(listing) !== 'live') continue;
+    const current = newestLiveByAgent.get(listing.agent_id);
+    if (!current || listing.id > current) newestLiveByAgent.set(listing.agent_id, listing.id);
+  }
+  const keepFor = (listing) => {
+    if (!listing.agent_id || compareState(listing) !== 'live') return null;
+    const newest = newestLiveByAgent.get(listing.agent_id);
+    return newest && newest !== listing.id ? newest : null;
+  };
 
   const sameChip = (index, field) =>
     index > 0 && marks[index].same.includes(field) ? <Chip tone="danger">{k('same')}</Chip> : null;
@@ -54,6 +70,12 @@ export default async function CompareListingsPage({ searchParams }) {
         <h1 className="u-title-page text-ink">{k('title')}</h1>
         <p className="max-w-3xl text-sm text-ink-45">{k('intro')}</p>
       </div>
+
+      {anySameAgent ? (
+        <p role="note" className="max-w-3xl rounded-card border border-danger/40 bg-danger-tint px-4 py-3 text-sm text-danger">
+          {k('sameAgentBanner')}
+        </p>
+      ) : null}
 
       {listings.length < 2 ? (
         <p className="rounded-card border border-dashed border-line bg-white p-8 text-center text-sm text-ink-45">{k('nothing')}</p>
@@ -76,6 +98,11 @@ export default async function CompareListingsPage({ searchParams }) {
                     <span className="u-micro-strong text-ink">#{listing.id}</span>
                     <Chip tone={STATE_TONE[state]}>{k(`state.${state}`)}</Chip>
                     {index === 0 ? <Chip tone="blue">{k('reference')}</Chip> : null}
+                    {index > 0 ? (
+                      sameAgentAsFirst(listing)
+                        ? <Chip tone="danger">{k('sameAgent')}</Chip>
+                        : <Chip tone="neutral">{k('otherAgent')}</Chip>
+                    ) : null}
                   </div>
 
                   <div className="grid grid-cols-3 gap-1.5">
@@ -142,6 +169,7 @@ export default async function CompareListingsPage({ searchParams }) {
 
                   <div className="mt-auto flex flex-col gap-2 border-t border-line pt-3">
                     {canModerate && state === 'pending' ? <CompareDecision id={listing.id} /> : null}
+                    {canModerate && keepFor(listing) ? <WithdrawDuplicateButton id={listing.id} keepId={keepFor(listing)} /> : null}
                     <div className="flex flex-wrap gap-3 text-sm">
                       <Link href={`/admin/listings/${listing.id}`} className="inline-flex items-center gap-1 font-medium text-blue hover:underline">
                         <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />

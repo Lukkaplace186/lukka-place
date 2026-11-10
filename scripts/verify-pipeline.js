@@ -16316,6 +16316,127 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // §95 Same agent, same listing: held at "OK", released by "AUTRE" (2026-11-10)
+  // ---------------------------------------------------------------------------
+  // Owner: the same property with another agent is fine; the same agent
+  // sending the same property twice is not (services/resendGuard.js).
+  console.log('\n§95 a same-agent re-send is held and the agent asked; AUTRE releases it');
+  {
+    const resend95 = require('../services/resendGuard');
+    const auto95 = require('../services/draftAutoSubmit');
+    const base95 = { purpose: 'rent', beds: 2, live: true, title: '2 chambres — Appartement à louer à Limete' };
+
+    check('a stored photo name carries its content fingerprint, the same for WhatsApp and web uploads', () => {
+      assert.strictEqual(resend95.fingerprintOfStoredPhoto('https://x/properties/746/whatsapp_0a1b2c3d4e5f6_e5.jpg'), '0a1b2c3d4e5f6');
+      assert.strictEqual(resend95.fingerprintOfStoredPhoto('https://x/properties/801/agent_abcdefabcdef1.jpg'), 'abcdefabcdef1');
+      assert.strictEqual(resend95.fingerprintOfStoredPhoto('https://x/noimage.png'), null);
+      // Same as supabaseStorage.contentHash: md5, first 13 hex.
+      assert.strictEqual(resend95.fingerprintOfBytes(Buffer.from('photo')), require('crypto').createHash('md5').update('photo').digest('hex').slice(0, 13));
+    });
+
+    check('a shared photo, same transaction and same or unstated bedrooms is a re-send; another unit is not', () => {
+      const draft = { photoFingerprints: ['aaa', 'bbb'], text: null, purpose: 'rent', beds: 2 };
+      const match = resend95.pickResend(draft, [
+        { ...base95, id: 746, photoFingerprints: ['bbb', 'ccc'] },
+        { ...base95, id: 789, beds: 3, photoFingerprints: ['aaa', 'bbb'] }, // the building's other unit
+      ]);
+      assert.deepStrictEqual(match, { propertyId: 746, live: true, sharedPhotos: 1, sameText: false, title: base95.title });
+      assert.strictEqual(resend95.pickResend({ ...draft, beds: null }, [{ ...base95, id: 789, beds: 3, photoFingerprints: ['aaa'] }]).propertyId, 789);
+      assert.strictEqual(resend95.pickResend(draft, [{ ...base95, id: 5, purpose: 'sale', photoFingerprints: ['aaa'] }]), null);
+      assert.strictEqual(resend95.pickResend(draft, [{ ...base95, id: 6, photoFingerprints: ['zzz'] }]), null);
+    });
+
+    check('the identical message text is enough without photos; a short text never is', () => {
+      const text = 'Appartement 2 chambres à louer à Limete Industriel, 400$/mois, garantie 3 mois, eau et électricité';
+      assert.strictEqual(resend95.pickResend({ photoFingerprints: [], text, purpose: 'rent', beds: 2 }, [{ ...base95, id: 7, text: `  ${text.toUpperCase()} `, photoFingerprints: [] }]).sameText, true);
+      assert.strictEqual(resend95.pickResend({ photoFingerprints: [], text: 'Appart 400$', purpose: 'rent', beds: 2 }, [{ ...base95, id: 8, text: 'Appart 400$', photoFingerprints: [] }]), null);
+    });
+
+    check('AUTRE and its variants answer the question; anything else does not', () => {
+      for (const yes of ['AUTRE', 'autre', 'Autre bien', "c'est un autre bien", 'C’est un autre bien.']) assert.ok(resend95.isOtherReply(yes), yes);
+      for (const no of ['OK', 'autre chose : le prix est 500', 'un autre jour', '']) assert.ok(!resend95.isOtherReply(no), no);
+    });
+
+    check('the agent is told which listing it repeats, why, where to edit it, and how to say it is another', () => {
+      const live = resend95.resendReply({ propertyId: 746, live: true, sharedPhotos: 3, sameText: false });
+      assert.match(live, /annonce n° 746/);
+      assert.match(live, /3 photos identiques/);
+      assert.match(live, /\/listings\/746/);
+      assert.match(live, /\/compte\/agent\/biens/);
+      assert.match(live, /répondez \*AUTRE\*/);
+      assert.match(resend95.resendReply({ propertyId: 9, live: false, sharedPhotos: 0, sameText: true }), /\(le même texte\), en cours de vérification/);
+    });
+
+    const SENDER95 = '243840009501';
+    const draft95 = dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'appartement', commune: 'Limete', price: 400, bedrooms: 2 },
+      SENDER95,
+      { wamid: 'wamid.RESEND95' },
+    );
+    attachPhoto(draft95.id, 'resend95');
+    const savedFind95 = resend95.findOwnResend;
+    resend95.findOwnResend = async () => ({ propertyId: 746, live: true, sharedPhotos: 3, sameText: false, title: base95.title });
+    try {
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.RESEND95_OK', 'OK', SENDER95));
+      await settle();
+      check('"OK" on a re-send publishes nothing and tells the agent which listing it repeats', () => {
+        const row = dbService.getListing(draft95.id);
+        assert.strictEqual(row.status, 'pending_confirmation');
+        assert.strictEqual(row.parsed_json.resend_of, 746);
+        assert.strictEqual(httpCalls.length, 1);
+        assert.match(httpCalls[0].data.text.body, /annonce n° 746/);
+        assert.match(httpCalls[0].data.text.body, /AUTRE/);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.RESEND95_AUTRE', 'Autre', SENDER95));
+      await settle();
+      check('"AUTRE" releases it: published, and never asked about again', () => {
+        const row = dbService.getListing(draft95.id);
+        assert.notStrictEqual(row.status, 'pending_confirmation');
+        assert.ok(row.parsed_json.resend_cleared);
+        assert.match(httpCalls[0].data.text.body, /Annonce bien reçue/);
+      });
+    } finally {
+      resend95.findOwnResend = savedFind95;
+    }
+
+    check('"AUTRE" confirms only a draft held as a re-send', () => {
+      assert.strictEqual(resend95.heldAsResend({ parsed_json: {} }), false);
+      assert.strictEqual(resend95.heldAsResend({ parsed_json: { resend_of: 746 } }), true);
+      assert.strictEqual(resend95.heldAsResend({ parsed_json: { resend_of: 746, resend_cleared: '2026-11-10' } }), false);
+    });
+
+    const auto95Id = dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'appartement', commune: 'Gombe', price: 900, bedrooms: 2 },
+      '243840009502',
+      { wamid: 'wamid.AUTO95' },
+    ).id;
+    attachPhoto(auto95Id, 'auto95');
+    dbService.db.prepare("UPDATE listings SET created_at = datetime('now', '-10 hours') WHERE id = ?").run(auto95Id);
+    const held95 = await auto95.runDraftAutoSubmit({ checkQuota: async () => null, checkResend: async () => ({ hold: true }) });
+    check('the 3-hour auto-submit never sends a re-send to moderation', () => {
+      assert.ok(held95.heldAsResend.includes(auto95Id));
+      assert.ok(!held95.submitted.includes(auto95Id));
+      assert.strictEqual(dbService.getListing(auto95Id).status, 'pending_confirmation');
+    });
+    resend95.markResend(auto95Id, { propertyId: 746 });
+    const again95 = await auto95.runDraftAutoSubmit({ checkQuota: async () => null, checkResend: async () => ({ hold: false }) });
+    check('a held draft is not re-checked every minute: it leaves the auto-submit list until AUTRE', () => {
+      assert.ok(!again95.submitted.includes(auto95Id) && !again95.heldAsResend.includes(auto95Id));
+    });
+
+    check('withdrawing a live duplicate tells the agent which listing stays', () => {
+      const { MODERATION_MESSAGES } = require('../routes/admin');
+      const text = MODERATION_MESSAGES.withdrawn_duplicate(737, { keepId: '746' });
+      assert.match(text, /annonce n° 737 a été retirée/);
+      assert.match(text, /votre annonce n° 746, qui reste en ligne/);
+      assert.match(text, /\/compte\/agent\/biens/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

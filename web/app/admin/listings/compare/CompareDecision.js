@@ -31,6 +31,8 @@ export default function CompareDecision({ id }) {
           ids: [id],
           decision,
           reasonCode: decision === 'reject' ? 'DUPLICATE' : undefined,
+          // Approving here is deliberate: the other copy is on screen.
+          confirmResend: decision === 'approve',
         });
         if (!result?.ok) {
           showToast({ type: 'error', message: result?.error || t('admin.moderation.compare.failed') });

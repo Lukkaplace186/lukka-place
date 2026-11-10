@@ -15,6 +15,7 @@ import { distanceKm } from '@/lib/mapViewport';
 import { GUIDES } from '@/lib/guides';
 import { DEFAULT_CITY, provinceOfCity } from '@/lib/cities';
 import { localizeHref } from '@/lib/localePaths';
+import { listingPath } from '@/lib/listingSlug';
 import {
   SEO_PROPERTY_TYPES,
   OVERLAY_PROPERTY_TYPES,
@@ -290,7 +291,7 @@ export default async function SeoLandingPage({ transaction, params }) {
           ? {
               '@type': 'ItemList',
               numberOfItems: stats.total,
-              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${localizeHref(`/listings/${l.id}`, locale)}` })),
+              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${localizeHref(listingPath(l), locale)}` })),
             }
           : undefined,
       },

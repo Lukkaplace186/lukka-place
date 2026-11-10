@@ -7,6 +7,7 @@ import { getFeatureFlags } from '@/lib/siteSettings';
 import { getCollectionTiles, getLukkaIndex, getPriceGuides } from '@/lib/browseFeatures';
 import { listPublicPostSlugs } from '@/lib/blog';
 import { toEnglishPath } from '@/lib/localePaths';
+import { listingPath } from '@/lib/listingSlug';
 
 const PROJECT_PAGES = ['/projets', '/promoteurs'];
 
@@ -91,9 +92,10 @@ export default async function sitemap() {
       changeFrequency: 'weekly',
       priority: 0.8,
     })),
-    ...listings.map(({ id, updatedAt }) => ({
-      url: `${base}/listings/${id}`,
-      lastModified: Number.isNaN(updatedAt.getTime()) ? now : updatedAt,
+    // The keyword address each listing page declares canonical (lib/listingSlug.js).
+    ...listings.map((listing) => ({
+      url: `${base}${listingPath(listing)}`,
+      lastModified: Number.isNaN(listing.updatedAt.getTime()) ? now : listing.updatedAt,
       changeFrequency: 'weekly',
       priority: 0.8,
     })),

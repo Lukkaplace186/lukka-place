@@ -1283,16 +1283,25 @@ export async function getListingsByIds(ids) {
  * gate as every other read: a pending or archived listing must not be
  * announced to search engines any more than it is shown to visitors.
  *
- * @returns {Promise<Array<{id: number, updatedAt: Date}>>}
+ * Also the facts the keyword URL is built from (lib/listingSlug.js), so the
+ * sitemap announces the same canonical address the page declares. LEFT JOINs:
+ * a listing with no category row is still listed (with a shorter slug).
+ *
+ * @returns {Promise<Array<{id: number, updatedAt: Date, purpose, beds, parcelle_subtype, quartier, category_name, commune, city_name}>>}
  */
 export async function getSitemapListings(limit = 45000) {
   const { rows } = await getPool().query(
-    `SELECT p.id, GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)) AS updated_at
-       FROM properties p WHERE ${APPROVED_FILTER}
+    `SELECT p.id, GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)) AS updated_at,
+            p.purpose, p.beds, p.parcelle_subtype, p.quartier, catc.name AS category_name,
+            ${COMMUNE_SUBQUERY},
+            (SELECT pcc.name FROM property_city_contents pcc WHERE pcc.city_id = p.city_id ORDER BY pcc.language_id DESC LIMIT 1) AS city_name
+       FROM properties p
+       LEFT JOIN property_category_contents catc ON catc.category_id = p.category_id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
+      WHERE ${APPROVED_FILTER}
       ORDER BY p.id DESC LIMIT $1`,
     [limit],
   );
-  return rows.map((row) => ({ id: Number(row.id), updatedAt: new Date(row.updated_at) }));
+  return rows.map((row) => ({ ...row, id: Number(row.id), updatedAt: new Date(row.updated_at) }));
 }
 
 /**

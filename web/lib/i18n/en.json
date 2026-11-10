@@ -173,6 +173,7 @@
   },
   "home": {
     "hero": {
+      "kicker": "Houses and Apartments for Rent and Sale in Kinshasa and the DRC",
       "title": "Apartments. Villas. Plots. Agencies.",
       "subtitle": "Across the DRC: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and more. Reviewed listings, stated prices and direct contact on WhatsApp.",
       "photoCredit": "Photo by kaysha on Unsplash",
@@ -403,7 +404,9 @@
         "one": "A free WhatsApp alert as soon as a 1-bedroom in {commune} is listed at this price or less.",
         "other": "A free WhatsApp alert as soon as a {count}-bedroom in {commune} is listed at this price or less."
       }
-    }
+    },
+    "seoTitle": "Houses and Apartments for Rent and Sale in Kinshasa | Lukka Place",
+    "seoDescription": "Houses, apartments, plots and land for rent or sale in Kinshasa and across the DRC. Reviewed listings, prices shown, contact on WhatsApp."
   },
   "about": {
     "metaTitle": "About — Lukka Place",

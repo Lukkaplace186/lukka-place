@@ -4333,7 +4333,10 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   node:crypto → access token → searchAnalytics + sitemaps, cached 10 min,
   never throws. Env `GSC_SERVICE_ACCOUNT_JSON` (raw JSON or base64),
   `GSC_PROPERTY` (default `sc-domain:lukkaplace.com`). Setup steps are on the
-  page. **Not connected yet, so that half is unverified against Google.**
+  page. **Connected 2026-11-10** (service account
+  `lukka-seo-reader@project-93c8620f-b903-4735-9e2.iam.gserviceaccount.com`,
+  Restricted user; key base64 in the VPS `.env.local`); checked live:
+  queries, positions and the sitemap come back.
 - **Coverage** per commune (≤5 listings = thin, 0 = noindex page) and
   **listing quality** over every public listing (<3 photos, no commune, no
   quartier, description <120 chars, no price, land with bedrooms and no
@@ -4342,6 +4345,34 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   /admin/settings links over the env ones, no WhatsApp, query strings
   stripped). Before, only `NEXT_PUBLIC_*_URL` was read, so the Instagram and
   TikTok links the footer showed never reached Google's Organization data.
+
+## Keyword listing URLs and the homepage's search words (2026-11-10)
+
+First Search Console week: 174 impressions, average position 16; the
+homepage ranked for "luka place" and little else, "maison à louer à
+kinshasa" sat at 58. mediacongo and expat.com own those searches, with the
+words in every listing URL and title.
+
+- **Listing URLs carry words**: `/listings/509-appartement-1-chambre-a-louer-limete`
+  (`lib/listingSlug.js` `listingPath`; kind → rooms → louer/vendre → commune,
+  quartier or city; French whatever the reader's language; a missing fact is
+  left out). The id is the only part read back (`getListingById` parses the
+  leading integer), so `/listings/509`, an old slug and every WhatsApp link
+  open the same page. **No redirect, by choice**: the page declares the slug
+  URL canonical and the sitemap, JSON-LD and public cards (`PropertyCard`,
+  map previews, `RecentlyViewed`, agent profile, landing-page ItemList) link
+  it — a 308 would cost a Kinshasa phone ~330 ms on every old link.
+  Dashboards, admin and messages still build `/listings/<id>`; that is fine.
+- **Analytics unchanged**: `ListingViewTracker` records `/listings/<id>`
+  whatever the address; `listingIdFromPath` and `lib/localePaths.js`
+  (`/en/listings/…`) accept either form, so a slug page is not counted again
+  as a site page. `tests/unit/listing-slug.test.js`.
+- **Homepage**: its own `<title>` / description (`home.seoTitle`,
+  `home.seoDescription`; a title saved on /admin/cms still wins) and a small
+  first line inside the hero `<h1>` (`home.hero.kicker`, "Maisons et
+  appartements à louer et à vendre à Kinshasa et en RDC") above the stacked
+  nouns. The phone hero grew 19.5 → 22.25rem so the "N nouveaux biens" pill
+  stays clear of the search panel. The site-wide default title is unchanged.
 
 ## English pages for search engines — `/en/…` (2026-11-05)
 

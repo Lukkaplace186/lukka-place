@@ -285,11 +285,11 @@ export function trackAgentContact({ leadId, viewingRequestId, channel, source })
   }
 }
 
-/** `/listings/310` (or a full URL to it) -> 310, else null. */
+/** `/listings/310` or `/listings/310-appartement-…` (or a full URL to it) -> 310, else null. */
 export function listingIdFromPath(pathOrUrl) {
   try {
     const path = String(pathOrUrl || '').replace(/^[a-z]+:\/\/[^/]+/i, '').split(/[?#]/)[0];
-    const match = /^\/listings\/(\d{1,18})$/.exec(path);
+    const match = /^\/listings\/(\d{1,18})(?:-[a-z0-9-]*)?$/.exec(path);
     return match ? Number(match[1]) : null;
   } catch {
     return null;

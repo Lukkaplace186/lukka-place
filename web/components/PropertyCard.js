@@ -5,6 +5,7 @@ import { formatDistance } from '@/lib/landmarks';
 import Link from '@/components/LocaleLink';
 import { Camera, CalendarCheck } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { listingPath } from '@/lib/listingSlug';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
 import WhatsAppCTA from './WhatsAppCTA';
@@ -149,7 +150,7 @@ export default function PropertyCard({
     // where the parent has no definite height.
     <div className={cn('@container h-full', horizontal && 'w-full')}>
     <Link
-      href={`/listings/${id}`}
+      href={listingPath(listing)}
       // Speed pass (2026-11-06): in view, only the loading skeleton is
       // prefetched (the page is dynamic); a hover or a finger landing on the
       // card fetches the whole page, so a tap usually finds it ready. Off on

@@ -9,6 +9,7 @@ import FavoriteButton from './FavoriteButton';
 import { listingImages, specItems, typeLabel, feedLocationLine } from '@/lib/listingView';
 import { formatDistance, listingDistanceKm } from '@/lib/landmarks';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { listingPath } from '@/lib/listingSlug';
 import { useT } from '@/lib/i18n/client';
 import { cachedListings, loadListings } from '@/lib/mapListingCache';
 
@@ -181,7 +182,7 @@ function MapCard({ listing, active, near, cardRef }) {
   const t = useT();
   const [photoIndex, setPhotoIndex] = useState(0);
   const id = String(listing.id);
-  const href = `/listings/${encodeURIComponent(id)}`;
+  const href = listingPath(listing);
   const images = listingImages(listing);
   const specs = specItems(listing, t).slice(0, 2);
   const km = near?.point ? listingDistanceKm(listing, near.point) : null;

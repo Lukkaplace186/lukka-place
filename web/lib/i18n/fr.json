@@ -173,6 +173,7 @@
   },
   "home": {
     "hero": {
+      "kicker": "Maisons et appartements à louer et à vendre à Kinshasa et en RDC",
       "title": "Appartements. Villas. Terrains. Agences.",
       "subtitle": "Partout en RDC : Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani et plus. Annonces relues, prix affichés et contact direct sur WhatsApp.",
       "photoCredit": "Photo par kaysha sur Unsplash",
@@ -403,7 +404,9 @@
         "one": "Une alerte WhatsApp gratuite dès qu'un 1 chambre à {commune} est publié à ce prix ou moins.",
         "other": "Une alerte WhatsApp gratuite dès qu'un {count} chambres à {commune} est publié à ce prix ou moins."
       }
-    }
+    },
+    "seoTitle": "Maisons et appartements à louer et à vendre à Kinshasa | Lukka Place",
+    "seoDescription": "Maisons, appartements, parcelles et terrains à louer ou à vendre à Kinshasa et partout en RDC. Annonces relues, prix affichés, contact sur WhatsApp."
   },
   "about": {
     "metaTitle": "À propos — Lukka Place",

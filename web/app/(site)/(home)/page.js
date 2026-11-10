@@ -13,9 +13,9 @@ import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
 import { organizationSchema, socialProfiles, websiteSchema } from '@/lib/seoSchema';
-import { getSocialLinks } from '@/lib/siteSettings';
-import { localizedAlternates } from '@/lib/i18n/server';
-import { mergeSocialLinks } from '@/lib/siteSettingsRules';
+import { getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
+import { getT, localizedAlternates } from '@/lib/i18n/server';
+import { mergeSocialLinks, seoMetadata } from '@/lib/siteSettingsRules';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -122,8 +122,24 @@ import { mergeSocialLinks } from '@/lib/siteSettingsRules';
  * of each other was the alternative. The component still exists and nothing
  * else imports it, same as the four other sections listed above.
  */
+/*
+ * The homepage's own title and description name what people search for
+ * ("maison à louer à Kinshasa"); the site-wide default ("L'immobilier partout
+ * en RDC") stays the fallback for pages without their own (2026-11-10, SEO
+ * pass: the homepage ranked for "luka place" and little else). A title or
+ * description saved on /admin/cms ("Optimisation SEO & Meta") still wins.
+ */
 export async function generateMetadata() {
-  return { alternates: await localizedAlternates('/') };
+  const t = await getT();
+  const seo = seoMetadata(await getSeoSettings(), t.locale, {
+    title: t('home.seoTitle'),
+    description: t('home.seoDescription'),
+  });
+  return {
+    title: seo.title,
+    description: seo.description,
+    alternates: await localizedAlternates('/'),
+  };
 }
 
 export default async function HomePage() {

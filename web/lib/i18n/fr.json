@@ -7755,7 +7755,7 @@
       "summaryHint": "Une ou deux phrases : affiché dans la liste et dans l’aperçu WhatsApp / Google.",
       "bodyFr": "Article",
       "formatHelpTitle": "Mise en forme",
-      "formatHelp": "Une ligne vide sépare les paragraphes.\n## Titre de section\n- un point de liste\n1. une étape numérotée\n[texte du lien](/location/appartements/gombe) — un lien vers une page du site ou une adresse https.",
+      "formatHelp": "Une ligne vide sépare les paragraphes.\n## Titre de section\n- un point de liste\n1. une étape numérotée\n[texte du lien](/location/appartements/gombe) — un lien vers une page du site ou une adresse https.\n\nBlocs riches (voir l’aperçu) :\n| Commune | Loyer | — un tableau (ligne |---| sous l’en-tête)\n:::chiffres source=\"…\" puis « valeur | libellé », puis :::\n:::graphique type=barres titre=\"…\" unite=\"$\" source=\"…\" puis « libellé | nombre », puis :::\n:::astuce titre=\"…\" (ou attention, info), texte, puis :::\n:::citation auteur=\"…\", texte, puis :::\n:::prix communes=\"Gombe, Limete\" chambres=2 — prix en direct\n:::annonces commune=Gombe type=appartement transaction=location — annonces en direct",
       "sectionCover": "Image de couverture",
       "cover": "Image",
       "replaceCover": "Remplacer l’image",
@@ -7794,6 +7794,7 @@
         "summaryTooLong": "Le résumé dépasse 400 caractères.",
         "bodyTooLong": "L’article est trop long.",
         "bodyRequired": "Un article publié doit avoir un texte.",
+        "badBlock": "Un bloc du texte est illisible",
         "englishTooLong": "La version anglaise dépasse la longueur permise.",
         "englishIncomplete": "La version anglaise doit avoir un titre et un texte, ou rester vide.",
         "badSlug": "Le lien ne peut contenir que des lettres minuscules, des chiffres et des tirets.",
@@ -8485,7 +8486,22 @@
     "empty": "Aucun article dans cette catégorie pour le moment.",
     "seeListings": "Voir les biens en ligne",
     "relatedListings": "Biens en ligne en ce moment",
-    "shareWhatsApp": "Partager sur WhatsApp"
+    "shareWhatsApp": "Partager sur WhatsApp",
+    "blocks": {
+      "source": "Source : {source}",
+      "bedsLabel": "{beds} ch.",
+      "pricesByBeds": "Loyer mensuel demandé à {commune}, par nombre de chambres",
+      "pricesByCommune": "Loyer mensuel demandé, {beds} chambres",
+      "priceRange": "La moitié des annonces entre {low} et {high} $ · {n} annonces",
+      "pricesCaption": "Médiane des loyers demandés (longue durée, non meublé) sur {n} annonces · Guide des prix Lukka Place, {date}",
+      "pricesMissing": "Pas encore assez d’annonces pour publier un prix ici : {communes}.",
+      "pricesLink": "Voir le guide des prix",
+      "listingsPreview": "Ici : trois annonces en ligne de cette recherche —",
+      "tip": "Astuce",
+      "warning": "Attention",
+      "info": "À savoir",
+      "invalid": "Bloc :::{name} non affiché — {reason}"
+    }
   },
   "projects": {
     "meta": {

@@ -3948,8 +3948,9 @@ Tests: `tests/unit/blog.test.js`.
   segment's skeleton; the index lives in `guides/(index)/` with its own.
 - **No HTML anywhere.** The body is a textarea in a small format parsed by
   `parseBody` (`## titre`, `- point`, `1. étape`, blank line = paragraph,
-  `[texte](/chemin)` or https links only) into the same blocks the code guides
-  use, rendered by `components/blog/ArticleBody.js` as text.
+  `[texte](/chemin)` or https links only, plus the rich blocks below) into
+  the same blocks the code guides use, rendered by
+  `components/blog/ArticleBody.js` as text.
 - **Linked to the listings**: a post can name a transaction, a commune and a
   type; the article ends with three live listings (`getListings`, public gate)
   and a button to the matching landing page (`postListingsHref`: `seoPath`,
@@ -3962,6 +3963,34 @@ Tests: `tests/unit/blog.test.js`.
 - Every write is audited (`blog.create|update|unpublish|delete`, body length,
   never the text). Delete is soft and frees the slug. Preview at
   `/admin/blog/[id]/apercu` whatever the state or the switch.
+- **Rich blocks, written with Claude (2026-11-10, owner decision: articles are
+  written in Claude, not in a console editor).** The body format gained pipe
+  tables and `:::` directives — `tableau`, `chiffres` (key figures),
+  `graphique` (bars / line; `source=` required), `astuce|attention|info`,
+  `citation`, and two LIVE blocks: `prix` (the price guide's medians via
+  `getPriceGuides`, a commune short of listings is named, never priced) and
+  `annonces` (three public listings). `parseBody` never throws (an unreadable
+  block is `{invalid}`); `bodyProblems` makes Save and the import refuse it
+  with the block's name (`badBlock` + `detail`). Still no HTML path.
+  Rendering: `components/blog/ArticleBody.js` (async; a plain body stays
+  translator-free), `BlogChart.js` (server HTML bars / SVG line, axis from 0,
+  no chart library), `LiveBlocks.js` (`:::prix`), `LiveListings.js` — passed
+  as `listingsBlock` by the public page ONLY, because PropertyCard's client
+  namespaces are not provided under /admin; the preview names the search.
+  Motion: `Reveal.js` arms a below-the-fold block and plays it on scroll
+  (`[data-reveal]` in globals.css: rise, bars grow, line draws), `CountUp.js`
+  counts the first number of a key figure (writes textContent, no state);
+  SSR output is the final content and reduced motion shows it still.
+- **`npm run blog:import -- content/blog/<slug>.md [--write]`**
+  (`scripts/blog-import.mjs`): header between `---` lines (titre, resume,
+  categorie, slug, commune, type, transaction, couverture, couverture_alt,
+  titre_en, resume_en), French body, optional English after
+  `=== english ===`. Dry run by default; new posts are drafts, a re-import
+  updates the text and KEEPS the state (a published post's new text is live —
+  it warns); a local cover is resized and uploaded like the console's. Audited
+  as `script:blog-import`. Source files live in `content/blog/`; the writing
+  rules are the user-level `lukka-blog` skill.
+  `tests/unit/blog-rich-blocks.test.js`.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
 

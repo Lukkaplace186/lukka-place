@@ -7755,7 +7755,7 @@
       "summaryHint": "One or two sentences: shown in the list and in WhatsApp / Google previews.",
       "bodyFr": "Article",
       "formatHelpTitle": "Formatting",
-      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.",
+      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.\n\nRich blocks (see the preview):\n| Commune | Rent | — a table (a |---| line under the header)\n:::chiffres source=\"…\" then “value | label” lines, then :::\n:::graphique type=barres titre=\"…\" unite=\"$\" source=\"…\" then “label | number” lines, then :::\n:::astuce titre=\"…\" (or attention, info), text, then :::\n:::citation auteur=\"…\", text, then :::\n:::prix communes=\"Gombe, Limete\" chambres=2 — live prices\n:::annonces commune=Gombe type=appartement transaction=location — live listings",
       "sectionCover": "Cover Image",
       "cover": "Image",
       "replaceCover": "Replace the Image",
@@ -7794,6 +7794,7 @@
         "summaryTooLong": "The summary is over 400 characters.",
         "bodyTooLong": "The article is too long.",
         "bodyRequired": "A published article needs a text.",
+        "badBlock": "A block in the text cannot be read",
         "englishTooLong": "The English version is over the allowed length.",
         "englishIncomplete": "The English version needs a title and a text, or must stay empty.",
         "badSlug": "The link may only contain lowercase letters, digits and hyphens.",
@@ -8485,7 +8486,22 @@
     "empty": "No articles in this category yet.",
     "seeListings": "See listings online",
     "relatedListings": "Listings Online Right Now",
-    "shareWhatsApp": "Share on WhatsApp"
+    "shareWhatsApp": "Share on WhatsApp",
+    "blocks": {
+      "source": "Source: {source}",
+      "bedsLabel": "{beds} bed",
+      "pricesByBeds": "Monthly asking rent in {commune}, by bedrooms",
+      "pricesByCommune": "Monthly asking rent, {beds} bedrooms",
+      "priceRange": "Half of the listings between ${low} and ${high} · {n} listings",
+      "pricesCaption": "Median asking rent (long-term, unfurnished) over {n} listings · Lukka Place price guide, {date}",
+      "pricesMissing": "Not enough listings yet to publish a price here: {communes}.",
+      "pricesLink": "See the price guide",
+      "listingsPreview": "Here: three live listings from this search —",
+      "tip": "Tip",
+      "warning": "Watch out",
+      "info": "Good to know",
+      "invalid": "Block :::{name} not shown — {reason}"
+    }
   },
   "projects": {
     "meta": {

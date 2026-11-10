@@ -331,6 +331,47 @@ async function getListingContactById(id) {
 }
 
 /**
+ * Live listings that could be the one a storefront enquiry names when its
+ * link is missing (services/listingEnquiry.js, 2026-11-10): the same price
+ * and, when the message quoted one, the same reference. Narrowed further in
+ * JS by type and place. Public filter applied; at most 25 rows. Never throws:
+ * a failed query is no candidates, and the caller treats the sender as a
+ * customer whose listing is unknown.
+ *
+ * @param {{price?: number|null, reference?: string|null}} p
+ * @returns {Promise<Array<Object>>}
+ */
+async function findLiveListingsForEnquiry({ price = null, reference = null } = {}) {
+  const ref = typeof reference === 'string' ? reference.trim() : '';
+  const amount = Number.isFinite(Number(price)) && Number(price) > 0 ? Number(price) : null;
+  if ((amount == null && !ref) || !isConfigured()) return [];
+  const params = [];
+  const where = [APPROVED_FILTER];
+  if (amount != null) {
+    params.push(amount);
+    where.push(`round(p.price) = $${params.length}`);
+  }
+  if (ref) {
+    params.push(ref);
+    where.push(`lower(btrim(p.reference)) = lower($${params.length})`);
+  }
+  try {
+    const { rows } = await getPool().query(
+      `SELECT p.id, p.reference, p.price, p.purpose, p.quartier, pc.title, catc.name AS category_name, ${COMMUNE_SUBQUERY}
+       ${FROM_JOINS}
+       WHERE ${where.join(' AND ')}
+       ORDER BY p.id DESC
+       LIMIT 25`,
+      params,
+    );
+    return rows;
+  } catch (err) {
+    console.error(`[propertyRepository] findLiveListingsForEnquiry failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
  * Who to tell that a listing was approved or rejected, when the engine has no
  * WhatsApp submitter for it — a listing the agent typed on the website
  * (2026-10-20: #314–#317 were approved and nobody was told). NOT behind the
@@ -412,6 +453,7 @@ module.exports = {
   searchProperties,
   getPropertyById,
   getListingContactById,
+  findLiveListingsForEnquiry,
   getAgentContactById,
   getModerationRecipient,
   directRoutingBlocker,

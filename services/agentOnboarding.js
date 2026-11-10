@@ -547,6 +547,44 @@ function parseNameReply(text) {
   return { fullName, agencyName };
 }
 
+/**
+ * Is this reply a sentence rather than "name, agency"? (2026-11-10)
+ *
+ * Two customers' sentences became agents' names that day: "Je contacte parce
+ * que j’ai vu cette annonce dans votre site et je suis interessé" and "J’ai vu
+ * cette annoncr dans votre site". A name never asks a question, never speaks
+ * in the first person, and is not five words long before its agency.
+ *
+ * @returns {{sentence: boolean, customerLike: boolean}}
+ *   `customerLike`: it reads as someone asking about a property (interest,
+ *   availability, a visit, "j'ai vu…"), not as an agent's answer.
+ */
+function nameReplyShape(text) {
+  const folded = String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[’`]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^(bonjour|salut|bjr|hello|hi|ok|oui)[\s,.:!-]+/, '')
+    .trim();
+  if (!folded) return { sentence: false, customerLike: false };
+  const customerLike = /\?|\bj'ai vu\b|\bvu (?:cette|votre|l'|une|ce)\b|\binteress|\bdisponible|\bvisite|\bvisiter|\bannonc|\bvotre site\b|\bje cherche\b|\bje (?:voudrais|veux|souhaite|contacte|vous contacte)\b|\bencore libre\b|\bc'est combien\b|\bquel prix\b/.test(folded);
+  const firstPerson = /^(?:je|j'|nous|on|est-ce|cette|ce|cet|est|svp|s'il|pourquoi|comment|quand|combien|quel|quelle|ou)\b/.test(folded);
+  const namePart = folded.split(/\s*[,/|]\s*|\s+[-–—]\s+/)[0] || '';
+  const tooLong = namePart.split(' ').filter(Boolean).length > 4;
+  return { sentence: customerLike || firstPerson || tooLong, customerLike };
+}
+
+/** Re-asked when the reply was a sentence, with a way out for a customer. */
+const NAME_REASK_REPLY = [
+  'Pour créer votre compte agent, répondez uniquement avec votre *nom complet* et le *nom de votre agence*.',
+  'Exemple : Jean Kabeya, Agence Horizon',
+  '',
+  'Vous êtes un client à la recherche d’un bien ? Dites-nous simplement ce que vous cherchez, notre équipe vous répond.',
+].join('\n');
+
 // ---------------------------------------------------------------------------
 // Orchestration — called from routes/webhook.js
 // ---------------------------------------------------------------------------
@@ -622,6 +660,12 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
   // names a property and a price goes back to intake (services/listingBoundary.js).
   if (require('./listingBoundary').standsAloneAsListing(text)) {
     return { handled: false, reason: 'looks-like-listing' };
+  }
+  // A question or a sentence is never a name (2026-11-10): the caller re-asks,
+  // or hands a customer to the customer assistant. No account is created.
+  const shape = nameReplyShape(salesReferral.stripReferralPhrase(text));
+  if (shape.sentence) {
+    return { handled: false, reason: 'sentence', customerLike: shape.customerLike };
   }
   // "Jean Kabeya, Agence Horizon, code parrainage JEAN01": the code was already
   // captured by the webhook; it is not part of the agency's name.
@@ -708,6 +752,8 @@ module.exports = {
   getSession,
   // Exposed for scripts/verify-pipeline.js.
   parseNameReply,
+  nameReplyShape,
+  NAME_REASK_REPLY,
   summaryCard,
   onboardingPrompt,
   activationMessage,

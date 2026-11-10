@@ -4089,6 +4089,13 @@
       "notFound": "This request could not be found.",
       "failed": "Your answer could not be saved. Please try again in a moment.",
       "back": "See my requests"
+    },
+    "follow": {
+      "follow": "Follow",
+      "following": "Following",
+      "hintOff": "Get its new listings in the Lukka Place app.",
+      "hintOn": "You will get its new listings in the app.",
+      "failed": "Not possible right now. Please try again in a moment."
     }
   },
   "admin": {

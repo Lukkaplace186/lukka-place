@@ -2,7 +2,7 @@
 --
 -- Run with:  node scripts/run-sql-migration.js migrations/20261110_push_notifications.sql --write
 --
--- ADDITIVE AND IDEMPOTENT. Four new tables, nothing else changes.
+-- ADDITIVE AND IDEMPOTENT. Five new tables, nothing else changes.
 --
 -- WHY. WhatsApp only reaches someone who wrote to us in the last 24 h unless a
 -- Meta template is approved, and several are missing or paused. The app gets
@@ -103,10 +103,21 @@ CREATE TABLE IF NOT EXISTS favorite_status_notices (
   PRIMARY KEY (customer_id, property_id)
 );
 
+-- customer_follows — "Suivre" an agency (web lib/customerFollows.js): the app
+--   pushes each new listing it publishes (web lib/portalDigests.js).
+CREATE TABLE IF NOT EXISTS customer_follows (
+  customer_id  bigint      NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
+  agent_id     bigint      NOT NULL REFERENCES agents (id) ON DELETE CASCADE,
+  created_at   timestamptz NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (customer_id, agent_id)
+);
+CREATE INDEX IF NOT EXISTS customer_follows_agent_idx ON customer_follows (agent_id);
+
 ALTER TABLE push_devices  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE favorite_status_notices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customer_follows ENABLE ROW LEVEL SECURITY;
 
 DO $$
 DECLARE
@@ -122,6 +133,7 @@ BEGIN
       -- No sequence: its key is (user_type, user_id, category).
       EXECUTE format('REVOKE ALL ON notification_preferences FROM %I', role_name);
       EXECUTE format('REVOKE ALL ON favorite_status_notices FROM %I', role_name);
+      EXECUTE format('REVOKE ALL ON customer_follows FROM %I', role_name);
     END IF;
   END LOOP;
 END $$;

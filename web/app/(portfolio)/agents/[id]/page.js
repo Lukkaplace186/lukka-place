@@ -16,6 +16,9 @@ import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
 import { chatStartHref } from '@/lib/chatRules';
+import FollowAgentButton from '@/components/FollowAgentButton';
+import { getCurrentCustomerId } from '@/lib/customers';
+import { isFollowing } from '@/lib/customerFollows';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -288,10 +291,16 @@ ${profileUrl}`),
       }
     : null;
 
+  // "Suivre" (C4, 2026-11-10): the app pushes this agency's new listings.
+  // A failed read shows the button unfollowed, never breaks the page.
+  const customerId = await getCurrentCustomerId().catch(() => null);
+  const following = customerId ? await isFollowing(customerId, agent.id).catch(() => false) : false;
+
   return (
     <>
       <JsonLd data={agentJsonLd} />
       <AgentProfileView
+        follow={<FollowAgentButton agentId={agent.id} signedIn={Boolean(customerId)} initialFollowing={following} returnPath={`/agents/${agent.id}`} />}
         agent={view}
         tabs={tabs}
         initialTab={initialTab}

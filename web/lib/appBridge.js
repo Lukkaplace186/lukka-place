@@ -90,7 +90,7 @@ export function alertTarget(data = {}) {
   const id = Number.parseInt(String(data.notificationId ?? ''), 10);
   if (Number.isSafeInteger(id) && id > 0) return `${inbox}/${id}`;
   const url = typeof data.url === 'string' ? data.url : '';
-  const prefixes = customer ? ['/compte/client', '/messages', '/listings'] : ['/compte/agent'];
+  const prefixes = customer ? ['/compte/client', '/messages', '/listings', '/projets', '/combien-coute', '/agents'] : ['/compte/agent'];
   return !url.startsWith('//') && prefixes.some((p) => url.startsWith(p)) ? url : inbox;
 }
 

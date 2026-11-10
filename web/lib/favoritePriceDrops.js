@@ -15,7 +15,7 @@ import { PRICE_DROP_LATERAL } from './listings';
  * already there when they saved it is not news to them.
  */
 
-const PERCENT_BAND_SQL = `(pd.price_drop_from - p.price) / NULLIF(pd.price_drop_from, 0) BETWEEN 0.01 AND 0.5`;
+export const PERCENT_BAND_SQL = `(pd.price_drop_from - p.price) / NULLIF(pd.price_drop_from, 0) BETWEEN 0.01 AND 0.5`;
 
 function cutFavoritesFrom(extraJoins = '') {
   return `

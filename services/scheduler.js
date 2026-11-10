@@ -471,6 +471,10 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
   const portal = require('./portalAlerts');
   registerJob(portal.instantAlertsJob);
   registerJob(portal.searchCheckupJob);
+  // Web computes these (lib/portalDigests.js); the jobs call it on time.
+  registerJob(portal.portalDailyJob);
+  registerJob(portal.weeklySummaryJob);
+  registerJob(portal.monthlyMarketJob);
 }
 
 /**

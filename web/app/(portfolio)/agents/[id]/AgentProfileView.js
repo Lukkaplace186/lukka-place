@@ -235,7 +235,7 @@ function CallButton({ agent, labels, className = '' }) {
   );
 }
 
-export default function AgentProfileView({ agent, tabs, initialTab, labels, profileUrl, enquiry, enquiryOpen = false, children }) {
+export default function AgentProfileView({ agent, tabs, initialTab, labels, profileUrl, enquiry, enquiryOpen = false, follow = null, children }) {
   const [tab, setTab] = useState(initialTab);
   const [sort, setSort] = useState('recent');
   const [bioOpen, setBioOpen] = useState(false);
@@ -387,6 +387,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                   <span className="truncate">{agent.locationLine}</span>
                 </p>
               ) : null}
+              {follow ? <div className="pt-1">{follow}</div> : null}
             </div>
 
             {/* From a laptop up the contact actions sit in the card, where a

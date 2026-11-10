@@ -326,3 +326,100 @@ test('instant match: only app users’ searches (a live device), switched-off se
   assert.doesNotMatch(sql, /whatsapp_alerts_opted_out_at/);
   assert.match(read('../../app/api/cron/instant-alerts/route.js'), /if \(!isAuthorized\(request\)\)/);
 });
+
+// --- Phase 3, second batch ------------------------------------------------------
+
+import {
+  ENQUIRED_DROPS_SQL, FOLLOWED_SQL, NEW_PROJECTS_SQL, WEEKLY_SQL,
+  pickGuide, runEnquiredPriceDrops, runFollowedAgentListings, runMonthlyMarket, runNewProjects, runWeeklySummary,
+  searchCommunes, weeklyBody,
+} from '@/lib/portalDigests';
+import { followAgent } from '@/lib/customerFollows';
+
+const pushRecorder = () => {
+  const pushes = [];
+  return { pushes, push: async (p) => { pushes.push(p); return { pushed: true }; } };
+};
+
+test('every scheduled portal alert reads app users only, applies the public gates, and never repeats itself', () => {
+  for (const sql of [ENQUIRED_DROPS_SQL, WEEKLY_SQL, FOLLOWED_SQL]) {
+    assert.match(sql, /FROM push_devices d\s+WHERE d\.user_type = 'customer'/);
+    assert.match(sql, /NOT EXISTS \(SELECT 1 FROM notifications n/);
+  }
+  assert.match(ENQUIRED_DROPS_SQL, /p\.status = 1 AND p\.approve_status = 1/);
+  assert.match(ENQUIRED_DROPS_SQL, /NOT EXISTS \(SELECT 1 FROM customer_favorites cf/, 'a saved listing’s cut is the favourites’ message');
+  assert.match(ENQUIRED_DROPS_SQL, /pd\.price_drop_at > x\.since/, 'only a cut after the customer showed interest');
+  assert.match(FOLLOWED_SQL, /p\.status = 1 AND p\.approve_status = 1/);
+  assert.match(FOLLOWED_SQL, /f\.created_at < GREATEST\(p\.created_at/, 'only listings published after the follow');
+  assert.match(NEW_PROJECTS_SQL, /d\.status = 1 AND d\.approve_status = 1/);
+});
+
+test('C2: price cuts on enquired listings are pushed with a key that stops a repeat; bad pairs are dropped', async () => {
+  reset();
+  enqueue([{ customer_id: 31, property_id: 9, title: 'Villa', price: 900, price_drop_from: 1000, purpose: 'rent', price_period: 'mois', ref_key: '9:202611100800' }]);
+  const { pushes, push } = pushRecorder();
+  const result = await runEnquiredPriceDrops({
+    pairs: [{ waId: '+243 906 500 096', propertyId: 9, since: '2026-11-01T00:00:00Z' }, { waId: 'x', propertyId: 9, since: 'x' }],
+    push,
+  });
+  assert.deepStrictEqual([result.pairs, result.pushed], [1, 1]);
+  assert.deepStrictEqual(JSON.parse(calls[0].values[0]), [{ wa_id: '243906500096', property_id: 9, since: '2026-11-01T00:00:00Z' }]);
+  assert.deepStrictEqual([pushes[0].kind, pushes[0].refId, pushes[0].url], ['enquired_price_drop', '9:202611100800', '/listings/9']);
+});
+
+test('C9: the weekly summary says what happened, and nothing on a quiet week', async () => {
+  assert.equal(weeklyBody({ matches: 3, unread: 1 }), '3 nouveaux biens pour vos recherches · 1 message non lu.');
+  assert.equal(weeklyBody({ matches: 0, unread: 0 }), null);
+  reset();
+  enqueue([{ customer_id: 1, matches: 2, unread: 0 }, { customer_id: 2, matches: 0, unread: 0 }]);
+  const { pushes, push } = pushRecorder();
+  const result = await runWeeklySummary({ push });
+  assert.deepStrictEqual([result.pushed, result.quiet, pushes[0].kind], [1, 1, 'weekly_summary']);
+});
+
+test('C6: the monthly price report uses the price guide for a commune the customer searches, 2 bedrooms first', async () => {
+  assert.deepStrictEqual(searchCommunes('commune=Gombe&communes=Limete,Gombe'), ['Gombe', 'Limete']);
+  const guides = [
+    { commune: 'Limete', beds: 1, slug: 'limete-1', median: 300, p25: 250, p75: 350, listings: 12 },
+    { commune: 'Limete', beds: 2, slug: 'limete-2', median: 450, p25: 400, p75: 500, listings: 9 },
+  ];
+  assert.equal(pickGuide(['Kintambo', 'Limete'], guides).slug, 'limete-2');
+  assert.equal(pickGuide(['Kintambo'], guides), null);
+  reset();
+  enqueue([{ customer_id: 5, query: 'commune=Limete' }]);
+  enqueue([]);
+  const { pushes, push } = pushRecorder();
+  const result = await runMonthlyMarket({ push, guides });
+  assert.equal(result.pushed, 1);
+  assert.deepStrictEqual([pushes[0].kind, pushes[0].url], ['monthly_market', '/combien-coute/limete-2']);
+  assert.match(pushes[0].body, /450 \$ \/ mois/);
+});
+
+test('C5: one new project per customer, in a commune they search, not told before', async () => {
+  reset();
+  enqueue([{ id: 4, slug: 'tour-gombe', name: 'Tour Gombe', commune: 'Gombe' }]);
+  enqueue([{ customer_id: 5, query: 'commune=Gombe' }, { customer_id: 6, query: 'commune=Limete' }]);
+  enqueue([]);
+  const { pushes, push } = pushRecorder();
+  const result = await runNewProjects({ push });
+  assert.equal(result.pushed, 1);
+  assert.deepStrictEqual([pushes[0].userId, pushes[0].url], [5, '/projets/tour-gombe']);
+});
+
+test('C4: a followed agency’s new listing is pushed; following goes through the session and a live agent', async () => {
+  reset();
+  enqueue([{ customer_id: 5, property_id: 77, title: 'Duplex', price: 1200, purpose: 'rent', price_period: 'mois' }]);
+  const { pushes, push } = pushRecorder();
+  await runFollowedAgentListings({ recentIds: [77], push });
+  assert.deepStrictEqual([pushes[0].kind, pushes[0].url], ['followed_agent_listing', '/listings/77']);
+  reset();
+  enqueue([{ agent_id: 3 }]);
+  assert.equal(await followAgent(5, 3), 'ok');
+  assert.match(calls[0].sql, /FROM agents a WHERE a\.id = \$2 AND a\.deleted_at IS NULL/);
+  const route = read('../../app/api/account/follows/route.js');
+  assert.match(route, /const customerId = await getCurrentCustomerId\(\);/);
+  const page = read('../../app/(portfolio)/agents/[id]/page.js');
+  assert.match(page, /<FollowAgentButton agentId=\{agent\.id\}/);
+  assert.equal(safeCustomerPath('/projets/tour-gombe'), '/projets/tour-gombe');
+  assert.equal(safeCustomerPath('/combien-coute/limete-2'), '/combien-coute/limete-2');
+});

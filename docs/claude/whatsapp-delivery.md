@@ -493,11 +493,47 @@ app-only for discovery alerts. Only customers with the app are read.
   Kinshasa (`SEARCH_CHECKUP=off`).
   - Each customer's oldest active search that has been saved for over 30 days.
   - Asked again only after 60 days.
-- **Still to build in phase 3:**
-  - C2: a price change on a listing the customer visited or enquired about.
-  - C9: the weekly summary.
-  - C6: the monthly price report.
-  - C5: new-project alerts.
-  - C4: following an agency.
+- The rest of phase 3 is below ("Standard portal alerts, second batch").
 - verify-pipeline §100; web `tests/unit/push-notifications.test.js`.
 
+### Standard portal alerts, second batch (2026-11-10, part 2 phase 3)
+
+**How they run.**
+- Web computes them (`lib/portalDigests.js`), for app users only: every query
+  reads customers with a live `push_devices` row.
+- Every send is a push through `pushToAccount`, never WhatsApp.
+- Repeats are stopped by the `notifications` rows the pushes write (kind +
+  `ref_id`), so there is no bookkeeping table.
+- The engine only calls web on time (`services/portalAlerts.js`,
+  `/api/cron/portal-alerts`, one `task` per call).
+
+| | Alert | Schedule | Notes |
+|---|---|---|---|
+| C2 | A price cut on a listing the customer visited or enquired about | job `portal-daily`, 12 h Kinshasa | See below |
+| C5 | A new project in a commune the customer searches | same job | Public projects under 14 days old; one per customer per run |
+| C9 | Weekly summary: new matches for their searches, unread messages | job `weekly-summary`, Sundays 18 h | Nothing on a quiet week; at most one per 6 days |
+| C6 | Monthly price report | job `monthly-market`, the 1st at 10 h | The price guide (`getPriceGuides`) for the first commune they search, 2 bedrooms first; opens `/combien-coute/<slug>`; at most once in 25 days |
+| C4 | New listing from a followed agency | rides on `instant-alerts` | See below |
+
+**C2, price cut on an enquired listing:**
+- The engine sends the wa_id × listing pairs from its SQLite: leads and
+  visit requests, last 60 days.
+- Same cut rule as the card badge.
+- Only a cut made after the interest counts.
+- Never a listing the customer saved: that one is the favourites' own
+  message.
+
+**C4, following an agency:**
+- **Button:** "Suivre" on `/agents/<id>` (`components/FollowAgentButton.js`).
+  A signed-out visitor gets a sign-in link that comes back to the page.
+- **Route:** `POST /api/account/follows` uses the session's customer and a
+  live agent, with a 100-follows cap.
+- **New table:** `customer_follows`, in the push migration.
+- **What is pushed:** listings published after the follow.
+
+**Kill switches:** `PORTAL_DAILY=off`, `WEEKLY_SUMMARY=off`, `MONTHLY_MARKET=off`.
+
+**Notifications can now open more pages:** `safeCustomerPath` and
+`alertTarget` allow `/projets`, `/combien-coute` and `/agents`.
+
+verify-pipeline §101; web `tests/unit/push-notifications.test.js`.

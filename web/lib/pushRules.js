@@ -79,9 +79,9 @@ export function safeAgentPath(url) {
   return text && text.startsWith('/compte/agent') ? text : '/compte/agent/alertes';
 }
 
-const CUSTOMER_PATH_PREFIXES = ['/compte/client', '/messages', '/listings'];
+const CUSTOMER_PATH_PREFIXES = ['/compte/client', '/messages', '/listings', '/projets', '/combien-coute', '/agents'];
 
-/** The same for a customer: their portal, their conversations, or a listing page. */
+/** The same for a customer: their portal, conversations, a listing, a project, the price guide or an agency. */
 export function safeCustomerPath(url) {
   const text = cleanPath(url);
   const ok = text && CUSTOMER_PATH_PREFIXES.some((prefix) => text === prefix || text.startsWith(`${prefix}/`) || text.startsWith(`${prefix}?`));

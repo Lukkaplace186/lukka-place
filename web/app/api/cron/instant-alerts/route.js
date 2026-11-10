@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import { getListings, getRecentListingIds } from '@/lib/listings';
 import { countInstantMatchesToday, getAppCustomerSearches, getNotifiedPropertyIds, recordNotifiedProperties } from '@/lib/searchAlerts';
 import { pushToAccount } from '@/lib/adminApi';
-import { runInstantMatchSweep } from '@/lib/instantMatchSweep';
+import { INSTANT_LOOKBACK_MINUTES, runInstantMatchSweep } from '@/lib/instantMatchSweep';
+import { runFollowedAgentListings } from '@/lib/portalDigests';
 
 /**
  * C1 — instant matches for customers with the Lukka Place app
@@ -39,5 +40,14 @@ export async function POST(request) {
   for (const { savedSearchId, error } of result.errors) {
     console.error(`[instant-alerts] saved search #${savedSearchId} failed: ${error}`);
   }
-  return NextResponse.json({ ok: true, ...result });
+  // C4: new listings from agencies the customer follows.
+  let followed = null;
+  try {
+    const recent = await getRecentListingIds({ since: new Date(Date.now() - INSTANT_LOOKBACK_MINUTES * 60 * 1000) });
+    followed = await runFollowedAgentListings({ recentIds: recent.map((l) => l.id), push: pushToAccount });
+  } catch (err) {
+    console.error(`[instant-alerts] followed agencies failed: ${err.message}`);
+    followed = { error: err.message };
+  }
+  return NextResponse.json({ ok: true, ...result, followed });
 }

@@ -16,6 +16,17 @@
  *       Kinshasa: a saved search active for 30+ days, asked once per 60 days.
  *
  * C8 (new photos on a saved listing) lives in services/favoriteStatus.js.
+ *
+ * The rest are computed by web (lib/portalDigests.js, /api/cron/portal-alerts),
+ * which owns saved searches, favourites, projects and the price guide; these
+ * jobs only call it on time:
+ *   C2 + C5  job `portal-daily`, 12 h Kinshasa: price cuts on listings the
+ *            customer visited or enquired about (this engine sends the
+ *            wa_id × listing pairs from its SQLite, last 60 days), then new
+ *            projects in the communes they search.
+ *   C9       job `weekly-summary`, Sundays 18 h.
+ *   C6       job `monthly-market`, the 1st of the month, 10 h.
+ * C4 (new listings from a followed agency) rides on `instant-alerts`.
  */
 
 const postgres = require('./postgres');
@@ -167,7 +178,113 @@ function checkupDue(now = new Date()) {
 
 const searchCheckupJob = { name: CHECKUP_JOB, shouldRun: checkupDue, run: () => runSearchCheckup() };
 
+// ---------------------------------------------------------------------------
+// C2 / C5 / C9 / C6 — scheduled calls to web
+// ---------------------------------------------------------------------------
+
+const ENQUIRED_LOOKBACK_DAYS = 60;
+
+async function callPortalTask(task, extra = {}, { fetchImpl = fetch } = {}) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) throw new Error('CRON_SECRET is not set — the portal-alerts endpoint would reject this call');
+  const response = await fetchImpl(`${webBaseUrl()}/api/cron/portal-alerts`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task, ...extra }),
+    signal: AbortSignal.timeout(2 * 60 * 1000),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.ok === false) throw new Error(`${task} returned ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
+  return body;
+}
+
+/** SQLite's 'YYYY-MM-DD HH:MM:SS' (UTC) or an ISO string → ISO. */
+function isoOf(value) {
+  const text = String(value || '');
+  const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text) ? `${text.replace(' ', 'T')}Z` : text;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+/**
+ * Every listing a customer showed interest in over the last 60 days — an
+ * enquiry about it or a visit request — with when, so web only counts a cut
+ * made after that. At most 5000 pairs, newest first.
+ */
+function enquiredPairs(now = new Date()) {
+  // eslint-disable-next-line global-require
+  const { db } = require('./db');
+  const since = new Date(now.getTime() - ENQUIRED_LOOKBACK_DAYS * 86_400_000);
+  const sinceSql = since.toISOString().replace('T', ' ').slice(0, 19);
+  const rows = db
+    .prepare(
+      `SELECT wa_id, property_id, created_at FROM leads
+        WHERE property_id IS NOT NULL AND wa_id IS NOT NULL AND created_at > ?
+       UNION ALL
+       SELECT l.wa_id, v.property_id, v.created_at FROM viewing_requests v JOIN leads l ON l.id = v.lead_id
+        WHERE v.property_id IS NOT NULL AND v.created_at > ?
+       ORDER BY created_at DESC
+       LIMIT 5000`,
+    )
+    // Both tables stamp created_at with SQLite's CURRENT_TIMESTAMP shape.
+    .all(sinceSql, sinceSql);
+  const seen = new Set();
+  const pairs = [];
+  for (const row of rows) {
+    const waId = String(row.wa_id || '').replace(/\D/g, '');
+    const key = `${waId}:${row.property_id}`;
+    const at = isoOf(row.created_at);
+    if (!waId || !at || seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ waId, propertyId: Number(row.property_id), since: at });
+  }
+  return pairs;
+}
+
+async function runPortalDaily({ fetchImpl = fetch, now = new Date() } = {}) {
+  const pairs = enquiredPairs(now);
+  const drops = await callPortalTask('enquired-price-drops', { pairs }, { fetchImpl });
+  const projects = await callPortalTask('new-projects', {}, { fetchImpl });
+  return { pairs: pairs.length, dropsPushed: drops.pushed || 0, projectsPushed: projects.pushed || 0 };
+}
+
+/** Once a day (20 h gap) at a Kinshasa hour, optionally on a weekday / day of month. */
+function dueAt(name, { hour, weekday = null, monthDay = null, gapMs = 20 * 3600 * 1000, flag }, now = new Date()) {
+  if (off(flag) || !process.env.CRON_SECRET) return false;
+  if (now.getUTCHours() !== (hour + 23) % 24) return false;
+  const kinshasa = new Date(now.getTime() + 3600 * 1000);
+  if (weekday != null && kinshasa.getUTCDay() !== weekday) return false;
+  if (monthDay != null && kinshasa.getUTCDate() !== monthDay) return false;
+  // eslint-disable-next-line global-require
+  const last = require('./db').getLastJobRun(name);
+  if (!last?.succeeded_at) return true;
+  return Date.now() - new Date(last.succeeded_at).getTime() >= gapMs;
+}
+
+const portalDailyJob = {
+  name: 'portal-daily',
+  shouldRun: (now) => dueAt('portal-daily', { hour: 12, flag: 'PORTAL_DAILY' }, now),
+  run: () => runPortalDaily(),
+};
+const weeklySummaryJob = {
+  name: 'weekly-summary',
+  shouldRun: (now) => dueAt('weekly-summary', { hour: 18, weekday: 0, gapMs: 6 * 86_400_000, flag: 'WEEKLY_SUMMARY' }, now),
+  run: () => callPortalTask('weekly-summary'),
+};
+const monthlyMarketJob = {
+  name: 'monthly-market',
+  shouldRun: (now) => dueAt('monthly-market', { hour: 10, monthDay: 1, gapMs: 20 * 86_400_000, flag: 'MONTHLY_MARKET' }, now),
+  run: () => callPortalTask('monthly-market'),
+};
+
 module.exports = {
+  portalDailyJob,
+  weeklySummaryJob,
+  monthlyMarketJob,
+  runPortalDaily,
+  callPortalTask,
+  enquiredPairs,
+  dueAt,
   instantAlertsJob,
   runInstantAlerts,
   suggestSimilar,

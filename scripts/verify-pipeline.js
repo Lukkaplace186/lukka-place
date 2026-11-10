@@ -7153,7 +7153,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'portal-daily', 'weekly-summary', 'monthly-market', 'sqlite-backup',
     ]);
   });
 
@@ -17342,6 +17342,75 @@ console.log('\n2. services/openai.js');
       const names = require('../services/scheduler').JOBS.map((j) => j.name);
       for (const name of ['instant-alerts', 'search-checkup']) assert.ok(names.indexOf(name) > -1 && names.indexOf(name) < names.indexOf('sqlite-backup'), name);
       assert.match(fs.readFileSync(path.join(__dirname, '..', 'services/visitReceipt.js'), 'utf8'), /suggestSimilar\(\{[\s\S]{0,200}reason: 'after_visit'/);
+    });
+  }
+
+  // §101 Scheduled portal alerts: enquired-listing price cuts, new projects, weekly summary, monthly prices (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§101 Scheduled portal alerts — the engine sends web the listings customers asked about, and calls each task on time');
+  {
+    const portal101 = require('../services/portalAlerts');
+
+    check('the listings each customer showed interest in: enquiries and visit requests of the last 60 days, one per number × listing', () => {
+      const lead = dbService.createLead({ wa_id: '243906510101', name: 'Client 101', property_id: 10101 });
+      const visitLead = dbService.createLead({ wa_id: '243906510102', name: 'Client 102' });
+      dbService.createViewingRequest({ leadId: visitLead.id, propertyId: 10102, requestedTime: 'demain' });
+      dbService.createViewingRequest({ leadId: visitLead.id, propertyId: 10102, requestedTime: 'samedi' });
+      const old = dbService.createLead({ wa_id: '243906510103', name: 'Old', property_id: 10103 });
+      dbService.db.prepare('UPDATE leads SET created_at = ? WHERE id = ?').run('2025-01-01 10:00:00', old.id);
+      const pairs = portal101.enquiredPairs(new Date());
+      const mine = pairs.filter((p) => p.waId.startsWith('2439065101'));
+      assert.deepStrictEqual(mine.map((p) => `${p.waId}:${p.propertyId}`).sort(), ['243906510101:10101', '243906510102:10102']);
+      assert.ok(mine.every((p) => /T.*Z$/.test(p.since)), 'ISO times for web');
+      assert.ok(lead.id);
+    });
+
+    await checkAsync('portal-daily asks web for enquired-listing price cuts (with the pairs), then new projects; the cron secret is required', async () => {
+      const savedSecret = process.env.CRON_SECRET;
+      try {
+        delete process.env.CRON_SECRET;
+        await assert.rejects(() => portal101.callPortalTask('weekly-summary', {}, { fetchImpl: async () => ({}) }), /CRON_SECRET/);
+        process.env.CRON_SECRET = 'secret-101';
+        const calls = [];
+        const out = await portal101.runPortalDaily({
+          fetchImpl: async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ ok: true, pushed: 1 }) }; },
+        });
+        assert.deepStrictEqual(calls.map((c) => c.task), ['enquired-price-drops', 'new-projects']);
+        assert.ok(Array.isArray(calls[0].pairs) && calls[0].pairs.length >= 2);
+        assert.deepStrictEqual([out.dropsPushed, out.projectsPushed], [1, 1]);
+        await assert.rejects(
+          () => portal101.callPortalTask('weekly-summary', {}, { fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({ ok: false }) }) }),
+          /weekly-summary returned 500/,
+        );
+      } finally {
+        if (savedSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = savedSecret;
+      }
+    });
+
+    check('timing: daily at 12 h, the summary on Sundays at 18 h, the price report on the 1st at 10 h (Kinshasa); each can be switched off', () => {
+      const savedSecret = process.env.CRON_SECRET;
+      process.env.CRON_SECRET = 'secret-101';
+      try {
+        // 2026-11-15 is a Sunday; 17:00 UTC = 18 h Kinshasa.
+        assert.strictEqual(portal101.dueAt('t-weekly-101', { hour: 18, weekday: 0, flag: 'WEEKLY_SUMMARY' }, new Date('2026-11-15T17:00:00Z')), true);
+        assert.strictEqual(portal101.dueAt('t-weekly-101', { hour: 18, weekday: 0, flag: 'WEEKLY_SUMMARY' }, new Date('2026-11-14T17:00:00Z')), false, 'Saturday');
+        assert.strictEqual(portal101.dueAt('t-month-101', { hour: 10, monthDay: 1, flag: 'MONTHLY_MARKET' }, new Date('2026-12-01T09:00:00Z')), true);
+        assert.strictEqual(portal101.dueAt('t-month-101', { hour: 10, monthDay: 1, flag: 'MONTHLY_MARKET' }, new Date('2026-12-02T09:00:00Z')), false);
+        assert.strictEqual(portal101.dueAt('t-daily-101', { hour: 12, flag: 'PORTAL_DAILY' }, new Date('2026-12-02T11:00:00Z')), true);
+        process.env.PORTAL_DAILY = 'off';
+        assert.strictEqual(portal101.dueAt('t-daily-101', { hour: 12, flag: 'PORTAL_DAILY' }, new Date('2026-12-02T11:00:00Z')), false);
+      } finally {
+        delete process.env.PORTAL_DAILY;
+        if (savedSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = savedSecret;
+      }
+    });
+
+    check('the three portal jobs are registered before the backup; the follow table is in the migration', () => {
+      const names = require('../services/scheduler').JOBS.map((j) => j.name);
+      for (const name of ['portal-daily', 'weekly-summary', 'monthly-market']) {
+        assert.ok(names.indexOf(name) > -1 && names.indexOf(name) < names.indexOf('sqlite-backup'), name);
+      }
+      assert.match(fs.readFileSync(path.join(__dirname, '..', 'migrations/20261110_push_notifications.sql'), 'utf8'), /CREATE TABLE IF NOT EXISTS customer_follows/);
     });
   }
 

@@ -4089,6 +4089,13 @@
       "notFound": "Cette demande est introuvable.",
       "failed": "Votre réponse n’a pas pu être enregistrée. Réessayez dans un instant.",
       "back": "Voir mes demandes"
+    },
+    "follow": {
+      "follow": "Suivre",
+      "following": "Suivie",
+      "hintOff": "Recevez ses nouvelles annonces dans l’application Lukka Place.",
+      "hintOn": "Vous recevrez ses nouvelles annonces dans l’application.",
+      "failed": "Impossible pour le moment. Réessayez dans un instant."
     }
   },
   "admin": {

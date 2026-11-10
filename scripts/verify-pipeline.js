@@ -16459,8 +16459,10 @@ console.log('\n2. services/openai.js');
     log96.run('in', '243800000096', 'text', 'Je contacte parce que j’ai vu cette annonce', null, '2026-11-10T10:07:34.268Z');
     log96.run('in', '243800000096', 'text', 'Un message de la veille', null, '2026-11-09T09:00:00.000Z');
     log96.run('in', '243899999999', 'text', 'Quelqu’un d’autre', null, '2026-11-10T10:05:00.000Z');
+    // A tap on one of our alert buttons is not the listing (#813: "❌ Aucun appel").
+    log96.run('in', '243800000096', 'button', '❌ Aucun appel', null, '2026-11-10T10:00:00.000Z');
 
-    check('only the sender\'s inbound messages around the draft, oldest first; replies and other days left out', () => {
+    check('only the sender\'s inbound messages around the draft, oldest first; our replies, button taps and other days left out', () => {
       const out = source96.getListingSources([806], mem96);
       assert.strictEqual(out[806].channel, 'whatsapp');
       assert.deepStrictEqual(out[806].messages.map((m) => [m.kind, m.body, m.mediaCount]), [

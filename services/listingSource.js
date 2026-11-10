@@ -20,6 +20,13 @@ const MAX_MESSAGES = 12;
 const MAX_IDS = 100;
 const MAX_BODY = 2000;
 
+/**
+ * Taps on our own buttons ("❌ Aucun appel", "Je m'en occupe") answer an alert;
+ * they are not what the agent wrote about the property (2026-11-10: #813's
+ * first line was a check-in tap sent eight minutes before the listing).
+ */
+const NOT_LISTING_KINDS = new Set(['button', 'interactive']);
+
 /** SQLite's "2026-11-10 10:06:08" (UTC) and ISO strings alike. */
 function toMs(value) {
   if (!value) return NaN;
@@ -57,6 +64,7 @@ function sourceFor(propertyId, handle = db.db) {
       .all(listing.wa_id);
     messages = rows
       .filter((row) => {
+        if (NOT_LISTING_KINDS.has(row.kind)) return false;
         const at = toMs(row.created_at);
         return Number.isFinite(at) && at >= created - WINDOW_BEFORE_MS && at <= created + WINDOW_AFTER_MS;
       })

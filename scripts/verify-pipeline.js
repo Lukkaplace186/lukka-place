@@ -7153,7 +7153,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'sqlite-backup',
     ]);
   });
 
@@ -17141,6 +17141,130 @@ console.log('\n2. services/openai.js');
       assert.match(src('services/projectEnquiry.js'), /notifyProjectEnquiry\(/);
       assert.match(src('migrations/20261110_push_notifications.sql'), /CREATE TABLE IF NOT EXISTS favorite_status_notices/);
     });
+  }
+
+  // §99 The 24 h "Un agent vous a-t-il contacté ?" follow-up (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§99 24 h follow-up — asked once, one per customer a day, three answers: contacted / relaunch / closed');
+  {
+    const follow99 = require('../services/requestFollowup');
+    const window99 = require('../services/sessionWindow');
+    const chakra99 = require('../services/chakra');
+    const desk99 = require('../services/deskAlert');
+    const sqlTime = (d) => d.toISOString().replace('T', ' ').slice(0, 19);
+
+    check('typed answers: 1 / 2 / 3 and the words; a bare "non" or anything else is not an answer', () => {
+      assert.strictEqual(follow99.parseFollowupText('1'), 'YES');
+      assert.strictEqual(follow99.parseFollowupText('Oui'), 'YES');
+      assert.strictEqual(follow99.parseFollowupText('Pas encore'), 'NOT_YET');
+      assert.strictEqual(follow99.parseFollowupText('2'), 'NOT_YET');
+      assert.strictEqual(follow99.parseFollowupText('Je ne cherche plus'), 'NO_LONGER');
+      assert.strictEqual(follow99.parseFollowupText('3'), 'NO_LONGER');
+      assert.strictEqual(follow99.parseFollowupText('non'), null);
+      assert.strictEqual(follow99.parseFollowupText('Appartement à louer Gombe 2 chambres'), null);
+      assert.deepStrictEqual(follow99.parseFollowupButtonId('suivi:42:wait'), { leadId: 42, answer: 'NOT_YET' });
+      assert.strictEqual(follow99.parseFollowupButtonId('checkin:42:good'), null);
+      assert.match(follow99.questionText({ name: 'Marie Kabila', requirements_summary: 'Appartement 2 chambres à Gombe' }), /Bonjour Marie[\s\S]*1\. Oui[\s\S]*2\. Pas encore[\s\S]*3\. Je ne cherche plus/);
+    });
+
+    const now99 = new Date();
+    const makeLead = (waId, { hoursAgo = 30, source = 'listing-whatsapp-enquiry', agent = true } = {}) => {
+      const lead = dbService.createLead({ wa_id: waId, name: 'Client 99', source, requirements_summary: 'Studio à Lingwala' });
+      if (agent) dbService.assignLead(lead.id, { agentId: 9901, assignedAgent: 'Agence 99' });
+      dbService.db.prepare('UPDATE leads SET created_at = ? WHERE id = ?').run(sqlTime(new Date(now99.getTime() - hoursAgo * 3600 * 1000)), lead.id);
+      return dbService.getLead(lead.id);
+    };
+
+    const savedSend99 = chakra99.sendWhatsAppMessage;
+    const savedDesk99 = desk99.sendDeskAlert;
+    const savedOps99 = process.env.OPS_WHATSAPP_NUMBER;
+    const sent99 = [];
+    const desk99Sent = [];
+    chakra99.sendWhatsAppMessage = async (to, text) => { sent99.push({ to, text }); return {}; };
+    desk99.sendDeskAlert = async (to, text) => { desk99Sent.push({ to, text }); return 'session'; };
+    try {
+      let inWindow;
+      let outOfWindow;
+      let sameCustomer;
+      await checkAsync('who is asked: 24–72 h old, an agent attached, not a visit; no app → text only inside the 24 h window; one per customer a day; once', async () => {
+        inWindow = makeLead('243906509901');
+        outOfWindow = makeLead('243906509902');
+        sameCustomer = makeLead('243906509901', { hoursAgo: 40 });
+        const tooRecent = makeLead('243906509903', { hoursAgo: 5 });
+        const visit = makeLead('243906509904', { source: 'listing-visit-request' });
+        const noAgent = makeLead('243906509905', { agent: false });
+        window99.recordInbound('243906509901', now99);
+        const first = await follow99.runRequestFollowups(now99, { hours: [0, 24] });
+        assert.ok(first.asked >= 1 && first.deferred >= 1, JSON.stringify(first));
+        assert.deepStrictEqual(sent99.map((m) => m.to), ['243906509901'], 'only the customer inside the window got the text');
+        assert.match(sent99[0].text, /Un agent vous a-t-il contacté \?/);
+        assert.strictEqual(dbService.getLead(outOfWindow.id).contact_followup_channel, 'none');
+        for (const lead of [tooRecent, visit, noAgent]) assert.strictEqual(dbService.getLead(lead.id).contact_followup_sent_at, null, `lead #${lead.id}`);
+        const askedOfTwo = [inWindow, sameCustomer].filter((l) => dbService.getLead(l.id).contact_followup_sent_at).length;
+        assert.strictEqual(askedOfTwo, 1, 'one question per customer per day');
+        sent99.length = 0;
+        const second = await follow99.runRequestFollowups(now99, { hours: [0, 24] });
+        assert.strictEqual(sent99.length, 0, 'never asked twice');
+        assert.ok(second.deferred >= 1, 'the second request waits for tomorrow');
+        assert.strictEqual((await follow99.runRequestFollowups(new Date('2026-11-12T22:00:00Z'))).quiet, true, 'not at 23 h Kinshasa');
+      });
+
+      await checkAsync('a typed "1" answers the open question: contacted, thanked; a text with no open question falls through', async () => {
+        const asked = [inWindow, sameCustomer].find((l) => dbService.getLead(l.id).contact_followup_sent_at);
+        sent99.length = 0;
+        const out = await follow99.handleFollowupTextReply({ from: '243906509901', text: '1' });
+        assert.deepStrictEqual([out.handled, out.answer], [true, 'YES']);
+        const row = dbService.getLead(asked.id);
+        assert.deepStrictEqual([row.contact_followup_answer, row.status, row.contact_followup_answer_via], ['YES', 'CONTACTED', 'whatsapp-text']);
+        assert.match(sent99[0].text, /Merci/);
+        assert.strictEqual((await follow99.handleFollowupTextReply({ from: '243906509901', text: '2' })).handled, false, 'answered: the next "2" is not taken');
+        assert.strictEqual((await follow99.handleFollowupTextReply({ from: '243906509999', text: '1' })).handled, false);
+      });
+
+      await checkAsync('"Pas encore" alerts the desk and relaunches; "Je ne cherche plus" closes; only the request’s own number may answer, once', async () => {
+        process.env.OPS_WHATSAPP_NUMBER = '243906509990';
+        const lead = makeLead('243906509906');
+        assert.strictEqual((await follow99.recordAnswer({ leadId: lead.id, answer: 'NOT_YET', waIds: ['243900000000'], channel: 'web' })).reason, 'unknown-request');
+        const wait = await follow99.recordAnswer({ leadId: lead.id, answer: 'NOT_YET', waIds: ['243906509906'], channel: 'web' });
+        assert.strictEqual(wait.ok, true);
+        assert.strictEqual(desk99Sent.length, 1);
+        assert.match(desk99Sent[0].text, /Pas encore/);
+        const again = await follow99.recordAnswer({ leadId: lead.id, answer: 'YES', waIds: ['243906509906'], channel: 'web' });
+        assert.deepStrictEqual([again.unchanged, again.answer], [true, 'NOT_YET'], 'the first answer stands');
+        const closed = makeLead('243906509907');
+        await follow99.recordAnswer({ leadId: closed.id, answer: 'NO_LONGER', waIds: ['243906509907'], channel: 'web' });
+        assert.strictEqual(dbService.getLead(closed.id).status, 'LOST');
+        assert.strictEqual((await follow99.recordAnswer({ leadId: closed.id, answer: 'MAYBE', waIds: ['243906509907'] })).reason, 'invalid-answer');
+      });
+
+      await checkAsync('the template quick reply carries the request id and is honoured only from its own number', async () => {
+        const lead = makeLead('243906509908');
+        const stranger = await follow99.handleFollowupButtonReply({ from: '243906509999', replyId: `suivi:${lead.id}:yes` });
+        assert.deepStrictEqual([stranger.handled, stranger.ok], [true, false]);
+        const own = await follow99.handleFollowupButtonReply({ from: '243906509908', replyId: `suivi:${lead.id}:stop` });
+        assert.deepStrictEqual([own.ok, dbService.getLead(lead.id).status], [true, 'LOST']);
+      });
+
+      await checkAsync('POST /admin/leads/:id/followup-answer: the customer’s numbers required, a stranger’s request is a 404', async () => {
+        const lead = makeLead('243906509909');
+        assert.strictEqual((await adminRequest('POST', `/admin/leads/${lead.id}/followup-answer`, { answer: 'YES' })).status, 400);
+        assert.strictEqual((await adminRequest('POST', `/admin/leads/${lead.id}/followup-answer`, { answer: 'YES', wa_ids: ['243900000000'] })).status, 404);
+        const ok = await adminRequest('POST', `/admin/leads/${lead.id}/followup-answer`, { answer: 'YES', wa_ids: ['243906509909'] });
+        assert.deepStrictEqual([ok.status, ok.body.answer], [200, 'YES']);
+      });
+
+      check('the follow-up job is registered before the backup, and the webhook routes its answers', () => {
+        const names = require('../services/scheduler').JOBS.map((j) => j.name);
+        assert.ok(names.indexOf('request-followup') > -1 && names.indexOf('request-followup') < names.indexOf('sqlite-backup'));
+        const hook = fs.readFileSync(path.join(__dirname, '..', 'routes/webhook.js'), 'utf8');
+        assert.match(hook, /handleFollowupButtonReply\(\{ from, replyId: buttonReplyId \}\)/);
+        assert.match(hook, /handleFollowupTextReply\(\{ from, text, hasMedia/);
+      });
+    } finally {
+      chakra99.sendWhatsAppMessage = savedSend99;
+      desk99.sendDeskAlert = savedDesk99;
+      if (savedOps99 === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = savedOps99;
+    }
   }
 
   console.log(`\n${'-'.repeat(60)}`);

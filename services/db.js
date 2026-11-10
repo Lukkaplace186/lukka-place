@@ -1813,6 +1813,14 @@ const LEADS_EXTENDED_COLUMNS = [
   ['dispatch_closed_at', 'TEXT'],
   ['dispatch_desk_alerted_at', 'TEXT'],
   ['dispatch_desk_reason', 'TEXT'],
+  // The 24 h "Un agent vous a-t-il contacté ?" follow-up (services/requestFollowup.js,
+  // 2026-11-10): when it was asked and how (push | template | text | none),
+  // the answer (YES | NOT_YET | NO_LONGER), when, and from where.
+  ['contact_followup_sent_at', 'TEXT'],
+  ['contact_followup_channel', 'TEXT'],
+  ['contact_followup_answer', 'TEXT'],
+  ['contact_followup_answered_at', 'TEXT'],
+  ['contact_followup_answer_via', 'TEXT'],
 ];
 
 function migrateLeads() {

@@ -972,3 +972,17 @@ export async function sendToCustomerAppFirst(phone, text, { kind, title, body, u
   await sendWhatsAppMessage(phone, text);
   return { via: 'whatsapp' };
 }
+
+/**
+ * The customer's answer to the 24 h "Un agent vous a-t-il contacté ?" check
+ * (engine services/requestFollowup.js). `waIds` are the account's numbers;
+ * the engine refuses a request that is not one of theirs (404).
+ * @param {number} leadId
+ * @param {{answer: 'YES'|'NOT_YET'|'NO_LONGER', waIds: string[]}} input
+ */
+export async function answerRequestFollowup(leadId, { answer, waIds }) {
+  return engineFetch(`/admin/leads/${encodeURIComponent(leadId)}/followup-answer`, {
+    method: 'POST',
+    body: JSON.stringify({ answer, wa_ids: waIds }),
+  });
+}

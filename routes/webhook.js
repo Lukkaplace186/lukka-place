@@ -817,6 +817,17 @@ async function processGroup(messages) {
       return;
     }
     try {
+      // The 24 h "Un agent vous a-t-il contacté ?" quick replies
+      // (services/requestFollowup.js): `suivi:<lead>:yes|wait|stop`, honoured
+      // only from that request's own number.
+      // eslint-disable-next-line global-require
+      const followup = await require('../services/requestFollowup').handleFollowupButtonReply({ from, replyId: buttonReplyId });
+      if (followup.handled) return;
+    } catch (err) {
+      console.error(`[request-followup] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
       // "Rien n'a changé" on the per-agent request (services/agentStatusCheck.js).
       // The id names the request; the handler re-checks the sender is its
       // agent's verified number and that the request's link is still valid.
@@ -1129,6 +1140,16 @@ async function processGroup(messages) {
         if (feedback.handled) return;
       } catch (err) {
         console.error(`[checkin] typed reply from ${from} failed: ${err.message}`);
+      }
+      try {
+        // A typed "1"/"2"/"3" (or "oui", "pas encore") answering the 24 h
+        // follow-up — only while that question is open (48 h); anything else
+        // falls through, the same posture as the check-in above.
+        // eslint-disable-next-line global-require
+        const followup = await require('../services/requestFollowup').handleFollowupTextReply({ from, text, hasMedia: mediaRefs.length > 0 });
+        if (followup.handled) return;
+      } catch (err) {
+        console.error(`[request-followup] typed reply from ${from} failed: ${err.message}`);
       }
       try {
         // A typed answer to the availability check — "1", "oui", "700 $".

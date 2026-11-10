@@ -4074,6 +4074,21 @@
         "one": "{count} téléphone reçoit déjà vos notifications.",
         "other": "{count} téléphones reçoivent déjà vos notifications."
       }
+    },
+    "followup": {
+      "metaTitle": "Suivi de votre demande — Lukka Place",
+      "title": "Un agent vous a-t-il contacté ?",
+      "intro": "Nous avons transmis votre demande à un agent. Dites-nous où vous en êtes : si personne ne vous a appelé, nous le relançons.",
+      "searchIn": "Votre recherche à {commune}",
+      "yes": "Oui, c’est fait",
+      "notYet": "Pas encore",
+      "noLonger": "Je ne cherche plus",
+      "doneYes": "Merci ! Bonne suite dans votre recherche.",
+      "doneNotYet": "C’est noté : notre équipe relance l’agent et vous recontacte rapidement.",
+      "doneNoLonger": "C’est noté, nous avons clôturé votre demande. Merci d’avoir utilisé Lukka Place !",
+      "notFound": "Cette demande est introuvable.",
+      "failed": "Votre réponse n’a pas pu être enregistrée. Réessayez dans un instant.",
+      "back": "Voir mes demandes"
     }
   },
   "admin": {

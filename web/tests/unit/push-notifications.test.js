@@ -262,3 +262,13 @@ test('an agent proposing a listing tells the customer (app first), after the wri
   assert.match(notify, /const \{ lead \} = \(await getLead\(leadId\)\) \|\| \{\};/, 'the stored lead number, never the form');
   assert.match(notify, /kind: 'listing_proposed', category: 'requests'/);
 });
+
+test('the 24 h follow-up page: only the account’s own request, answered with the account’s numbers, never the form’s', () => {
+  const page = read('../../app/(site)/compte/client/suivi/[id]/page.js');
+  assert.match(page, /getAccountPhones\(session\.customerId, session\.customer\.phone\)/);
+  assert.match(page, /if \(!owned\) notFound\(\);/, 'someone else’s request reads as missing');
+  const action = read('../../app/(site)/compte/client/suivi/[id]/actions.js');
+  assert.match(action, /const waIds = await getAccountPhones\(session\.customerId, session\.customer\.phone\);/);
+  assert.match(action, /new Set\(\['YES', 'NOT_YET', 'NO_LONGER'\]\)/);
+  assert.equal(safeCustomerPath('/compte/client/suivi/42'), '/compte/client/suivi/42', 'the push may open it');
+});

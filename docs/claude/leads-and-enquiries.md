@@ -525,3 +525,55 @@ proposal of an own listing — so 0 % was built in.
   (idempotent ALTER lists). "Relancer la diffusion" sends the next wave now and
   reopens a request closed for lack of agencies. verify-pipeline §94 (and
   §16 / §92 updated).
+
+## The 24 h follow-up: "Un agent vous a-t-il contacté ?" (2026-11-10)
+
+Owner decision 2026-11-09, built with the app (customer alert B6).
+`services/requestFollowup.js`, job `request-followup` (every 10 min, 9–19 h
+Kinshasa).
+
+**Who is asked:**
+- A request 24–72 h old, still `NEW` / `CONTACTED` / `QUALIFIED`, with an
+  agent attached (`agent_id` or `assigned_agent`).
+- Not visit requests (their own loop), desk introductions or admin requests.
+- Once per request: `contact_followup_sent_at` is claimed before the send.
+- At most one question per customer per day; a second request waits.
+
+**How it is sent:**
+1. **App:** a push opening `/compte/client/suivi/<id>`, where the three
+   answers are buttons.
+2. **Else WhatsApp, template:** `SUIVI_DEMANDE_TEMPLATE`
+   (`suivi_demande_client`, three quick replies with payloads
+   `suivi:<id>:yes|wait|stop`).
+3. **Else WhatsApp, text:** a numbered text, only to a customer inside the
+   24 h window. Outside it nothing is sent, and the channel is recorded as
+   `none`.
+
+Template to submit: UTILITY, fr, intake account. Body: "Bonjour, nous avons
+transmis votre demande à un agent : {{1}}. Un agent vous a-t-il contacté ?".
+Quick replies in this order: "Oui, c'est fait" / "Pas encore" / "Je ne
+cherche plus".
+
+**The three answers:**
+
+| Answer | Effect |
+|---|---|
+| `YES` | The request becomes `CONTACTED` if it was `NEW` |
+| `NOT_YET` | The desk is alerted. The agent is relaunched: a directed enquiry re-sends the agent alert; an open request gets its next wave (`dispatchNextWave`) |
+| `NO_LONGER` | The request is closed (`LOST`) |
+
+- Recorded once on the lead: `contact_followup_answer`, `_answered_at`, and
+  `_answer_via`. The first answer stands.
+- A WhatsApp answer is thanked on WhatsApp.
+
+**Where answers come from:**
+- **Template buttons and typed text:** `routes/webhook.js`, after the
+  check-in handlers.
+  - The answer is honoured only from the request's own number.
+  - A typed answer counts only while a WhatsApp question is open (48 h).
+  - A bare "non" is not read as "Pas encore": it answers too many other
+    things.
+- **Web:** `POST /admin/leads/:id/followup-answer` with the account's numbers.
+
+`REQUEST_FOLLOWUP=off` stops the job; answers already sent are still handled.
+verify-pipeline §99; web `tests/unit/push-notifications.test.js`.

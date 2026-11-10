@@ -461,9 +461,7 @@ stored number. Category `requests`.
 - App only, category `saved_listings`, at most 5 a customer per run.
 - `FAVORITE_STATUS=off`, `FAVORITE_STATUS_HOUR`.
 
-**Not built yet:** B6, the 24 h "Un agent vous a-t-il contacté ?" check
-with its three answers. It needs a page, the desk relaunch and template
-`suivi_demande_client`.
+**B6** is built: see "The 24 h follow-up" in docs/claude/leads-and-enquiries.md.
 
 verify-pipeline §98.
 

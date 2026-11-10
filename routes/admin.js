@@ -52,6 +52,7 @@ const { utcOffsetForCommune } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
 const pushNotify = require('../services/pushNotify');
 const customerAlerts = require('../services/customerAlerts');
+const requestFollowup = require('../services/requestFollowup');
 
 const router = express.Router();
 
@@ -754,6 +755,31 @@ router.post('/leads/:id/claim', async (req, res) => {
     return res.json({ success: out.ok, ...out });
   } catch (err) {
     console.error(`[admin] POST /leads/${leadId}/claim failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the answer.' });
+  }
+});
+
+/**
+ * The customer's answer to the 24 h follow-up from the Espace Client
+ * (web /compte/client/suivi/<id>): `{answer: YES|NOT_YET|NO_LONGER, wa_ids}`.
+ * `wa_ids` are the customer's account numbers (web reads them from the
+ * session); a request that is not theirs answers 404 like a missing one.
+ */
+router.post('/leads/:id/followup-answer', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const waIds = Array.isArray(req.body?.wa_ids) ? req.body.wa_ids.map((w) => String(w).replace(/\D/g, '')).filter((w) => /^\d{7,15}$/.test(w)).slice(0, 10) : [];
+  if (!Number.isFinite(id) || waIds.length === 0) {
+    return res.status(400).json({ success: false, error: 'a lead id and the customer’s wa_ids are required.' });
+  }
+  try {
+    const result = await requestFollowup.recordAnswer({ leadId: id, answer: req.body?.answer, waIds, channel: 'web' });
+    if (!result.ok) {
+      const status = result.reason === 'unknown-request' ? 404 : 400;
+      return res.status(status).json({ success: false, error: result.reason });
+    }
+    return res.json({ success: true, answer: result.answer, unchanged: Boolean(result.unchanged) });
+  } catch (err) {
+    console.error(`[admin] follow-up answer for lead #${id} failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not record the answer.' });
   }
 });

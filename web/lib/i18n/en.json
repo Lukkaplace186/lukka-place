@@ -4074,6 +4074,21 @@
         "one": "{count} phone already receives your notifications.",
         "other": "{count} phones already receive your notifications."
       }
+    },
+    "followup": {
+      "metaTitle": "Your Request — Lukka Place",
+      "title": "Has an Agent Contacted You?",
+      "intro": "We passed your request on to an agent. Tell us where things stand: if nobody has called you, we will chase them.",
+      "searchIn": "Your search in {commune}",
+      "yes": "Yes, they have",
+      "notYet": "Not yet",
+      "noLonger": "I’m no longer looking",
+      "doneYes": "Thank you! Good luck with your search.",
+      "doneNotYet": "Noted: our team is chasing the agent and will get back to you shortly.",
+      "doneNoLonger": "Noted, we have closed your request. Thank you for using Lukka Place!",
+      "notFound": "This request could not be found.",
+      "failed": "Your answer could not be saved. Please try again in a moment.",
+      "back": "See my requests"
     }
   },
   "admin": {

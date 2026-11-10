@@ -452,6 +452,16 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * The 24 h "Un agent vous a-t-il contacté ?" follow-up
+ * (services/requestFollowup.js): every 10 minutes, 9–19 h Kinshasa.
+ * REQUEST_FOLLOWUP=off stops asking (answers are still handled).
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./requestFollowup').requestFollowupJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

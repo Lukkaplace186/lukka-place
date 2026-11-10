@@ -272,3 +272,57 @@ test('the 24 h follow-up page: only the account’s own request, answered with t
   assert.match(action, /new Set\(\['YES', 'NOT_YET', 'NO_LONGER'\]\)/);
   assert.equal(safeCustomerPath('/compte/client/suivi/42'), '/compte/client/suivi/42', 'the push may open it');
 });
+
+// --- Phase 3: instant matches -------------------------------------------------
+
+import { MAX_PER_DAY, runInstantMatchSweep } from '@/lib/instantMatchSweep';
+import { getAppCustomerSearches } from '@/lib/searchAlerts';
+
+function instantDeps(over = {}) {
+  const recorded = [];
+  const pushes = [];
+  const deps = {
+    getRecentListings: async () => [{ id: 501, publishedAt: new Date('2026-11-12T10:00:00Z') }],
+    getAppSearches: async () => [{ id: 9, customer_id: 31, query: 'commune=Gombe', label: 'Gombe', created_at: '2026-11-01T00:00:00Z' }],
+    getListings: async () => ({ data: [{ id: 501, title: 'Studio Gombe', price: 500, purpose: 'rent', price_period: 'mois' }] }),
+    getNotified: async () => new Set(),
+    countToday: async () => 0,
+    push: async (alert) => { pushes.push(alert); return { pushed: true }; },
+    recordNotified: async (id, ids) => recorded.push({ id, ids }),
+    ...over,
+  };
+  return { deps, recorded, pushes };
+}
+
+test('instant match: a new listing matching an app user’s search is pushed once and recorded, so the daily alert skips it', async () => {
+  const { deps, recorded, pushes } = instantDeps();
+  const result = await runInstantMatchSweep({ now: new Date('2026-11-12T10:05:00Z'), deps });
+  assert.equal(result.pushed, 1);
+  assert.deepStrictEqual([pushes[0].kind, pushes[0].category, pushes[0].url, pushes[0].userId], ['instant_match', 'search_alerts', '/listings/501', 31]);
+  assert.deepStrictEqual(recorded, [{ id: 9, ids: [501] }]);
+});
+
+test('instant match: not pushed → nothing recorded (the daily WhatsApp alert still carries it); capped per day; never a widened result', async () => {
+  const notPushed = instantDeps({ push: async () => ({ pushed: false }) });
+  await runInstantMatchSweep({ deps: notPushed.deps });
+  assert.equal(notPushed.recorded.length, 0);
+  const capped = instantDeps({ countToday: async () => MAX_PER_DAY });
+  const r = await runInstantMatchSweep({ deps: capped.deps });
+  assert.deepStrictEqual([r.capped, capped.pushes.length], [1, 0]);
+  const relaxed = instantDeps({ getListings: async () => ({ data: [{ id: 501 }], locationRelaxed: true }) });
+  await runInstantMatchSweep({ deps: relaxed.deps });
+  assert.equal(relaxed.pushes.length, 0);
+  const older = instantDeps({ getAppSearches: async () => [{ id: 9, customer_id: 31, query: '', label: 'x', created_at: '2026-11-12T11:00:00Z' }] });
+  await runInstantMatchSweep({ now: new Date('2026-11-12T11:05:00Z'), deps: older.deps });
+  assert.equal(older.pushes.length, 0, 'a listing published before the search was saved is not new to it');
+});
+
+test('instant match: only app users’ searches (a live device), switched-off searches excluded, WhatsApp opt-out irrelevant', async () => {
+  reset();
+  await getAppCustomerSearches();
+  const { sql } = calls[0];
+  assert.match(sql, /FROM push_devices d\s+WHERE d\.user_type = 'customer' AND d\.user_id = css\.customer_id AND d\.revoked_at IS NULL/);
+  assert.match(sql, /<> 'off'/);
+  assert.doesNotMatch(sql, /whatsapp_alerts_opted_out_at/);
+  assert.match(read('../../app/api/cron/instant-alerts/route.js'), /if \(!isAuthorized\(request\)\)/);
+});

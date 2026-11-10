@@ -465,3 +465,39 @@ stored number. Category `requests`.
 
 verify-pipeline §98.
 
+### Standard portal alerts, first batch (2026-11-10, part 2 phase 3)
+
+App only, never WhatsApp: no template covers them, and the owner chose
+app-only for discovery alerts. Only customers with the app are read.
+
+- **C1, instant match.** Engine job `instant-alerts` runs at minutes 5, 15,
+  25 and so on (`INSTANT_ALERTS=off`). It calls web's `/api/cron/instant-alerts`
+  (`lib/instantMatchSweep.js`).
+  - Same rules as the daily sweep: only listings published after the search
+    was saved, never a widened result, nothing already notified.
+  - Only searches of customers with a live device; the WhatsApp opt-out does
+    not apply.
+  - At most 3 a customer per 24 h.
+  - A pushed listing is recorded in `saved_search_notifications`, so the
+    daily alert skips it. A push that did not go records nothing, so the
+    daily alert still carries it.
+- **C3, similar listings** (`portalAlerts.similarListingsPath`): a
+  `/listings` search on the same commune and type of deal, up to 30 % above
+  the price.
+  - Pushed after a visit took place (`visitReceipt`). `SIMILAR_SUGGESTIONS=off`.
+  - The "let / sold" notice for a saved listing opens it too.
+- **C8, new photos** (`favoriteStatus`): a saved listing still on the market
+  with more photos than when last told. Uses the new column
+  `favorite_status_notices.photo_count`.
+- **C7, "Toujours en recherche ?"**: job `search-checkup`, Mondays 10 h
+  Kinshasa (`SEARCH_CHECKUP=off`).
+  - Each customer's oldest active search that has been saved for over 30 days.
+  - Asked again only after 60 days.
+- **Still to build in phase 3:**
+  - C2: a price change on a listing the customer visited or enquired about.
+  - C9: the weekly summary.
+  - C6: the monthly price report.
+  - C5: new-project alerts.
+  - C4: following an agency.
+- verify-pipeline §100; web `tests/unit/push-notifications.test.js`.
+

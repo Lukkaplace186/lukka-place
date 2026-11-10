@@ -462,6 +462,18 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * Standard portal alerts for app users (services/portalAlerts.js): instant
+ * matches every 10 minutes (web does the matching), and "Toujours en
+ * recherche ?" on Mondays. INSTANT_ALERTS=off / SEARCH_CHECKUP=off.
+ */
+{
+  // eslint-disable-next-line global-require
+  const portal = require('./portalAlerts');
+  registerJob(portal.instantAlertsJob);
+  registerJob(portal.searchCheckupJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

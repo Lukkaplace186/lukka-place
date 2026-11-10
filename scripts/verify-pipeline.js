@@ -7153,7 +7153,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'sqlite-backup',
     ]);
   });
 
@@ -17114,7 +17114,7 @@ console.log('\n2. services/openai.js');
       ];
       const pool = {
         query: async (sql, params) => {
-          if (/^\s*SELECT cf\.customer_id/.test(sql)) return { rows };
+          if (/FROM customer_favorites cf/.test(sql)) return { rows };
           upserts.push(params);
           return { rows: [] };
         },
@@ -17265,6 +17265,84 @@ console.log('\n2. services/openai.js');
       desk99.sendDeskAlert = savedDesk99;
       if (savedOps99 === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = savedOps99;
     }
+  }
+
+  // §100 Standard portal alerts for app users: instant match, similar listings, new photos, "Toujours en recherche ?" (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§100 Portal alerts for app users — instant match, similar listings, new photos, "Toujours en recherche ?"');
+  {
+    const portal100 = require('../services/portalAlerts');
+    const fav100 = require('../services/favoriteStatus');
+    const push100 = require('../services/pushNotify');
+
+    check('similar listings: same commune, same kind of deal, up to 30 % above the price; nothing without a commune', () => {
+      assert.strictEqual(portal100.similarListingsPath({ commune: 'Gombe', purpose: 'rent', price: 1000 }), '/listings?commune=Gombe&transaction_type=location&price_max=1300');
+      assert.strictEqual(portal100.similarListingsPath({ commune: 'Ngaliema', purpose: 'sale' }), '/listings?commune=Ngaliema&transaction_type=vente');
+      assert.strictEqual(portal100.similarListingsPath({ purpose: 'rent', price: 500 }), null);
+    });
+
+    await checkAsync('after a visit: comparable listings pushed to the customer’s app (category suggestions), never WhatsApp', async () => {
+      const saved = push100.pushOnly;
+      const pushed = [];
+      push100.pushOnly = async (p) => { pushed.push(p); return { pushed: true }; };
+      try {
+        await portal100.suggestSimilar({ phone: '243906510000', listing: { commune: 'Limete', purpose: 'rent', price: 400 }, reason: 'after_visit', refId: 3 });
+        assert.deepStrictEqual([pushed[0].userType, pushed[0].category, pushed[0].kind], ['customer', 'suggestions', 'similar_listings']);
+        assert.match(pushed[0].url, /^\/listings\?commune=Limete/);
+        assert.strictEqual((await portal100.suggestSimilar({ phone: '243906510000', listing: {}, reason: 'after_visit' })).pushed, false);
+        assert.strictEqual(pushed.length, 1, 'no commune, no suggestion');
+      } finally {
+        push100.pushOnly = saved;
+      }
+    });
+
+    check('saved listings: more photos on a listing still on the market is "Nouvelles photos"; a let one opens similar listings', () => {
+      const photos = fav100.noticeFor({ property_id: 5, state: 'active', told_state: 'active', photo_count: 8, told_photo_count: 4, title: 'Villa' });
+      assert.deepStrictEqual([photos.title, photos.kind, photos.url], ['Nouvelles photos', 'saved_listing_photos', '/listings/5']);
+      assert.strictEqual(fav100.noticeFor({ property_id: 5, state: 'active', told_state: 'active', photo_count: 3, told_photo_count: 4 }), null, 'fewer photos is not news');
+      const let100 = fav100.noticeFor({ property_id: 5, state: 'closed', told_state: 'active', purpose: 'rent', price: 600, commune: 'Gombe' });
+      assert.strictEqual(let100.url, '/listings?commune=Gombe&transaction_type=location&price_max=780');
+      assert.strictEqual(fav100.noticeFor({ property_id: 5, state: 'closed', told_state: 'active', purpose: 'rent' }).url, '/compte/client/favoris', 'no commune: the saved list');
+      assert.match(fav100.ROWS_SQL, /property_slider_images/);
+    });
+
+    await checkAsync('"Toujours en recherche ?": one per customer, app users only, asked again only after 60 days; no table → nothing', async () => {
+      assert.match(portal100.CHECKUP_SQL, /push_devices/);
+      assert.match(portal100.CHECKUP_SQL, /kind = 'search_checkup'/);
+      assert.match(portal100.CHECKUP_SQL, /DISTINCT ON \(css\.customer_id\)/);
+      const pushes = [];
+      const pool = { query: async () => ({ rows: [{ id: 7, customer_id: 31, label: 'Appartement Gombe', created_at: new Date(Date.now() - 40 * 86_400_000) }] }) };
+      const result = await portal100.runSearchCheckup({ pool, push: async (p) => { pushes.push(p); return { pushed: true }; } });
+      assert.deepStrictEqual([result.due, result.pushed], [1, 1]);
+      assert.deepStrictEqual([pushes[0].kind, pushes[0].refId, pushes[0].url], ['search_checkup', '7', '/compte/client/favoris?tab=alertes']);
+      assert.match(pushes[0].body, /depuis 40 jours/);
+      const missing = { query: async () => { throw Object.assign(new Error('x'), { code: '42P01' }); } };
+      assert.strictEqual((await portal100.runSearchCheckup({ pool: missing })).skipped, 'no-table');
+    });
+
+    await checkAsync('instant matches: the engine only triggers web’s sweep, with the cron secret', async () => {
+      const savedSecret = process.env.CRON_SECRET;
+      process.env.CRON_SECRET = 'secret-100';
+      try {
+        const calls = [];
+        const out = await portal100.runInstantAlerts({
+          fetchImpl: async (url, init) => { calls.push({ url, auth: init.headers.Authorization }); return { ok: true, json: async () => ({ pushed: 2, capped: 1, newListings: 4, searches: 9 }) }; },
+        });
+        assert.deepStrictEqual(out, { newListings: 4, searches: 9, pushed: 2, capped: 1 });
+        assert.match(calls[0].url, /\/api\/cron\/instant-alerts$/);
+        assert.strictEqual(calls[0].auth, 'Bearer secret-100');
+        assert.strictEqual(portal100.instantAlertsJob.shouldRun(new Date('2026-11-12T10:05:00Z')), true);
+        assert.strictEqual(portal100.instantAlertsJob.shouldRun(new Date('2026-11-12T10:10:00Z')), false, 'not on the follow-up’s tick');
+      } finally {
+        if (savedSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = savedSecret;
+      }
+    });
+
+    check('the portal jobs are registered before the backup; the visit receipt suggests similar listings', () => {
+      const names = require('../services/scheduler').JOBS.map((j) => j.name);
+      for (const name of ['instant-alerts', 'search-checkup']) assert.ok(names.indexOf(name) > -1 && names.indexOf(name) < names.indexOf('sqlite-backup'), name);
+      assert.match(fs.readFileSync(path.join(__dirname, '..', 'services/visitReceipt.js'), 'utf8'), /suggestSimilar\(\{[\s\S]{0,200}reason: 'after_visit'/);
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

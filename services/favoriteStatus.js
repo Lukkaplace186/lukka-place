@@ -22,10 +22,16 @@
  *   under_offer  public, listing_status = 'under_offer'
  *   active       public, anything else
  *   withdrawn    everything else (archived, suspended, pending, rejected)
+ *
+ * Phase 3 (C8, C3): more photos on a listing still on the market is news too
+ * ("Nouvelles photos"), and a let / sold notice opens a search for similar
+ * listings (portalAlerts.similarListingsPath) rather than the saved list.
  */
 
 const postgres = require('./postgres');
 const pushNotify = require('./pushNotify');
+const { COMMUNE_SUBQUERY } = require('./propertyRepository');
+const { similarListingsPath } = require('./portalAlerts');
 
 const JOB_NAME = 'favorite-status';
 const MIN_GAP_MS = 20 * 60 * 60 * 1000;
@@ -51,32 +57,45 @@ const STATE_SQL = `
   END`;
 
 const ROWS_SQL = `
-  SELECT cf.customer_id, cf.property_id, p.purpose,
-         (SELECT pc.title FROM property_contents pc WHERE pc.property_id = cf.property_id AND pc.language_id = 20 LIMIT 1) AS title,
-         ${STATE_SQL} AS state,
-         n.state AS told_state
-    FROM customer_favorites cf
-    LEFT JOIN properties p ON p.id = cf.property_id
-    LEFT JOIN favorite_status_notices n ON n.customer_id = cf.customer_id AND n.property_id = cf.property_id
-   WHERE n.state IS NULL OR n.state <> ${STATE_SQL}
-   ORDER BY cf.customer_id, cf.property_id
+  SELECT * FROM (
+    SELECT cf.customer_id, cf.property_id, p.purpose, p.price, ${COMMUNE_SUBQUERY},
+           (SELECT pc.title FROM property_contents pc WHERE pc.property_id = cf.property_id AND pc.language_id = 20 LIMIT 1) AS title,
+           ${STATE_SQL} AS state,
+           (SELECT COUNT(*)::int FROM property_slider_images psi WHERE psi.property_id = cf.property_id) AS photo_count,
+           n.state AS told_state,
+           n.photo_count AS told_photo_count
+      FROM customer_favorites cf
+      LEFT JOIN properties p ON p.id = cf.property_id
+      LEFT JOIN favorite_status_notices n ON n.customer_id = cf.customer_id AND n.property_id = cf.property_id
+  ) x
+   WHERE x.told_state IS NULL OR x.told_state <> x.state
+      OR (x.state IN ('active', 'under_offer') AND x.photo_count > COALESCE(x.told_photo_count, x.photo_count))
+   ORDER BY x.customer_id, x.property_id
    LIMIT ${BATCH}`;
 
 const UPSERT_SQL = `
-  INSERT INTO favorite_status_notices (customer_id, property_id, state, told_at)
-  VALUES ($1, $2, $3, NOW())
-  ON CONFLICT (customer_id, property_id) DO UPDATE SET state = EXCLUDED.state, told_at = NOW()`;
+  INSERT INTO favorite_status_notices (customer_id, property_id, state, photo_count, told_at)
+  VALUES ($1, $2, $3, $4, NOW())
+  ON CONFLICT (customer_id, property_id) DO UPDATE
+     SET state = EXCLUDED.state, photo_count = EXCLUDED.photo_count, told_at = NOW()`;
 
 /** What to tell for a change, or null when the change is not worth a notice. */
 function noticeFor(row) {
   const name = row.title ? `« ${String(row.title).slice(0, 80)} »` : `L'annonce n° ${row.property_id}`;
   const listingPath = `/listings/${row.property_id}`;
+  // C8: same state, more photos than last told, still on the market.
+  if (row.told_state === row.state && ['active', 'under_offer'].includes(row.state)
+    && Number(row.photo_count) > Number(row.told_photo_count ?? row.photo_count)) {
+    return { title: 'Nouvelles photos', body: `${name} a de nouvelles photos.`, url: listingPath, kind: 'saved_listing_photos' };
+  }
+  if (row.told_state === row.state) return null;
   switch (row.state) {
     case 'closed':
+      // C3: the notice opens comparable listings when the commune is known.
       return {
         title: row.purpose === 'sale' ? 'Un bien enregistré a été vendu' : 'Un bien enregistré a été loué',
         body: `${name} n'est plus disponible. Découvrez des biens similaires.`,
-        url: '/compte/client/favoris',
+        url: similarListingsPath(row) || '/compte/client/favoris',
       };
     case 'under_offer':
       return { title: 'Offre en cours sur un bien enregistré', body: `${name} est sous offre. Contactez l'agent vite si vous êtes intéressé.`, url: listingPath };
@@ -117,13 +136,14 @@ async function runFavoriteStatus({ pool, push = pushNotify.pushOnly } = {}) {
         summary.capped += 1;
       } else {
         perCustomer.set(row.customer_id, count + 1);
+        const { kind = 'saved_listing_status', ...copy } = notice;
         const outcome = await push({
           userType: 'customer',
           customerId: row.customer_id,
-          kind: 'saved_listing_status',
+          kind,
           category: 'saved_listings',
           refId: row.property_id,
-          ...notice,
+          ...copy,
         });
         summary.told += 1;
         if (outcome?.pushed) summary.pushed += 1;
@@ -131,7 +151,7 @@ async function runFavoriteStatus({ pool, push = pushNotify.pushOnly } = {}) {
     } else if (first) {
       summary.baseline += 1;
     }
-    await db.query(UPSERT_SQL, [row.customer_id, row.property_id, row.state]);
+    await db.query(UPSERT_SQL, [row.customer_id, row.property_id, row.state, Number(row.photo_count) || 0]);
   }
   if (summary.told) console.log(`[favorite-status] ${summary.told} change(s) told, ${summary.pushed} pushed, ${summary.capped} capped`);
   return summary;

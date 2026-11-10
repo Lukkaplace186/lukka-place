@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS favorite_status_notices (
   customer_id  bigint      NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
   property_id  bigint      NOT NULL,
   state        text        NOT NULL CHECK (state IN ('active', 'under_offer', 'closed', 'withdrawn')),
+  -- Photos on the listing when last told: more later is "Nouvelles photos".
+  photo_count  integer     NOT NULL DEFAULT 0,
   told_at      timestamptz NOT NULL DEFAULT NOW(),
   PRIMARY KEY (customer_id, property_id)
 );

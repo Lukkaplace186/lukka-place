@@ -156,6 +156,14 @@ async function recordAgentOutcome({ request, listing, propertyId, outcome, now =
     listing?.agent_name || 'votre agent',
   ], request);
   if (sent) dbService.markVisitReceiptSent(request.id, new Date().toISOString());
+  // C3: comparable listings in the customer's app (push only, never WhatsApp).
+  // eslint-disable-next-line global-require
+  require('./portalAlerts').suggestSimilar({
+    phone: request.lead_wa_id,
+    listing: { commune: listing?.commune || request.commune || null, purpose: listing?.purpose, price: listing?.price },
+    reason: 'after_visit',
+    refId: request.id,
+  }).catch(() => {});
   if (sendAgentAck) await viewing.trySend(sendAgentAck, agentAckText(request.lead_wa_id, text), 'visit done ack');
   console.log(`[visit-receipt] request #${request.id} DONE — receipt sent to customer: ${sent}`);
   return { ok: true, outcome, receiptSent: sent, receiptText: text, customerWaId: request.lead_wa_id };

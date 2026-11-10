@@ -94,3 +94,52 @@ export async function recordNotifiedProperties(savedSearchId, propertyIds) {
 export async function markSavedSearchAlerted(savedSearchId) {
   await getPool().query('UPDATE customer_saved_searches SET last_alerted_at = now() WHERE id = $1', [savedSearchId]);
 }
+
+// ---------------------------------------------------------------------------
+// C1 — instant matches for customers with the Lukka Place app
+// (lib/instantMatchSweep.js, /api/cron/instant-alerts)
+// ---------------------------------------------------------------------------
+
+const MISSING_TABLE = new Set(['42P01', '42703']);
+
+/**
+ * Saved searches of customers who have the app (a live push_devices row) and
+ * did not switch the search off. Before the push migration there are none.
+ * The WhatsApp opt-out does not apply: nothing here is WhatsApped.
+ */
+export async function getAppCustomerSearches({ limit = 2000 } = {}) {
+  try {
+    const { rows } = await getPool().query(
+      `SELECT css.id, css.customer_id, css.query, css.label, css.created_at
+         FROM customer_saved_searches css
+        WHERE ${FREQUENCY_SQL} <> 'off'
+          AND EXISTS (
+            SELECT 1 FROM push_devices d
+             WHERE d.user_type = 'customer' AND d.user_id = css.customer_id AND d.revoked_at IS NULL
+          )
+        ORDER BY css.id
+        LIMIT $1`,
+      [limit],
+    );
+    return rows;
+  } catch (err) {
+    if (MISSING_TABLE.has(err?.code)) return [];
+    throw err;
+  }
+}
+
+/** Instant-match pushes this customer got in the last 24 h (notifications, kind instant_match). */
+export async function countInstantMatchesToday(customerId) {
+  try {
+    const { rows } = await getPool().query(
+      `SELECT COUNT(*)::int AS n FROM notifications
+        WHERE user_type = 'customer' AND user_id = $1 AND kind = 'instant_match'
+          AND push_sent_at IS NOT NULL AND created_at > now() - interval '24 hours'`,
+      [customerId],
+    );
+    return Number(rows[0]?.n) || 0;
+  } catch (err) {
+    if (MISSING_TABLE.has(err?.code)) return 0;
+    throw err;
+  }
+}

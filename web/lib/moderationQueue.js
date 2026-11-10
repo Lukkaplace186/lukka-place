@@ -116,9 +116,23 @@ export const SAME_MESSAGE_SECONDS = 1800;
 export const MIN_DESCRIPTION_KEY = 40;
 
 /**
+ * `o` (a row of fp_index / desc_index) is the SAME agent's listing of the same
+ * property as `${b}` (owner decision 2026-11-10): same agent, still on the
+ * market (live or pending, not hidden, not closed), same transaction, same
+ * bedroom count or either unstated, and from another message. The caller's
+ * join supplies the evidence: a shared photo fingerprint or the same text.
+ */
+export const SAME_AGENT_MATCH = (b) => `o.id <> ${b}.id AND o.agent_id = ${b}.agent_id
+  AND o.approve_status IN (0, 1) AND o.status = 1 AND o.listing_status IS DISTINCT FROM 'closed'
+  AND o.purpose IS NOT DISTINCT FROM ${b}.purpose
+  AND (o.beds IS NULL OR ${b}.beds IS NULL OR o.beds = ${b}.beds)
+  AND abs(extract(epoch FROM o.created_at - ${b}.created_at)) > ${SAME_MESSAGE_SECONDS}`;
+
+/**
  * Every photo fingerprint and description of live / pending listings, built
- * once per query (a few thousand rows) so the duplicate flags are joins, not
- * a scan of every photo per listing.
+ * once per query (a few thousand rows), and the duplicate pairs they make.
+ * Only live / pending listings have pairs: a rejected or deleted listing is
+ * never flagged as a duplicate, as before.
  */
 export const DUPLICATE_INDEX_CTES = `
     fp_index AS MATERIALIZED (
@@ -138,20 +152,28 @@ export const DUPLICATE_INDEX_CTES = `
       JOIN property_contents dpc ON dpc.property_id = p.id AND dpc.language_id = 20
       WHERE p.deleted_at IS NULL AND p.approve_status IN (0, 1)
         AND length(lower(regexp_replace(COALESCE(dpc.description, ''), '[^[:alnum:]]+', '', 'g'))) >= ${MIN_DESCRIPTION_KEY}
+    ),
+    -- Every pair of listings sharing a photo or the same text, found in ONE
+    -- hash join, then folded per listing. The flags used to run these joins
+    -- once per row (an EXISTS per listing), which took 7 s over the ~400 live
+    -- listings on every tab (2026-11-10); per listing it is now a lookup.
+    dup_pairs AS MATERIALIZED (
+      SELECT DISTINCT x.id AS a, o.id AS b, 'photo' AS via,
+             (o.agent_id IS DISTINCT FROM x.agent_id) AS other_agent,
+             (${SAME_AGENT_MATCH('x')}) AS resend
+      FROM fp_index x JOIN fp_index o ON o.fp = x.fp AND o.id <> x.id
+      UNION
+      SELECT DISTINCT x.id, o.id, 'text', false, (${SAME_AGENT_MATCH('x')})
+      FROM desc_index x JOIN desc_index o ON o.dk = x.dk AND o.id <> x.id
+    ),
+    dup_by_id AS MATERIALIZED (
+      SELECT a AS id,
+             COALESCE(bool_or(via = 'photo' AND other_agent), false) AS photo_other_agent,
+             COALESCE(bool_or(resend), false) AS resend,
+             array_agg(DISTINCT b ORDER BY b DESC) FILTER (WHERE via = 'photo' AND other_agent) AS photo_ids,
+             array_agg(DISTINCT b ORDER BY b DESC) FILTER (WHERE resend) AS resend_ids
+      FROM dup_pairs GROUP BY a
     )`;
-
-/**
- * `o` (a row of fp_index / desc_index) is the SAME agent's listing of the same
- * property as `${b}` (owner decision 2026-11-10): same agent, still on the
- * market (live or pending, not hidden, not closed), same transaction, same
- * bedroom count or either unstated, and from another message. The caller's
- * join supplies the evidence: a shared photo fingerprint or the same text.
- */
-export const SAME_AGENT_MATCH = (b) => `o.id <> ${b}.id AND o.agent_id = ${b}.agent_id
-  AND o.approve_status IN (0, 1) AND o.status = 1 AND o.listing_status IS DISTINCT FROM 'closed'
-  AND o.purpose IS NOT DISTINCT FROM ${b}.purpose
-  AND (o.beds IS NULL OR ${b}.beds IS NULL OR o.beds = ${b}.beds)
-  AND abs(extract(epoch FROM o.created_at - ${b}.created_at)) > ${SAME_MESSAGE_SECONDS}`;
 
 export const COMMUNE_OF_P = `(
   SELECT ac.name FROM property_amenities pa
@@ -241,16 +263,12 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
         (LOWER(COALESCE(b.description, '')) LIKE ANY ($${markersParam}::text[])) AS f_extraction_failure,
         -- The same photo (by content fingerprint) on a listing of ANOTHER
         -- agent: a co-mandate, allowed (owner, 2026-11-10) — a note only.
-        EXISTS (
-          SELECT 1 FROM fp_index x JOIN fp_index o ON o.fp = x.fp
-          WHERE x.id = b.id AND o.id <> b.id AND o.agent_id IS DISTINCT FROM b.agent_id
-        ) AS f_duplicate_photo,
+        COALESCE(d.photo_other_agent, false) AS f_duplicate_photo,
         -- The SAME agent has this property live or pending from another
-        -- message: not allowed. See SAME_AGENT_MATCH.
-        (b.agent_id IS NOT NULL AND (
-          EXISTS (SELECT 1 FROM fp_index x JOIN fp_index o ON o.fp = x.fp WHERE x.id = b.id AND ${SAME_AGENT_MATCH('b')})
-          OR EXISTS (SELECT 1 FROM desc_index x JOIN desc_index o ON o.dk = x.dk WHERE x.id = b.id AND ${SAME_AGENT_MATCH('b')})
-        )) AS f_same_agent_resend,
+        -- message: not allowed. See SAME_AGENT_MATCH and dup_pairs.
+        (b.agent_id IS NOT NULL AND COALESCE(d.resend, false)) AS f_same_agent_resend,
+        d.photo_ids AS dup_photo_ids,
+        CASE WHEN b.agent_id IS NOT NULL THEN d.resend_ids END AS dup_resend_ids,
         (b.title IS NOT NULL AND b.price IS NOT NULL AND EXISTS (
           SELECT 1 FROM property_contents oc
           JOIN properties o ON o.id = oc.property_id
@@ -261,6 +279,7 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
         (b.agent_id IS NULL) AS f_no_agent,
         b.availability_unanswered AS f_availability_unanswered
       FROM base b
+      LEFT JOIN dup_by_id d ON d.id = b.id
     )
   `;
 }
@@ -418,10 +437,11 @@ export async function listModerationQueue({
 }
 
 /**
- * Which listings a duplicate flag points at, so the flag can open them side by
- * side (/admin/listings/compare). Same conditions as f_duplicate_listing /
- * f_duplicate_photo above, newest first, at most DUPLICATE_LINK_LIMIT each.
- * Only computed for the rows of the page shown, never for the whole tab.
+ * Which listings the "same title and price" flag points at, so it can open
+ * them side by side (/admin/listings/compare). Same conditions as
+ * f_duplicate_listing above, newest first, at most DUPLICATE_LINK_LIMIT. Only
+ * computed for the rows of the page shown. The photo and same-agent lists come
+ * from `flagged` (dup_by_id), capped to the same limit in toRow.
  */
 export const DUPLICATE_LINK_LIMIT = 5;
 export const DUPLICATE_IDS_SQL = `
@@ -436,19 +456,7 @@ export const DUPLICATE_IDS_SQL = `
     SELECT 1 FROM property_contents oc JOIN properties o ON o.id = oc.property_id
     WHERE LOWER(oc.title) = LOWER(f.title) AND oc.property_id <> f.id
       AND o.price = f.price AND o.approve_status <> 2 AND o.agent_id = f.agent_id
-  )) AS dup_listing_same_agent,
-  CASE WHEN f.f_duplicate_photo THEN ARRAY(
-    SELECT DISTINCT o.id FROM fp_index x JOIN fp_index o ON o.fp = x.fp
-    WHERE x.id = f.id AND o.id <> f.id AND o.agent_id IS DISTINCT FROM f.agent_id
-    ORDER BY o.id DESC LIMIT ${DUPLICATE_LINK_LIMIT}
-  ) END AS dup_photo_ids,
-  CASE WHEN f.f_same_agent_resend THEN ARRAY(
-    SELECT m.id FROM (
-      SELECT o.id FROM fp_index x JOIN fp_index o ON o.fp = x.fp WHERE x.id = f.id AND ${SAME_AGENT_MATCH('f')}
-      UNION
-      SELECT o.id FROM desc_index x JOIN desc_index o ON o.dk = x.dk WHERE x.id = f.id AND ${SAME_AGENT_MATCH('f')}
-    ) m ORDER BY m.id DESC LIMIT ${DUPLICATE_LINK_LIMIT}
-  ) END AS dup_resend_ids`;
+  )) AS dup_listing_same_agent`;
 
 /**
  * The same agent's other live / pending listings of this property
@@ -472,7 +480,7 @@ export async function findSameAgentResends(listingId) {
   return rows.map((row) => Number(row.id));
 }
 
-const idList = (value) => (Array.isArray(value) ? value.map(Number).filter((n) => Number.isInteger(n) && n > 0) : []);
+const idList = (value) => (Array.isArray(value) ? value.map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, DUPLICATE_LINK_LIMIT) : []);
 
 /** Tab counts — one scan, every status. */
 export async function getModerationCounts() {

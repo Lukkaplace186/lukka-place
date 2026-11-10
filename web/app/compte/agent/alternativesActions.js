@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getT } from '@/lib/i18n/server';
-import { sendWhatsAppMessage, updateLeadStatus } from '@/lib/adminApi';
+import { sendToCustomerAppFirst, updateLeadStatus } from '@/lib/adminApi';
 import { normalizeStoredPhone } from '@/lib/phone';
 import { resolveOwnedTarget, getAlternativeSuggestions, loadChosenAlternatives } from '@/lib/agentAlternatives';
 import { buildAlternativesMessage } from '@/lib/listingAlternatives';
@@ -71,7 +71,13 @@ export async function sendAlternativesAction(kind, id, propertyIds) {
   if (!phone) return { ok: false, error: t('agent.alternatives.errors.noPhone') };
 
   try {
-    await sendWhatsAppMessage(phone, buildAlternativesMessage(chosen.listings, { name: target.name }));
+    // The customer's app first, WhatsApp as before (lib/adminApi.js).
+    await sendToCustomerAppFirst(phone, buildAlternativesMessage(chosen.listings, { name: target.name }), {
+      kind: 'agent_alternatives',
+      title: 'Votre agent vous propose des biens',
+      body: `${chosen.listings.length} bien(s) qui correspondent à votre recherche.`,
+      url: kind === 'visit' ? '/compte/client/visites' : '/compte/client/messages',
+    });
   } catch (err) {
     console.error(`[compte/agent] alternatives WhatsApp for ${kind} #${id} failed: ${err.message}`);
     return { ok: false, error: t('errors.sendFailed') };

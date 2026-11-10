@@ -154,7 +154,7 @@ async function recordAgentOutcome({ request, listing, propertyId, outcome, now =
     listingName(listing, propertyId),
     formatSlotFr(request.scheduled_at, { utcOffset: utcOffsetForCommune(request.commune || listing?.commune || null) }) || '',
     listing?.agent_name || 'votre agent',
-  ]);
+  ], request);
   if (sent) dbService.markVisitReceiptSent(request.id, new Date().toISOString());
   if (sendAgentAck) await viewing.trySend(sendAgentAck, agentAckText(request.lead_wa_id, text), 'visit done ack');
   console.log(`[visit-receipt] request #${request.id} DONE — receipt sent to customer: ${sent}`);
@@ -167,8 +167,22 @@ async function recordAgentOutcome({ request, listing, propertyId, outcome, now =
  * submit (UTILITY, fr): "Merci pour votre visite du bien {{1}} le {{2}} avec
  * {{3}}. Cette visite a été organisée par l'intermédiaire de Lukka Place."
  */
-async function sendReceipt(waId, text, params) {
+async function sendReceipt(waId, text, params, request = null) {
   if (!waId) return false;
+  // The app first (viewingNotifications.tellCustomer), no late copy: a
+  // receipt is a record, not something to act on.
+  if (request) {
+    return viewing.tellCustomer({ ...request, lead_wa_id: waId }, {
+      kind: 'visit_receipt',
+      text,
+      urgent: false,
+      whatsapp: () => sendReceiptWhatsApp(waId, text, params),
+    });
+  }
+  return sendReceiptWhatsApp(waId, text, params);
+}
+
+async function sendReceiptWhatsApp(waId, text, params) {
   const template = process.env.VISIT_RECEIPT_TEMPLATE || null;
   if (chakra.templateConfigured(template)) {
     try {

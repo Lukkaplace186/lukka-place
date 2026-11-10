@@ -450,6 +450,12 @@ async function pushOnly(params) {
 const FALLBACK_SENDERS = {
   viewing_request: (data) => require('./viewingNotifications').sendViewingAlertFallback(data),
   enquiry: (data) => require('./agentEnquiryAlert').sendEnquiryAlertFallback(data),
+  // Customer visit alerts (viewingNotifications.tellCustomer): every kind shares one sender.
+  visit_confirmed: (data) => require('./viewingNotifications').sendCustomerVisitFallback(data),
+  visit_proposal: (data) => require('./viewingNotifications').sendCustomerVisitFallback(data),
+  visit_unavailable: (data) => require('./viewingNotifications').sendCustomerVisitFallback(data),
+  visit_cancelled: (data) => require('./viewingNotifications').sendCustomerVisitFallback(data),
+  visit_sla: (data) => require('./viewingNotifications').sendCustomerVisitFallback(data),
   // A plain WhatsApp text, for alerts that come from web through POST /admin/push.
   customer_text: async (data) => {
     if (!data.phone || !data.text) return 'skipped: nothing to send';

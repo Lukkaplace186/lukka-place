@@ -143,6 +143,15 @@ export async function runAlertSweepChunk({
       const topLine = `${top.title} — ${formatPrice(top.price, top.purpose, top.price_period)}`;
 
       await deps.send(search.phone, {
+        // For the app (cron route: pushed when the customer has it, else WhatsApp).
+        customerId: search.customer_id ?? null,
+        push: {
+          title: fresh.length > 1
+            ? `${fresh.length} nouveaux biens pour « ${clip(search.label, 60)} »`
+            : `Nouveau bien pour « ${clip(search.label, 60)} »`,
+          body: topLine,
+          url: `/listings/${top.id}`,
+        },
         bodyParams: [clip(search.label, 120), String(fresh.length), clip(topLine, 200), link],
         text: alertMessageText({
           label: search.label,

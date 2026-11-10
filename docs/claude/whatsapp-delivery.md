@@ -376,3 +376,47 @@ What phase 0 built:
 - **Migration** `20261110_push_notifications.sql` now also creates
   `notification_preferences` (PK user_type, user_id, category).
 - verify-pipeline §96.
+
+### Customer alerts app-first (2026-11-10, part 2 phase 1)
+
+Today's customer alerts try the app first. Without the app, every one of them
+is the same WhatsApp message as before. Categories are the customer's Mon
+profil switches.
+
+- **Visits** (`viewingNotifications.tellCustomer`, category `visits`, opens
+  `/compte/client/visites?visite=<id>`):
+  - Urgent, with a late WhatsApp copy only while the visit is still in the
+    status it was sent for (`sendCustomerVisitFallback`, `expectStatus`):
+    - confirmed (WhatsApp accept, dashboard, desk), status `CONFIRMED`
+    - new time proposed and its 3 h reminder, `RESCHEDULED`; the copy re-runs
+      `proposalWhatsApp`, buttons included
+    - cancelled by the agent, `CANCELLED`
+    - the 15-minute "no answer yet", `PENDING`
+  - Urgent, no status check: agent can't do the visit. One notification; the
+    WhatsApp copy is the unavailable template plus the alternatives text.
+  - Not urgent, no late copy:
+    - post-visit check-in (the visit card carries the three answers)
+    - visit receipt (`visitReceipt.sendReceipt`)
+  - The proposal still claims the customer's next WhatsApp message whichever
+    channel carried it.
+- **An agency took the request** (`leadClaims`, category `requests`, opens
+  `/compte/client/messages`): urgent, sender `customer_text`.
+- **Chat** (`chatNotify.deliverAlert` customer role, category `messages`,
+  opens `/messages/<thread>`): urgent, sender `customer_text`.
+- **Website-side senders** go through `lib/adminApi.js`:
+  - `sendToCustomerAppFirst` (urgent, the WhatsApp text as `fallbackText`):
+    the agent's dashboard reply and alternatives.
+  - The cron route `api/cron/search-alerts` calls `pushToAccount` for
+    saved-search matches (`search_alerts`) and price drops on saved listings
+    (`saved_listings`). These are app only when pushed, with no late copy
+    (owner decision), and WhatsApp as before otherwise.
+- **Stays on WhatsApp:** replies to a WhatsApp message the customer just
+  sent (proposal thanks, check-in follow-ups, "Notez l'agent", enquiry
+  handoff, signup welcome, assistant), and the codes.
+- **Known gap:** the saved-search and price-drop sweeps still select only
+  customers who did NOT turn off WhatsApp alerts
+  (`customers.whatsapp_alerts_opted_out_at`). So a customer who turned
+  WhatsApp off gets these in the app neither. Phase 2 should let the app
+  path ignore the WhatsApp opt-out.
+- verify-pipeline §97; web `tests/unit/push-notifications.test.js`.
+

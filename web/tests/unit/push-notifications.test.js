@@ -160,3 +160,81 @@ test('the app starts at /app; agents land in their space, everyone else on the l
   assert.match(start, /target = '\/compte\/agent'/);
   assert.match(start, /let target = '\/'/);
 });
+
+// --- Phase 1: web-side customer messages go app-first -----------------------
+
+import { pushToAccount, sendToCustomerAppFirst } from '@/lib/adminApi';
+import { runFavoritePriceDropSweep } from '@/lib/favoritePriceDropSweep';
+
+function withEngine(handler, fn) {
+  const saved = { fetch: globalThis.fetch, base: process.env.ENGINE_API_BASE, key: process.env.ENGINE_API_SECRET };
+  const seen = [];
+  process.env.ENGINE_API_BASE = 'http://engine.test';
+  process.env.ENGINE_API_SECRET = 'k';
+  globalThis.fetch = async (url, init) => {
+    const path = new URL(url).pathname;
+    const body = init?.body ? JSON.parse(init.body) : null;
+    seen.push({ path, body });
+    const out = handler(path, body);
+    return { ok: out.status === undefined || out.status < 400, status: out.status || 200, json: async () => out.body };
+  };
+  return Promise.resolve(fn(seen)).finally(() => {
+    globalThis.fetch = saved.fetch;
+    process.env.ENGINE_API_BASE = saved.base;
+    process.env.ENGINE_API_SECRET = saved.key;
+  });
+}
+
+test('a customer with the app gets the push and no WhatsApp now; the text rides as the late copy', async () => {
+  await withEngine((path) => (path === '/admin/push' ? { body: { success: true, pushed: true } } : { body: { success: true } }), async (seen) => {
+    const out = await sendToCustomerAppFirst('243906500096', 'Bonjour, *voici* https://lukkaplace.com/listings/1', {
+      kind: 'agent_reply', title: 'Réponse de votre agent', url: '/compte/client/messages',
+    });
+    assert.deepStrictEqual(out, { via: 'push' });
+    assert.deepStrictEqual(seen.map((s) => s.path), ['/admin/push']);
+    const push = seen[0].body;
+    assert.equal(push.userType, 'customer');
+    assert.equal(push.urgent, true);
+    assert.equal(push.fallbackText, 'Bonjour, *voici* https://lukkaplace.com/listings/1');
+    assert.equal(push.body, 'Bonjour, voici', 'no link, no WhatsApp bold marks in the notification');
+  });
+});
+
+test('no app (or the engine unreachable): WhatsApp exactly as before', async () => {
+  await withEngine((path) => (path === '/admin/push' ? { body: { success: true, pushed: false, reason: 'no-device' } } : { body: { success: true } }), async (seen) => {
+    assert.deepStrictEqual(await sendToCustomerAppFirst('243906500096', 'Bonjour', { kind: 'agent_reply', title: 't' }), { via: 'whatsapp' });
+    assert.deepStrictEqual(seen.map((s) => s.path), ['/admin/push', '/admin/send-whatsapp']);
+  });
+  await withEngine((path) => (path === '/admin/push' ? { status: 500, body: { error: 'down' } } : { body: { success: true } }), async (seen) => {
+    assert.deepStrictEqual(await pushToAccount({ userType: 'customer', phone: '243906500096', kind: 'x', title: 't' }), { pushed: false, reason: 'engine-unreachable' });
+    assert.deepStrictEqual(await sendToCustomerAppFirst('243906500096', 'Bonjour', { kind: 'agent_reply', title: 't' }), { via: 'whatsapp' });
+    assert.ok(seen.some((s) => s.path === '/admin/send-whatsapp'));
+  });
+});
+
+test('price drops hand the app a title, a line and the listing to open', async () => {
+  const sent = [];
+  await runFavoritePriceDropSweep({
+    siteUrl: 'https://lukkaplace.com',
+    deps: {
+      getDrops: async () => [{ customer_id: 31, phone: '243906500096', property_id: 685, title: 'Appartement Gombe', price: 900, price_drop_from: 1000, purpose: 'rent', price_period: 'mois', price_drop_at: '2026-11-09' }],
+      send: async (phone, text, meta) => sent.push({ phone, text, meta }),
+      recordNotified: async () => {},
+    },
+  });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].meta.customerId, 31);
+  assert.equal(sent[0].meta.push.url, '/listings/685');
+  assert.match(sent[0].meta.push.title, /baisse de prix/);
+});
+
+test('the cron route pushes saved-search matches and price drops to app users only, WhatsApp for the rest', () => {
+  const route = read('../../app/api/cron/search-alerts/route.js');
+  assert.match(route, /if \(await pushedToApp\(phone, customerId, 'search_alert', 'search_alerts', push\)\) return;/);
+  assert.match(route, /if \(await pushedToApp\(phone, customerId, 'price_drop', 'saved_listings', push\)\) return;/);
+  const sweep = read('../../lib/searchAlertSweep.js');
+  assert.match(sweep, /customerId: search\.customer_id/);
+  for (const file of ['../../app/compte/agent/actions.js', '../../app/compte/agent/alternativesActions.js']) {
+    assert.match(read(file), /sendToCustomerAppFirst\(/, file);
+  }
+});

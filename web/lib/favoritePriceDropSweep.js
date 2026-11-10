@@ -78,7 +78,16 @@ export async function runFavoritePriceDropSweep({ siteUrl, deps }) {
       .sort((a, b) => new Date(b.price_drop_at) - new Date(a.price_drop_at))
       .slice(0, MAX_PER_MESSAGE);
     try {
-      await deps.send(phone, priceDropMessageText({ drops: batch, siteUrl }));
+      const first = batch[0];
+      await deps.send(phone, priceDropMessageText({ drops: batch, siteUrl }), {
+        // For the app (cron route: pushed when the customer has it, else WhatsApp).
+        customerId: Number(customerId),
+        push: {
+          title: batch.length > 1 ? `${batch.length} biens enregistrés baissent de prix` : 'Un bien enregistré baisse de prix',
+          body: `${clip(first.title || `Annonce n° ${first.property_id}`, 90)} : ${formatPrice(first.price_drop_from, first.purpose, first.price_period)} → ${formatPrice(first.price, first.purpose, first.price_period)}`,
+          url: batch.length > 1 ? '/compte/client/favoris' : `/listings/${first.property_id}`,
+        },
+      });
       await deps.recordNotified(Number(customerId), batch);
       result.notifiedCustomers += 1;
       result.notifiedDrops += batch.length;

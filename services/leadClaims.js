@@ -145,7 +145,25 @@ async function answerMatch(match, answer, { channel, replyTo = null } = {}) {
     // The customer may be outside the 24 h window (a web form): the send is
     // accepted and may not arrive. Logged either way; the agency calls them.
     const name = await agencyName(match.agent_id);
-    await send(customer.wa_id, customerText(lead, name), `customer told about agent #${match.agent_id} on lead #${lead.id}`);
+    const text = customerText(lead, name);
+    const label = `customer told about agent #${match.agent_id} on lead #${lead.id}`;
+    // The app first (services/pushNotify.js, category `requests`); WhatsApp
+    // as before. Urgent: unread after PUSH_CUSTOMER_FALLBACK_MIN, the same
+    // text goes on WhatsApp once (sender customer_text).
+    // eslint-disable-next-line global-require
+    await require('./pushNotify').pushFirst({
+      userType: 'customer',
+      phone: customer.wa_id,
+      kind: 'request_claimed',
+      category: 'requests',
+      refId: lead.id,
+      title: 'Une agence s’occupe de votre recherche',
+      body: `${name ? `L’agence ${name}` : 'Une agence partenaire'} va vous contacter pour votre recherche à ${whereLabel(lead)}.`,
+      url: '/compte/client/messages',
+      urgent: true,
+      fallback: { sender: 'customer_text', phone: customer.wa_id, text },
+      sendWhatsApp: () => send(customer.wa_id, text, label),
+    }).catch((err) => console.error(`[lead-claims] ${label}: ${err.message}`));
   }
   return { ok: true, outcome: result.outcome, claims: result.claims, customer };
 }

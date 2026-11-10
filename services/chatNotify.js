@@ -133,7 +133,7 @@ const SIDES = {
 function dueSql(role) {
   const s = SIDES[role];
   return `
-    SELECT t.id, t.property_id, t.agent_id,
+    SELECT t.id, t.property_id, t.agent_id, t.customer_id,
            ${s.phone} AS phone,
            c.full_name AS customer_name,
            (SELECT ai.first_name FROM agent_infos ai WHERE ai.agent_id = a.id
@@ -221,6 +221,12 @@ function buildAlert(role, row) {
     threadId,
     to: String(row.phone || '').replace(/\D/g, ''),
     link,
+    customerId: row.customer_id ?? null,
+    push: {
+      title: `${agentName} vous a répondu`,
+      body: `${subject}${more} : « ${excerpt} »`,
+      url: `/messages/${threadId}`,
+    },
     text:
       `${agentName} vous a répondu sur Lukka Place${more}, au sujet de : ${subject}\n`
       + `« ${excerpt} »\n\n`
@@ -251,6 +257,23 @@ async function deliverAlert(role, alert, options = {}) {
       refId: alert.threadId,
       ...alert.push,
       urgent: false,
+      sendWhatsApp: () => deliverWhatsApp(role, alert, options),
+    });
+    return outcome.pushed ? { via: 'push', outsideWindow: false } : outcome.whatsapp;
+  }
+  // A customer with the app gets the push (category `messages`); unread after
+  // PUSH_CUSTOMER_FALLBACK_MIN, the same alert text goes on WhatsApp once.
+  if (role === 'customer' && alert.push) {
+    const outcome = await pushNotify.pushFirst({
+      userType: 'customer',
+      customerId: alert.customerId,
+      phone: alert.to,
+      kind: 'chat',
+      category: 'messages',
+      refId: alert.threadId,
+      ...alert.push,
+      urgent: true,
+      fallback: { sender: 'customer_text', phone: alert.to, text: alert.text },
       sendWhatsApp: () => deliverWhatsApp(role, alert, options),
     });
     return outcome.pushed ? { via: 'push', outsideWindow: false } : outcome.whatsapp;

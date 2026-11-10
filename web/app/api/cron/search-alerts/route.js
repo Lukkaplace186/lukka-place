@@ -7,7 +7,7 @@ import {
   recordNotifiedProperties,
   markSavedSearchAlerted,
 } from '@/lib/searchAlerts';
-import { sendWhatsAppTemplate, sendWhatsAppMessage } from '@/lib/adminApi';
+import { pushToAccount, sendWhatsAppTemplate, sendWhatsAppMessage } from '@/lib/adminApi';
 import { runAlertSweepChunk } from '@/lib/searchAlertSweep';
 import { getUnnotifiedFavoritePriceDrops, recordFavoritePriceDropsNotified } from '@/lib/favoritePriceDrops';
 import { runFavoritePriceDropSweep } from '@/lib/favoritePriceDropSweep';
@@ -50,7 +50,26 @@ export async function POST(request) {
   const template = process.env.SEARCH_ALERT_TEMPLATE || null;
   const languageCode = process.env.SEARCH_ALERT_TEMPLATE_LANG || 'fr';
 
-  async function send(phone, { bodyParams, text }) {
+  // Owner decision 2026-11-10: a customer with the Lukka Place app gets these
+  // in the app only; everyone else on WhatsApp as before. A kind switched off
+  // in the app (search_alerts / saved_listings) comes back here as not pushed.
+  async function pushedToApp(phone, customerId, kind, category, push) {
+    if (!push) return false;
+    const { pushed } = await pushToAccount({
+      userType: 'customer',
+      ...(customerId ? { userId: customerId } : {}),
+      phone,
+      kind,
+      category,
+      title: push.title,
+      body: push.body,
+      url: push.url,
+    });
+    return pushed;
+  }
+
+  async function send(phone, { bodyParams, text, customerId, push }) {
+    if (await pushedToApp(phone, customerId, 'search_alert', 'search_alerts', push)) return;
     if (template) {
       try {
         await sendWhatsAppTemplate(phone, { template, languageCode, bodyParams });
@@ -75,7 +94,10 @@ export async function POST(request) {
         siteUrl,
         deps: {
           getDrops: () => getUnnotifiedFavoritePriceDrops(),
-          send: (phone, text) => sendWhatsAppMessage(phone, text),
+          send: async (phone, text, { customerId, push } = {}) => {
+            if (await pushedToApp(phone, customerId, 'price_drop', 'saved_listings', push)) return;
+            await sendWhatsAppMessage(phone, text);
+          },
           recordNotified: recordFavoritePriceDropsNotified,
         },
       });

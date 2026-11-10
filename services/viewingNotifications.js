@@ -1271,6 +1271,90 @@ async function trySend(phone, text, label, template = null) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Customers: the app first, WhatsApp as before (owner decision 2026-11-10)
+// ---------------------------------------------------------------------------
+
+const CUSTOMER_PUSH_TITLES = Object.freeze({
+  visit_confirmed: 'Visite confirmée ✅',
+  visit_proposal: 'Nouvel horaire proposé',
+  visit_unavailable: 'Visite impossible',
+  visit_cancelled: 'Visite annulée',
+  visit_sla: "L'agent n'a pas encore répondu",
+  visit_checkin: 'Comment s’est passée votre visite ?',
+  visit_receipt: 'Votre bon de visite',
+});
+
+/** A WhatsApp text as a notification line: no link, no brand tag, no bold marks, one line. */
+function pushBodyFrom(text) {
+  return String(text || '')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/🏠 \[Lukka Place\]/g, '')
+    .replace(/[*_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240);
+}
+
+function customerVisitPath(requestId) {
+  return requestId ? `/compte/client/visites?visite=${requestId}` : '/compte/client/visites';
+}
+
+/**
+ * Tell the customer about their visit: a push to the Lukka Place app when
+ * their account has it (services/pushNotify.js, category `visits`, found by
+ * the lead's number), else `whatsapp()` — today's send, unchanged. An urgent
+ * push left unread for PUSH_CUSTOMER_FALLBACK_MIN also goes on WhatsApp once,
+ * as `fallback` describes (FALLBACK_SENDERS in pushNotify), and only while
+ * the visit is still in `expectStatus`. Never throws.
+ *
+ * @returns {Promise<boolean>} whether the customer was reached (push or WhatsApp accepted).
+ */
+async function tellCustomer(request, { kind, text, urgent = true, whatsapp, fallback = null, expectStatus = null }) {
+  const phone = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!phone) return false;
+  try {
+    const outcome = await pushNotify.pushFirst({
+      userType: 'customer',
+      phone,
+      kind,
+      category: 'visits',
+      refId: request.id,
+      title: CUSTOMER_PUSH_TITLES[kind] || 'Votre visite',
+      body: pushBodyFrom(text),
+      url: customerVisitPath(request.id),
+      urgent,
+      fallback: urgent && fallback ? { ...fallback, phone, viewingRequestId: request.id, expectStatus } : null,
+      sendWhatsApp: whatsapp,
+    });
+    return outcome.pushed ? true : Boolean(outcome.whatsapp);
+  } catch (err) {
+    console.error(`[viewing] ${kind} for request #${request?.id} failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * pushNotify's late WhatsApp copy of a visit alert (sender `visit_customer`):
+ * only while the visit is still where it was when the push went (an answered
+ * proposal or a cancelled visit needs no reminder). `template` + `text` are
+ * what the original send would have used; `alsoText` sends the text after a
+ * template (the decline's alternatives list).
+ */
+async function sendCustomerVisitFallback(data = {}) {
+  const request = data.viewingRequestId ? dbService.getViewingRequest(data.viewingRequestId) : null;
+  if (!request) return 'skipped: request not found';
+  if (data.expectStatus && request.status !== data.expectStatus) return `skipped: request is ${request.status}`;
+  if (data.proposal) {
+    const listing = await propertyRepository.getListingContactById(request.property_id).catch(() => null);
+    const ok = await proposalWhatsApp({ request, listing, propertyId: request.property_id, proposed: data.proposal.proposed, reminder: Boolean(data.proposal.reminder) });
+    return ok ? 'sent via whatsapp' : 'failed: not accepted';
+  }
+  const viaTemplate = data.template ? await sendLifecycleTemplate(data.phone, data.template, data.label || 'visit late copy') : false;
+  const viaText = (!viaTemplate || data.alsoText) && data.text ? await trySend(data.phone, data.text, data.label || 'visit late copy') : false;
+  return viaTemplate || viaText ? 'sent via whatsapp' : 'failed: not accepted';
+}
+
 /**
  * Buttons where they work, the same question as text where they do not.
  *
@@ -1421,12 +1505,15 @@ async function handleAccept({ request, listing, propertyId, from }) {
   if (picked) {
     dbService.setViewingScheduledAt(request.id, picked);
     await trySend(from, acceptedAgentText(listing, request, propertyId), 'accept ack');
-    const toldPicked = await trySend(
-      request.lead_wa_id,
-      tenantAcceptedText(listing, request, propertyId, picked),
-      'accept confirmation',
-      confirmedTemplate(listing, request, propertyId, picked),
-    );
+    const pickedText = tenantAcceptedText(listing, request, propertyId, picked);
+    const pickedTemplate = confirmedTemplate(listing, request, propertyId, picked);
+    const toldPicked = await tellCustomer(request, {
+      kind: 'visit_confirmed',
+      text: pickedText,
+      expectStatus: 'CONFIRMED',
+      fallback: { template: pickedTemplate, text: pickedText, label: 'accept confirmation' },
+      whatsapp: () => trySend(request.lead_wa_id, pickedText, 'accept confirmation', pickedTemplate),
+    });
     if (toldPicked) markCustomerNotified(request.id);
     await trySend(from, slotAgreedText(picked, visitClock(request, listing)), 'slot agreed');
     console.log(`[viewing] request #${request.id} ACCEPTED by agent ${from} — picked slot ${picked}, client told: ${toldPicked}`);
@@ -1434,12 +1521,15 @@ async function handleAccept({ request, listing, propertyId, from }) {
   }
 
   await trySend(from, acceptedAgentText(listing, request, propertyId), 'accept ack');
-  const told = await trySend(
-    request.lead_wa_id,
-    tenantAcceptedText(listing, request, propertyId),
-    'accept confirmation',
-    confirmedTemplate(listing, request, propertyId),
-  );
+  const acceptText = tenantAcceptedText(listing, request, propertyId);
+  const acceptTemplate = confirmedTemplate(listing, request, propertyId);
+  const told = await tellCustomer(request, {
+    kind: 'visit_confirmed',
+    text: acceptText,
+    expectStatus: 'CONFIRMED',
+    fallback: { template: acceptTemplate, text: acceptText, label: 'accept confirmation' },
+    whatsapp: () => trySend(request.lead_wa_id, acceptText, 'accept confirmation', acceptTemplate),
+  });
   if (told) markCustomerNotified(request.id);
 
   const proposal = parseFrenchSlot(request.requested_time, undefined, visitClock(request, listing));
@@ -1558,15 +1648,24 @@ async function sendAlternativesToTenant({ request, listing, propertyId }) {
   // 24h window. It cannot carry a list, so the alternatives still follow as a
   // text — which only lands inside the window, and is the whole message when
   // no template is configured.
-  const viaTemplate = await sendLifecycleTemplate(
-    request.lead_wa_id,
-    unavailableTemplate(listing, request, propertyId, "L'agent n'est pas disponible pour ce bien"),
-    'decline notice',
-  );
-  const listed = !viaTemplate || alternatives.length
-    ? await trySend(request.lead_wa_id, tenantAlternativesText(alternatives), 'decline alternatives')
-    : false;
-  const sent = viaTemplate || listed;
+  const declineTemplate = unavailableTemplate(listing, request, propertyId, "L'agent n'est pas disponible pour ce bien");
+  const alternativesMessage = tenantAlternativesText(alternatives);
+  const declineWhatsApp = async () => {
+    const viaTemplate = await sendLifecycleTemplate(request.lead_wa_id, declineTemplate, 'decline notice');
+    const listed = !viaTemplate || alternatives.length
+      ? await trySend(request.lead_wa_id, alternativesMessage, 'decline alternatives')
+      : false;
+    return viaTemplate || listed;
+  };
+  // In the app: one notification; the visit card lists the alternatives.
+  const sent = await tellCustomer(request, {
+    kind: 'visit_unavailable',
+    text: alternatives.length
+      ? `L'agent n'est pas disponible pour ce bien. ${alternatives.length} bien(s) similaire(s) vous attendent.`
+      : "L'agent n'est pas disponible pour ce bien.",
+    fallback: { template: declineTemplate, text: alternativesMessage, alsoText: alternatives.length > 0, label: 'decline notice' },
+    whatsapp: declineWhatsApp,
+  });
   if (sent) markCustomerNotified(request.id);
   return { count: alternatives.length, sent };
 }
@@ -1664,6 +1763,27 @@ function isPlainRefusal(text) {
 async function sendProposalToCustomer({ request, listing, propertyId, proposed, reminder = false }) {
   const to = String(request?.lead_wa_id || '').replace(/\D/g, '');
   if (!to) return false;
+  const told = await tellCustomer(request, {
+    kind: 'visit_proposal',
+    text: `${reminder ? "Rappel : l'agent attend votre réponse. " : ''}L'agent propose ${proposed || 'un autre horaire'} pour ${listingLabel(listing, propertyId)}. Acceptez ou refusez depuis votre espace.`,
+    expectStatus: 'RESCHEDULED',
+    fallback: { proposal: { proposed, reminder } },
+    whatsapp: () => proposalWhatsApp({ request, listing, propertyId, proposed, reminder }),
+  });
+  // Claims the customer's next WhatsApp message, so a typed "oui" / "1"
+  // answers this proposal whichever channel carried it.
+  try {
+    dbService.setPendingCustomerAction({ waId: to, kind: PROPOSAL_PENDING_KIND, viewingRequestId: request.id });
+  } catch (err) {
+    console.error(`[viewing] proposal: pending answer claim for #${request.id} failed: ${err.message}`);
+  }
+  return told;
+}
+
+/** The proposal on WhatsApp: template with buttons, else interactive buttons, else numbered text. */
+async function proposalWhatsApp({ request, listing, propertyId, proposed, reminder = false }) {
+  const to = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!to) return false;
   const label = reminder ? 'proposal reminder' : 'reschedule proposal';
   const buttons = proposalButtons(request.id);
   let told = await sendLifecycleTemplate(
@@ -1683,11 +1803,6 @@ async function sendProposalToCustomer({ request, listing, propertyId, proposed, 
       console.warn(`[viewing] ${label}: buttons failed for ${to} (${err.message}) — numbered text`);
       told = await trySend(to, `${text}\n${PROPOSAL_FALLBACK_TEXT}`, label);
     }
-  }
-  try {
-    dbService.setPendingCustomerAction({ waId: to, kind: PROPOSAL_PENDING_KIND, viewingRequestId: request.id });
-  } catch (err) {
-    console.error(`[viewing] ${label}: pending answer claim for #${request.id} failed: ${err.message}`);
   }
   return told;
 }
@@ -1899,12 +2014,15 @@ async function confirmFromDesk({ viewingRequestId, scheduledAt, now = new Date()
   dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
   dbService.setViewingScheduledAt(request.id, agreedAt);
 
-  const tenantNotified = await trySend(
-    request.lead_wa_id,
-    tenantAcceptedText(listing, request, propertyId, agreedAt),
-    'desk confirmation',
-    confirmedTemplate(listing, request, propertyId, agreedAt),
-  );
+  const deskText = tenantAcceptedText(listing, request, propertyId, agreedAt);
+  const deskTemplate = confirmedTemplate(listing, request, propertyId, agreedAt);
+  const tenantNotified = await tellCustomer(request, {
+    kind: 'visit_confirmed',
+    text: deskText,
+    expectStatus: 'CONFIRMED',
+    fallback: { template: deskTemplate, text: deskText, label: 'desk confirmation' },
+    whatsapp: () => trySend(request.lead_wa_id, deskText, 'desk confirmation', deskTemplate),
+  });
   if (tenantNotified) markCustomerNotified(request.id);
 
   const agentPhone = String(listing?.agent_phone || '').replace(/\D/g, '');
@@ -2008,12 +2126,15 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
       dbService.setViewingScheduledAt(request.id, proposal.iso);
       scheduledAtOut = proposal.iso;
     }
-    tenantNotified = await trySend(
-      request.lead_wa_id,
-      tenantAcceptedText(listing, request, propertyId, agreedAt || picked),
-      'dashboard accept confirmation',
-      confirmedTemplate(listing, request, propertyId, agreedAt || picked),
-    );
+    const confirmText = tenantAcceptedText(listing, request, propertyId, agreedAt || picked);
+    const confirmTemplate = confirmedTemplate(listing, request, propertyId, agreedAt || picked);
+    tenantNotified = await tellCustomer(request, {
+      kind: 'visit_confirmed',
+      text: confirmText,
+      expectStatus: 'CONFIRMED',
+      fallback: { template: confirmTemplate, text: confirmText, label: 'dashboard accept confirmation' },
+      whatsapp: () => trySend(request.lead_wa_id, confirmText, 'dashboard accept confirmation', confirmTemplate),
+    });
   } else if (status === 'RESCHEDULED') {
     dbService.updateViewingRequest(request.id, { status: 'RESCHEDULED', requestedTime: proposed });
     await recordAgentResponse(request, 'RESCHEDULED', 'DASHBOARD');
@@ -2041,12 +2162,15 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     } catch (err) {
       console.error(`[viewing] response stamp for #${request.id} failed: ${err.message}`);
     }
-    tenantNotified = await trySend(
-      request.lead_wa_id,
-      tenantCancelledText(listing, request, propertyId),
-      'dashboard cancellation',
-      unavailableTemplate(listing, request, propertyId, "L'agent a dû annuler cette visite"),
-    );
+    const cancelText = tenantCancelledText(listing, request, propertyId);
+    const cancelTemplate = unavailableTemplate(listing, request, propertyId, "L'agent a dû annuler cette visite");
+    tenantNotified = await tellCustomer(request, {
+      kind: 'visit_cancelled',
+      text: cancelText,
+      expectStatus: 'CANCELLED',
+      fallback: { template: cancelTemplate, text: cancelText, label: 'dashboard cancellation' },
+      whatsapp: () => trySend(request.lead_wa_id, cancelText, 'dashboard cancellation', cancelTemplate),
+    });
     await notifyOps(
       opsDashboardAnswerText({ listing, viewingRequest: request, propertyId, status, tenantNotified }),
       'dashboard cancellation ops copy',
@@ -2689,6 +2813,9 @@ module.exports = {
   notifyViewingRequest,
   sendViewingAlertWhatsApp,
   sendViewingAlertFallback,
+  tellCustomer,
+  sendCustomerVisitFallback,
+  pushBodyFrom,
   notifyViewingRequestInBackground,
   reassignViewing,
   nudgeViewingAgent,

@@ -943,3 +943,32 @@ export async function pushToAccount(alert) {
     return { pushed: false, reason: 'engine-unreachable' };
   }
 }
+
+/**
+ * A message to a customer, app first (owner decision 2026-11-10): pushed to
+ * the customer's Lukka Place app when their account has it — and, unread
+ * after PUSH_CUSTOMER_FALLBACK_MIN, the same text goes on WhatsApp once —
+ * else sent on WhatsApp now, exactly as sendWhatsAppMessage did (and throws
+ * as it did). The account is found by the phone (customers.phone).
+ *
+ * @param {string} phone digits-only wa_id from the stored row, never the form
+ * @param {string} text  the WhatsApp message
+ * @param {{kind: string, title: string, body?: string, url?: string, category?: string}} push
+ * @returns {Promise<{via: 'push'|'whatsapp'}>}
+ */
+export async function sendToCustomerAppFirst(phone, text, { kind, title, body, url, category = 'messages' }) {
+  const { pushed } = await pushToAccount({
+    userType: 'customer',
+    phone,
+    kind,
+    category,
+    title,
+    body: String(body ?? text).replace(/https?:\/\/\S+/g, '').replace(/[*_]/g, '').replace(/\s+/g, ' ').trim().slice(0, 500),
+    url,
+    urgent: true,
+    fallbackText: String(text).slice(0, 1000),
+  });
+  if (pushed) return { via: 'push' };
+  await sendWhatsAppMessage(phone, text);
+  return { via: 'whatsapp' };
+}

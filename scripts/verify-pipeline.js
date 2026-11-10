@@ -16869,6 +16869,139 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §97 Customer alerts go app-first: visits, request claimed, chat (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§97 Customer alerts app-first — visits, a request taken, chat; WhatsApp unchanged without the app');
+  {
+    const push97 = require('../services/pushNotify');
+    const viewing97 = require('../services/viewingNotifications');
+    const chat97 = require('../services/chatNotify');
+    const db97 = require('../services/db');
+    const chakra97 = require('../services/chakra');
+
+    function fakePool97() {
+      const state = { customers: [{ id: 31, phone: '243906500097' }], devices: [], notifications: [] };
+      let nextId = 1;
+      const byId = (id) => state.notifications.find((n) => String(n.id) === String(id));
+      const query = async (sql, params = []) => {
+        const q = sql.replace(/\s+/g, ' ').trim();
+        if (q.startsWith('SELECT to_regclass')) return { rows: [{ a: true, b: true }] };
+        if (q.startsWith('SELECT id FROM customers WHERE id = $1')) return { rows: state.customers.filter((c) => String(c.id) === String(params[0])).map((c) => ({ id: c.id })) };
+        if (q.startsWith('SELECT id FROM customers WHERE phone = $1')) return { rows: state.customers.filter((c) => c.phone === params[0]).map((c) => ({ id: c.id })) };
+        if (q.startsWith('SELECT push_enabled FROM notification_preferences')) return { rows: [] };
+        if (q.startsWith('INSERT INTO notifications')) {
+          const row = { id: nextId++, user_id: params[0], kind: params[1], ref_id: params[2], title: params[3], body: params[4], url: params[5], user_type: params[7], fallback: null, fallback_due_at: null, whatsapp_fallback_at: null, read_at: null };
+          state.notifications.push(row);
+          return { rows: [{ id: row.id }] };
+        }
+        if (q.startsWith('SELECT id, fcm_token FROM push_devices')) return { rows: state.devices.filter((d) => String(d.user_id) === String(params[0]) && d.user_type === params[1]) };
+        if (q.startsWith('UPDATE notifications SET push_result = $2 WHERE id = $1')) return { rows: [] };
+        if (q.startsWith('UPDATE notifications SET push_sent_at')) {
+          const row = byId(params[0]);
+          row.fallback = params[2] ? JSON.parse(params[2]) : null;
+          row.fallback_due_at = params[2] ? new Date(Date.now() + params[3] * 60_000) : null;
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_fallback_at = COALESCE')) {
+          const row = byId(params[0]);
+          row.whatsapp_fallback_at = row.whatsapp_fallback_at || new Date();
+          return { rows: [] };
+        }
+        throw new Error(`fake97: unexpected SQL ${q.slice(0, 90)}`);
+      };
+      return { state, query };
+    }
+    const okTransport97 = async () => ({ ok: true, dead: false, error: null });
+    const request97 = { id: 12, lead_wa_id: '243906500097', property_id: 685, status: 'CONFIRMED' };
+
+    try {
+      await checkAsync('a visit alert to a customer with the app: pushed (category visits), opens that visit, WhatsApp kept as the late copy', async () => {
+        const fake = fakePool97();
+        fake.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-97-000000000001' });
+        push97._setPool(fake);
+        push97._setTransport(okTransport97);
+        let whatsapp = 0;
+        const told = await viewing97.tellCustomer(request97, {
+          kind: 'visit_confirmed',
+          text: '🏠 [Lukka Place] Votre visite est *confirmée* : https://lukkaplace.com/listings/685',
+          expectStatus: 'CONFIRMED',
+          fallback: { text: 'texte', label: 'accept confirmation' },
+          whatsapp: async () => { whatsapp += 1; return true; },
+        });
+        assert.strictEqual(told, true);
+        assert.strictEqual(whatsapp, 0);
+        const row = fake.state.notifications[0];
+        assert.deepStrictEqual([row.user_type, row.kind, row.title, row.url], ['customer', 'visit_confirmed', 'Visite confirmée ✅', '/compte/client/visites?visite=12']);
+        assert.strictEqual(row.body, 'Votre visite est confirmée :', 'no brand tag, no link, no bold marks');
+        assert.deepStrictEqual(row.fallback, { text: 'texte', label: 'accept confirmation', phone: '243906500097', viewingRequestId: 12, expectStatus: 'CONFIRMED' });
+      });
+
+      await checkAsync('no app: the visit message goes on WhatsApp exactly as before, and its result is what the caller gets', async () => {
+        push97._setPool(null);
+        let whatsapp = 0;
+        assert.strictEqual(await viewing97.tellCustomer(request97, { kind: 'visit_cancelled', text: 'x', whatsapp: async () => { whatsapp += 1; return false; } }), false);
+        assert.strictEqual(whatsapp, 1);
+        assert.strictEqual(await viewing97.tellCustomer({ id: 1, lead_wa_id: null }, { kind: 'visit_cancelled', text: 'x', whatsapp: async () => true }), false, 'no number, nobody to tell');
+      });
+
+      await checkAsync('the late WhatsApp copy of a visit alert is skipped once the visit moved on, sent while it has not', async () => {
+        const savedGet = db97.getViewingRequest;
+        const savedSend = chakra97.sendWhatsAppMessage;
+        const sent = [];
+        chakra97.sendWhatsAppMessage = async (to, text) => { sent.push({ to, text }); return {}; };
+        try {
+          db97.getViewingRequest = () => ({ ...request97, status: 'CANCELLED' });
+          assert.strictEqual(await viewing97.sendCustomerVisitFallback({ viewingRequestId: 12, expectStatus: 'CONFIRMED', phone: '243906500097', text: 'Visite confirmée' }), 'skipped: request is CANCELLED');
+          db97.getViewingRequest = () => request97;
+          assert.strictEqual(await viewing97.sendCustomerVisitFallback({ viewingRequestId: 12, expectStatus: 'CONFIRMED', phone: '243906500097', text: 'Visite confirmée' }), 'sent via whatsapp');
+          assert.deepStrictEqual(sent, [{ to: '243906500097', text: 'Visite confirmée' }]);
+          db97.getViewingRequest = () => null;
+          assert.strictEqual(await viewing97.sendCustomerVisitFallback({ viewingRequestId: 12 }), 'skipped: request not found');
+        } finally {
+          db97.getViewingRequest = savedGet;
+          chakra97.sendWhatsAppMessage = savedSend;
+        }
+      });
+
+      check('every urgent customer visit kind has its late-copy sender', () => {
+        for (const kind of ['visit_confirmed', 'visit_proposal', 'visit_unavailable', 'visit_cancelled', 'visit_sla']) {
+          assert.strictEqual(typeof push97.FALLBACK_SENDERS[kind], 'function', kind);
+        }
+      });
+
+      await checkAsync('a chat alert to a customer with the app is pushed (category messages, opens the conversation) with the text as its late copy', async () => {
+        const fake = fakePool97();
+        fake.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-97-000000000001' });
+        push97._setPool(fake);
+        push97._setTransport(okTransport97);
+        const how = await chat97.deliverAlert('customer', {
+          threadId: 4, customerId: 31, to: '243906500097', text: 'Marie vous a répondu',
+          push: { title: 'Marie vous a répondu', body: 'Appartement Gombe : « Bonjour »', url: '/messages/4' },
+        }, { client: { templateConfigured: () => false, sendWhatsAppMessage: async () => { throw new Error('must not send'); } } });
+        assert.strictEqual(how.via, 'push');
+        const row = fake.state.notifications[0];
+        assert.deepStrictEqual([row.kind, row.url], ['chat', '/messages/4']);
+        assert.deepStrictEqual(row.fallback, { sender: 'customer_text', phone: '243906500097', text: 'Marie vous a répondu' });
+      });
+
+      check('the customer push paths are wired where the messages are sent', () => {
+        const src = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+        const viewingSrc = src('services/viewingNotifications.js');
+        for (const kind of ['visit_confirmed', 'visit_proposal', 'visit_unavailable', 'visit_cancelled']) {
+          assert.match(viewingSrc, new RegExp(`kind: '${kind}'`), kind);
+        }
+        const sweeps = src('services/viewingSweeps.js');
+        assert.match(sweeps, /kind: 'visit_sla'/);
+        assert.match(sweeps, /kind: 'visit_checkin',[\s\S]{0,200}urgent: false/, 'the check-in needs no late copy: the visit card has the answers');
+        assert.match(src('services/visitReceipt.js'), /kind: 'visit_receipt',[\s\S]{0,40}urgent: false/);
+        assert.match(src('services/leadClaims.js'), /kind: 'request_claimed',[\s\S]{0,80}category: 'requests'/);
+      });
+    } finally {
+      push97._setPool(null);
+      push97._setTransport(null);
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

@@ -44,6 +44,7 @@ import { convertCdfToUsd } from '@/lib/format';
 import {
   updateLeadStatus,
   sendWhatsAppMessage,
+  sendToCustomerAppFirst,
   respondToViewingRequest,
   recordViewingDirectContact,
   createLeadProposal,
@@ -673,7 +674,12 @@ export async function replyToLeadAction(leadId, formData) {
   const lead = await assertOwnedLead(agentId, leadId);
 
   try {
-    await sendWhatsAppMessage(lead.wa_id, text);
+    // The customer's app first, WhatsApp as before (lib/adminApi.js).
+    await sendToCustomerAppFirst(lead.wa_id, text, {
+      kind: 'agent_reply',
+      title: 'Réponse de votre agent',
+      url: '/compte/client/messages',
+    });
   } catch (err) {
     console.error(`[compte/agent] WhatsApp reply to lead #${leadId} failed: ${err.message}`);
     redirect('/compte/agent/demandes?reply_error=send');

@@ -295,12 +295,17 @@ async function runSlaSweep(now = new Date()) {
     const { listing, note } = await agentReachability(request.property_id);
 
     const alternatives = await alternativesFor(request, request.property_id);
-    const toldCustomer = await trySendCustomer(
-      request.lead_wa_id,
-      alternativesText(alternatives),
-      null,
-      `sla alternatives #${request.id}`,
-    );
+    const slaText = alternativesText(alternatives);
+    // The app first (viewingNotifications.tellCustomer); WhatsApp as before.
+    const toldCustomer = await viewingNotifications.tellCustomer(request, {
+      kind: 'visit_sla',
+      text: alternatives.length
+        ? `L'agent n'a pas encore répondu à votre demande de visite. ${alternatives.length} bien(s) similaire(s) disponibles.`
+        : "L'agent n'a pas encore répondu à votre demande de visite. Notre équipe s'en occupe.",
+      expectStatus: 'PENDING',
+      fallback: { text: slaText, label: `sla alternatives #${request.id}` },
+      whatsapp: () => trySendCustomer(request.lead_wa_id, slaText, null, `sla alternatives #${request.id}`),
+    });
 
     await viewingNotifications.notifyOps(
       slaOpsText(request, listing, note, toldCustomer),
@@ -360,13 +365,20 @@ async function runCheckinSweep(now = new Date()) {
     // Outside the customer's 24 h window (a web-form visitor never wrote to
     // us) the session buttons never arrive: VISIT_FEEDBACK_TEMPLATE, approved
     // with the three quick replies in order, carries the same payloads.
-    const ok = (await sendCheckinTemplate(request, label))
-      || (await trySendCustomer(
-        request.lead_wa_id,
-        checkinText(label, false),
-        checkinButtons(request.id),
-        `checkin #${request.id}`,
-      ));
+    // In the app the visit card carries the same three answers (VisitCheckin):
+    // pushed, no WhatsApp copy. Without the app, WhatsApp as before.
+    const ok = await viewingNotifications.tellCustomer(request, {
+      kind: 'visit_checkin',
+      text: `Votre visite de ${label} s'est-elle bien passée ? Dites-le-nous en un geste.`,
+      urgent: false,
+      whatsapp: async () => (await sendCheckinTemplate(request, label))
+        || (await trySendCustomer(
+          request.lead_wa_id,
+          checkinText(label, false),
+          checkinButtons(request.id),
+          `checkin #${request.id}`,
+        )),
+    });
 
     // Claims the customer's next message, so a typed "1" resolves without a
     // button id. Set regardless of channel: the text fallback is precisely

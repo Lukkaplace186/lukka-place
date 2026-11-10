@@ -107,10 +107,18 @@ test('a name that reads like a message is pointed out; real names and agencies a
   }
 });
 
-test('the grey line is what the agent typed first, else what we read, else the description', async () => {
+test('the grey line is the text we read, else the first real message, else the description', async () => {
   const { agentTextLine } = await import('@/lib/moderationRow');
-  const source = { messages: [{ kind: 'media', body: null }, { kind: 'text', body: 'Bonjour, je vous contacte\nvia Lukka Place' }], rawText: 'lu' };
-  assert.equal(agentTextLine(source, {}), 'Bonjour, je vous contacte via Lukka Place');
+  // #814: "Bien reçu" a minute before the listing text.
+  const source814 = {
+    rawText: 'Limeté 3eme rue industrielle référence colonel\nAppartement',
+    messages: [{ kind: 'text', body: 'Bien reçu' }, { kind: 'text', body: 'Limeté 3eme rue industrielle référence colonel\nAppartement' }, { kind: 'media', body: null }],
+  };
+  assert.equal(agentTextLine(source814, {}), 'Limeté 3eme rue industrielle référence colonel Appartement');
+  // Read from a photo (no text read): the first message long enough to describe something.
+  const source806 = { rawText: null, messages: [{ kind: 'text', body: 'Ok' }, { kind: 'media', body: null }, { kind: 'text', body: 'Bonjour, je vous contacte\nvia Lukka Place au sujet de ce bien' }] };
+  assert.equal(agentTextLine(source806, {}), 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien');
+  assert.equal(agentTextLine({ rawText: null, messages: [{ kind: 'text', body: 'Ok' }] }, {}), 'Ok');
   assert.equal(agentTextLine({ messages: [], rawText: 'Appartement 2 chambres' }, {}), 'Appartement 2 chambres');
   assert.equal(agentTextLine({ channel: 'web', messages: [] }, { descriptionSnippet: 'Belle villa' }), 'Belle villa');
   assert.equal(agentTextLine(null, {}), null);

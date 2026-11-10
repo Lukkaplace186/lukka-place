@@ -159,14 +159,24 @@ export function nameLooksLikeSentence(name) {
   return /^(je|j['’]|j ai|bonjour|bonsoir|salut|merci|svp|s['’]il|est-ce|c['’]est|voici|cette|ce bien)\b/.test(lower);
 }
 
+/** A message this short is a reply ("Ok", "Bien reçu"), not a description of a property. */
+export const MIN_LISTING_TEXT = 25;
+
 /**
- * The grey line under a row's title: the first thing the agent typed on
- * WhatsApp (services/listingSource.js), else the text we read, else the start
- * of the description (a listing made on the web form). Null when nothing.
+ * The grey line under a row's title: the agent's own words about the
+ * property. In order: the text the model read (the listing message itself),
+ * else the first WhatsApp message long enough to describe something (a
+ * "Bien reçu" a minute before the listing is not it — #814, 2026-11-10), else
+ * any message, else the start of the description (web form). Null when nothing.
  */
 export function agentTextLine(source, row) {
-  const firstText = source?.messages?.find((message) => message.body && String(message.body).trim());
-  const text = firstText?.body || source?.rawText || row?.descriptionSnippet || null;
+  const texts = (source?.messages || []).map((message) => String(message.body || '').trim()).filter(Boolean);
+  const raw = String(source?.rawText || '').trim();
+  const text = raw
+    || texts.find((body) => body.length >= MIN_LISTING_TEXT)
+    || texts[0]
+    || row?.descriptionSnippet
+    || null;
   if (!text) return null;
   return String(text).replace(/\s+/g, ' ').trim().slice(0, 220) || null;
 }

@@ -282,7 +282,13 @@ the dashboard link; inside the window they get the interactive message.
   `TEMPLATES_WITH_IMAGE`), or none.
 - **Body** (the same 5 variables as `agent_lead_match`, so `templateParams` is unchanged):
 
-  > Bonjour {{1}}, un client cherche un logement à {{2}} : {{3}} chambre(s), budget {{4}}. Touchez « Je m'en occupe » pour recevoir son numéro (3 agences au plus), ou « Pas dispo ». Détails de la demande : {{5}}
+  > Bonjour {{1}},
+  > Un client cherche un logement à {{2}} : {{3}} chambre(s), budget {{4}}.
+  > Touchez « Je m'en occupe » pour recevoir son numéro (3 agences au plus), ou « Pas dispo » si vous n'avez rien à lui proposer.
+  > Détails de la demande : {{5}}
+  > Merci de répondre rapidement.
+
+  (Meta refuses a body that ends on a variable, hence the last line.)
 
   - `{{1}}` agency/agent name — "Ritchie Mbaki"
   - `{{2}}` commune(s), the agency's own first — "Lingwala"

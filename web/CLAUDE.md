@@ -4873,3 +4873,27 @@ migration. The engine copy (`services/agentRanking.js`) must change with it.
   ("pas à jour") state.
 - **Lead routing** (engine): root `docs/claude/leads-and-enquiries.md`,
   "Automated Agent Matching".
+
+## Request claims, priority level, matching console (2026-11-10)
+
+Engine side: root docs/claude/leads-and-enquiries.md, "Matching in waves".
+
+- **`components/AgentLeadClaimCard.js`** replaces `AgentLeadCard` on Demandes
+  for a request the matching sent this agency and it has not taken
+  (`row.customer_hidden`, set by the engine, which nulls `wa_id` / `name`):
+  the request without the customer, the wave, "commune voisine" when it is a
+  neighbour match, and « Je m'en occupe » / « Pas dispo »
+  (`answerLeadMatchAction` → engine `POST /admin/leads/:id/claim`, the
+  session's agent id only). Once 3 agencies took it, the card says so and
+  offers nothing. Keyed `l-<id>-claim`, so taking it remounts into
+  `AgentLeadCard`, which then shows "Vous vous en occupez (n/3)".
+- **`components/AgentPriorityCard.js`** on the overview: Or / Argent / Bronze
+  from engine `GET /admin/agents/:id/priority`, points per part with what to do
+  next. Agency only, never public. Renders nothing when the engine cannot
+  answer (an unread level is not shown as Bronze).
+- **`/admin/matching`** counts open requests only (directed ones in the first
+  tile's hint), "Prises par une agence" with the share taken within 1 h, a
+  response rate over claims + passes, wave / level / neighbour on each match
+  row, CLAIMED / DECLINED filters, and the desk alert count in the coverage
+  panel. The lead-matches CSV appends wave, level, matched_commune,
+  neighbour_of, claimed_at, declined_at, answer_channel.

@@ -7,6 +7,7 @@ import { formatRelative } from '@/lib/format';
 import { buildAgentInbox, inboxFilterFromParams, inboxSeenStamp } from '@/lib/agentInbox';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentLeadCard from '@/components/AgentLeadCard';
+import AgentLeadClaimCard from '@/components/AgentLeadClaimCard';
 import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import { updateAgentLeadStatusAction, replyToLeadAction } from '../actions';
 import { getLocale, getT } from '@/lib/i18n/server';
@@ -221,6 +222,21 @@ export default async function AgentInquiriesPage({ searchParams }) {
                     />
                   );
                 }
+                const leadTarget = (row.property_id && titleFor(row.property_id)) || [row.quartier, row.commune].filter(Boolean).join(', ') || null;
+                // A request the matching sent this agency, not taken yet: no
+                // customer until "Je m'en occupe" (engine services/leadClaims.js).
+                if (row.customer_hidden) {
+                  return (
+                    <AgentLeadClaimCard
+                      key={`${item.key}-claim`}
+                      lead={row}
+                      highlighted={item.focused}
+                      relativeTime={formatRelative(row.created_at, locale)}
+                      budget={budgetText(row, t)}
+                      target={leadTarget}
+                    />
+                  );
+                }
                 return (
                   <AgentLeadCard
                     key={item.key}
@@ -231,7 +247,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
                     statusOptions={STATUS_OPTIONS}
                     relativeTime={formatRelative(row.created_at, locale)}
                     budget={budgetText(row, t)}
-                    target={(row.property_id && titleFor(row.property_id)) || [row.quartier, row.commune].filter(Boolean).join(', ') || null}
+                    target={leadTarget}
                     replyAction={replyToLeadAction.bind(null, row.id)}
                     statusAction={updateAgentLeadStatusAction.bind(null, row.id)}
                   />

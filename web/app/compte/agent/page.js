@@ -23,6 +23,7 @@ import { getAgentProfileGaps } from '@/lib/completeness';
 import { AgentSectionSkeleton } from '@/components/RouteSkeletons';
 import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
 import AgentReferralCard from '@/components/AgentReferralCard';
+import AgentPriorityCard from '@/components/AgentPriorityCard';
 import AgentMilestoneCelebration from '@/components/AgentMilestoneCelebration';
 import { getAgentMilestones } from '@/lib/agentMilestones';
 import { getAgentFounderInfo } from '@/lib/founder';
@@ -119,6 +120,11 @@ export default async function AgentOverviewPage({ searchParams }) {
         </Suspense>
 
         <AgentTodayPanel todo={todo} listingById={listingById} />
+
+        {/* Or / Argent / Bronze: who is asked first about customer requests. */}
+        <Suspense fallback={null}>
+          <AgentPriorityCard agentId={agentId} />
+        </Suspense>
 
         {/* "Mes parrainages": the invite link and what the agent's code brought. */}
         <Suspense fallback={null}>

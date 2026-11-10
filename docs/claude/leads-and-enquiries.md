@@ -151,6 +151,12 @@ so nothing downstream was going to break the loop either.
 
 ## Automated Agent Matching (live)
 
+> **Changed 2026-11-10**: requests now go in waves with a one-tap claim — see
+> "Matching in waves" at the end of this file. The trigger, the ranking SQL and
+> the `lead_matches` / `lead_proposals` split below still hold; "the best
+> seven at once", the responsiveness multiplier, the ×1.05 up-to-date boost
+> and the template note do not.
+
 **The USP, and it is a push, not a pull.** Every customer request is scored
 against the real agencies covering its commune and sent to the best seven on
 WhatsApp *at the moment it is created* — nobody has to open a feed.
@@ -441,3 +447,81 @@ for WhatsApp; the "Appeler" tel: link still goes to the verified agent.
   approved) are what we keep.
 - §91 of verify-pipeline; web `tests/unit/whatsapp-via-lukka.test.js`,
   `tests/unit/lead-routing.test.js`.
+
+## Matching in waves (2026-11-10)
+
+Owner decisions 2026-11-10, after `/admin/matching` showed "10 requests, 9 with
+no agency, 0 % response". Checked on production: only ONE of the 10 was an open
+request (#22, Lingwala); the others were 4 visit requests, 3 profile enquiries,
+1 listing enquiry and 1 desk introduction, each handled by its own path. #22
+went to 7 agencies at the same second as plain session messages (no template
+then), none of the 7 had stock to propose, and a "response" could only be a
+proposal of an own listing — so 0 % was built in.
+
+- **Open vs directed** (`db.DIRECTED_LEAD_SOURCES`, `isOpenRequestSource`):
+  listing-visit-request, listing-whatsapp-enquiry, agent-profile-inquiry,
+  agent-profile-whatsapp, project-enquiry, team-introduction, admin are
+  directed and never matched. Everything else (espace-client-request, whatsapp,
+  move-project, any new form) is open. `/admin/matching` counts open requests
+  only and shows directed ones apart.
+- **Waves** (`services/leadDispatch.js`): best 2 alone for 30 min, then the
+  next 3, then 2 (`WAVE_SIZES`, `WAVE_WINDOW_MS`). The `lead-waves` job (every
+  minute, `LEAD_WAVES=off` pauses it; wave 1 still goes) sends the next wave
+  while fewer than 3 agencies have claimed. The wave number is taken with a
+  guarded UPDATE so the sweep and an early advance cannot both send it. Only
+  requests under 3 days old with `dispatch_wave` set are swept: nothing
+  created before this change is woken.
+- **Claim** (`services/leadClaims.js`): WhatsApp quick replies
+  `lead_claim:<matchId>` / `lead_pass:<matchId>` (only from the number alerted)
+  or the dashboard (`POST /admin/leads/:id/claim`, only the agent's own match).
+  Up to `MAX_CLAIMS` = 3; the claim and the cap check are one transaction; the
+  third claim closes the request. A claim is free (the monthly quota still
+  counts proposals only) and sends the agency the customer's name, number and
+  a wa.me link; the customer is told which agency took it (session message:
+  a web-form customer may be outside the window, logged either way). "Pas
+  dispo" is recorded; when the whole current wave said it, the next wave goes
+  at once. A proposal from an agency that had not claimed counts as its claim.
+- **The customer's number comes with the claim.** `GET /admin/leads` with
+  `matched_agent_id` returns `my_match` and, for a request the agency reaches
+  only through the matching and has not claimed, `wa_id` / `name` null and
+  `customer_hidden: true` (web shows `AgentLeadClaimCard`). Before, every
+  matched agency saw the number at once.
+- **Desk** (`alertDeskOnce`, stamped on `leads.dispatch_desk_alerted_at` /
+  `dispatch_desk_reason` before the send, so once per request): `no-commune`
+  at once; `no-coverage` when no agency covers the commune (neighbours tried
+  first, see below); `unclaimed` when every wave is spent with no claim.
+  OPS_WHATSAPP_NUMBER via `deskAlert.sendDeskAlert`. `moveFollowup.js` skips
+  a request the desk already got.
+- **Neighbouring communes** (`services/communeNeighbours.js`): no agency in the
+  requested commune → the nearest communes of the same city whose verified
+  centre point is within 6 km (max 3), from web `KINSHASA_COMMUNE_CENTROIDS`
+  (copied; verify-pipeline compares the two) and `drc_commune_centroids.json`.
+  No hand-made adjacency list. The alert says "commune voisine"; the match
+  records `matched_commune` and `neighbour_of`. Maluku has none → desk only.
+- **WhatsApp assistant**: `create_enquiry` with no listing and no commune asks
+  the customer once (in-memory per conversation, 2 h); a second call saves the
+  request and the desk gets it.
+- **Who is asked first**: score = ranking base (unchanged SQL, × plan
+  multiplier) × priority level multiplier × fairness. The level
+  (`services/agentPriority.js`, owner decision: visible to the agency only)
+  replaces the responsiveness multiplier and the 2026-11-09 ×1.05 boost:
+  up to date 30 pts (every live listing confirmed/published within 14 days),
+  new listing in 30 days 15, requests answered in 60 days 35 (claim, pass or
+  proposal; < 3 alerts = half), visits answered in 60 days 20 (< 2 = half).
+  Or ≥ 70 (×1.25), Argent ≥ 40 (×1), Bronze (×0.8). A signal that cannot be
+  read gives nobody its points. Paid plan = a boost, never a guaranteed wave 1.
+  `GET /admin/agents/:id/priority` feeds the dashboard card.
+- **Responsiveness** now counts claims and passes, and leaves out sends that
+  FAILED (an alert that never left is not an ignored one); both window reads
+  compare through `datetime()`.
+- **Sending** (`notifyAgency`): inside the agency's 24 h window the
+  interactive message with both buttons; outside, `AGENT_LEAD_CLAIM_TEMPLATE`
+  (with buttons, not approved yet — draft in whatsapp-delivery.md) else
+  `AGENT_LEAD_MATCH_TEMPLATE` (`agent_lead_match`, on in production, no
+  buttons: the agency claims from the dashboard link), else the buttons
+  message with a warning that it probably won't arrive; plain text last.
+- Columns: `leads.dispatch_wave/_wave_at/_closed_at/_desk_alerted_at/_desk_reason`,
+  `lead_matches.wave/matched_commune/neighbour_of/level/claimed_at/declined_at/answer_channel`
+  (idempotent ALTER lists). "Relancer la diffusion" sends the next wave now and
+  reopens a request closed for lack of agencies. verify-pipeline §94 (and
+  §16 / §92 updated).

@@ -270,3 +270,28 @@ The conversations themselves live in Postgres and on the site (web/CLAUDE.md,
   as `AGENT_OTP_TEMPLATE` in web `.env.local`. A send with its copy-code
   button was delivered to the owner's phone on 2026-11-07, so password-reset
   codes reach cold numbers. The 2026-11-04 non-delivery did not reproduce.
+
+## `agent_lead_claim` — request alert with claim buttons (draft, 2026-11-10)
+
+To submit on the INTAKE account (+243 976 321 848). Until approved, agencies
+outside their 24 h window get `agent_lead_match` (no buttons) and claim from
+the dashboard link; inside the window they get the interactive message.
+
+- **Name**: `agent_lead_claim` · **Category**: UTILITY · **Language**: French (fr)
+- **Header**: IMAGE, like the other agent templates (then add the name to
+  `TEMPLATES_WITH_IMAGE`), or none.
+- **Body** (the same 5 variables as `agent_lead_match`, so `templateParams` is unchanged):
+
+  > Bonjour {{1}}, un client cherche un logement à {{2}} : {{3}} chambre(s), budget {{4}}. Touchez « Je m'en occupe » pour recevoir son numéro (3 agences au plus), ou « Pas dispo ». Détails de la demande : {{5}}
+
+  - `{{1}}` agency/agent name — "Ritchie Mbaki"
+  - `{{2}}` commune(s), the agency's own first — "Lingwala"
+  - `{{3}}` bedrooms or "Non précisé" — "2"
+  - `{{4}}` budget or "Budget non précisé" — "400 $ – 450 $"
+  - `{{5}}` dashboard link — "https://lukkaplace.com/compte/agent/demandes?lead=22"
+- **Footer**: "Vous recevez ce message car vous couvrez cette commune sur Lukka Place."
+- **Buttons**: two QUICK REPLY, in this order: 1 « Je m'en occupe », 2 « Pas dispo ».
+  The payloads (`lead_claim:<id>`, `lead_pass:<id>`) are set at send time.
+- **Switch on**: `AGENT_LEAD_CLAIM_TEMPLATE=agent_lead_claim` in the engine
+  `.env`, restart with `--update-env`, test-send to the desk number, tap both
+  buttons. Keep `AGENT_LEAD_MATCH_TEMPLATE` as the fallback.

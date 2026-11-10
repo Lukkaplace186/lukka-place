@@ -139,6 +139,45 @@ const UP_TO_DATE_AGENTS_SQL = `
      AND COUNT(*) FILTER (WHERE ${UP_TO_DATE_SQL} IS NOT TRUE) = 0`;
 
 /**
+ * Portfolio signals for the priority level (services/agentPriority.js,
+ * 2026-11-10): per agent, live listings, how many of them are NOT up to date
+ * (same rule as UP_TO_DATE_SQL), and the last time a listing of theirs went
+ * public (created_at / moderated_at). An agent with no row has no live
+ * listing and published nothing.
+ */
+const PORTFOLIO_SIGNALS_SQL = `
+  SELECT p.agent_id,
+         COUNT(*) FILTER (WHERE ${LIVE_LISTING_FILTER})                                     AS live,
+         COUNT(*) FILTER (WHERE ${LIVE_LISTING_FILTER} AND ${UP_TO_DATE_SQL} IS NOT TRUE)   AS stale,
+         MAX(GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at)))
+           FILTER (WHERE p.approve_status = 1)                                              AS last_published_at
+    FROM properties p
+   WHERE p.agent_id = ANY($1::int[])
+   GROUP BY p.agent_id`;
+
+/**
+ * @param {number[]} agentIds
+ * @returns {Promise<Map<number, {live: number, stale: number, lastPublishedAt: Date|null}>|null>}
+ *   null when Postgres cannot answer (the caller then gives nobody portfolio points).
+ */
+async function portfolioSignals(agentIds) {
+  const ids = [...new Set((agentIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  if (ids.length === 0) return new Map();
+  if (!isConfigured()) return null;
+  try {
+    const { rows } = await getPool().query(PORTFOLIO_SIGNALS_SQL, [ids]);
+    return new Map(rows.map((r) => [Number(r.agent_id), {
+      live: Number(r.live) || 0,
+      stale: Number(r.stale) || 0,
+      lastPublishedAt: r.last_published_at ? new Date(r.last_published_at) : null,
+    }]));
+  } catch (err) {
+    console.warn(`[agentRanking] portfolio signals unavailable (${err.code || 'error'}): ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * @param {Object} request
  * @param {string} request.commune           Canonical commune name (already resolved via services/locations.js).
  * @param {number|null} [request.priceMax]   Budget ceiling in USD.
@@ -278,6 +317,8 @@ async function rankAgentsForRequest(
 module.exports = {
   rankAgentsForRequest,
   upToDateAgentIds,
+  portfolioSignals,
+  PORTFOLIO_SIGNALS_SQL,
   MAX_AGENTS_PER_LEAD,
   UP_TO_DATE_DAYS,
   UP_TO_DATE_SQL,

@@ -22,7 +22,9 @@ const deskAlert = require('../services/deskAlert');
 const propertyRepository = require('../services/propertyRepository');
 const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
-const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
+const { dispatchLead, dispatchLeadInBackground, MAX_CLAIMS } = require('../services/leadDispatch');
+const leadClaims = require('../services/leadClaims');
+const agentPriority = require('../services/agentPriority');
 const { handleProjectEnquiry } = require('../services/projectEnquiry');
 const agentProfileEnquiry = require('../services/agentProfileEnquiry');
 const teamIntroduction = require('../services/teamIntroduction');
@@ -221,6 +223,21 @@ router.get('/leads', (req, res) => {
       unassigned: unassigned === '1' || unassigned === 'true',
       limit, offset,
     });
+    // An agency reaching a request only through the matching sees the
+    // customer's name and number once it has claimed it, plus its own match
+    // (wave, claim, how many agencies took it) — services/leadClaims.js.
+    if (Number.isFinite(matchedAgentId)) {
+      page.data = page.data.map((lead) => {
+        const match = db.getLeadMatchForAgent(lead.id, matchedAgentId);
+        if (!match) return lead;
+        const ownedOtherwise = (propertyIds || []).includes(Number(lead.property_id))
+          || (assignedAgent && lead.assigned_agent === assignedAgent)
+          || (Number.isFinite(agentId) && Number(lead.agent_id) === agentId);
+        return leadClaims.redactForMatchedAgency(lead, match, {
+          ownedOtherwise, claims: db.countLeadClaims(lead.id),
+        });
+      });
+    }
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /leads failed: ${err.message}`);
@@ -652,6 +669,9 @@ router.post('/leads/:id/proposals', (req, res) => {
 
   try {
     const proposal = db.createLeadProposal({ leadId, agentId, propertyId });
+    // A proposal from a matched agency that had not tapped "Je m'en occupe"
+    // is its claim (services/leadClaims.js), while a place is left.
+    leadClaims.claimOnProposal({ leadId, agentId });
     return res.status(201).json({ success: true, proposal });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
@@ -699,11 +719,40 @@ router.post('/leads/:id/dispatch', async (req, res) => {
     return res.status(404).json({ success: false, error: 'Lead not found.' });
   }
   try {
+    // "Relancer la diffusion" sends the next wave now (the first one for a
+    // request never dispatched, or one whose commune was just corrected),
+    // reopening a request closed for lack of agencies.
+    if (db.countLeadClaims(leadId) < MAX_CLAIMS) {
+      db.db.prepare('UPDATE leads SET dispatch_closed_at = NULL WHERE id = ?').run(leadId);
+    }
     const result = await dispatchLead(lead);
     return res.json({ success: true, ...result });
   } catch (err) {
     console.error(`[admin] POST /leads/${leadId}/dispatch failed: ${err.message}`);
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * The agent dashboard's answer to a request alert: "Je m'en occupe" or "Pas
+ * dispo" (services/leadClaims.js). `agent_id` is the signed-in agent, set by
+ * web from its session; only that agent's own match can be answered. A claim
+ * returns the customer's name and number.
+ */
+router.post('/leads/:id/claim', async (req, res) => {
+  const leadId = Number.parseInt(req.params.id, 10);
+  const agentId = Number.parseInt(req.body?.agent_id, 10);
+  const answer = String(req.body?.answer || '');
+  if (!Number.isFinite(leadId) || !Number.isFinite(agentId)) {
+    return res.status(400).json({ success: false, error: 'lead id and agent_id are required.' });
+  }
+  try {
+    const out = await leadClaims.answerFromDashboard({ leadId, agentId, answer });
+    if (out.status) return res.status(out.status).json({ success: false, error: out.outcome });
+    return res.json({ success: out.ok, ...out });
+  } catch (err) {
+    console.error(`[admin] POST /leads/${leadId}/claim failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the answer.' });
   }
 });
 
@@ -1792,6 +1841,25 @@ async function deliverModerationVerdict(status, listing, propertyId, reason = {}
  * NULL agent_id, so an attribution an admin made by hand always wins, and a
  * second call simply links nothing.
  */
+/**
+ * An agency's priority level for customer requests (services/agentPriority.js):
+ * Or / Argent / Bronze, its points per part, and what is left to the next
+ * level. For that agency's own dashboard; never shown publicly.
+ */
+router.get('/agents/:id/priority', async (req, res) => {
+  const agentId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(agentId) || agentId <= 0) {
+    return res.status(400).json({ success: false, error: 'agent id must be a positive integer.' });
+  }
+  try {
+    const priority = await agentPriority.getAgentPriority(agentId);
+    return res.json({ success: true, priority });
+  } catch (err) {
+    console.error(`[admin] GET /agents/${agentId}/priority failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not compute the priority level.' });
+  }
+});
+
 router.post('/agents/claim-listings', async (req, res) => {
   const waId = String(req.body?.wa_id ?? '').replace(/\D/g, '');
   if (!waId) {

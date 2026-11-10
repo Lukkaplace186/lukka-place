@@ -50,6 +50,7 @@ import {
   getAgentPitchUsage,
   parseAgentListingText,
   alertPendingListing,
+  answerLeadMatch,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
@@ -478,6 +479,30 @@ async function assertOwnedLead(agentId, leadId) {
   const lead = await findOwnedLead(agentId, leadId);
   if (!lead) throw new Error('Not your lead, or it does not exist.');
   return lead;
+}
+
+/**
+ * "Je m'en occupe" / "Pas dispo" on a request the matching sent this agency
+ * (engine services/leadClaims.js). The engine checks the match is this
+ * agent's own; a claim returns the customer, shown once the page refreshes.
+ * Called imperatively so the card can toast.
+ *
+ * @param {number} leadId
+ * @param {'claim'|'pass'} answer
+ * @returns {Promise<{ok: boolean, outcome: string}>}
+ */
+export async function answerLeadMatchAction(leadId, answer) {
+  const agentId = await assertAgentSession();
+  if (answer !== 'claim' && answer !== 'pass') return { ok: false, outcome: 'invalid-answer' };
+  try {
+    const out = await answerLeadMatch({ leadId: Number(leadId), agentId, answer });
+    revalidatePath('/compte/agent/demandes');
+    revalidatePath('/compte/agent');
+    return { ok: Boolean(out.success), outcome: out.outcome };
+  } catch (err) {
+    console.error(`[compte/agent] answer to lead #${leadId} (${answer}) failed: ${err.message}`);
+    return { ok: false, outcome: err.status === 404 ? 'not-matched' : 'error' };
+  }
 }
 
 export async function updateAgentLeadStatusAction(leadId, formData) {

@@ -5321,8 +5321,9 @@ console.log('\n2. services/openai.js');
     const stats = dbService.getAgentResponsivenessSince({ since: sinceAll }).get(9001);
     assert.strictEqual(stats.matched, 1);
     assert.strictEqual(stats.answered, 1);
-    const unanswered = dbService.getAgentResponsivenessSince({ since: sinceAll }).get(9002);
-    assert.strictEqual(unanswered.answered, 0, 'an agency that was notified and stayed silent must score 0 answered');
+    // 9002's send FAILED: an alert that never left is not an ignored one
+    // (2026-11-10), so it is not counted against the agency at all.
+    assert.strictEqual(dbService.getAgentResponsivenessSince({ since: sinceAll }).get(9002), undefined);
   });
 
   const statsResp = await adminRequest('GET', '/admin/leads/matching-stats?days=30');
@@ -5339,11 +5340,13 @@ console.log('\n2. services/openai.js');
     // appear in it.
     assert.ok(Array.isArray(statsResp.body.uncovered));
     assert.ok(statsResp.body.uncovered.length > 0, 'undispatched leads exist in this fixture');
+    // Open requests only since 2026-11-10: a request addressed to one
+    // agent or listing is not "uncovered" (see §94).
     const total = statsResp.body.uncovered.reduce((sum, row) => sum + row.n, 0);
     assert.strictEqual(
       total,
       statsResp.body.totals.leads - statsResp.body.totals.leads_dispatched,
-      'uncovered must be exactly the leads with no lead_matches row',
+      'uncovered must be exactly the open requests with no lead_matches row',
     );
   });
 
@@ -7093,7 +7096,7 @@ console.log('\n2. services/openai.js');
       "leadDispatch must default the template name to null, not to 'agent_lead_match'",
     );
     assert.ok(
-      /templateConfigured\(TEMPLATE_NAME\)/.test(dispatchSource),
+      /templateConfigured\(name\)/.test(dispatchSource),
       'leadDispatch must skip straight to the session message when no template is configured',
     );
   });
@@ -7149,7 +7152,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'sqlite-backup',
     ]);
   });
 
@@ -8712,6 +8715,10 @@ console.log('\n2. services/openai.js');
       }
       throw new Error('Postgres unreachable for this commune');
     };
+    // POST /admin/leads already dispatched it in the background with the real
+    // ranking, which has no Postgres here and closed it as uncovered.
+    dbService.db.prepare('UPDATE leads SET dispatch_wave = NULL, dispatch_closed_at = NULL WHERE id = ?')
+      .run(multiLeadResp.body.lead.id);
     const result = await leadDispatchService.dispatchLead(multiLeadResp.body.lead, { rank: fakeRank });
     assert.deepStrictEqual(rankedCommunes, ['Gombe', 'Ngaliema', 'Lingwala']);
     assert.strictEqual(result.dispatched, 2, 'agency 9301 covers two communes but is pushed once');
@@ -15684,9 +15691,10 @@ console.log('\n2. services/openai.js');
 
   // §92 Lead routing prefers agencies whose portfolio is up to date (2026-11-09)
   // ---------------------------------------------------------------------------
-  // Incentive for the fortnightly availability check: an agency whose every
-  // live listing was confirmed (or published) in the last 14 days gets a ×1.05
-  // boost and wins ties in services/leadDispatch.js. Never an exclusion.
+  // Incentive for the fortnightly availability check. Since 2026-11-10 (§94)
+  // it is 30 of the 100 points of the agency's priority level
+  // (services/agentPriority.js), which multiplies the match score, instead
+  // of a hidden ×1.05. Still never an exclusion.
   console.log('\n§92 lead dispatch prefers an up-to-date portfolio on a near tie, never drops a stale agency');
   {
     const ranking92 = require('../services/agentRanking');
@@ -15699,15 +15707,21 @@ console.log('\n2. services/openai.js');
       { agent_id: 9202, phone: '243950009202', base_score: 60, matching_listings: 1 },
     ];
     const order = (lead) => dbService.getLeadMatches(lead.id).map((m) => m.agent_id);
+    const priority92 = require('../services/agentPriority');
+    // The level each agency would have with only its portfolio known: live
+    // listings, all up to date or not.
+    const freshness = (fresh) => async (ids) => new Map(ids.map((id) => [id, priority92.scoreAgent({
+      portfolio: { live: 1, stale: fresh.has(id) ? 0 : 1, lastPublishedAt: null }, portfolioKnown: true, now: Date.now(),
+    })]));
 
     await checkAsync('on an equal score the up-to-date agency is ranked first', async () => {
       const lead = freshLead();
-      await dispatch92.dispatchLead(lead, { rank: tie, freshness: async () => new Set([9202]) });
+      await dispatch92.dispatchLead(lead, { rank: tie, levels: freshness(new Set([9202])) });
       assert.deepStrictEqual(order(lead), [9202, 9201]);
     });
     await checkAsync('without the signal the order is unchanged (id tie-break)', async () => {
       const lead = freshLead();
-      await dispatch92.dispatchLead(lead, { rank: tie, freshness: async () => new Set() });
+      await dispatch92.dispatchLead(lead, { rank: tie, levels: freshness(new Set()) });
       assert.deepStrictEqual(order(lead), [9201, 9202]);
     });
     await checkAsync('a clearly better stale agency keeps first place, and is never dropped', async () => {
@@ -15716,7 +15730,7 @@ console.log('\n2. services/openai.js');
         { agent_id: 9203, phone: '243950009203', base_score: 80, matching_listings: 3 },
         { agent_id: 9204, phone: '243950009204', base_score: 60, matching_listings: 1 },
       ];
-      const result = await dispatch92.dispatchLead(lead, { rank, freshness: async () => new Set([9204]) });
+      const result = await dispatch92.dispatchLead(lead, { rank, levels: freshness(new Set([9204])) });
       assert.strictEqual(result.dispatched, 2);
       assert.deepStrictEqual(order(lead), [9203, 9204]);
     });
@@ -15724,7 +15738,7 @@ console.log('\n2. services/openai.js');
       const lead = freshLead();
       const result = await dispatch92.dispatchLead(lead, {
         rank: tie,
-        freshness: async () => { const e = new Error('column "availability_confirmed_at" does not exist'); e.code = '42703'; throw e; },
+        levels: async () => { const e = new Error('column "availability_confirmed_at" does not exist'); e.code = '42703'; throw e; },
       });
       assert.strictEqual(result.dispatched, 2);
       assert.deepStrictEqual(order(lead), [9201, 9202]);
@@ -15938,6 +15952,359 @@ console.log('\n2. services/openai.js');
       pg93.getPool = saved93.getPool;
       if (saved93.template === undefined) delete process.env.LISTING_STATUS_TEMPLATE; else process.env.LISTING_STATUS_TEMPLATE = saved93.template;
       if (saved93.pause === undefined) delete process.env.LISTING_AUTO_PAUSE; else process.env.LISTING_AUTO_PAUSE = saved93.pause;
+    }
+  }
+
+  // §94 Matching in waves, claims, desk alerts, priority levels (2026-11-10)
+  // ---------------------------------------------------------------------------
+  // Owner decisions 2026-11-10: an open request goes to the best 2 agencies
+  // alone for 30 min, then the next 3, then 2; up to 3 agencies take it with
+  // "Je m'en occupe" (the customer's number comes with the claim); no commune
+  // or no agency -> the ops desk (neighbouring communes are asked first);
+  // priority levels Or / Argent / Bronze multiply the score.
+  console.log('\n§94 requests go in waves of 2/3/2, agencies claim with one tap, the desk gets what nobody can take');
+  {
+    const dispatch94 = require('../services/leadDispatch');
+    const claims94 = require('../services/leadClaims');
+    const priority94 = require('../services/agentPriority');
+    const neighbours94 = require('../services/communeNeighbours');
+    const chakra94 = require('../services/chakra');
+    const saved94 = {
+      buttons: chakra94.sendInteractiveButtons,
+      text: chakra94.sendWhatsAppMessage,
+      template: chakra94.sendTemplate,
+      tplEnv: process.env.AGENT_LEAD_MATCH_TEMPLATE,
+      ops: process.env.OPS_WHATSAPP_NUMBER,
+      next: dispatch94.dispatchNextWave,
+    };
+    const sent94 = [];
+    chakra94.sendInteractiveButtons = async (to, text, buttons) => { sent94.push({ kind: 'buttons', to, text, buttons }); return { ok: true }; };
+    chakra94.sendWhatsAppMessage = async (to, text) => { sent94.push({ kind: 'text', to, text }); return { ok: true }; };
+    chakra94.sendTemplate = async () => { throw new Error('no template in tests'); };
+    delete process.env.AGENT_LEAD_MATCH_TEMPLATE;
+    process.env.OPS_WHATSAPP_NUMBER = '243940009400';
+    const desk94 = [];
+    const deskSend = async (to, text) => { desk94.push({ to, text }); return 'session'; };
+    const neutral = async (ids) => new Map(ids.map((id) => [id, { level: 'argent', multiplier: 1 }]));
+    const agents94 = (prefix, n, base = 60) => Array.from({ length: n }, (_, i) => ({
+      agent_id: prefix + i, phone: `2439400${prefix + i}`, base_score: base - i, matching_listings: 0, fitting_listings: 0, display_name: `Agence ${i}`,
+    }));
+    const newLead = (extra = {}) => dbService.createLead({
+      wa_id: '243940000001', name: 'Client Test', source: 'espace-client-request',
+      transaction_type: 'location', commune: 'Lingwala', bedrooms: 2, price_min: 400, price_max: 450, ...extra,
+    });
+    try {
+      check('leads and lead_matches carry the wave and claim columns (idempotent ALTER lists)', () => {
+        const leadCols = dbService.db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
+        for (const c of ['dispatch_wave', 'dispatch_wave_at', 'dispatch_closed_at', 'dispatch_desk_alerted_at', 'dispatch_desk_reason']) assert.ok(leadCols.includes(c), c);
+        const matchCols = dbService.db.prepare('PRAGMA table_info(lead_matches)').all().map((c) => c.name);
+        for (const c of ['wave', 'matched_commune', 'neighbour_of', 'level', 'claimed_at', 'declined_at', 'answer_channel']) assert.ok(matchCols.includes(c), c);
+      });
+
+      check('a request addressed to one agent or listing is directed, never offered around', () => {
+        for (const s of ['listing-visit-request', 'listing-whatsapp-enquiry', 'agent-profile-inquiry', 'project-enquiry', 'team-introduction']) {
+          assert.strictEqual(dbService.isOpenRequestSource(s), false, s);
+        }
+        for (const s of ['espace-client-request', 'whatsapp', 'move-project', null]) assert.strictEqual(dbService.isOpenRequestSource(s), true, String(s));
+      });
+
+      await checkAsync('a directed request is not dispatched even with a commune', async () => {
+        const lead = newLead({ source: 'listing-visit-request' });
+        const out = await dispatch94.dispatchLead(lead, { rank: async () => agents94(9400, 5), levels: neutral, deskSend });
+        assert.strictEqual(out.skipped, 'directed');
+        assert.strictEqual(dbService.getLeadMatches(lead.id).length, 0);
+      });
+
+      let waveLead;
+      await checkAsync('wave 1 goes to the best 2 only, with "Je m\'en occupe" / "Pas dispo" buttons', async () => {
+        sent94.length = 0;
+        waveLead = newLead();
+        const out = await dispatch94.dispatchLead(waveLead, { rank: async () => agents94(9410, 8), levels: neutral, deskSend });
+        assert.deepStrictEqual([out.wave, out.dispatched, out.notified], [1, 2, 2]);
+        const matches = dbService.getLeadMatches(waveLead.id);
+        assert.deepStrictEqual(matches.map((m) => m.agent_id), [9410, 9411]);
+        assert.ok(matches.every((m) => m.wave === 1));
+        assert.strictEqual(dbService.getLead(waveLead.id).dispatch_wave, 1);
+        const alert = sent94.find((s) => s.kind === 'buttons');
+        assert.deepStrictEqual(alert.buttons.map((b) => b.id), [`lead_claim:${matches[0].id}`, `lead_pass:${matches[0].id}`]);
+        assert.match(alert.text, /Lingwala/);
+        assert.match(alert.text, /30 min/);
+        assert.doesNotMatch(alert.text, /243940000001/, 'the alert never carries the customer number');
+      });
+
+      await checkAsync('the sweep leaves a wave alone for 30 minutes, then sends the next 3', async () => {
+        await dispatch94.runWaveSweep({ now: Date.now() + 5 * 60 * 1000, rank: async () => agents94(9410, 8), levels: neutral, deskSend });
+        assert.strictEqual(dbService.getLeadMatches(waveLead.id).length, 2, 'not due yet');
+        await dispatch94.runWaveSweep({ now: Date.now() + 31 * 60 * 1000, rank: async () => agents94(9410, 8), levels: neutral, deskSend });
+        const matches = dbService.getLeadMatches(waveLead.id);
+        // As a set: the same sweep advanced other requests of this suite with
+        // the same agencies first, and fairness reorders them a little.
+        assert.deepStrictEqual(matches.filter((m) => m.wave === 2).map((m) => m.agent_id).sort(), [9412, 9413, 9414]);
+      });
+
+      await checkAsync('the priority level outweighs a small raw lead: Or 60 beats Bronze 70', async () => {
+        const lead = newLead();
+        const rank = async () => [
+          { agent_id: 9420, phone: '2439409420', base_score: 70, matching_listings: 1 },
+          { agent_id: 9421, phone: '2439409421', base_score: 60, matching_listings: 1 },
+          { agent_id: 9422, phone: '2439409422', base_score: 50, matching_listings: 0 },
+        ];
+        const levels = async () => new Map([[9420, { level: 'bronze', multiplier: 0.8 }], [9421, { level: 'or', multiplier: 1.25 }], [9422, { level: 'argent', multiplier: 1 }]]);
+        await dispatch94.dispatchLead(lead, { rank, levels, deskSend });
+        const m = dbService.getLeadMatches(lead.id);
+        assert.deepStrictEqual(m.map((x) => [x.agent_id, x.level]), [[9421, 'or'], [9420, 'bronze']]);
+      });
+
+      await checkAsync('a button from another number is ignored; the alerted agency gets the customer number on claim', async () => {
+        const match = dbService.getLeadMatches(waveLead.id)[0];
+        sent94.length = 0;
+        const stranger = await claims94.handleLeadButtonReply({ from: '243999999999', replyId: `lead_claim:${match.id}` });
+        assert.strictEqual(stranger.ignored, 'not-this-agent');
+        assert.strictEqual(sent94.length, 0);
+        const out = await claims94.handleLeadButtonReply({ from: match.agent_phone, replyId: `lead_claim:${match.id}` });
+        assert.strictEqual(out.outcome, 'claimed');
+        const toAgent = sent94.find((s) => s.to === match.agent_phone);
+        assert.match(toAgent.text, /\+243940000001/);
+        assert.match(toAgent.text, /wa\.me\/243940000001/);
+        assert.ok(sent94.some((s) => s.to === '243940000001' && /s’occupe de votre recherche/.test(s.text)), 'the customer is told');
+        assert.ok(dbService.getLeadMatchById(match.id).claimed_at);
+      });
+
+      await checkAsync('at most 3 agencies take a request; the third claim closes it and a fourth gets no number', async () => {
+        const matches = dbService.getLeadMatches(waveLead.id);
+        await claims94.handleLeadButtonReply({ from: matches[1].agent_phone, replyId: `lead_claim:${matches[1].id}` });
+        const third = await claims94.answerFromDashboard({ leadId: waveLead.id, agentId: matches[2].agent_id, answer: 'claim' });
+        assert.strictEqual(third.claims, 3);
+        assert.strictEqual(third.customer.wa_id, '243940000001');
+        assert.ok(dbService.getLead(waveLead.id).dispatch_closed_at, 'closed after the third claim');
+        sent94.length = 0;
+        const fourth = await claims94.handleLeadButtonReply({ from: matches[3].agent_phone, replyId: `lead_claim:${matches[3].id}` });
+        assert.strictEqual(fourth.outcome, 'full');
+        assert.ok(!sent94.some((s) => /243940000001/.test(s.text)), 'no number for a fourth agency');
+        assert.strictEqual(dbService.countLeadClaims(waveLead.id), 3);
+      });
+
+      await checkAsync('when every agency of a wave says "Pas dispo", the next wave goes at once', async () => {
+        const lead = newLead();
+        await dispatch94.dispatchLead(lead, { rank: async () => agents94(9430, 6), levels: neutral, deskSend });
+        const calls = [];
+        dispatch94.dispatchNextWave = async (l) => { calls.push(l.id); return {}; };
+        const [a, b] = dbService.getLeadMatches(lead.id);
+        await claims94.handleLeadButtonReply({ from: a.agent_phone, replyId: `lead_pass:${a.id}` });
+        await new Promise((r) => setImmediate(r));
+        assert.deepStrictEqual(calls, [], 'one pass out of two does not advance');
+        await claims94.handleLeadButtonReply({ from: b.agent_phone, replyId: `lead_pass:${b.id}` });
+        await new Promise((r) => setImmediate(r));
+        assert.deepStrictEqual(calls, [lead.id]);
+        dispatch94.dispatchNextWave = saved94.next;
+      });
+
+      await checkAsync('a request with no commune goes to the desk once, never to an agency', async () => {
+        desk94.length = 0;
+        const lead = newLead({ commune: null, requirements_summary: 'Je cherche une maison' });
+        const out = await dispatch94.dispatchLead(lead, { rank: async () => agents94(9440, 3), levels: neutral, deskSend });
+        assert.strictEqual(out.skipped, 'no-commune');
+        await dispatch94.dispatchLead(lead, { rank: async () => agents94(9440, 3), levels: neutral, deskSend });
+        assert.strictEqual(desk94.length, 1, 'told once');
+        assert.strictEqual(desk94[0].to, '243940009400');
+        assert.match(desk94[0].text, /sans commune/);
+        assert.match(desk94[0].text, /Je cherche une maison/);
+        assert.strictEqual(dbService.getLead(lead.id).dispatch_desk_reason, 'no-commune');
+      });
+
+      await checkAsync('no agency in the commune: the neighbouring communes are asked and the desk is told', async () => {
+        desk94.length = 0;
+        sent94.length = 0;
+        const lead = newLead({ commune: 'Limete' });
+        const ranked = [];
+        const rank = async ({ commune }) => {
+          ranked.push(commune);
+          return commune === 'Kalamu' ? [{ agent_id: 9450, phone: '2439409450', base_score: 60, matching_listings: 0 }] : [];
+        };
+        const out = await dispatch94.dispatchLead(lead, { rank, levels: neutral, deskSend });
+        assert.strictEqual(out.notified, 1);
+        assert.deepStrictEqual(ranked, ['Limete', 'Kalamu', 'Ngaba', 'Matete']);
+        const m = dbService.getLeadMatches(lead.id)[0];
+        assert.deepStrictEqual([m.matched_commune, m.neighbour_of], ['Kalamu', 'Limete']);
+        assert.match(sent94.find((s) => s.kind === 'buttons').text, /commune voisine/);
+        assert.strictEqual(desk94.length, 1);
+        assert.match(desk94[0].text, /Aucune agence inscrite à Limete[\s\S]*Kalamu/);
+      });
+
+      await checkAsync('nobody in the commune nor around it: desk only, request closed', async () => {
+        desk94.length = 0;
+        const lead = newLead({ commune: 'Maluku' });
+        const out = await dispatch94.dispatchLead(lead, { rank: async () => [], levels: neutral, deskSend });
+        assert.strictEqual(out.skipped, 'no-coverage');
+        assert.strictEqual(desk94.length, 1);
+        assert.ok(dbService.getLead(lead.id).dispatch_closed_at);
+      });
+
+      await checkAsync('every wave spent and nobody claimed: the desk is told, once', async () => {
+        desk94.length = 0;
+        const lead = newLead();
+        const rank = async () => agents94(9460, 7);
+        await dispatch94.dispatchLead(lead, { rank, levels: neutral, deskSend });
+        await dispatch94.dispatchNextWave(lead, { rank, levels: neutral, deskSend });
+        await dispatch94.dispatchNextWave(lead, { rank, levels: neutral, deskSend });
+        assert.strictEqual(dbService.getLeadMatches(lead.id).length, 7);
+        const after = await dispatch94.dispatchNextWave(lead, { rank, levels: neutral, deskSend });
+        assert.strictEqual(after.skipped, 'unclaimed');
+        assert.match(desk94[0].text, /sans preneur[\s\S]*7 agence/);
+        await dispatch94.dispatchNextWave(lead, { rank, levels: neutral, deskSend });
+        assert.strictEqual(desk94.length, 1);
+      });
+
+      await checkAsync('outside the 24 h window the approved template goes (buttons only on the claim template); inside, the buttons message', async () => {
+        const sessionWindow94 = require('../services/sessionWindow');
+        const tpl = [];
+        chakra94.sendTemplate = async (to, name, params) => { tpl.push({ to, name, buttons: params.buttons || null }); return { ok: true }; };
+        const savedClaim = process.env.AGENT_LEAD_CLAIM_TEMPLATE;
+        try {
+          process.env.AGENT_LEAD_MATCH_TEMPLATE = 'agent_lead_match';
+          delete process.env.AGENT_LEAD_CLAIM_TEMPLATE;
+          sent94.length = 0;
+          const coldLead = newLead();
+          await dispatch94.dispatchLead(coldLead, { rank: async () => agents94(9480, 1), levels: neutral, deskSend });
+          assert.deepStrictEqual(tpl.map((x) => [x.name, x.buttons]), [['agent_lead_match', null]], 'the approved template has no buttons');
+          assert.strictEqual(sent94.length, 0);
+
+          tpl.length = 0;
+          process.env.AGENT_LEAD_CLAIM_TEMPLATE = 'agent_lead_claim';
+          const claimLead = newLead();
+          await dispatch94.dispatchLead(claimLead, { rank: async () => agents94(9481, 1), levels: neutral, deskSend });
+          const m = dbService.getLeadMatches(claimLead.id)[0];
+          assert.deepStrictEqual(tpl.map((x) => [x.name, x.buttons && x.buttons.map((b) => b.id)]), [['agent_lead_claim', [`lead_claim:${m.id}`, `lead_pass:${m.id}`]]]);
+
+          tpl.length = 0;
+          sessionWindow94.recordInbound('24394009482');
+          const warmLead = newLead();
+          await dispatch94.dispatchLead(warmLead, { rank: async () => agents94(9482, 1), levels: neutral, deskSend });
+          assert.strictEqual(tpl.length, 0, 'inside the window: no template');
+          assert.ok(sent94.some((x) => x.kind === 'buttons' && x.to === '24394009482'));
+        } finally {
+          chakra94.sendTemplate = async () => { throw new Error('no template in tests'); };
+          delete process.env.AGENT_LEAD_MATCH_TEMPLATE;
+          if (savedClaim === undefined) delete process.env.AGENT_LEAD_CLAIM_TEMPLATE; else process.env.AGENT_LEAD_CLAIM_TEMPLATE = savedClaim;
+        }
+      });
+
+      const hiddenLead = newLead({ wa_id: '243940000077', name: 'Cliente Cachée' });
+      await dispatch94.dispatchLead(hiddenLead, { rank: async () => agents94(9470, 2), levels: neutral, deskSend });
+      await checkAsync('the dashboard hides the customer until this agency claims, then shows them', async () => {
+        const before = await adminRequest('GET', '/admin/leads?matched_agent_id=9470&limit=100');
+        const row = before.body.data.find((l) => l.id === hiddenLead.id);
+        assert.strictEqual(row.wa_id, null);
+        assert.strictEqual(row.name, null);
+        assert.strictEqual(row.customer_hidden, true);
+        assert.strictEqual(row.my_match.wave, 1);
+        const other = await adminRequest('POST', `/admin/leads/${hiddenLead.id}/claim`, { agent_id: 9999, answer: 'claim' });
+        assert.strictEqual(other.status, 404, 'an agency not asked cannot claim');
+        const claim = await adminRequest('POST', `/admin/leads/${hiddenLead.id}/claim`, { agent_id: 9470, answer: 'claim' });
+        assert.strictEqual(claim.status, 200);
+        assert.strictEqual(claim.body.customer.wa_id, '243940000077');
+        const after = await adminRequest('GET', '/admin/leads?matched_agent_id=9470&limit=100');
+        const shown = after.body.data.find((l) => l.id === hiddenLead.id);
+        assert.strictEqual(shown.wa_id, '243940000077');
+        assert.ok(shown.my_match.claimed_at);
+      });
+
+      await checkAsync('a proposal from an agency that had not claimed counts as its claim', async () => {
+        const resp = await adminRequest('POST', `/admin/leads/${hiddenLead.id}/proposals`, { agent_id: 9471, property_id: 9471 });
+        assert.strictEqual(resp.status, 201);
+        assert.strictEqual(dbService.getLeadMatchForAgent(hiddenLead.id, 9471).answer_channel, 'proposal');
+      });
+
+      check('responsiveness counts claims and "Pas dispo", and ignores sends that failed', () => {
+        const since = new Date(Date.now() - 3600 * 1000).toISOString();
+        const stats = dbService.getAgentResponsivenessSince({ since });
+        assert.strictEqual(stats.get(9410).answered, 1, 'claimed');
+        assert.strictEqual(stats.get(9430).answered, 1, 'passed');
+        assert.strictEqual(stats.get(9460).answered, 0, 'asked, never answered');
+      });
+
+      await checkAsync('the matching console counts open requests only, directed ones apart', async () => {
+        const resp = await adminRequest('GET', '/admin/leads/matching-stats?days=30');
+        assert.strictEqual(resp.status, 200);
+        const totals = resp.body.totals;
+        assert.ok(totals.directed >= 1, 'the directed visit request above');
+        assert.ok(totals.leads_claimed >= 2);
+        assert.ok(totals.claims >= 4);
+        assert.ok(totals.desk_alerts >= 3);
+        assert.ok(resp.body.directedBySource.some((r) => r.source === 'listing-visit-request'));
+        const since = new Date(Date.now() - 86400000).toISOString();
+        const stats = dbService.getMatchingStats({ since });
+        const directedList = dbService.DIRECTED_LEAD_SOURCES.map((s) => `'${s}'`).join(',');
+        const openNoMatch = dbService.db.prepare(
+          `SELECT COUNT(*) AS n FROM leads l WHERE l.created_at >= datetime(?) AND COALESCE(l.source,'') NOT IN (${directedList})
+             AND NOT EXISTS (SELECT 1 FROM lead_matches m WHERE m.lead_id = l.id)`,
+        ).get(since).n;
+        assert.strictEqual(stats.uncovered.reduce((s, r) => s + r.n, 0), openNoMatch, 'uncovered = open requests nobody was asked about');
+      });
+
+      check('priority level: a new agency with a fresh listing is Or, one with nothing and no history Bronze, an unknown portfolio earns nothing', () => {
+        const now = Date.now();
+        const fresh = priority94.scoreAgent({ portfolio: { live: 2, stale: 0, lastPublishedAt: new Date(now - 86400000) }, portfolioKnown: true, now });
+        assert.deepStrictEqual([fresh.level, fresh.points], ['or', 72.5]);
+        const empty = priority94.scoreAgent({ portfolio: null, portfolioKnown: true, now });
+        assert.deepStrictEqual([empty.level, empty.points], ['bronze', 27.5]);
+        const unknown = priority94.scoreAgent({ portfolio: null, portfolioKnown: false, now });
+        assert.ok(unknown.parts.find((p) => p.key === 'up_to_date').unknown);
+        const ignoring = priority94.scoreAgent({ portfolio: { live: 2, stale: 1, lastPublishedAt: null }, portfolioKnown: true, requests: { matched: 4, answered: 0 }, visits: { total: 2, answered: 0 }, now });
+        assert.deepStrictEqual([ignoring.level, ignoring.points], ['bronze', 0]);
+        assert.deepStrictEqual(priority94.LEVEL_MULTIPLIER, { or: 1.25, argent: 1, bronze: 0.8 });
+      });
+
+      await checkAsync('GET /admin/agents/:id/priority answers a level with its parts', async () => {
+        const resp = await adminRequest('GET', '/admin/agents/9410/priority');
+        assert.strictEqual(resp.status, 200);
+        assert.ok(['or', 'argent', 'bronze'].includes(resp.body.priority.level));
+        assert.deepStrictEqual(resp.body.priority.parts.map((p) => p.key), ['up_to_date', 'new_listing', 'requests', 'visits']);
+      });
+
+      check('neighbouring communes come from verified centre points, same city, within 6 km', () => {
+        assert.deepStrictEqual(neighbours94.neighbouringCommunes('Limete').map((n) => n.commune), ['Kalamu', 'Ngaba', 'Matete']);
+        assert.deepStrictEqual(neighbours94.neighbouringCommunes('Maluku'), []);
+        assert.deepStrictEqual(neighbours94.neighbouringCommunes('Nulle part'), []);
+      });
+
+      check("the engine's Kinshasa centre points are web/lib/geocoding.js's, value for value", () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'geocoding.js'), 'utf8');
+        const start = src.indexOf('export const KINSHASA_COMMUNE_CENTROIDS = {');
+        const block = src.slice(start, src.indexOf('};', start));
+        const web = {};
+        for (const m of block.matchAll(/'?([A-Za-z-]+)'?: \{ lat: (-?[\d.]+), lng: (-?[\d.]+) \}/g)) web[m[1]] = { lat: Number(m[2]), lng: Number(m[3]) };
+        assert.deepStrictEqual(neighbours94.KINSHASA_COMMUNE_CENTROIDS, web);
+      });
+
+      check('the WhatsApp assistant asks the commune once before saving an open request without one', () => {
+        const openai94 = require('../services/openai');
+        const convo94 = dbService.createConversation('243940000094');
+        const ctx = { conversationId: convo94.id, waId: '243940000094', requirements: { transaction_type: 'location' }, selectedPropertyId: null };
+        const first = openai94.executeCreateEnquiry({ summary: 'Cherche un appartement' }, ctx);
+        assert.deepStrictEqual([first.created, first.needs], [false, 'commune']);
+        const second = openai94.executeCreateEnquiry({ summary: 'Cherche un appartement' }, ctx);
+        assert.strictEqual(second.created, true, 'asked once, then saved for the desk');
+      });
+
+      check('the lead-waves job is registered before the backup and can be paused with LEAD_WAVES=off', () => {
+        const names = require('../services/scheduler').JOBS.map((j) => j.name);
+        assert.ok(names.indexOf('lead-waves') > -1 && names.indexOf('lead-waves') < names.indexOf('sqlite-backup'));
+        const savedWaves = process.env.LEAD_WAVES;
+        try {
+          process.env.LEAD_WAVES = 'off';
+          assert.strictEqual(dispatch94.leadWavesJob.shouldRun(new Date()), false);
+        } finally {
+          if (savedWaves === undefined) delete process.env.LEAD_WAVES; else process.env.LEAD_WAVES = savedWaves;
+        }
+      });
+    } finally {
+      chakra94.sendInteractiveButtons = saved94.buttons;
+      chakra94.sendWhatsAppMessage = saved94.text;
+      chakra94.sendTemplate = saved94.template;
+      dispatch94.dispatchNextWave = saved94.next;
+      if (saved94.tplEnv === undefined) delete process.env.AGENT_LEAD_MATCH_TEMPLATE; else process.env.AGENT_LEAD_MATCH_TEMPLATE = saved94.tplEnv;
+      if (saved94.ops === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = saved94.ops;
     }
   }
 

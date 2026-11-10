@@ -144,6 +144,12 @@ export default function AgentLeadCard({
           <p className="text-xs text-ink-45">
             {t('agent.inbox.kind.enquiry')} · {relativeTime}
           </p>
+          {lead.my_match?.claimed_at && (
+            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-tint px-2 py-0.5 text-[0.75rem] font-bold text-success">
+              <Check strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
+              {t('agent.leads.claim.mine', { count: lead.my_match.claims || 1, max: lead.my_match.max_claims || 3 })}
+            </p>
+          )}
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${STATUS_TAG[status] || STATUS_TAG.NEW}`}>
           {statusText}

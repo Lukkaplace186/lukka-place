@@ -603,6 +603,29 @@ export async function getEngineHealth() {
  * GET /leads/matching-stats for why it is one endpoint rather than five.
  * @param {{days?: number}} [options]
  */
+/**
+ * The agent's answer to a request alert from the dashboard: 'claim' ("Je m'en
+ * occupe") or 'pass' ("Pas dispo"). `agentId` is the signed-in agent; the
+ * engine accepts it only for that agent's own match. A claim answers the
+ * customer's name and number (engine services/leadClaims.js).
+ * @returns {Promise<{success: boolean, outcome: string, claims?: number, customer?: {name: string|null, wa_id: string}}>}
+ */
+export async function answerLeadMatch({ leadId, agentId, answer }) {
+  return engineFetch(`/admin/leads/${encodeURIComponent(leadId)}/claim`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: agentId, answer }),
+  });
+}
+
+/**
+ * The agency's priority level for customer requests (engine
+ * services/agentPriority.js): Or / Argent / Bronze, points per part.
+ * @returns {Promise<{priority: Object|null}>}
+ */
+export async function getAgentPriority(agentId) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/priority`);
+}
+
 export async function getMatchingStats({ days = 30 } = {}) {
   return engineFetch(`/admin/leads/matching-stats?days=${encodeURIComponent(days)}`);
 }

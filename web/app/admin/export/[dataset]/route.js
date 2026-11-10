@@ -177,6 +177,9 @@ const DATASETS = {
       ['id', (r) => r.id], ['lead_id', (r) => r.lead_id], ['customer_phone', (r) => r.lead_wa_id], ['commune', (r) => r.commune],
       ['budget_min', (r) => r.price_min], ['budget_max', (r) => r.price_max], ['agent_id', (r) => r.agent_id], ['rank', (r) => r.rank],
       ['score', (r) => r.score], ['send_status', (r) => r.status], ['proposed_listing', (r) => r.proposed_property_id], ['sent_at', (r) => r.created_at],
+      // Matching in waves (2026-11-10): appended, so existing column positions hold.
+      ['wave', (r) => r.wave], ['level', (r) => r.level], ['matched_commune', (r) => r.matched_commune], ['neighbour_of', (r) => r.neighbour_of],
+      ['claimed_at', (r) => r.claimed_at], ['declined_at', (r) => r.declined_at], ['answer_channel', (r) => r.answer_channel],
     ],
   },
 };

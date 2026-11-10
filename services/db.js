@@ -1804,6 +1804,15 @@ const LEADS_EXTENDED_COLUMNS = [
   // after 24 h was put in front of the ops desk (stamped after the attempt,
   // whoever was reached). NULL = not followed up.
   ['followup_alerted_at', 'TEXT'],
+  // Matching in waves (2026-11-10, services/leadDispatch.js): the last wave
+  // sent (1..3, NULL = never dispatched in waves) and when, when the request
+  // stopped taking agencies (3 claims or every wave spent), and the one desk
+  // alert it earned ('no-commune' | 'no-coverage' | 'unclaimed').
+  ['dispatch_wave', 'INTEGER'],
+  ['dispatch_wave_at', 'TEXT'],
+  ['dispatch_closed_at', 'TEXT'],
+  ['dispatch_desk_alerted_at', 'TEXT'],
+  ['dispatch_desk_reason', 'TEXT'],
 ];
 
 function migrateLeads() {
@@ -1823,6 +1832,39 @@ function migrateLeads() {
 }
 
 migrateLeads();
+
+/**
+ * Matching in waves (2026-11-10). `wave` 1..3; `matched_commune` the commune
+ * that earned the match and `neighbour_of` the requested commune when it was
+ * a neighbouring-commune fallback (services/communeNeighbours.js); `level`
+ * the agency's priority level at send time (services/agentPriority.js);
+ * `claimed_at` / `declined_at` the agency's answer ("Je m'en occupe" /
+ * "Pas dispo") and `answer_channel` where it came from ('whatsapp' |
+ * 'dashboard' | 'proposal'). NULL on every row written before waves.
+ */
+const LEAD_MATCHES_EXTENDED_COLUMNS = [
+  ['wave', 'INTEGER'],
+  ['matched_commune', 'TEXT'],
+  ['neighbour_of', 'TEXT'],
+  ['level', 'TEXT'],
+  ['claimed_at', 'TEXT'],
+  ['declined_at', 'TEXT'],
+  ['answer_channel', 'TEXT'],
+];
+
+function migrateLeadMatches() {
+  const existing = new Set(db.prepare('PRAGMA table_info(lead_matches)').all().map((c) => c.name));
+  const missing = LEAD_MATCHES_EXTENDED_COLUMNS.filter(([name]) => !existing.has(name));
+  if (missing.length === 0) return [];
+  db.transaction(() => {
+    for (const [name, type] of missing) db.exec(`ALTER TABLE lead_matches ADD COLUMN ${name} ${type}`);
+  })();
+  const added = missing.map(([name]) => name);
+  console.log(`[db] lead_matches schema migrated — added column(s): ${added.join(', ')}`);
+  return added;
+}
+
+migrateLeadMatches();
 
 /**
  * Who wrote a message, and what it was about — the metadata the admin
@@ -2755,68 +2797,149 @@ function getDemandReport({ since, limit = 40 } = {}) {
   };
 }
 
+/**
+ * Requests addressed to ONE agent, listing or project: they reach that party
+ * through their own path (viewing notifications, listing enquiry, profile
+ * enquiry, project enquiry, desk introduction) and are never offered to
+ * several agencies. Everything else is an open request ("trouvez-moi un
+ * bien") and goes through the matching. Listed by exclusion so a new open
+ * form is matched by default rather than silently dropped.
+ *
+ * Before 2026-11-10 /admin/matching counted these as "requests with no
+ * agency": on production 9 of the 10 requests in 30 days were directed ones,
+ * so the page reported handled enquiries as lost.
+ */
+const DIRECTED_LEAD_SOURCES = [
+  'listing-visit-request',
+  'listing-whatsapp-enquiry',
+  'agent-profile-inquiry',
+  'agent-profile-whatsapp',
+  'project-enquiry',
+  'team-introduction',
+  'admin',
+];
+
+function isOpenRequestSource(source) {
+  return !DIRECTED_LEAD_SOURCES.includes(String(source || ''));
+}
+
+const OPEN_SOURCE_SQL = `COALESCE(l.source, '') NOT IN (${DIRECTED_LEAD_SOURCES.map((s) => `'${s}'`).join(', ')})`;
+
 function getMatchingStats({ since }) {
+  const p = { since };
   const totals = db
     .prepare(
       `SELECT
-         (SELECT COUNT(*) FROM leads WHERE created_at >= datetime(@since))                      AS leads,
-         (SELECT COUNT(DISTINCT lead_id) FROM lead_matches WHERE created_at >= datetime(@since)) AS leads_dispatched,
-         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= datetime(@since))                AS pushes,
-         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= datetime(@since) AND status = 'FAILED') AS failed_pushes,
-         (SELECT COUNT(*) FROM lead_proposals WHERE created_at >= datetime(@since))              AS proposals`,
+         COUNT(*) AS leads,
+         SUM(CASE WHEN EXISTS (SELECT 1 FROM lead_matches m WHERE m.lead_id = l.id) THEN 1 ELSE 0 END) AS leads_dispatched,
+         SUM(CASE WHEN EXISTS (SELECT 1 FROM lead_matches m WHERE m.lead_id = l.id AND m.claimed_at IS NOT NULL)
+                  THEN 1 ELSE 0 END) AS leads_claimed,
+         SUM(CASE WHEN (SELECT MIN(m.claimed_at) FROM lead_matches m WHERE m.lead_id = l.id)
+                       <= datetime(l.created_at, '+60 minutes') THEN 1 ELSE 0 END) AS claimed_within_hour,
+         SUM(CASE WHEN l.dispatch_desk_alerted_at IS NOT NULL THEN 1 ELSE 0 END) AS desk_alerts
+       FROM leads l
+       WHERE l.created_at >= datetime(@since) AND ${OPEN_SOURCE_SQL}`,
     )
-    .get({ since });
+    .get(p);
+  const pushes = db
+    .prepare(
+      `SELECT COUNT(*) AS pushes,
+              SUM(CASE WHEN m.status = 'FAILED' THEN 1 ELSE 0 END) AS failed_pushes,
+              SUM(CASE WHEN m.claimed_at IS NOT NULL THEN 1 ELSE 0 END) AS claims,
+              SUM(CASE WHEN m.declined_at IS NOT NULL THEN 1 ELSE 0 END) AS declines
+       FROM lead_matches m WHERE m.created_at >= datetime(@since)`,
+    )
+    .get(p);
+  const proposals = db.prepare('SELECT COUNT(*) AS n FROM lead_proposals WHERE created_at >= datetime(@since)').get(p).n;
+  const directed = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM leads l WHERE l.created_at >= datetime(@since) AND NOT (${OPEN_SOURCE_SQL})`,
+    )
+    .get(p).n;
+  const directedBySource = db
+    .prepare(
+      `SELECT l.source AS source, COUNT(*) AS n FROM leads l
+        WHERE l.created_at >= datetime(@since) AND NOT (${OPEN_SOURCE_SQL})
+        GROUP BY l.source ORDER BY n DESC`,
+    )
+    .all(p);
 
-  // Requests that reached nobody. This is the number that matters most on
-  // that page: it is the coverage gap, i.e. the communes where customers are
-  // asking and no agency has signed up to answer.
+  // Open requests that reached nobody — where to recruit. `reason` is the desk
+  // alert the request earned (no commune, no agency), NULL on requests from
+  // before matching in waves.
   const uncovered = db
     .prepare(
-      `SELECT COALESCE(commune, 'Non précisée') AS commune, COUNT(*) AS n
+      `SELECT COALESCE(l.commune, 'Non précisée') AS commune, COUNT(*) AS n,
+              MAX(l.dispatch_desk_reason) AS reason
        FROM leads l
-       WHERE l.created_at >= datetime(@since)
+       WHERE l.created_at >= datetime(@since) AND ${OPEN_SOURCE_SQL}
          AND NOT EXISTS (SELECT 1 FROM lead_matches m WHERE m.lead_id = l.id)
-       GROUP BY COALESCE(commune, 'Non précisée')
+       GROUP BY COALESCE(l.commune, 'Non précisée')
        ORDER BY n DESC`,
     )
-    .all({ since });
+    .all(p);
 
   const byCommune = db
     .prepare(
       `SELECT COALESCE(l.commune, 'Non précisée') AS commune,
-              COUNT(DISTINCT l.id)     AS leads,
-              COUNT(m.id)              AS pushes,
-              COUNT(DISTINCT p.id)     AS answers
+              COUNT(*) AS leads,
+              COALESCE(SUM(mm.pushes), 0) AS pushes,
+              COALESCE(SUM(mm.claims), 0) AS claims,
+              COALESCE(SUM(pp.answers), 0) AS answers
        FROM leads l
-       LEFT JOIN lead_matches   m ON m.lead_id = l.id
-       LEFT JOIN lead_proposals p ON p.lead_id = l.id
-       WHERE l.created_at >= datetime(@since)
+       LEFT JOIN (SELECT lead_id, COUNT(*) AS pushes,
+                         SUM(CASE WHEN claimed_at IS NOT NULL THEN 1 ELSE 0 END) AS claims
+                    FROM lead_matches GROUP BY lead_id) mm ON mm.lead_id = l.id
+       LEFT JOIN (SELECT lead_id, COUNT(*) AS answers FROM lead_proposals GROUP BY lead_id) pp ON pp.lead_id = l.id
+       WHERE l.created_at >= datetime(@since) AND ${OPEN_SOURCE_SQL}
        GROUP BY COALESCE(l.commune, 'Non précisée')
        ORDER BY leads DESC`,
     )
-    .all({ since });
+    .all(p);
 
   const byAgent = db
     .prepare(
       `SELECT m.agent_id,
               m.agent_phone,
               COUNT(*) AS pushes,
-              SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) AS answers,
-              MIN(m.rank) AS best_rank
+              SUM(CASE WHEN m.claimed_at IS NOT NULL THEN 1 ELSE 0 END) AS claims,
+              SUM(CASE WHEN m.declined_at IS NOT NULL THEN 1 ELSE 0 END) AS declines,
+              SUM(CASE WHEN pr.id IS NOT NULL THEN 1 ELSE 0 END) AS answers,
+              MIN(m.rank) AS best_rank,
+              MIN(m.wave) AS best_wave
        FROM lead_matches m
-       LEFT JOIN lead_proposals p ON p.lead_id = m.lead_id AND p.agent_id = m.agent_id
+       LEFT JOIN lead_proposals pr ON pr.lead_id = m.lead_id AND pr.agent_id = m.agent_id
        WHERE m.created_at >= datetime(@since)
        GROUP BY m.agent_id, m.agent_phone
        ORDER BY pushes DESC`,
     )
-    .all({ since });
+    .all(p);
 
-  return { since, totals, uncovered, byCommune, byAgent };
+  return {
+    since,
+    totals: {
+      leads: totals.leads || 0,
+      leads_dispatched: totals.leads_dispatched || 0,
+      leads_claimed: totals.leads_claimed || 0,
+      claimed_within_hour: totals.claimed_within_hour || 0,
+      desk_alerts: totals.desk_alerts || 0,
+      pushes: pushes.pushes || 0,
+      failed_pushes: pushes.failed_pushes || 0,
+      claims: pushes.claims || 0,
+      declines: pushes.declines || 0,
+      proposals,
+      directed,
+    },
+    directedBySource,
+    uncovered,
+    byCommune,
+    byAgent,
+  };
 }
 
 const LEAD_MATCHES_LIST_LIMIT_DEFAULT = 25;
 const LEAD_MATCHES_LIST_LIMIT_MAX = 100;
-const LEAD_MATCH_STATUS_FILTERS = ['NOTIFIED', 'FAILED', 'ANSWERED', 'UNANSWERED'];
+const LEAD_MATCH_STATUS_FILTERS = ['NOTIFIED', 'FAILED', 'ANSWERED', 'UNANSWERED', 'CLAIMED', 'DECLINED'];
 
 /**
  * One row per (request, agency) push — the /admin/matching table.
@@ -2875,7 +2998,11 @@ function listLeadMatches({
   if (status) {
     if (!LEAD_MATCH_STATUS_FILTERS.includes(status)) throw new Error(`Invalid match status '${status}'`);
     if (status === 'ANSWERED') where.push('p.id IS NOT NULL');
-    else if (status === 'UNANSWERED') where.push("p.id IS NULL AND m.status = 'NOTIFIED'");
+    else if (status === 'CLAIMED') where.push('m.claimed_at IS NOT NULL');
+    else if (status === 'DECLINED') where.push('m.declined_at IS NOT NULL');
+    else if (status === 'UNANSWERED') {
+      where.push("p.id IS NULL AND m.claimed_at IS NULL AND m.declined_at IS NULL AND m.status = 'NOTIFIED'");
+    }
     else {
       where.push('m.status = @status');
       params.status = status;
@@ -2892,6 +3019,7 @@ function listLeadMatches({
   const data = db
     .prepare(
       `SELECT m.id, m.lead_id, m.agent_id, m.agent_phone, m.rank, m.score, m.status, m.error, m.created_at,
+              m.wave, m.matched_commune, m.neighbour_of, m.level, m.claimed_at, m.declined_at, m.answer_channel,
               l.name AS lead_name, l.wa_id AS lead_wa_id, l.commune, l.transaction_type,
               l.price_min, l.price_max, l.bedrooms, l.status AS lead_status,
               p.property_id AS proposed_property_id, p.created_at AS proposed_at
@@ -3032,13 +3160,18 @@ function getLeadAnalytics({ since }) {
 function recordLeadMatch({
   leadId, agentId, agentPhone = null, rank = null, score = null,
   channel = 'whatsapp', status = 'NOTIFIED', error = null,
+  wave = null, matchedCommune = null, neighbourOf = null, level = null,
 }) {
   const info = db
     .prepare(
-      `INSERT OR IGNORE INTO lead_matches (lead_id, agent_id, agent_phone, rank, score, channel, status, error)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO lead_matches
+         (lead_id, agent_id, agent_phone, rank, score, channel, status, error, wave, matched_commune, neighbour_of, level)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(Number(leadId), Number(agentId), agentPhone, rank, score, channel, status, error);
+    .run(
+      Number(leadId), Number(agentId), agentPhone, rank, score, channel, status, error,
+      wave, matchedCommune, neighbourOf, level,
+    );
 
   const row = db
     .prepare('SELECT * FROM lead_matches WHERE lead_id = ? AND agent_id = ?')
@@ -3079,15 +3212,21 @@ function getLeadMatches(leadId) {
  * @returns {Map<number, {matched: number, answered: number}>}
  */
 function getAgentResponsivenessSince({ since }) {
+  // "Answered" since 2026-11-10 = the agency did something with the alert:
+  // claimed it, said "Pas dispo", or proposed a listing. Before, only a
+  // proposal counted, which an agency without matching stock could never make.
+  // datetime() on both sides: created_at is 'YYYY-MM-DD HH:MM:SS' and `since`
+  // an ISO string, which compare wrong as text on the boundary day.
   const rows = db
     .prepare(
       `SELECT m.agent_id AS agent_id,
               COUNT(*) AS matched,
-              SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) AS answered
+              SUM(CASE WHEN p.id IS NOT NULL OR m.claimed_at IS NOT NULL OR m.declined_at IS NOT NULL
+                       THEN 1 ELSE 0 END) AS answered
        FROM lead_matches m
        LEFT JOIN lead_proposals p
          ON p.lead_id = m.lead_id AND p.agent_id = m.agent_id
-       WHERE m.created_at >= ?
+       WHERE m.created_at >= datetime(?) AND m.status = 'NOTIFIED'
        GROUP BY m.agent_id`,
     )
     .all(since);
@@ -3101,9 +3240,64 @@ function getAgentResponsivenessSince({ since }) {
  */
 function countAgentMatchesSince({ agentId, since }) {
   const row = db
-    .prepare('SELECT count(*) AS n FROM lead_matches WHERE agent_id = ? AND created_at >= ?')
+    .prepare('SELECT count(*) AS n FROM lead_matches WHERE agent_id = ? AND created_at >= datetime(?)')
     .get(Number(agentId), since);
   return row ? row.n : 0;
+}
+
+/** One match row by id (the WhatsApp button payload names it). */
+function getLeadMatchById(id) {
+  return db.prepare('SELECT * FROM lead_matches WHERE id = ?').get(Number(id)) || null;
+}
+
+/** This agency's match on this request, or null. */
+function getLeadMatchForAgent(leadId, agentId) {
+  return db.prepare('SELECT * FROM lead_matches WHERE lead_id = ? AND agent_id = ?').get(Number(leadId), Number(agentId)) || null;
+}
+
+/** Agencies that have claimed this request ("Je m'en occupe"). */
+function countLeadClaims(leadId) {
+  return db.prepare('SELECT COUNT(*) AS n FROM lead_matches WHERE lead_id = ? AND claimed_at IS NOT NULL').get(Number(leadId)).n;
+}
+
+/**
+ * Record an agency's claim, inside one transaction with the cap check, so two
+ * agencies tapping in the same second cannot both become the fourth taker.
+ * A claim stands once made; a "Pas dispo" can be turned into a claim while
+ * room remains (the agency changed its mind), never the other way round.
+ *
+ * @returns {{outcome: 'claimed'|'already-claimed'|'full', claims: number}}
+ */
+function claimLeadMatch({ matchId, maxClaims, channel = 'whatsapp' }) {
+  return db.transaction(() => {
+    const match = db.prepare('SELECT * FROM lead_matches WHERE id = ?').get(Number(matchId));
+    if (!match) return { outcome: 'missing', claims: 0 };
+    const claims = db
+      .prepare('SELECT COUNT(*) AS n FROM lead_matches WHERE lead_id = ? AND claimed_at IS NOT NULL')
+      .get(match.lead_id).n;
+    if (match.claimed_at) return { outcome: 'already-claimed', claims };
+    if (claims >= maxClaims) return { outcome: 'full', claims };
+    db.prepare(
+      `UPDATE lead_matches SET claimed_at = CURRENT_TIMESTAMP, declined_at = NULL, answer_channel = ? WHERE id = ?`,
+    ).run(channel, match.id);
+    const after = claims + 1;
+    if (after >= maxClaims) {
+      db.prepare('UPDATE leads SET dispatch_closed_at = CURRENT_TIMESTAMP WHERE id = ? AND dispatch_closed_at IS NULL')
+        .run(match.lead_id);
+    }
+    return { outcome: 'claimed', claims: after };
+  })();
+}
+
+/** "Pas dispo". Ignored once the agency has claimed; the first answer otherwise stands. */
+function declineLeadMatch({ matchId, channel = 'whatsapp' }) {
+  const info = db
+    .prepare(
+      `UPDATE lead_matches SET declined_at = CURRENT_TIMESTAMP, answer_channel = ?
+        WHERE id = ? AND claimed_at IS NULL AND declined_at IS NULL`,
+    )
+    .run(channel, Number(matchId));
+  return info.changes > 0;
 }
 
 /**
@@ -4797,6 +4991,13 @@ module.exports = {
   getMatchingStats,
   getAgentResponsivenessSince,
   countAgentMatchesSince,
+  getLeadMatchById,
+  getLeadMatchForAgent,
+  countLeadClaims,
+  claimLeadMatch,
+  declineLeadMatch,
+  DIRECTED_LEAD_SOURCES,
+  isOpenRequestSource,
   countAgentProposalsSince,
   MAX_PITCHES_PER_LEAD,
   createViewingRequest,

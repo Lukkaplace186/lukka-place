@@ -65,6 +65,7 @@ const {
 const { handleStatusButtonReply } = require('../services/agentStatusCheck');
 const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleTapButtonReply } = require('../services/contactTapAlert');
+const { handleLeadButtonReply } = require('../services/leadClaims');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const { handleContactLink } = require('../services/contactRelay');
@@ -851,6 +852,15 @@ async function processGroup(messages) {
       if (tap.handled) return;
     } catch (err) {
       console.error(`[contact-tap] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
+      // A request alert: "Je m'en occupe" / "Pas dispo" (services/leadClaims.js).
+      // Only the number the alert went to may answer.
+      const claim = await handleLeadButtonReply({ from, replyId: buttonReplyId });
+      if (claim.handled) return;
+    } catch (err) {
+      console.error(`[lead-claims] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
   }

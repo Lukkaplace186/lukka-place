@@ -1396,7 +1396,23 @@
       "replyViaLukka": "Reply via Lukka Place",
       "moreOptions": "More options",
       "call": "Call",
-      "contactDeclared": "Noted: the request is now marked Contacted."
+      "contactDeclared": "Noted: the request is now marked Contacted.",
+      "claim": {
+        "newRequest": "New customer request",
+        "wave1": "You are one of the first 2 agencies told: the request is yours alone for 30 min.",
+        "wave2": "The request is now open to a few more agencies.",
+        "wave3": "Last call before the Lukka Place team steps in.",
+        "neighbour": "No agency covers {commune}: it is offered to you because you cover a neighbouring commune.",
+        "hiddenCustomer": "The customer’s name and number appear as soon as you take the request.",
+        "declined": "You answered “Not available”. You can still take it.",
+        "takers": "{count}/{max} agencies",
+        "claim": "I’ll take it",
+        "pass": "Not available",
+        "full": "{max} agencies are already handling this request.",
+        "claimedToast": "Done: the customer’s number is shown.",
+        "passedToast": "Noted, thank you.",
+        "mine": "You’re handling it ({count}/{max} agencies)"
+      }
     },
     "visits": {
       "confirm": "Confirm",
@@ -2896,6 +2912,39 @@
     "founder": {
       "badge": "Founding member",
       "member": "You are agent no. {n}"
+    },
+    "priority": {
+      "title": "Your Priority for Customer Requests",
+      "lead": "Each request goes first to the best-placed agencies. Your level counts in that ranking.",
+      "levels": {
+        "or": "Gold",
+        "argent": "Silver",
+        "bronze": "Bronze"
+      },
+      "points": "{points} / 100 points",
+      "toNext": "{points} more points to reach {level}.",
+      "top": "You’re at the top level: keep it up!",
+      "unknown": "Unavailable right now",
+      "neutral": "Not enough requests yet: you get half the points.",
+      "private": "Only you can see this.",
+      "parts": {
+        "up_to_date": {
+          "label": "Listings up to date",
+          "hint": "Confirm all your listings at least every 2 weeks (“Faites le point”)."
+        },
+        "new_listing": {
+          "label": "New listing this month",
+          "hint": "Publish at least one listing every 30 days."
+        },
+        "requests": {
+          "label": "Answering requests",
+          "hint": "Answer every alert: “I’ll take it” or “Not available”."
+        },
+        "visits": {
+          "label": "Answering visit requests",
+          "hint": "Answer visit requests within 15 minutes."
+        }
+      }
     }
   },
   "status": {
@@ -4765,8 +4814,8 @@
     },
     "matching": {
       "engineUnreachable": "The matching engine is unreachable.",
-      "requestsReceived": "Requests received",
-      "requestsMatched": "Requests matched",
+      "requestsReceived": "Open requests",
+      "requestsMatched": "Taken by an agency",
       "agentAlertsSent": "Agent alerts sent",
       "responseRate": "Response rate",
       "alertsSent": "Alerts sent",
@@ -4774,8 +4823,8 @@
       "agencyResponsiveness": "Agency Responsiveness",
       "alertsReceived": "Alerts received",
       "howRankingWorks": "How ranking works",
-      "lead": "Every customer request is ranked and pushed to the 7 best agencies in its commune, on WhatsApp, the second it is submitted.",
-      "coverageGapBody": "These customers described what they are looking for and nobody was notified — no registered agency covers their commune, or the request named none. It is the one metric on this page that shows where to recruit.",
+      "lead": "Each open request is offered in waves: the commune’s best 2 agencies alone for 30 min, then 3 more, then 2. Up to 3 agencies take it with “I’ll take it”.",
+      "coverageGapBody": "Nobody could be told: the request named no commune, or no agency covers it (nor the neighbouring communes). The team received each one on WhatsApp. This is where to recruit.",
       "rankingBody": "plan, then weighted by its recent responsiveness and by how many requests it has already received, so that one commune's flow does not concentrate on a single agency.",
       "noAgency": "No agency",
       "title": "Automatic Matching",
@@ -4790,7 +4839,7 @@
       "failedSends": "{count} failed sends",
       "noFailedSends": "no failed sends",
       "proposalsBack": "{count} properties proposed back",
-      "uncoveredTitle": "{count} Requests with No Agency",
+      "uncoveredTitle": "{count} Open Requests with No Agency",
       "matchesTitle": "Buyer–Agency Matches",
       "matchesNote": "Each row is one request pushed to one agency, with its dispatch score and the property that agency proposed, if any.",
       "colCommune": "Commune",
@@ -4814,11 +4863,27 @@
       "colRequests": "Requests",
       "colCoverage": "Coverage",
       "covered": "Covered",
-      "agencyResponsivenessNote": "How many requests each agency received and how many it actually worked. This rate weights its ranking in later matches.",
+      "agencyResponsivenessNote": "Alerts received and what the agency did with them. Answering, even “Not available”, counts in its priority level.",
       "byAgentEmpty": "No alert sent in this period.",
       "colRate": "Rate",
       "colBestRank": "Best rank",
-      "rankingExplained": "Each agency is scored on its coverage of the commune (specialty 50 pts, coverage 20 pts), its real published listings in that commune (up to 25 pts), listings matching the requested budget and bedrooms (up to 15 pts) and a verified WhatsApp number (10 pts). The total is multiplied by its plan priority, then weighted by responsiveness and recent volume — that final figure is the score in the table."
+      "rankingExplained": "Each agency is scored on its coverage of the commune (specialty 50 pts, coverage 20 pts), its published listings in that commune (up to 25 pts), those matching the requested budget and bedrooms (up to 15 pts) and a verified number (10 pts). The total is multiplied by its plan priority, then by its level (Gold ×1.25, Silver ×1, Bronze ×0.8: listings up to date, a new listing, answering requests and visits), and reduced a little when it has already received many requests. That final figure is the score in the table.",
+      "directedHint": "+ {count} addressed to one agent or listing, handled separately",
+      "claimedShare": "{pct}% of open requests · {within} within 1 h",
+      "answersBreakdown": "{claims} taken · {declines} not available · {proposals} properties proposed",
+      "deskAlerts": "{count} passed to the team",
+      "statusClaimed": "Taken",
+      "statusDeclined": "Not available",
+      "wave": "Wave {wave}",
+      "neighbourOf": "neighbour of {commune}",
+      "colTaken": "Taken",
+      "colDeclined": "Not available",
+      "colBestWave": "Best wave",
+      "levels": {
+        "or": "Gold",
+        "argent": "Silver",
+        "bronze": "Bronze"
+      }
     },
     "agentPanel": {
       "firstName": "First Name",

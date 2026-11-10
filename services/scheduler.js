@@ -413,6 +413,16 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * Matching in waves (services/leadDispatch.js): every minute, a request whose
+ * wave has had its 30 minutes goes to the next wave, or to the desk when
+ * nobody took it. LEAD_WAVES=off pauses the sweep (wave 1 still goes).
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./leadDispatch').leadWavesJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

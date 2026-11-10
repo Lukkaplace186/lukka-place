@@ -1247,7 +1247,34 @@ function leadDefaultsFromContext(context) {
   };
 }
 
+/**
+ * Conversations already asked for their commune by create_enquiry, so the
+ * second call saves the request even without one (the desk then handles it)
+ * rather than looping. In memory: a restart asks once more, nothing worse.
+ */
+const COMMUNE_ASKED = new Map();
+const COMMUNE_ASK_TTL_MS = 2 * 60 * 60 * 1000;
+
+function communeAskedRecently(conversationId) {
+  const at = COMMUNE_ASKED.get(conversationId);
+  return at != null && Date.now() - at < COMMUNE_ASK_TTL_MS;
+}
+
 function executeCreateEnquiry(args = {}, context) {
+  // An open request with no commune reaches no agency (matching is by
+  // commune). Ask the customer once before saving it (2026-11-10); a second
+  // call saves it anyway and the dispatcher hands it to the ops desk.
+  const propertyId = args.property_id ?? context.selectedPropertyId ?? null;
+  const commune = context.requirements?.commune;
+  const key = context.conversationId ?? context.waId;
+  if (propertyId == null && !commune && key != null && !communeAskedRecently(key)) {
+    COMMUNE_ASKED.set(key, Date.now());
+    return {
+      created: false,
+      needs: 'commune',
+      instruction: "Demande d'abord au client dans quelle commune (ou quel quartier) il cherche, en une seule question, puis appelle de nouveau create_enquiry. S'il ne sait pas, appelle create_enquiry quand même.",
+    };
+  }
   const lead = dbService.createLead({
     ...leadDefaultsFromContext(context),
     property_id: args.property_id ?? context.selectedPropertyId ?? null,

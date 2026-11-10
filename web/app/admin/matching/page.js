@@ -19,9 +19,11 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 const RANGE_DAYS = [7, 30, 90];
-const MATCH_STATUSES = ['NOTIFIED', 'FAILED', 'ANSWERED', 'UNANSWERED'];
+const MATCH_STATUSES = ['NOTIFIED', 'CLAIMED', 'DECLINED', 'ANSWERED', 'UNANSWERED', 'FAILED'];
 const MATCH_STATUS_LABEL_KEYS = {
   NOTIFIED: 'admin.matching.statusNotified',
+  CLAIMED: 'admin.matching.statusClaimed',
+  DECLINED: 'admin.matching.statusDeclined',
   FAILED: 'admin.matching.statusFailed',
   ANSWERED: 'admin.matching.statusAnswered',
   UNANSWERED: 'admin.matching.statusUnanswered',
@@ -40,6 +42,13 @@ function budgetText(row) {
 
 /**
  * The matching console — how the automated agent push is actually performing.
+ *
+ * Since 2026-11-10 (engine services/leadDispatch.js, "Matching in waves")
+ * every figure is about OPEN requests only: a visit request, a listing or
+ * profile enquiry reaches its own agent by its own path and is counted apart
+ * ("directed"). Before, those were shown as "requests with no agency" — on
+ * production 9 of 10. "Taken" is an agency's "Je m'en occupe"; the response
+ * rate counts any answer to an alert, "Pas dispo" included.
  *
  * The number this page exists for is "demandes sans agence", the coverage
  * gap: customer requests in a commune where no registered agency has signed
@@ -99,7 +108,8 @@ export default async function AdminMatchingPage({ searchParams }) {
 
   const totals = stats?.totals;
   const undispatched = totals ? Math.max(0, totals.leads - totals.leads_dispatched) : 0;
-  const responseRate = totals ? pct(totals.proposals, totals.pushes) : null;
+  const answeredPushes = totals ? (totals.claims || 0) + (totals.declines || 0) : 0;
+  const responseRate = totals ? pct(answeredPushes, totals.pushes) : null;
   const scoreRange = matches?.facets?.scoreRange;
   const communeOptions = (matches?.facets?.communes || []).map((row) => ({
     value: row.commune || '__none__',
@@ -134,11 +144,15 @@ export default async function AdminMatchingPage({ searchParams }) {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label={t('admin.matching.requestsReceived')} value={totals.leads} hint={t('admin.matching.overDays', { days })} />
+            <Stat
+              label={t('admin.matching.requestsReceived')}
+              value={totals.leads}
+              hint={totals.directed ? t('admin.matching.directedHint', { count: totals.directed }) : t('admin.matching.overDays', { days })}
+            />
             <Stat
               label={t('admin.matching.requestsMatched')}
-              value={totals.leads_dispatched}
-              hint={totals.leads ? t('admin.matching.matchedShare', { pct: pct(totals.leads_dispatched, totals.leads) }) : null}
+              value={totals.leads_claimed}
+              hint={totals.leads ? t('admin.matching.claimedShare', { pct: pct(totals.leads_claimed, totals.leads), within: totals.claimed_within_hour }) : null}
             />
             <Stat
               label={t('admin.matching.agentAlertsSent')}
@@ -148,7 +162,7 @@ export default async function AdminMatchingPage({ searchParams }) {
             <Stat
               label={t('admin.matching.responseRate')}
               value={responseRate == null ? '—' : `${responseRate}%`}
-              hint={t('admin.matching.proposalsBack', { count: totals.proposals })}
+              hint={t('admin.matching.answersBreakdown', { claims: totals.claims, declines: totals.declines, proposals: totals.proposals })}
             />
           </div>
 
@@ -159,6 +173,9 @@ export default async function AdminMatchingPage({ searchParams }) {
                 <h2 className="u-title-card text-warning">{t('admin.matching.uncoveredTitle', { count: undispatched })}</h2>
               </div>
               <p className="u-micro mt-1.5 text-ink-70">{t('admin.matching.coverageGapBody')}</p>
+              {totals.desk_alerts ? (
+                <p className="u-micro-strong mt-1 text-ink">{t('admin.matching.deskAlerts', { count: totals.desk_alerts })}</p>
+              ) : null}
               <ul className="mt-3 flex flex-wrap gap-2">
                 {stats.uncovered.map((row) => (
                   <li key={row.commune} className="u-micro-strong rounded-full bg-surface px-3 py-1 text-ink">
@@ -244,7 +261,16 @@ export default async function AdminMatchingPage({ searchParams }) {
                     <Link href={`/admin/agents/${row.agent_id}`} className="font-semibold text-ink hover:text-blue-deep hover:underline">
                       {agentLabel(row.agent_id)}
                     </Link>
-                    <div className="text-ink-45">{row.rank != null ? t('admin.matching.rank', { rank: row.rank }) : ''}</div>
+                    <div className="text-ink-45">
+                      {[
+                        row.wave ? t('admin.matching.wave', { wave: row.wave }) : null,
+                        row.rank != null ? t('admin.matching.rank', { rank: row.rank }) : null,
+                        row.level ? t(`admin.matching.levels.${row.level}`) : null,
+                      ].filter(Boolean).join(' · ')}
+                    </div>
+                    {row.neighbour_of ? (
+                      <div className="text-ink-45">{row.matched_commune} ({t('admin.matching.neighbourOf', { commune: row.neighbour_of })})</div>
+                    ) : null}
                   </td>
                   <td className={TD_DENSE_RIGHT}>{row.score == null ? '—' : Math.round(row.score)}</td>
                   <td className={TD_DENSE}>
@@ -252,6 +278,10 @@ export default async function AdminMatchingPage({ searchParams }) {
                       <span title={row.error || undefined}><Chip tone="danger">{t('admin.matching.statusFailed')}</Chip></span>
                     ) : row.proposed_property_id ? (
                       <Chip tone="success">{t('admin.matching.statusAnswered')}</Chip>
+                    ) : row.claimed_at ? (
+                      <span title={formatKinshasa(row.claimed_at)}><Chip tone="success">{t('admin.matching.statusClaimed')}</Chip></span>
+                    ) : row.declined_at ? (
+                      <Chip tone="neutral">{t('admin.matching.statusDeclined')}</Chip>
                     ) : (
                       <Chip tone="blue">{t('admin.matching.statusNotified')}</Chip>
                     )}
@@ -285,7 +315,8 @@ export default async function AdminMatchingPage({ searchParams }) {
                   <th className={TH}>{t('admin.matching.colCommune')}</th>
                   <th className={TH}>{t('admin.matching.colRequests')}</th>
                   <th className={TH}>{t('admin.matching.alertsSent')}</th>
-                  <th className={TH}>{t('admin.matching.responses')}</th>
+                  <th className={TH}>{t('admin.matching.colTaken')}</th>
+                  <th className={TH}>{t('admin.matching.colProposed')}</th>
                   <th className={TH}>{t('admin.matching.colCoverage')}</th>
                 </tr>
               </thead>
@@ -295,6 +326,7 @@ export default async function AdminMatchingPage({ searchParams }) {
                     <td className={`${TD} font-semibold text-ink`}>{row.commune}</td>
                     <td className={`${TD} u-tabular`}>{row.leads}</td>
                     <td className={`${TD} u-tabular`}>{row.pushes}</td>
+                    <td className={`${TD} u-tabular`}>{row.claims}</td>
                     <td className={`${TD} u-tabular`}>{row.answers}</td>
                     <td className={TD}>
                       {row.pushes === 0 ? (
@@ -320,14 +352,16 @@ export default async function AdminMatchingPage({ searchParams }) {
                 <tr>
                   <th className={TH}>{t('admin.matching.colAgency')}</th>
                   <th className={TH}>{t('admin.matching.alertsReceived')}</th>
-                  <th className={TH}>{t('admin.matching.responses')}</th>
+                  <th className={TH}>{t('admin.matching.colTaken')}</th>
+                  <th className={TH}>{t('admin.matching.colDeclined')}</th>
+                  <th className={TH}>{t('admin.matching.colProposed')}</th>
                   <th className={TH}>{t('admin.matching.colRate')}</th>
-                  <th className={TH}>{t('admin.matching.colBestRank')}</th>
+                  <th className={TH}>{t('admin.matching.colBestWave')}</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.byAgent.map((row) => {
-                  const rate = pct(row.answers, row.pushes);
+                  const rate = pct((row.claims || 0) + (row.declines || 0), row.pushes);
                   return (
                     <tr key={row.agent_id} className="border-t border-line">
                       <td className={TD}>
@@ -337,13 +371,15 @@ export default async function AdminMatchingPage({ searchParams }) {
                         <div className="u-micro u-tabular text-ink-35">{row.agent_phone || '—'}</div>
                       </td>
                       <td className={`${TD} u-tabular`}>{row.pushes}</td>
+                      <td className={`${TD} u-tabular`}>{row.claims}</td>
+                      <td className={`${TD} u-tabular`}>{row.declines}</td>
                       <td className={`${TD} u-tabular`}>{row.answers}</td>
                       <td className={TD}>
                         <Chip tone={rate == null ? 'neutral' : rate >= 50 ? 'success' : rate > 0 ? 'warning' : 'danger'}>
                           {rate == null ? '—' : `${rate}%`}
                         </Chip>
                       </td>
-                      <td className={`${TD} u-tabular`}>{row.best_rank ?? '—'}</td>
+                      <td className={`${TD} u-tabular`}>{row.best_wave ?? '—'}</td>
                     </tr>
                   );
                 })}

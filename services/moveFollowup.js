@@ -40,6 +40,7 @@ function dueLeads(now = Date.now()) {
          FROM leads l
         WHERE l.source = ?
           AND l.followup_alerted_at IS NULL
+          AND l.dispatch_desk_alerted_at IS NULL
           AND l.created_at <= ?
           AND l.created_at >= ?
           AND l.status IN ('NEW', 'CONTACTED', 'QUALIFIED')

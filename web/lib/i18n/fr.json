@@ -4802,6 +4802,20 @@
         "withdrawn": "Annonce #{id} retirée ; n° {keep} reste en ligne. L’agent est prévenu.",
         "liveResends": "{count} annonce(s) en ligne en double chez le même agent",
         "cleanUp": "Faire le ménage"
+      },
+      "row": {
+        "agentFallback": "Agent #{id}",
+        "verifiedNumber": "Numéro vérifié",
+        "unverifiedNumber": "Numéro non vérifié",
+        "newAccount": "Nouveau compte",
+        "joinedOn": "Compte créé le {date}",
+        "firstListing": "1ʳᵉ annonce",
+        "listingCount": {
+          "one": "{count} annonce",
+          "other": "{count} annonces"
+        },
+        "vsMedian": "{ratio}× la médiane",
+        "duplicateLabel": "Doublon possible · {whose}"
       }
     },
     "subscriptions": {

@@ -213,7 +213,11 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
              (a.phone_verified_at IS NOT NULL) AS agent_verified,
              ${availabilityChecks ? AVAILABILITY_UNANSWERED_SQL : 'false'} AS availability_unanswered,
              a.phone AS agent_phone,
-             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), NULLIF(v.username, '')) AS agent_name
+             -- The person, never vendors.username (phone digits, or free text
+             -- typed during onboarding). The agency is shown on its own line.
+             NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), '') AS agent_name,
+             NULLIF(TRIM(a.agency_name), '') AS agent_agency,
+             a.created_at AS agent_created_at
       FROM properties p
       LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
       LEFT JOIN agents a ON a.id = p.agent_id
@@ -317,8 +321,11 @@ function toRow(row, medians) {
     beds: row.beds,
     agentId: row.agent_id == null ? null : Number(row.agent_id),
     agentName: row.agent_name,
+    agentAgency: row.agent_agency || null,
     agentPhone: row.agent_phone,
     agentVerified: Boolean(row.agent_verified),
+    agentCreatedAt: row.agent_created_at ? new Date(row.agent_created_at).toISOString() : null,
+    agentListingCount: row.agent_listing_count == null ? null : Number(row.agent_listing_count),
     approveStatus: row.approve_status,
     status: row.status,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -378,6 +385,10 @@ export async function listModerationQueue({
     pool.query(
       `${cte}
        SELECT f.*, f.created_at::text AS cursor_ts, mu.full_name AS moderated_by_name,
+              -- How much this agent has on the platform: a first listing from
+              -- an account created minutes ago reads very differently from an
+              -- agency's 70th. Page rows only.
+              (SELECT COUNT(*)::int FROM properties q WHERE q.agent_id = f.agent_id AND q.deleted_at IS NULL) AS agent_listing_count,
               ${DUPLICATE_IDS_SQL}
        FROM flagged f
        LEFT JOIN console_admin_users mu ON mu.id = f.moderated_by

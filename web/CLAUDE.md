@@ -309,6 +309,19 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
     (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
     message `withdrawn_duplicate` with `keep_id`). The queue's banner links
     `?status=approved&flag=same_agent_resend` ("Faire le ménage").
+- **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
+  `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
+  1–2, red none), place as "quartier, commune" under the title, the median
+  ratio under the price, and an agent cell with initials, person (never
+  `vendors.username`), agency when it differs, a `tel:` number and facts —
+  unverified, "Nouveau compte" (< 7 days), "1ʳᵉ annonce" or N listings. The
+  checks column keeps only flags no other cell shows, plus ONE duplicate link
+  for every listing the row matches ("Doublon possible · autre agent", red
+  "Déjà publiée par le même agent"). Table from `md`, one card per listing on
+  a phone; the live tab drops the decision column for "Publié sur", so the
+  table fits a 1440 px screen without scrolling. A new account's first
+  listing is the one to read twice: on 2026-11-10 two customers were onboarded
+  as agents by the WhatsApp intake, their message text became their "name".
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while

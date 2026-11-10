@@ -71,6 +71,108 @@ export async function getListingForAdmin(propertyId) {
 }
 
 /** Real categories, for the editor's type select. Same shape agentListings uses. */
+/** At most this many listings side by side on /admin/listings/compare. */
+export const COMPARE_MAX = 6;
+
+/** `?ids=801,796` → unique positive integers, in the order given, at most COMPARE_MAX. */
+export function parseCompareIds(raw) {
+  const text = Array.isArray(raw) ? raw.join(',') : String(raw || '');
+  const ids = [];
+  for (const part of text.split(',')) {
+    const id = Number.parseInt(part.trim().replace(/^#/, ''), 10);
+    if (Number.isInteger(id) && id > 0 && !ids.includes(id)) ids.push(id);
+    if (ids.length === COMPARE_MAX) break;
+  }
+  return ids;
+}
+
+/**
+ * Several listings for the duplicate comparison, in the order asked, with
+ * every moderation state (pending, approved, rejected, suspended, deleted):
+ * a twin is usually one that is already live. Same authority as
+ * getListingForAdmin — an admin read, no public filter.
+ */
+export async function getListingsForCompare(ids) {
+  const clean = parseCompareIds(Array.isArray(ids) ? ids.join(',') : ids);
+  if (clean.length === 0) return [];
+  const { rows } = await getPool().query(
+    `SELECT p.id, p.price, p.currency, p.purpose, p.price_period, p.beds, p.bath, p.area, p.quartier, p.reference,
+            p.status, p.approve_status, p.listing_status, p.deleted_at, p.featured_image, p.created_at,
+            p.agent_id, p.moderation_reason_code,
+            pc.title, pc.description,
+            a.phone AS agent_phone,
+            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), NULLIF(TRIM(a.agency_name), '')) AS agent_name,
+            (
+              SELECT ac.name FROM property_amenities pa
+              JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
+              LIMIT 1
+            ) AS commune,
+            (
+              SELECT COALESCE(array_agg(psi.image ORDER BY psi.id), ARRAY[]::text[])
+              FROM property_slider_images psi WHERE psi.property_id = p.id
+            ) AS gallery
+     FROM properties p
+     LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
+     LEFT JOIN agents a ON a.id = p.agent_id
+     LEFT JOIN LATERAL (
+       SELECT first_name, last_name FROM agent_infos WHERE agent_id = a.id
+       ORDER BY (language_id = $1) DESC, language_id LIMIT 1
+     ) ai ON true
+     WHERE p.id = ANY($2::bigint[])`,
+    [CONTENT_LANGUAGE_ID, clean],
+  );
+  const byId = new Map(rows.map((row) => [Number(row.id), { ...row, id: Number(row.id), agent_id: row.agent_id == null ? null : Number(row.agent_id) }]));
+  return clean.map((id) => byId.get(id)).filter(Boolean);
+}
+
+/**
+ * The facts review mode shows under "Ce que nous avons lu" — what the
+ * extraction wrote, each one as stored (NULL stays "non indiqué"). Up to 100
+ * ids; returns a Map by id.
+ */
+export async function getListingFactsForReview(ids) {
+  const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 100);
+  if (clean.length === 0) return new Map();
+  const { rows } = await getPool().query(
+    `SELECT p.id, p.bath, p.area, p.currency,
+            to_jsonb(p) ->> 'deposit_months' AS deposit_months,
+            to_jsonb(p) ->> 'advance_months' AS advance_months,
+            to_jsonb(p) ->> 'commission_months' AS commission_months,
+            to_jsonb(p) ->> 'parcelle_subtype' AS parcelle_subtype,
+            (SELECT cc.name FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name,
+            pc.description
+     FROM properties p
+     LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
+     WHERE p.id = ANY($2::bigint[])`,
+    [CONTENT_LANGUAGE_ID, clean],
+  );
+  return new Map(rows.map((row) => [Number(row.id), {
+    bath: row.bath == null ? null : Number(row.bath),
+    area: row.area,
+    currency: row.currency,
+    depositMonths: row.deposit_months == null ? null : Number(row.deposit_months),
+    advanceMonths: row.advance_months == null ? null : Number(row.advance_months),
+    commissionMonths: row.commission_months == null ? null : Number(row.commission_months),
+    parcelleSubtype: row.parcelle_subtype || null,
+    categoryName: row.category_name || null,
+    description: row.description || null,
+  }]));
+}
+
+/**
+ * The moderation state a moderator needs to read off a compared listing.
+ * Deleted wins, then rejected, pending, suspended (approved but hidden), live.
+ */
+export function compareState(listing) {
+  if (listing.deleted_at) return 'deleted';
+  if (Number(listing.approve_status) === 2) return 'rejected';
+  if (Number(listing.approve_status) === 0) return 'pending';
+  if (Number(listing.status) !== 1) return 'hidden';
+  return 'live';
+}
+
 export async function getCategoriesForAdmin() {
   const pool = getPool();
   const { rows } = await pool.query(

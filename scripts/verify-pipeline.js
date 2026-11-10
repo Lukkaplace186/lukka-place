@@ -16263,6 +16263,14 @@ console.log('\n2. services/openai.js');
         assert.deepStrictEqual(resp.body.priority.parts.map((p) => p.key), ['up_to_date', 'new_listing', 'requests', 'visits']);
       });
 
+      await checkAsync('GET /admin/agents/priority-levels answers every requested agency\'s level for the admin console', async () => {
+        const resp = await adminRequest('GET', '/admin/agents/priority-levels?ids=9410,9411,abc');
+        assert.strictEqual(resp.status, 200);
+        assert.deepStrictEqual(Object.keys(resp.body.levels).sort(), ['9410', '9411']);
+        assert.ok(['or', 'argent', 'bronze'].includes(resp.body.levels['9410'].level));
+        assert.strictEqual(typeof resp.body.levels['9410'].points, 'number');
+      });
+
       check('neighbouring communes come from verified centre points, same city, within 6 km', () => {
         assert.deepStrictEqual(neighbours94.neighbouringCommunes('Limete').map((n) => n.commune), ['Kalamu', 'Ngaba', 'Matete']);
         assert.deepStrictEqual(neighbours94.neighbouringCommunes('Maluku'), []);
@@ -16309,9 +16317,181 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §95 App alerts: push first, WhatsApp as the fallback (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§95 App alerts — push to the agent’s phones first, WhatsApp when there is no app, a dead push, or an urgent alert left unread');
+  // §95 Same agent, same listing: held at "OK", released by "AUTRE" (2026-11-10)
+  // ---------------------------------------------------------------------------
+  // Owner: the same property with another agent is fine; the same agent
+  // sending the same property twice is not (services/resendGuard.js).
+  console.log('\n§95 a same-agent re-send is held and the agent asked; AUTRE releases it');
+  {
+    const resend95 = require('../services/resendGuard');
+    const auto95 = require('../services/draftAutoSubmit');
+    const base95 = { purpose: 'rent', beds: 2, live: true, title: '2 chambres — Appartement à louer à Limete' };
+
+    check('a stored photo name carries its content fingerprint, the same for WhatsApp and web uploads', () => {
+      assert.strictEqual(resend95.fingerprintOfStoredPhoto('https://x/properties/746/whatsapp_0a1b2c3d4e5f6_e5.jpg'), '0a1b2c3d4e5f6');
+      assert.strictEqual(resend95.fingerprintOfStoredPhoto('https://x/properties/801/agent_abcdefabcdef1.jpg'), 'abcdefabcdef1');
+      assert.strictEqual(resend95.fingerprintOfStoredPhoto('https://x/noimage.png'), null);
+      // Same as supabaseStorage.contentHash: md5, first 13 hex.
+      assert.strictEqual(resend95.fingerprintOfBytes(Buffer.from('photo')), require('crypto').createHash('md5').update('photo').digest('hex').slice(0, 13));
+    });
+
+    check('a shared photo, same transaction and same or unstated bedrooms is a re-send; another unit is not', () => {
+      const draft = { photoFingerprints: ['aaa', 'bbb'], text: null, purpose: 'rent', beds: 2 };
+      const match = resend95.pickResend(draft, [
+        { ...base95, id: 746, photoFingerprints: ['bbb', 'ccc'] },
+        { ...base95, id: 789, beds: 3, photoFingerprints: ['aaa', 'bbb'] }, // the building's other unit
+      ]);
+      assert.deepStrictEqual(match, { propertyId: 746, live: true, sharedPhotos: 1, sameText: false, title: base95.title });
+      assert.strictEqual(resend95.pickResend({ ...draft, beds: null }, [{ ...base95, id: 789, beds: 3, photoFingerprints: ['aaa'] }]).propertyId, 789);
+      assert.strictEqual(resend95.pickResend(draft, [{ ...base95, id: 5, purpose: 'sale', photoFingerprints: ['aaa'] }]), null);
+      assert.strictEqual(resend95.pickResend(draft, [{ ...base95, id: 6, photoFingerprints: ['zzz'] }]), null);
+    });
+
+    check('the identical message text is enough without photos; a short text never is', () => {
+      const text = 'Appartement 2 chambres à louer à Limete Industriel, 400$/mois, garantie 3 mois, eau et électricité';
+      assert.strictEqual(resend95.pickResend({ photoFingerprints: [], text, purpose: 'rent', beds: 2 }, [{ ...base95, id: 7, text: `  ${text.toUpperCase()} `, photoFingerprints: [] }]).sameText, true);
+      assert.strictEqual(resend95.pickResend({ photoFingerprints: [], text: 'Appart 400$', purpose: 'rent', beds: 2 }, [{ ...base95, id: 8, text: 'Appart 400$', photoFingerprints: [] }]), null);
+    });
+
+    check('AUTRE and its variants answer the question; anything else does not', () => {
+      for (const yes of ['AUTRE', 'autre', 'Autre bien', "c'est un autre bien", 'C’est un autre bien.']) assert.ok(resend95.isOtherReply(yes), yes);
+      for (const no of ['OK', 'autre chose : le prix est 500', 'un autre jour', '']) assert.ok(!resend95.isOtherReply(no), no);
+    });
+
+    check('the agent is told which listing it repeats, why, where to edit it, and how to say it is another', () => {
+      const live = resend95.resendReply({ propertyId: 746, live: true, sharedPhotos: 3, sameText: false });
+      assert.match(live, /annonce n° 746/);
+      assert.match(live, /3 photos identiques/);
+      assert.match(live, /\/listings\/746/);
+      assert.match(live, /\/compte\/agent\/biens/);
+      assert.match(live, /répondez \*AUTRE\*/);
+      assert.match(resend95.resendReply({ propertyId: 9, live: false, sharedPhotos: 0, sameText: true }), /\(le même texte\), en cours de vérification/);
+    });
+
+    const SENDER95 = '243840009501';
+    const draft95 = dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'appartement', commune: 'Limete', price: 400, bedrooms: 2 },
+      SENDER95,
+      { wamid: 'wamid.RESEND95' },
+    );
+    attachPhoto(draft95.id, 'resend95');
+    const savedFind95 = resend95.findOwnResend;
+    resend95.findOwnResend = async () => ({ propertyId: 746, live: true, sharedPhotos: 3, sameText: false, title: base95.title });
+    try {
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.RESEND95_OK', 'OK', SENDER95));
+      await settle();
+      check('"OK" on a re-send publishes nothing and tells the agent which listing it repeats', () => {
+        const row = dbService.getListing(draft95.id);
+        assert.strictEqual(row.status, 'pending_confirmation');
+        assert.strictEqual(row.parsed_json.resend_of, 746);
+        assert.strictEqual(httpCalls.length, 1);
+        assert.match(httpCalls[0].data.text.body, /annonce n° 746/);
+        assert.match(httpCalls[0].data.text.body, /AUTRE/);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.RESEND95_AUTRE', 'Autre', SENDER95));
+      await settle();
+      check('"AUTRE" releases it: published, and never asked about again', () => {
+        const row = dbService.getListing(draft95.id);
+        assert.notStrictEqual(row.status, 'pending_confirmation');
+        assert.ok(row.parsed_json.resend_cleared);
+        assert.match(httpCalls[0].data.text.body, /Annonce bien reçue/);
+      });
+    } finally {
+      resend95.findOwnResend = savedFind95;
+    }
+
+    check('"AUTRE" confirms only a draft held as a re-send', () => {
+      assert.strictEqual(resend95.heldAsResend({ parsed_json: {} }), false);
+      assert.strictEqual(resend95.heldAsResend({ parsed_json: { resend_of: 746 } }), true);
+      assert.strictEqual(resend95.heldAsResend({ parsed_json: { resend_of: 746, resend_cleared: '2026-11-10' } }), false);
+    });
+
+    const auto95Id = dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'appartement', commune: 'Gombe', price: 900, bedrooms: 2 },
+      '243840009502',
+      { wamid: 'wamid.AUTO95' },
+    ).id;
+    attachPhoto(auto95Id, 'auto95');
+    dbService.db.prepare("UPDATE listings SET created_at = datetime('now', '-10 hours') WHERE id = ?").run(auto95Id);
+    const held95 = await auto95.runDraftAutoSubmit({ checkQuota: async () => null, checkResend: async () => ({ hold: true }) });
+    check('the 3-hour auto-submit never sends a re-send to moderation', () => {
+      assert.ok(held95.heldAsResend.includes(auto95Id));
+      assert.ok(!held95.submitted.includes(auto95Id));
+      assert.strictEqual(dbService.getListing(auto95Id).status, 'pending_confirmation');
+    });
+    resend95.markResend(auto95Id, { propertyId: 746 });
+    const again95 = await auto95.runDraftAutoSubmit({ checkQuota: async () => null, checkResend: async () => ({ hold: false }) });
+    check('a held draft is not re-checked every minute: it leaves the auto-submit list until AUTRE', () => {
+      assert.ok(!again95.submitted.includes(auto95Id) && !again95.heldAsResend.includes(auto95Id));
+    });
+
+    check('withdrawing a live duplicate tells the agent which listing stays', () => {
+      const { MODERATION_MESSAGES } = require('../routes/admin');
+      const text = MODERATION_MESSAGES.withdrawn_duplicate(737, { keepId: '746' });
+      assert.match(text, /annonce n° 737 a été retirée/);
+      assert.match(text, /votre annonce n° 746, qui reste en ligne/);
+      assert.match(text, /\/compte\/agent\/biens/);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // §96 Review mode reads what the agent actually sent (2026-11-10)
+  // ---------------------------------------------------------------------------
+  // web /admin/listings/review shows the inbound messages beside what we
+  // extracted (services/listingSource.js, GET /admin/properties/sources).
+  console.log('\n§96 the review mode gets the messages the agent sent around each listing, nothing else');
+  {
+    const source96 = require('../services/listingSource');
+    const Database96 = require('better-sqlite3');
+    const mem96 = new Database96(':memory:');
+    mem96.exec(`CREATE TABLE listings (id INTEGER PRIMARY KEY, wa_id TEXT, raw_text TEXT, remote_property_id INTEGER, created_at TEXT);
+      CREATE TABLE whatsapp_message_log (id INTEGER PRIMARY KEY AUTOINCREMENT, direction TEXT, wa_id TEXT, kind TEXT, body TEXT, media_count INTEGER, created_at TEXT);`);
+    // #806 on 2026-11-10: a customer's enquiry, a screenshot, then a sentence taken for a name.
+    mem96.prepare('INSERT INTO listings (id, wa_id, raw_text, remote_property_id, created_at) VALUES (826, ?, NULL, 806, ?)').run('243800000096', '2026-11-10 10:06:08');
+    const log96 = mem96.prepare('INSERT INTO whatsapp_message_log (direction, wa_id, kind, body, media_count, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+    log96.run('in', '243800000096', 'text', 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien', null, '2026-11-10T10:04:31.777Z');
+    log96.run('out', '243800000096', 'text', 'Pour publier un bien…', null, '2026-11-10T10:04:45.584Z');
+    log96.run('in', '243800000096', 'media', null, 1, '2026-11-10T10:05:55.188Z');
+    log96.run('in', '243800000096', 'text', 'Je contacte parce que j’ai vu cette annonce', null, '2026-11-10T10:07:34.268Z');
+    log96.run('in', '243800000096', 'text', 'Un message de la veille', null, '2026-11-09T09:00:00.000Z');
+    log96.run('in', '243899999999', 'text', 'Quelqu’un d’autre', null, '2026-11-10T10:05:00.000Z');
+
+    check('only the sender\'s inbound messages around the draft, oldest first; replies and other days left out', () => {
+      const out = source96.getListingSources([806], mem96);
+      assert.strictEqual(out[806].channel, 'whatsapp');
+      assert.deepStrictEqual(out[806].messages.map((m) => [m.kind, m.body, m.mediaCount]), [
+        ['text', 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien', null],
+        ['media', null, 1],
+        ['text', 'Je contacte parce que j’ai vu cette annonce', null],
+      ]);
+      assert.strictEqual(out[806].messages[0].at, '2026-11-10T10:04:31.777Z');
+    });
+
+    check('a listing made on the web form has no WhatsApp source; ids are parsed, capped and deduplicated', () => {
+      assert.deepStrictEqual(source96.getListingSources([999], mem96)[999], { propertyId: 999, channel: 'web', rawText: null, messages: [] });
+      assert.deepStrictEqual(source96.parseIds('806, 806,abc,-1,812'), [806, 812]);
+      assert.strictEqual(source96.parseIds(Array.from({ length: 150 }, (_, i) => i + 1).join(',')).length, source96.MAX_IDS);
+      // SQLite's own "YYYY-MM-DD HH:MM:SS" is UTC.
+      assert.strictEqual(source96.toMs('2026-11-10 10:06:08'), Date.parse('2026-11-10T10:06:08Z'));
+    });
+
+    check('GET /admin/properties/sources is read-only and refuses a call without ids', () => {
+      const routes96 = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      const block = routes96.slice(routes96.indexOf("router.get('/properties/sources'"), routes96.indexOf("router.get('/viewing-requests/by-customer'"));
+      assert.ok(block.includes('listingSource.getListingSources(ids)'));
+      assert.ok(/status\(400\)/.test(block));
+      assert.ok(!/chakra|send/i.test(block.replace(/nothing is sent/i, '')));
+    });
+    mem96.close();
+  }
+
+  // §97 App alerts: push first, WhatsApp as the fallback (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§97 App alerts — push to the agent’s phones first, WhatsApp when there is no app, a dead push, or an urgent alert left unread');
   {
     const push95 = require('../services/pushNotify');
     const viewing95 = require('../services/viewingNotifications');
@@ -16656,13 +16836,13 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §96 App alerts for customers: one app, categories, POST /admin/push (2026-11-10)
+  // §98 App alerts for customers: one app, categories, POST /admin/push (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§96 App alerts for customers — found by account or phone, per-kind switches, a 10-minute late copy, POST /admin/push');
+  console.log('\n§98 App alerts for customers — found by account or phone, per-kind switches, a 10-minute late copy, POST /admin/push');
   {
     const push96 = require('../services/pushNotify');
 
-    // The §95 fake, plus customers and notification_preferences.
+    // The §97 fake, plus customers and notification_preferences.
     function fakePool96({ prefsTable = true } = {}) {
       const state = {
         customers: [{ id: 31, phone: '243906500096' }],
@@ -16869,9 +17049,9 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §97 Customer alerts go app-first: visits, request claimed, chat (2026-11-10)
+  // §99 Customer alerts go app-first: visits, request claimed, chat (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§97 Customer alerts app-first — visits, a request taken, chat; WhatsApp unchanged without the app');
+  console.log('\n§99 Customer alerts app-first — visits, a request taken, chat; WhatsApp unchanged without the app');
   {
     const push97 = require('../services/pushNotify');
     const viewing97 = require('../services/viewingNotifications');
@@ -17002,9 +17182,9 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §98 New customer alerts: request sent, reminders, desk changes, the team takes over, saved listings (2026-11-10)
+  // §100 New customer alerts: request sent, reminders, desk changes, the team takes over, saved listings (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§98 New customer alerts — visit request sent, reminders, changes, the team takes over, saved listings let / back on the market');
+  console.log('\n§100 New customer alerts — visit request sent, reminders, changes, the team takes over, saved listings let / back on the market');
   {
     const alerts98 = require('../services/customerAlerts');
     const fav98 = require('../services/favoriteStatus');
@@ -17143,9 +17323,9 @@ console.log('\n2. services/openai.js');
     });
   }
 
-  // §99 The 24 h "Un agent vous a-t-il contacté ?" follow-up (2026-11-10)
+  // §101 The 24 h "Un agent vous a-t-il contacté ?" follow-up (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§99 24 h follow-up — asked once, one per customer a day, three answers: contacted / relaunch / closed');
+  console.log('\n§101 24 h follow-up — asked once, one per customer a day, three answers: contacted / relaunch / closed');
   {
     const follow99 = require('../services/requestFollowup');
     const window99 = require('../services/sessionWindow');
@@ -17267,9 +17447,9 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §100 Standard portal alerts for app users: instant match, similar listings, new photos, "Toujours en recherche ?" (2026-11-10)
+  // §102 Standard portal alerts for app users: instant match, similar listings, new photos, "Toujours en recherche ?" (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§100 Portal alerts for app users — instant match, similar listings, new photos, "Toujours en recherche ?"');
+  console.log('\n§102 Portal alerts for app users — instant match, similar listings, new photos, "Toujours en recherche ?"');
   {
     const portal100 = require('../services/portalAlerts');
     const fav100 = require('../services/favoriteStatus');
@@ -17345,9 +17525,9 @@ console.log('\n2. services/openai.js');
     });
   }
 
-  // §101 Scheduled portal alerts: enquired-listing price cuts, new projects, weekly summary, monthly prices (2026-11-10)
+  // §103 Scheduled portal alerts: enquired-listing price cuts, new projects, weekly summary, monthly prices (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§101 Scheduled portal alerts — the engine sends web the listings customers asked about, and calls each task on time');
+  console.log('\n§103 Scheduled portal alerts — the engine sends web the listings customers asked about, and calls each task on time');
   {
     const portal101 = require('../services/portalAlerts');
 

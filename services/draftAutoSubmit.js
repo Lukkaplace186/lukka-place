@@ -60,6 +60,8 @@ const DUE_SQL = `
       OR (videos IS NOT NULL AND TRIM(videos) NOT IN ('', '[]', 'null')))
     AND (NOT json_valid(parsed_json) OR json_extract(parsed_json, '$.auto_submit_blocked_at') IS NULL
          OR datetime(json_extract(parsed_json, '$.auto_submit_blocked_at')) <= datetime(@retry))
+    AND (NOT json_valid(parsed_json) OR json_extract(parsed_json, '$.resend_of') IS NULL
+         OR json_extract(parsed_json, '$.resend_cleared') IS NOT NULL)
   ORDER BY id
   LIMIT @limit`;
 
@@ -84,8 +86,12 @@ function stamp(id, key, value) {
     .run({ id, key, value });
 }
 
-async function runDraftAutoSubmit({ now = new Date(), checkQuota = listingQuota.checkQuotaForSender } = {}) {
-  const result = { submitted: [], overQuota: [] };
+async function runDraftAutoSubmit({
+  now = new Date(),
+  checkQuota = listingQuota.checkQuotaForSender,
+  checkResend = (listing, text) => require('./resendGuard').gateBeforePublish(listing, text),
+} = {}) {
+  const result = { submitted: [], overQuota: [], heldAsResend: [] };
   if (autoSubmitHours() <= 0) return result;
 
   for (const row of dueDrafts(now)) {
@@ -105,6 +111,16 @@ async function runDraftAutoSubmit({ now = new Date(), checkQuota = listingQuota.
     // already published it.
     const still = db.getListing(row.id);
     if (!still || still.status !== 'pending_confirmation') continue;
+
+    // The same agent's same listing is never sent to moderation without them
+    // saying it is another property (services/resendGuard.js). Silent, like
+    // the rest of this job: the draft simply stays pending, and the agent's
+    // own "OK" is what tells them why.
+    const resend = await checkResend(still, '');
+    if (resend.hold) {
+      result.heldAsResend.push(row.id);
+      continue;
+    }
 
     stamp(row.id, 'auto_submitted_at', now.toISOString());
     const { ids } = db.expandAndPublishListing(row.id);

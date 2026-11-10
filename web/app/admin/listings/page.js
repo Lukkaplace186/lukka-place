@@ -3,6 +3,8 @@ import { getLocationHierarchySafe } from '@/lib/locations';
 import { firstParam, parseCursor, parsePage, buildHref } from '@/lib/adminPagination';
 import { FILTERABLE_FLAGS, MODERATION_SORTS, getModerationCounts, listModerationQueue } from '@/lib/moderationQueue';
 import { MODERATION_QUEUE_STATUSES, QUALITY_FLAG_LABEL_KEYS } from '@/lib/moderation';
+import { queueSummary } from '@/lib/moderationRow';
+import { getListingSources } from '@/lib/adminApi';
 import { LISTING_MODERATION_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
@@ -12,6 +14,7 @@ import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import { NewItemsNotice } from '../LiveQueueCounts';
 import ModerationTable from './ModerationTable';
+import QueueSummary from './QueueSummary';
 import ServerViewTools from '../table/ServerViewTools';
 import { SOCIAL_FILTERS, getTeamSocialPostsByListing } from '@/lib/teamSocialPosts';
 import { TEAM_SOCIAL_TARGETS } from '@/lib/teamSocialTargets';
@@ -56,14 +59,38 @@ export default async function AdminListingsPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const session = await getAdminSession();
-  const [queueResult, countsResult, locations] = await Promise.allSettled([
+  const renderedAt = renderTime();
+  // The pending tab's summary line and its "À vérifier / Prêtes" split read the
+  // whole pending queue (it stays small), whatever page or filter is shown.
+  const filtered = Boolean(filters.q || filters.commune || filters.purpose || filters.flag || filters.sort);
+  const [queueResult, countsResult, locations, resendResult, pendingResult] = await Promise.allSettled([
     listModerationQueue({ ...filters, status, limit, offset, cursor: parseCursor(raw) }),
     getModerationCounts(),
     getLocationHierarchySafe(),
+    // Live listings the same agent has online twice: the cleanup list
+    // (owner decision 2026-11-10). Only counted outside that view itself.
+    filters.flag === 'same_agent_resend' && status === 'approved'
+      ? Promise.resolve(null)
+      : listModerationQueue({ status: 'approved', flag: 'same_agent_resend', limit: 1 }),
+    status === 'pending' ? listModerationQueue({ status: 'pending', limit: 100 }) : Promise.resolve(null),
   ]);
+  const liveResends = resendResult.status === 'fulfilled' && resendResult.value ? resendResult.value.total : 0;
   const queue = queueResult.status === 'fulfilled' ? queueResult.value : null;
   const counts = countsResult.status === 'fulfilled' ? countsResult.value : {};
   const communes = locations.status === 'fulfilled' ? locations.value.communes || [] : [];
+  const pendingAll = pendingResult.status === 'fulfilled' ? pendingResult.value : null;
+  const summary = pendingAll ? queueSummary(pendingAll.rows, pendingAll.total, renderedAt) : null;
+
+  // What each agent actually sent (engine): the grey line under the title.
+  // The engine being down costs that line, never the page.
+  let sources = null;
+  if (queue?.rows?.length && status !== 'approved') {
+    try {
+      sources = await getListingSources(queue.rows.map((row) => row.id));
+    } catch (err) {
+      console.error(`[admin] listing sources for /admin/listings failed: ${err.message}`);
+    }
+  }
 
   // "Publié sur" on the live tab: where the team already posted each row.
   // null = not known (table missing or the read failed), never "nowhere".
@@ -110,6 +137,20 @@ export default async function AdminListingsPage({ searchParams }) {
           </Link>
         ))}
       </div>
+
+      {liveResends > 0 ? (
+        <Link
+          href="/admin/listings?status=approved&flag=same_agent_resend"
+          className="inline-flex max-w-3xl flex-wrap items-center gap-x-2 gap-y-1 self-start rounded-card border border-danger/40 bg-danger-tint px-4 py-2.5 text-sm text-danger transition-colors hover:border-danger"
+        >
+          <span className="font-semibold">{t('admin.moderation.compare.liveResends', { count: liveResends })}</span>
+          <span className="text-blue underline underline-offset-2">{t('admin.moderation.compare.cleanUp')} →</span>
+        </Link>
+      ) : null}
+
+      {summary && summary.total > 0 ? (
+        <QueueSummary summary={summary} canModerate={can(session?.role, 'listings.moderate')} />
+      ) : null}
 
       <TableToolbar
         params={params}
@@ -177,8 +218,10 @@ export default async function AdminListingsPage({ searchParams }) {
         status={status}
         canModerate={can(session?.role, 'listings.moderate')}
         canDelete={can(session?.role, 'listings.delete')}
-        renderedAt={renderTime()}
+        renderedAt={renderedAt}
         socialPosts={socialPosts}
+        sources={sources}
+        split={status === 'pending' && !filtered}
         footer={queue ? <Pagination pathname="/admin/listings" params={params} total={queue.total} page={page} pageSize={pageSize} cursors={queue.cursors} /> : null}
       />
 

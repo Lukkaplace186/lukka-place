@@ -4838,17 +4838,168 @@
         "missing_content": "Missing title or description",
         "extraction_failure": "Extraction error text",
         "price_outlier": "Price far from commune median",
-        "duplicate_photo": "Photo used on another listing",
+        "duplicate_photo": "Photo also with another agent",
         "duplicate_listing": "Same title and price as another listing",
         "agent_unverified": "Agent number unverified",
         "no_agent": "No agent attached",
-        "availability_unanswered": "Availability: 2 checks unanswered"
+        "availability_unanswered": "Availability: 2 checks unanswered",
+        "same_agent_resend": "Already listed by the same agent"
       },
       "quartierChoose": "— Choose a quartier —",
       "quartierOther": "Other (type the name)…",
       "quartierOtherPlaceholder": "Quartier or local place name (not a landmark)",
       "quartierPickCommune": "Choose the commune first",
-      "quartierHint": "A landmark (town hall, church, avenue…) goes in Reference."
+      "quartierHint": "A landmark (town hall, church, avenue…) goes in Reference.",
+      "compare": {
+        "title": "Compare Listings",
+        "intro": "The listing from the queue, first, next to the listings its flag points at. “Same” marks a value equal to the first one’s; shared photos are outlined in red.",
+        "back": "Back to listings",
+        "nothing": "At least two existing listings are needed to compare.",
+        "reference": "Compared listing",
+        "same": "Same",
+        "noPhotos": "No photos",
+        "photoCount": "{count} photo(s)",
+        "sharedPhotos": "{count} photo(s) in common",
+        "open": "Open listing",
+        "public": "View on the site",
+        "approve": "Approve",
+        "rejectDuplicate": "Reject: duplicate",
+        "approved": "Listing #{id} approved.",
+        "rejected": "Listing #{id} rejected as a duplicate. The agent is told.",
+        "failed": "Could not save the decision. Try again.",
+        "openFromFlag": "Compare with {count} listing(s)",
+        "state": {
+          "live": "Live",
+          "pending": "Pending",
+          "rejected": "Rejected",
+          "hidden": "Hidden",
+          "deleted": "Deleted"
+        },
+        "field": {
+          "title": "Title",
+          "price": "Price",
+          "reference": "Reference",
+          "place": "Place",
+          "beds": "Bedrooms",
+          "agent": "Agent",
+          "created": "Received",
+          "description": "Description"
+        },
+        "compareLink": "Compare",
+        "sameAgentShort": "same agent",
+        "otherAgentShort": "other agent",
+        "sameAgent": "Same agent",
+        "otherAgent": "Other agent",
+        "sameAgentBanner": "The same agent has this property more than once. A property is online only once: reject the pending copy, or take the older live copy offline and keep the newest.",
+        "withdraw": "Take offline (duplicate) — keep #{keep}",
+        "withdrawn": "Listing #{id} taken offline; #{keep} stays online. The agent is told.",
+        "liveResends": "{count} live listing(s) duplicated by the same agent",
+        "cleanUp": "Clean up"
+      },
+      "row": {
+        "agentFallback": "Agent #{id}",
+        "verifiedNumber": "Verified number",
+        "unverifiedNumber": "Unverified number",
+        "newAccount": "New account",
+        "joinedOn": "Account created on {date}",
+        "firstListing": "First listing",
+        "listingCount": {
+          "one": "{count} listing",
+          "other": "{count} listings"
+        },
+        "vsMedian": "{ratio}× the median",
+        "duplicateLabel": "Possible duplicate · {whose}",
+        "nameLooksLikeSentence": "Name looks like a sentence"
+      },
+      "decidedBy": "Decided by {name}",
+      "decidedByUnknown": "Decided with the shared password",
+      "noteQuoted": "Note: “{note}”",
+      "viewer": {
+        "open": "See the photos of listing #{id}",
+        "photosOf": "Listing Photos",
+        "photoOf": "Photo {n} of {total}",
+        "noPhoto": "No photo",
+        "previous": "Previous photo",
+        "next": "Next photo"
+      },
+      "queue": {
+        "toCheck": "To Check",
+        "toCheckHint": "A signal, a new account or fewer than 3 photos: look at them one by one.",
+        "ready": "Ready",
+        "readyHint": "Verified agent registered over 7 days ago, no signal, at least 3 photos.",
+        "reviewThese": {
+          "one": "Review this one",
+          "other": "Review these {count}"
+        },
+        "approveAll": "Approve all ({count})",
+        "summaryLabel": "Queue summary",
+        "pendingCount": "{count} pending",
+        "oldest": "oldest waiting",
+        "toCheckCount": "{count} to check",
+        "startReview": "Start the review"
+      },
+      "review": {
+        "heading": "Listing Review",
+        "counter": "{n} of {total}",
+        "quit": "Exit",
+        "keyEscape": "Esc",
+        "keyEnter": "Enter",
+        "order": "{check} to check, then {ready} ready",
+        "onlyToCheck": "{count} to check",
+        "waiting": "waiting for",
+        "photos": "Photos",
+        "fullScreen": "Full screen",
+        "vsMedianLong": "{ratio}× the {commune} median ({sample} listings)",
+        "alreadyApproved": "Already approved in this review.",
+        "alreadyRejected": "Already rejected in this review.",
+        "toLookAt": "To look at",
+        "agentMessage": "Agent’s message",
+        "whatWeRead": "What we read",
+        "sourceUnavailable": "The original message could not be loaded.",
+        "webCreated": "Created on the website: no WhatsApp message. Here is the description they typed.",
+        "noMessage": "No message found for this listing.",
+        "photosSent": {
+          "one": "{count} photo sent",
+          "other": "{count} photos sent"
+        },
+        "attachment": "Attachment ({kind})",
+        "notStated": "not stated",
+        "months": "{count} months",
+        "rent": "Rent",
+        "sale": "Sale",
+        "field": {
+          "type": "Type",
+          "transaction": "Transaction",
+          "price": "Price",
+          "place": "Place",
+          "reference": "Référence",
+          "beds": "Bedrooms",
+          "baths": "Bathrooms",
+          "area": "Area",
+          "deposit": "Deposit",
+          "advance": "Advance",
+          "commission": "Commission"
+        },
+        "fixField": "Fix a field",
+        "previous": "Previous",
+        "skip": "Skip",
+        "afterDecision": "After each decision, the next listing opens.",
+        "approve": "Approve",
+        "reject": "Reject",
+        "rejectTitle": "Why Reject This Listing?",
+        "rejectHint": "Listing #{id}. One tap is enough: the agent gets this reason on WhatsApp.",
+        "rejectAndNext": "Reject and go to the next one",
+        "approvedToast": "Listing #{id} approved.",
+        "rejectedToast": "Listing #{id} rejected, the agent is told.",
+        "doneTitle": "Review Complete",
+        "emptyTitle": "No Listing Waiting",
+        "doneSummary": "{approved} approved, {rejected} rejected, {skipped} skipped.",
+        "reviewSkipped": {
+          "one": "Review the skipped one",
+          "other": "Review the {count} skipped"
+        },
+        "backToQueue": "Back to listings"
+      }
     },
     "subscriptions": {
       "lead": "Plans, assignment to agents and payment tracking.",
@@ -4976,7 +5127,8 @@
         "or": "Gold",
         "argent": "Silver",
         "bronze": "Bronze"
-      }
+      },
+      "colLevel": "Level"
     },
     "agentPanel": {
       "firstName": "First Name",
@@ -5552,7 +5704,10 @@
       "noLogs": "No request has reached this agent yet.",
       "joined": "Joined {date}",
       "publicPage": "Public page",
-      "listingsQuota": "Listings (total / quota)"
+      "listingsQuota": "Listings (total / quota)",
+      "priorityTitle": "Priority for Customer Requests",
+      "priorityLead": "The level that decides which agencies receive a request first. The agency sees the same card on its dashboard.",
+      "priorityFoot": "Not public: only the agency and the team see it."
     },
     "audit": {
       "title": "Audit Log",

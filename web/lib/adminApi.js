@@ -195,6 +195,19 @@ export async function countViewingRequestsByProperty() {
 }
 
 /**
+ * What each listing's agent actually sent on WhatsApp (engine
+ * services/listingSource.js): `{ [propertyId]: { channel, rawText, messages } }`.
+ * The approval queue's grey line and review mode. At most 100 ids.
+ * @param {number[]} ids
+ */
+export async function getListingSources(ids) {
+  const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 100);
+  if (!clean.length) return {};
+  const { data = {} } = await engineFetch(`/admin/properties/sources?ids=${clean.join(',')}`);
+  return data;
+}
+
+/**
  * @param {number} id
  * @param {{status?: string, requestedTime?: string}} patch `requestedTime` lets
  *   "Reprogrammer" propose a new free-text time in the same write as the status change.
@@ -581,10 +594,11 @@ export async function parseMarketPaste(text) {
  * @param {{reasonCode?: string|null, note?: string|null}} [reason] a rejection's
  *   code and free-text note, which the engine turns into the agent's message.
  */
-export async function notifyListingModeration(propertyId, status, { reasonCode = null, note = null } = {}) {
+export async function notifyListingModeration(propertyId, status, { reasonCode = null, note = null, keepId = null } = {}) {
   return engineFetch(`/admin/properties/${propertyId}/notify`, {
     method: 'POST',
-    body: JSON.stringify({ status, reason_code: reasonCode, note }),
+    // keep_id: for 'withdrawn_duplicate', the listing that stays online.
+    body: JSON.stringify({ status, reason_code: reasonCode, note, ...(keepId ? { keep_id: keepId } : {}) }),
   });
 }
 
@@ -624,6 +638,17 @@ export async function answerLeadMatch({ leadId, agentId, answer }) {
  */
 export async function getAgentPriority(agentId) {
   return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/priority`);
+}
+
+/**
+ * Levels of several agencies at once (admin console): { <id>: { level, points } }.
+ * @returns {Promise<Record<string, {level: string, points: number}>>}
+ */
+export async function getAgentPriorityLevels(agentIds) {
+  const ids = [...new Set((agentIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+  if (ids.length === 0) return {};
+  const body = await engineFetch(`/admin/agents/priority-levels?ids=${ids.join(',')}`);
+  return body.levels || {};
 }
 
 export async function getMatchingStats({ days = 30 } = {}) {

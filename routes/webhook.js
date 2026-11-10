@@ -72,6 +72,7 @@ const { handleContactLink } = require('../services/contactRelay');
 const salesReferral = require('../services/salesReferral');
 const opsDesk = require('../services/opsDesk');
 const listingQuota = require('../services/listingQuota');
+const resendGuard = require('../services/resendGuard');
 
 const router = express.Router();
 
@@ -1055,7 +1056,9 @@ async function processGroup(messages) {
     const recentlyPublished = pending ? undefined : findRecentPublishedListing(from);
     const contextListing = pending || recentlyPublished;
 
-    if (pending && isAffirmative(text)) {
+    // "AUTRE" confirms only a draft held as a re-send (services/resendGuard.js):
+    // the agent is saying it is another property than the one we named.
+    if (pending && (isAffirmative(text) || (resendGuard.heldAsResend(pending) && resendGuard.isOtherReply(text)))) {
       // MANDATORY PHOTO GATE.
       //
       // An agent often sends the photo in the same burst as their 'OK', so the
@@ -1101,6 +1104,17 @@ async function processGroup(messages) {
           previewUrl: true,
         });
         console.log(`[quota] listing #${pending.id} NOT published — ${quota.used}/${quota.limit} used (confirmed by ${from})`);
+        return;
+      }
+
+      // SAME AGENT, SAME LISTING (owner decision 2026-11-10). Held, not
+      // published; the draft stays pending and "AUTRE" releases it.
+      const resend = await resendGuard.gateBeforePublish(getListing(pending.id), text);
+      if (resend.hold) {
+        await chakra.sendWhatsAppMessage(from, resend.reply, {
+          replyToMessageId: primaryWamid || undefined,
+          previewUrl: true,
+        });
         return;
       }
 
@@ -1620,6 +1634,15 @@ async function processGroup(messages) {
       }
       if (photoPaths.length || videoPaths.length) {
         applyListingCorrection(pending.id, null, null, wamids, photoPaths, videoPaths);
+      }
+      // Same re-send gate as the "OK" path above.
+      const resend = await resendGuard.gateBeforePublish(getListing(pending.id), text);
+      if (resend.hold) {
+        await chakra.sendWhatsAppMessage(from, resend.reply, {
+          replyToMessageId: primaryWamid || undefined,
+          previewUrl: true,
+        });
+        return;
       }
       const { ids: confirmedIds } = expandAndPublishListing(pending.id);
       await chakra.sendWhatsAppMessage(from, publishedReply(confirmedIds), {

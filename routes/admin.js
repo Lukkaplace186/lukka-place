@@ -20,6 +20,7 @@ const chakra = require('../services/chakra');
 const { insideSessionWindow } = require('../services/sessionWindow');
 const deskAlert = require('../services/deskAlert');
 const propertyRepository = require('../services/propertyRepository');
+const listingSource = require('../services/listingSource');
 const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground, MAX_CLAIMS } = require('../services/leadDispatch');
@@ -1166,6 +1167,22 @@ router.get('/viewing-requests/counts-by-property', (req, res) => {
   }
 });
 
+/**
+ * What the agent sent for each listing — web's review mode shows it beside
+ * what we extracted (services/listingSource.js). `ids` = property ids, at most
+ * 100. Inbound text only; nothing is sent to anyone.
+ */
+router.get('/properties/sources', (req, res) => {
+  const ids = listingSource.parseIds(req.query.ids);
+  if (!ids.length) return res.status(400).json({ success: false, error: 'ids must list property ids.' });
+  try {
+    return res.json({ success: true, data: listingSource.getListingSources(ids) });
+  } catch (err) {
+    console.error(`[admin] GET /properties/sources failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read listing sources.' });
+  }
+});
+
 router.get('/viewing-requests/by-customer', (req, res) => {
   const waId = String(req.query.wa_id || '');
   if (!CUSTOMER_WA_ID.test(waId)) {
@@ -1691,6 +1708,16 @@ const MODERATION_MESSAGES = {
       'Répondez simplement à ce message avec les corrections, et nous la revérifierons.',
     ].filter(Boolean).join('\n\n');
   },
+  // The team took a live listing offline because the same agent has the same
+  // property online twice (web /admin/listings/compare, services/resendGuard.js).
+  // `reason.keepId` is the copy that stays; no template exists for this one.
+  withdrawn_duplicate: (propertyId, reason) => {
+    const keep = Number.parseInt(reason?.keepId, 10);
+    return [
+      `Bonjour, votre annonce n° ${propertyId} a été retirée du site : c’est le même bien que ${Number.isInteger(keep) && keep > 0 ? `votre annonce n° ${keep}, qui reste en ligne` : 'une autre de vos annonces, qui reste en ligne'}.`,
+      'Un bien n’est publié qu’une fois. Pour changer le prix ou les photos, modifiez l’annonce existante dans votre espace : https://lukkaplace.com/compte/agent/biens',
+    ].join('\n\n');
+  },
 };
 
 /**
@@ -1832,7 +1859,7 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
   }
 
   setImmediate(async () => {
-    const reason = { code: req.body?.reason_code, note: req.body?.note };
+    const reason = { code: req.body?.reason_code, note: req.body?.note, keepId: req.body?.keep_id };
     try {
       await deliverModerationVerdict(status, listing, remotePropertyId, reason);
     } catch (err) {
@@ -1881,6 +1908,52 @@ async function deliverModerationVerdictWhatsApp(status, listing, propertyId, rea
 }
 
 // ---------------------------------------------------------------------------
+// Agency priority levels (services/agentPriority.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Priority levels of several agencies at once, for the admin console
+ * (/admin/matching's agency table): `ids` comma-separated, at most 200.
+ * Answers { levels: { <id>: { level, points } } }. Declared before
+ * '/agents/:id/...' routes so 'levels' is never read as an id.
+ */
+router.get('/agents/priority-levels', async (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map((s) => Number.parseInt(s, 10))
+    .filter((n) => Number.isInteger(n) && n > 0)
+    .slice(0, 200);
+  try {
+    const levels = await agentPriority.computeLevels(ids);
+    const out = {};
+    for (const [id, value] of levels) out[id] = { level: value.level, points: value.points };
+    return res.json({ success: true, levels: out });
+  } catch (err) {
+    console.error(`[admin] GET /agents/priority-levels failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not compute the priority levels.' });
+  }
+});
+
+/**
+ * An agency's priority level for customer requests (services/agentPriority.js):
+ * Or / Argent / Bronze, its points per part, and what is left to the next
+ * level. For that agency's own dashboard and its admin profile; never public.
+ */
+router.get('/agents/:id/priority', async (req, res) => {
+  const agentId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(agentId) || agentId <= 0) {
+    return res.status(400).json({ success: false, error: 'agent id must be a positive integer.' });
+  }
+  try {
+    const priority = await agentPriority.getAgentPriority(agentId);
+    return res.json({ success: true, priority });
+  } catch (err) {
+    console.error(`[admin] GET /agents/${agentId}/priority failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not compute the priority level.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Agent listing attribution (web/)
 // ---------------------------------------------------------------------------
 
@@ -1906,25 +1979,6 @@ async function deliverModerationVerdictWhatsApp(status, listing, propertyId, rea
  * NULL agent_id, so an attribution an admin made by hand always wins, and a
  * second call simply links nothing.
  */
-/**
- * An agency's priority level for customer requests (services/agentPriority.js):
- * Or / Argent / Bronze, its points per part, and what is left to the next
- * level. For that agency's own dashboard; never shown publicly.
- */
-router.get('/agents/:id/priority', async (req, res) => {
-  const agentId = Number.parseInt(req.params.id, 10);
-  if (!Number.isFinite(agentId) || agentId <= 0) {
-    return res.status(400).json({ success: false, error: 'agent id must be a positive integer.' });
-  }
-  try {
-    const priority = await agentPriority.getAgentPriority(agentId);
-    return res.json({ success: true, priority });
-  } catch (err) {
-    console.error(`[admin] GET /agents/${agentId}/priority failed: ${err.message}`);
-    return res.status(500).json({ success: false, error: 'Could not compute the priority level.' });
-  }
-});
-
 router.post('/agents/claim-listings', async (req, res) => {
   const waId = String(req.body?.wa_id ?? '').replace(/\D/g, '');
   if (!waId) {

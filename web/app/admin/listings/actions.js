@@ -6,6 +6,7 @@ import { notifyListingModeration } from '@/lib/adminApi';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import { EXTRACTION_FAILURE_MARKERS, REJECTION_REASON_CODES } from '@/lib/moderation';
+import { findSameAgentResends } from '@/lib/moderationQueue';
 
 /**
  * Listing moderation writes — directly to Supabase Postgres, separate from
@@ -119,7 +120,13 @@ export async function rejectListingAction(listingId) {
  * @param {{ids: number[], decision: 'approve'|'reject', reasonCode?: string, note?: string}} input
  * @returns {Promise<{ok: boolean, error?: string, approved: number[], rejected: number[], skipped: {id: number, reason: string}[]}>}
  */
-export async function moderateListingsAction({ ids, decision, reasonCode, note }) {
+/**
+ * `confirmResend`: the moderator approves from the comparison page, having
+ * seen the same agent's other copy. Without it, a listing the same agent
+ * already has on the market is skipped with the reason (owner decision
+ * 2026-11-10: same agent, same property is not allowed).
+ */
+export async function moderateListingsAction({ ids, decision, reasonCode, note, confirmResend = false }) {
   try {
     const session = await requireAdmin('listings.moderate');
     const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
@@ -143,6 +150,17 @@ export async function moderateListingsAction({ ids, decision, reasonCode, note }
         if (problem) {
           skipped.push({ id, reason: problem });
           continue;
+        }
+        if (!confirmResend) {
+          const twins = await findSameAgentResends(id).catch(() => []);
+          if (twins.length) {
+            skipped.push({
+              id,
+              reason: `Annonce #${id} : le même agent a déjà ce bien (n° ${twins.join(', ')}). Comparez avant d'approuver.`,
+              compareIds: [id, ...twins],
+            });
+            continue;
+          }
         }
         if (await writeDecision(pool, session, id, 1)) approved.push(id);
         else skipped.push({ id, reason: `Annonce #${id} introuvable.` });

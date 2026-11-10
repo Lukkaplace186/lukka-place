@@ -284,6 +284,74 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   to the agent (engine `MODERATION_REJECTION_REASONS`). The listing page has a
   decision panel and a photo manager that can only reorder/cover/remove photos
   already on the listing.
+- **Duplicate listings** (2026-11-10, owner decision: same property with
+  another agent is fine, the same agent twice is not). Engine half — the hold
+  at "OK" and AUTRE — in docs/claude/whatsapp-intake-and-agents.md, "Same
+  agent, same listing". Here (`lib/moderationQueue.js`, `lib/moderation.js`):
+  - Photos are matched on the content fingerprint in the stored name
+    (`PHOTO_FINGERPRINT_PATTERN`, `whatsapp_|agent_` + 13 hex), never the URL
+    (it carries the listing id, so the old URL match never caught a re-send).
+    `DUPLICATE_INDEX_CTES` builds the fingerprint and description indexes once
+    per query (MATERIALIZED), live/pending listings only.
+  - `same_agent_resend` (`SAME_AGENT_MATCH`): same agent, the other copy
+    live/pending/not closed, same purpose, bedrooms equal or unstated, ≥1
+    shared photo or identical description (≥40 chars), created more than
+    `SAME_MESSAGE_SECONDS` (30 min) apart — the units of one paste share the
+    building's photos and are not re-sends. It is in `BLOCKING_FLAGS`; bulk
+    approve also asks `findSameAgentResends` and skips with the twins' ids
+    unless approved from the compare page (`confirmResend`).
+  - `duplicate_photo` now means a photo also on ANOTHER agent's listing, and
+    with `duplicate_listing` (title + price) is an `INFO_FLAGS` fact only.
+  - Every duplicate chip is a visible link ("Comparer ↗", "· même agent /
+    autre agent") to `/admin/listings/compare`, which marks same/other agent
+    against the first listing, shows a red banner for the same agent, and on
+    an older live copy offers "Retirer (doublon) — garder n° X"
+    (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
+    message `withdrawn_duplicate` with `keep_id`). The queue's banner links
+    `?status=approved&flag=same_agent_resend` ("Faire le ménage").
+- **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
+  `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
+  1–2, red none), place as "quartier, commune" under the title, the median
+  ratio under the price, and an agent cell with initials, person (never
+  `vendors.username`), agency when it differs, a `tel:` number and facts —
+  unverified, "Nouveau compte" (< 7 days), "1ʳᵉ annonce" or N listings. The
+  checks column keeps only flags no other cell shows, plus ONE duplicate link
+  for every listing the row matches ("Doublon possible · autre agent", red
+  "Déjà publiée par le même agent"). Table from `md`, one card per listing on
+  a phone; the live tab drops the decision column for "Publié sur", so the
+  table fits a 1440 px screen without scrolling. A new account's first
+  listing is the one to read twice: on 2026-11-10 two customers were onboarded
+  as agents by the WhatsApp intake, their message text became their "name".
+- **Review mode and the queue split** (2026-11-10, same day). Cells shared by
+  the queue and review mode: `app/admin/listings/ModerationCells.js`; rules:
+  `lib/moderationRow.js` (`readiness`, `splitQueue`, `reviewOrder`,
+  `queueSummary`, `nameLooksLikeSentence`, `agentTextLine`).
+  - **Pending tab, unfiltered**: a summary line ("5 en attente · la plus
+    ancienne il y a 3 h · 2 à vérifier", over the whole pending queue up to
+    100; past 100 the "à vérifier" count is left out) with "Commencer la
+    revue", then **À vérifier** ("Revoir ces N" → `?only=check`) and
+    **Prêtes** = verified agent registered more than 7 days ago, no flag at
+    all, ≥3 photos, with "Tout approuver (N)" (the same bulk action, which still
+    re-checks each listing and reports skips). A filter or sort shows one table.
+  - **Each row** has the agent's first words in grey: the first inbound
+    WhatsApp text (engine `GET /admin/properties/sources`,
+    `services/listingSource.js`: inbound messages from 15 min before to 30 min
+    after the draft, `adminApi.getListingSources`), else the text we read,
+    else the description (web-form listing). Engine down = no grey line, never
+    a broken page. The thumbnail opens `PhotoViewer` (all photos, ← → inside it,
+    swipe, approve/reject). Decided tabs show only the date; who, when and the
+    note open in a popover (hover or tap).
+  - **`/admin/listings/review`** (`listings.moderate`): full screen over the
+    console, À vérifier then Prêtes, oldest first. Photo gallery, agent card,
+    checks, "Message de l'agent" (those inbound messages) beside "Ce que nous
+    avons lu" (`getListingFactsForReview`; NULL = "non indiqué", the three
+    entry costs separate). Keys: A approve, R reasons (1–7, Entrée confirms),
+    → skip, ← back, Échap leaves; ignored while typing or with the photo viewer
+    open. Each decision opens the next undecided listing; the end screen counts
+    approved / rejected / skipped and can go back over the skipped ones. Reject
+    reasons are chips everywhere (`RejectReasons.js`, also the queue's dialog).
+    A same-agent re-send is still refused by `moderateListingsAction` and the
+    reason is shown; compare first.
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while
@@ -4891,6 +4959,11 @@ Engine side: root docs/claude/leads-and-enquiries.md, "Matching in waves".
   from engine `GET /admin/agents/:id/priority`, points per part with what to do
   next. Agency only, never public. Renders nothing when the engine cannot
   answer (an unread level is not shown as Bronze).
+- **The team sees every level too** (owner decision, same day): the same card
+  with `audience="admin"` on `/admin/agents/[id]` (overview tab, worded about
+  the agency), and a "Niveau" column (level · points) in `/admin/matching`'s
+  agency table, read live from engine `GET /admin/agents/priority-levels?ids=`
+  — the level the next request will use, not the one stored on old match rows.
 - **`/admin/matching`** counts open requests only (directed ones in the first
   tile's hint), "Prises par une agence" with the share taken within 1 h, a
   response rate over claims + passes, wave / level / neighbour on each match

@@ -299,6 +299,55 @@ hand.
   old phone-only SQL runs; the console says the migration is missing.
 - §68 of verify-pipeline; `web/tests/unit/agent-whatsapp-numbers.test.js`.
 
+### What the agent sent, for the admin's review mode (2026-11-10)
+
+`services/listingSource.js`, `GET /admin/properties/sources?ids=` (≤100,
+read-only), verify-pipeline §96. Per property: the SQLite listing behind it
+(`remote_property_id`, newest), its `raw_text`, and the sender's INBOUND
+`whatsapp_message_log` rows from 15 min before to 30 min after the draft's
+`created_at` (at most 12, oldest first; SQLite's `YYYY-MM-DD HH:MM:SS` is UTC).
+No SQLite row = `channel: 'web'`. Web shows them as the queue's grey line and
+in review mode beside what we extracted (web/CLAUDE.md, "Review mode"). The
+`raw_text` can be empty when the listing was read from a photo: the messages
+are the only record of what was typed then.
+
+### Same agent, same listing — held and asked (2026-11-10)
+
+Owner decision: the same property with ANOTHER agent is fine (co-mandates);
+the SAME agent sending the same property twice is not. `services/resendGuard.js`,
+verify-pipeline §95. Web half (flags, comparison, cleanup): web/CLAUDE.md,
+"Duplicate listings".
+
+- **Measured first** (production, 405 live/pending listings): 96 same-agent
+  pairs shared ≥1 identical photo, but 76 of them were units of ONE message
+  (created minutes apart, different bedrooms or prices — a building's units
+  keep the building's photos). ~20 were real re-sends days apart (#472/#746:
+  20 of 20 photos; #646/#790: same title, price, référence, quartier,
+  bedrooms, 5 days apart). "Same title and price" was weak: 55 of its 68
+  same-agent pairs shared no photo (generic titles, different flats).
+- **The rule**: a draft repeats an earlier listing when the earlier one is
+  live or pending (not deleted, rejected, hidden or closed), from the same
+  verified agent or the same WhatsApp number, same transaction, same bedroom
+  count (or either unstated), and shares ≥1 photo fingerprint or the
+  identical message text (≥40 folded characters).
+- **Photo fingerprints are in the stored name**: `whatsapp_<md5[0:13]>` of the
+  original bytes (services/supabaseStorage.js `contentHash`), web
+  `agent_<md5[0:13]>`. The full URL always differs (it carries the listing id),
+  which is why the old URL comparison never caught a re-send. A photo re-sent
+  from a phone gallery may be recompressed by WhatsApp and get a new
+  fingerprint; the identical-text check still catches a pasted re-send.
+- **At "OK"** (and the conversational confirmation), after the photo and quota
+  gates: a re-send is not published; the agent is told which listing it
+  repeats, why (N identical photos / the same text), where to edit it
+  (/compte/agent/biens) and to reply **AUTRE** if it is another property.
+  `parsed_json.resend_of` holds it; "AUTRE" (only on a held draft) sets
+  `resend_cleared` and publishes. `draftAutoSubmit` never sends a held draft
+  to moderation and drops it from its list until AUTRE (silent, like the job).
+- **Fails open**: Postgres unreachable or any error → publishes as before.
+- **The team taking a live copy offline** tells the agent which listing stays:
+  `POST /admin/properties/:id/notify` status `withdrawn_duplicate` with
+  `keep_id` (text only, no template).
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation

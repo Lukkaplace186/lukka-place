@@ -576,4 +576,4 @@ cherche plus".
 - **Web:** `POST /admin/leads/:id/followup-answer` with the account's numbers.
 
 `REQUEST_FOLLOWUP=off` stops the job; answers already sent are still handled.
-verify-pipeline §99; web `tests/unit/push-notifications.test.js`.
+verify-pipeline §101; web `tests/unit/push-notifications.test.js`.

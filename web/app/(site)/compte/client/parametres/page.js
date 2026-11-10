@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronRight, Coins, KeyRound, Languages, LogOut, Phone, Truck, UserRound } from 'lucide-react';
+import { Bell, ChevronRight, Coins, KeyRound, Languages, LogOut, Phone, Smartphone, Truck, UserRound } from 'lucide-react';
 import CurrencyToggle from '@/components/CurrencyToggle';
 import LanguageToggle from '@/components/LanguageToggle';
 import DeleteAccountButton from '../../DeleteAccountButton';
@@ -13,6 +13,10 @@ import { updateProfileNameAction, setWhatsAppAlertsAction } from '../actions';
 import { getWhatsAppAlertsOptOut } from '@/lib/customers';
 import { ProfileNameForm, WhatsAppAlertsSwitch } from './ProfileSettings';
 import { getT, getLocale } from '@/lib/i18n/server';
+import AppAlertsCard from '@/components/AppAlertsCard';
+import NotificationCategorySwitches from '@/components/NotificationCategorySwitches';
+import { countDevices, countUnreadNotifications, getNotificationPreferences } from '@/lib/pushNotifications';
+import { setNotificationCategoryAction } from '../notifications/actions';
 
 // generateMetadata, not a static object: a static export is evaluated at
 // module load, where there is no request and so no translator.
@@ -62,10 +66,14 @@ export default async function ParametresPage({ searchParams }) {
 
   const { customer, customerId } = session;
   const numberChanged = (await searchParams)?.numero === 'change';
-  const [rate, alertsOptedOutAt, locale] = await Promise.all([
+  const [rate, alertsOptedOutAt, locale, pushPrefs, unreadNotifications, deviceCount] = await Promise.all([
     getCdfRate(),
     getWhatsAppAlertsOptOut(customerId).catch(() => null),
     getLocale(),
+    // The app's alerts (lib/pushNotifications.js). Each degrades on its own.
+    getNotificationPreferences('customer', customerId).catch(() => ({ prefs: {}, available: false })),
+    countUnreadNotifications('customer', customerId).catch(() => 0),
+    countDevices('customer', customerId).catch(() => 0),
   ]);
   const alertsOptedOut = Boolean(alertsOptedOutAt);
   const dateTag = locale === 'en' ? 'en-GB' : 'fr-FR';
@@ -146,8 +154,46 @@ export default async function ParametresPage({ searchParams }) {
           this switch overrides all of them. */}
       <section>
         <GroupLabel>{t('account.profile.groups.notifications')}</GroupLabel>
-        <div className={`${INSET} p-4`}>
-          <WhatsAppAlertsSwitch initialEnabled={!alertsOptedOut} phoneLabel={phone} setAction={setWhatsAppAlertsAction} />
+        <div className={INSET}>
+          {/* The app's inbox (2026-11-10): every alert pushed to this account. */}
+          <Link href="/compte/client/notifications" className="flex min-h-14 items-center gap-3 px-3.5 py-2 hover:bg-canvas-alt">
+            <RowIcon icon={Bell} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.90625rem] font-semibold text-ink">{t('account.notifications.title')}</span>
+              <span className="block text-[0.78125rem] text-ink-45">{t('account.notifications.rowSub')}</span>
+            </span>
+            {unreadNotifications > 0 ? (
+              <span className="u-tabular rounded-full bg-blue px-2 py-0.5 text-xs font-bold text-white">{unreadNotifications}</span>
+            ) : null}
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-ink-35" aria-hidden="true" />
+          </Link>
+          <div className="p-4">
+            <WhatsAppAlertsSwitch initialEnabled={!alertsOptedOut} phoneLabel={phone} setAction={setWhatsAppAlertsAction} />
+          </div>
+          <div className="px-4 pb-4 pt-3">
+            <h3 className="u-title-card mb-1 text-ink">{t('account.notifications.switchesTitle')}</h3>
+            <NotificationCategorySwitches
+              initialPrefs={pushPrefs.prefs}
+              available={pushPrefs.available}
+              setAction={setNotificationCategoryAction}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* The Lukka Place app: alerts on this phone, or where to get it. */}
+      <section>
+        <GroupLabel>{t('account.app.title')}</GroupLabel>
+        <div className={`${INSET} flex gap-3 p-4`}>
+          <RowIcon icon={Smartphone} />
+          <div className="min-w-0 flex-1">
+            <AppAlertsCard
+              side="customer"
+              playStoreUrl={process.env.NEXT_PUBLIC_PLAY_STORE_URL || null}
+              appStoreUrl={process.env.NEXT_PUBLIC_APP_STORE_URL || null}
+              deviceCount={deviceCount}
+            />
+          </div>
         </div>
       </section>
 

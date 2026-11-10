@@ -50,6 +50,7 @@ const {
 const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, formatSlotFr } = require('../services/visitSchedule');
 const { utcOffsetForCommune } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
+const pushNotify = require('../services/pushNotify');
 
 const router = express.Router();
 
@@ -1807,6 +1808,27 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
  * @returns {Promise<'session'|'template'>}
  */
 async function deliverModerationVerdict(status, listing, propertyId, reason = {}, now = new Date()) {
+  // An agent with the app hears it there (services/pushNotify.js); WhatsApp,
+  // as below, when they have no app. Not urgent: no late WhatsApp copy.
+  const why = MODERATION_REJECTION_REASONS[reason?.code];
+  const note = typeof reason?.note === 'string' ? reason.note.trim() : '';
+  const outcome = await pushNotify.pushFirst({
+    phone: listing.wa_id,
+    kind: 'listing_verdict',
+    refId: propertyId,
+    title: status === 'approved' ? 'Votre annonce est en ligne' : 'Votre annonce est à corriger',
+    body: status === 'approved'
+      ? `Bonne nouvelle ! L'annonce n° ${propertyId} a été validée et est maintenant visible sur Lukka Place.`
+      : [`L'annonce n° ${propertyId} n'a pas pu être publiée pour le moment.`, why ? `Motif : ${why}` : null, note ? `Précision : ${note}` : null]
+        .filter(Boolean).join(' '),
+    url: `/compte/agent/biens/${propertyId}`,
+    urgent: false,
+    sendWhatsApp: () => deliverModerationVerdictWhatsApp(status, listing, propertyId, reason, now),
+  });
+  return outcome.pushed ? 'push' : outcome.whatsapp;
+}
+
+async function deliverModerationVerdictWhatsApp(status, listing, propertyId, reason = {}, now = new Date()) {
   if (!insideSessionWindow(listing.wa_id, now)
     && await sendModerationTemplate(status, listing.wa_id, propertyId, listing, reason)) {
     return 'template';
@@ -2079,6 +2101,57 @@ router.post('/parse-listing', async (req, res) => {
 // legitimate short international number outright, which surfaced to the
 // person signing up as "we couldn't send you a code" for a number that was
 // perfectly valid. See web/lib/phone.js, which applies the same 7..15 range.
+/**
+ * POST /admin/push — an app alert from web (saved-search matches, price
+ * drops, an agent's reply from the dashboard…): record it in the person's
+ * inbox and push it to their phones (services/pushNotify.js). Answers
+ * `{pushed}`; when false the caller sends its WhatsApp message itself, as
+ * before. With `urgent` and `fallbackText`, a pushed alert still unread after
+ * the delay also goes on WhatsApp as that text, once.
+ *
+ * Body: { userType: 'agent'|'customer', userId?, phone?, kind, category?,
+ *         refId?, title, body, url?, urgent?, fallbackText? }
+ */
+router.post('/push', async (req, res) => {
+  const b = req.body || {};
+  const userType = b.userType === 'agent' ? 'agent' : b.userType === 'customer' ? 'customer' : null;
+  const userId = b.userId == null || b.userId === '' ? null : Number.parseInt(b.userId, 10);
+  const phone = b.phone == null ? null : String(b.phone).replace(/\D/g, '');
+  const kind = typeof b.kind === 'string' ? b.kind.trim() : '';
+  const category = typeof b.category === 'string' && b.category.trim() ? b.category.trim() : null;
+  const title = typeof b.title === 'string' ? b.title.trim() : '';
+  const body = typeof b.body === 'string' ? b.body : '';
+  const fallbackText = typeof b.fallbackText === 'string' ? b.fallbackText : '';
+  if (!userType) return res.status(400).json({ success: false, error: 'userType must be agent or customer.' });
+  if (userId != null && !(Number.isSafeInteger(userId) && userId > 0)) {
+    return res.status(400).json({ success: false, error: 'userId must be a positive integer.' });
+  }
+  if (phone && !/^\d{7,15}$/.test(phone)) return res.status(400).json({ success: false, error: 'phone must be 7–15 digits.' });
+  if (userId == null && !phone) return res.status(400).json({ success: false, error: 'userId or phone is required.' });
+  if (!/^[a-z_]{1,60}$/.test(kind)) return res.status(400).json({ success: false, error: 'kind must be lowercase letters and _.' });
+  if (category && !/^[a-z_]{1,40}$/.test(category)) return res.status(400).json({ success: false, error: 'bad category.' });
+  if (!title || title.length > 120) return res.status(400).json({ success: false, error: 'title is required (max 120).' });
+  if (body.length > 500) return res.status(400).json({ success: false, error: 'body max 500.' });
+  if (fallbackText.length > 1000) return res.status(400).json({ success: false, error: 'fallbackText max 1000.' });
+
+  const urgent = b.urgent === true && Boolean(fallbackText) && Boolean(phone);
+  const outcome = await pushNotify.tryPush({
+    userType,
+    agentId: userType === 'agent' ? userId : undefined,
+    customerId: userType === 'customer' ? userId : undefined,
+    phone,
+    kind,
+    category,
+    refId: b.refId == null ? null : String(b.refId),
+    title,
+    body,
+    url: typeof b.url === 'string' ? b.url : null,
+    urgent,
+    fallback: urgent ? { sender: 'customer_text', phone, text: fallbackText } : null,
+  });
+  return res.json({ success: true, pushed: outcome.pushed, notificationId: outcome.notificationId, reason: outcome.reason });
+});
+
 router.post('/send-whatsapp', async (req, res) => {
   const { phone, message } = req.body || {};
   if (!phone || !/^\d{7,15}$/.test(String(phone))) {

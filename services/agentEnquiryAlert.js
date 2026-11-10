@@ -25,6 +25,7 @@
 
 const chakra = require('./chakra');
 const { insideSessionWindow } = require('./sessionWindow');
+const pushNotify = require('./pushNotify');
 
 /** Meta caps a body variable at 1024 characters; ours stay far shorter. */
 const PARAM_LIMITS = { agent: 60, subject: 160, client: 120, message: 300 };
@@ -55,7 +56,8 @@ function templateParams({ agentName, subject, client, message }) {
 }
 
 /**
- * Send one enquiry alert. Throws only when the session text itself fails,
+ * The WhatsApp alert alone (template outside the window, text otherwise).
+ * Throws only when the session text itself fails,
  * exactly as the chakra.sendWhatsAppMessage call it replaces did.
  *
  * @param {string} phone  The agent's number (digits).
@@ -63,7 +65,7 @@ function templateParams({ agentName, subject, client, message }) {
  * @param {{agentName?: string, subject?: string, client?: string, message?: string, leadId?: number|string, label?: string, now?: Date}} details
  * @returns {Promise<{via: 'template'|'session', outsideWindow: boolean}>}
  */
-async function sendAgentEnquiryAlert(phone, text, details = {}) {
+async function sendWhatsAppAlert(phone, text, details = {}) {
   const to = String(phone || '').replace(/\D/g, '');
   const outsideWindow = !insideSessionWindow(to, details.now || new Date());
   const name = templateName();
@@ -87,8 +89,48 @@ async function sendAgentEnquiryAlert(phone, text, details = {}) {
   return { via: 'session', outsideWindow };
 }
 
+/**
+ * Send one enquiry alert: a push to the agent's app first (services/
+ * pushNotify.js), WhatsApp as before when the agent has no app or the push
+ * was not accepted. Urgent: a customer is waiting, so a pushed alert still
+ * unread after PUSH_FALLBACK_MIN minutes also goes on WhatsApp.
+ * Throws only when the WhatsApp text itself fails, as before.
+ *
+ * @returns {Promise<{via: 'push'|'template'|'session', outsideWindow: boolean}>}
+ */
+async function sendAgentEnquiryAlert(phone, text, details = {}) {
+  const to = String(phone || '').replace(/\D/g, '');
+  const { now, ...storable } = details;
+  const outcome = await pushNotify.pushFirst({
+    agentId: details.agentId,
+    phone: to,
+    kind: 'enquiry',
+    refId: details.leadId,
+    title: 'Nouvelle demande client',
+    body: [details.client, details.subject, details.message].filter(Boolean).join(' — ') || 'Un client vous contacte via Lukka Place.',
+    url: details.leadId != null ? `/compte/agent/demandes?lead=${encodeURIComponent(details.leadId)}` : '/compte/agent/demandes',
+    urgent: true,
+    fallback: { phone: to, text, details: storable },
+    sendWhatsApp: () => sendWhatsAppAlert(to, text, details),
+  });
+  if (outcome.pushed) {
+    console.log(`[enquiry-alert] ${details.label || 'enquiry'}: pushed to the app for …${to.slice(-4)}`);
+    return { via: 'push', outsideWindow: false };
+  }
+  return outcome.whatsapp;
+}
+
+/** pushNotify's late WhatsApp copy of an unread enquiry alert. */
+async function sendEnquiryAlertFallback({ phone, text, details } = {}) {
+  if (!phone || !text) return 'skipped: nothing to send';
+  const { via } = await sendWhatsAppAlert(phone, text, details || {});
+  return `sent via ${via}`;
+}
+
 module.exports = {
   templateName,
   templateParams,
   sendAgentEnquiryAlert,
+  sendWhatsAppAlert,
+  sendEnquiryAlertFallback,
 };

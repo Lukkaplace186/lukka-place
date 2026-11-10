@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck } from 'lucide-react';
+import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck, Smartphone } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getLocationHierarchySafe } from '@/lib/locations';
@@ -25,6 +25,8 @@ import { listQuickReplies } from '@/lib/quickReplies';
 import AgentQuickRepliesManager from '@/components/AgentQuickRepliesManager';
 import SettingsSaveButton from '@/components/SettingsSaveButton';
 import AgentCompletenessCard from '@/components/AgentCompletenessCard';
+import AppAlertsCard from '@/components/AppAlertsCard';
+import { countDevices } from '@/lib/pushNotifications';
 import { getAgentProfileGaps } from '@/lib/completeness';
 import { profileChecklist } from '@/lib/completenessRules';
 import { communeOptionText } from '@/lib/cities';
@@ -62,6 +64,7 @@ const SECTIONS = [
   { key: 'verification', labelKey: 'agent.verification.title', Icon: ShieldCheck },
   { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound },
   { key: 'public-page', labelKey: 'agent.settings.publicPageTitle', Icon: Globe },
+  { key: 'app', labelKey: 'agent.app.title', Icon: Smartphone },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((section) => section.key));
 
@@ -115,7 +118,7 @@ export default async function AgentSettingsPage({ searchParams }) {
       ? params.verification_error
       : null;
 
-  const [{ agent, completion, waitingCount, displayName }, { communes, degraded }, verification, quickReplies] = await Promise.all([
+  const [{ agent, completion, waitingCount, displayName }, { communes, degraded }, verification, quickReplies, deviceCount] = await Promise.all([
     getAgentDashboardContext(agentId),
     getLocationHierarchySafe({ city: 'all' }),
     // Degrade, don't die: before the verification migration runs (or with
@@ -130,6 +133,7 @@ export default async function AgentSettingsPage({ searchParams }) {
       console.error(`[compte/agent/parametres] quick replies read failed: ${err.message}`);
       return null;
     }),
+    countDevices('agent', agentId).catch(() => 0),
   ]);
 
   // The profile checklist ("À compléter") moved here from the overview
@@ -213,6 +217,7 @@ export default async function AgentSettingsPage({ searchParams }) {
                 { key: 'language', Icon: Languages },
                 { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound, href: sectionHref('password') },
                 { key: 'public-page', labelKey: 'agent.settings.publicPageTitle', Icon: Globe, href: sectionHref('public-page'), sub: `${checklist.percent} %` },
+                { key: 'app', labelKey: 'agent.app.title', Icon: Smartphone, href: sectionHref('app'), sub: t('agent.app.sub') },
               ],
             },
           ]}
@@ -402,7 +407,20 @@ export default async function AgentSettingsPage({ searchParams }) {
         </div>
         </div>
 
-        <div className={`flex flex-col gap-6 ${column(['verification', 'password', 'public-page'])}`}>
+        <div className={`flex flex-col gap-6 ${column(['verification', 'password', 'public-page', 'app'])}`}>
+          <div id="app" className={`${shown('app')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
+            <div>
+              <h2 className="u-title-card text-ink">{t('agent.app.title')}</h2>
+              <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.app.hint')}</p>
+            </div>
+            <AppAlertsCard
+              side="agent"
+              playStoreUrl={process.env.NEXT_PUBLIC_PLAY_STORE_URL || null}
+              appStoreUrl={process.env.NEXT_PUBLIC_APP_STORE_URL || null}
+              deviceCount={deviceCount}
+            />
+          </div>
+
           <div id="verification" className={`${shown('verification')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
             <div>
               <h2 className="u-title-card text-ink">{t('agent.verification.title')}</h2>

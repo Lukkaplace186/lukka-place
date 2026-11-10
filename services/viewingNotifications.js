@@ -54,6 +54,7 @@ function visitClock(request, listing = null) {
 }
 const priceExtraction = require('./priceExtraction');
 const agentPerformance = require('./agentPerformance');
+const pushNotify = require('./pushNotify');
 
 /** properties.price_source for a figure an agent gave us on WhatsApp. */
 const PRICE_SOURCE_WHATSAPP = 'WHATSAPP_AGENT_REPLY';
@@ -500,6 +501,66 @@ async function send(phone, text, templateParams, buttons = null, linkParam = nul
 }
 
 /**
+ * The agent's WhatsApp alert for a new viewing request, with the reply claim
+ * that lets a typed answer ("1", "ok je confirme") resolve to this request.
+ * Used directly when the agent has no app, and by pushNotify's late copy.
+ *
+ * @returns {Promise<string>} the channel that was accepted.
+ */
+async function sendViewingAlertWhatsApp({ phone, text, templateParams, viewingRequestId }) {
+  const channel = await send(
+    phone,
+    text,
+    templateParams,
+    viewingRequestId ? viewingButtons(viewingRequestId) : null,
+    viewingRequestId ?? null,
+  );
+  // A tapped button carries the request id; a typed "1" does not. When
+  // the buttons didn't go out, claim this agent's next message for this
+  // specific request so the numbered reply still resolves.
+  // 'buttons' too: an agent who TYPES "ok je confirme" under the
+  // interactive alert instead of tapping must not land in intake
+  // (2026-11-09 gap analysis — the same loss as request #19).
+  if ((channel === 'session-numbered' || channel === 'buttons') && viewingRequestId) {
+    dbService.setPendingAgentAction({
+      waId: phone,
+      kind: PENDING_KINDS.viewingResponse,
+      viewingRequestId,
+    });
+  }
+  // A template alert carries no answer buttons, so an agent who replies on
+  // WhatsApp types it ("ok je confirme"). Claim their next message for
+  // this request too, or it reaches listing intake and is lost.
+  if ((channel === 'template' || channel === 'template-buttons') && viewingRequestId) {
+    try {
+      dbService.setPendingAgentAction({
+        waId: phone,
+        kind: PENDING_KINDS.viewingAlert,
+        viewingRequestId,
+      });
+    } catch (err) {
+      console.error(`[viewing] pending reply claim for request #${viewingRequestId} failed: ${err.message}`);
+    }
+  }
+  return channel;
+}
+
+/**
+ * pushNotify's late WhatsApp copy: only while the request still waits for
+ * this agent (not answered from the app, not reassigned, not closed).
+ */
+async function sendViewingAlertFallback(data = {}) {
+  const request = data.viewingRequestId ? dbService.getViewingRequest(data.viewingRequestId) : null;
+  if (!request) return 'skipped: request not found';
+  if (request.status !== 'PENDING') return `skipped: request is ${request.status}`;
+  if (data.agentId != null && request.agent_id != null && String(request.agent_id) !== String(data.agentId)) {
+    return 'skipped: reassigned to another agent';
+  }
+  const channel = await sendViewingAlertWhatsApp(data);
+  return `sent via ${channel}`;
+}
+
+/**
  * Tell the listing's agent — and Lukka Place's desk — that somebody asked to
  * visit. Safe to await or to fire and forget; never throws.
  *
@@ -555,46 +616,38 @@ async function notifyViewingRequest({
   let agentNotified = false;
   if (!agentSkipReason) {
     try {
-      const channel = await send(
-        String(listing.agent_phone).replace(/\D/g, ''),
-        agentMessage({ listing, lead, viewingRequest, propertyId: id }),
-        [
+      const agentPhone = String(listing.agent_phone).replace(/\D/g, '');
+      const whatsapp = {
+        phone: agentPhone,
+        text: agentMessage({ listing, lead, viewingRequest, propertyId: id }),
+        templateParams: [
           listing.agent_name || 'Agent',
           lead?.name || 'Non précisé',
           listingLabel(listing, id),
           viewingRequest?.requested_time || 'Non précisé',
         ],
-        viewingRequest?.id ? viewingButtons(viewingRequest.id) : null,
-        viewingRequest?.id ?? null,
-      );
+        viewingRequestId: viewingRequest?.id ?? null,
+        agentId: listing.agent_id ?? null,
+      };
+      // The app first (services/pushNotify.js); WhatsApp now when the agent
+      // has no app, and again if the push sits unread past PUSH_FALLBACK_MIN
+      // (the 15-minute SLA leaves no room to wait longer).
+      const outcome = await pushNotify.pushFirst({
+        agentId: listing.agent_id,
+        phone: agentPhone,
+        kind: 'viewing_request',
+        refId: viewingRequest?.id,
+        title: 'Nouvelle demande de visite',
+        body: `${lead?.name || 'Un client'} souhaite visiter ${listingLabel(listing, id)}`
+          + (viewingRequest?.requested_time ? ` — ${viewingRequest.requested_time}` : '')
+          + '. Répondez dans les 15 minutes.',
+        url: viewingRequest?.id ? `/compte/agent/demandes?visite=${viewingRequest.id}` : '/compte/agent/demandes',
+        urgent: Boolean(viewingRequest?.id),
+        fallback: viewingRequest?.id ? whatsapp : null,
+        sendWhatsApp: () => sendViewingAlertWhatsApp(whatsapp),
+      });
+      const channel = outcome.pushed ? 'push' : outcome.whatsapp;
       agentNotified = true;
-      // A tapped button carries the request id; a typed "1" does not. When
-      // the buttons didn't go out, claim this agent's next message for this
-      // specific request so the numbered reply still resolves.
-      // 'buttons' too: an agent who TYPES "ok je confirme" under the
-      // interactive alert instead of tapping must not land in intake
-      // (2026-11-09 gap analysis — the same loss as request #19).
-      if ((channel === 'session-numbered' || channel === 'buttons') && viewingRequest?.id) {
-        dbService.setPendingAgentAction({
-          waId: String(listing.agent_phone).replace(/\D/g, ''),
-          kind: PENDING_KINDS.viewingResponse,
-          viewingRequestId: viewingRequest.id,
-        });
-      }
-      // A template alert carries no answer buttons, so an agent who replies on
-      // WhatsApp types it ("ok je confirme"). Claim their next message for
-      // this request too, or it reaches listing intake and is lost.
-      if ((channel === 'template' || channel === 'template-buttons') && viewingRequest?.id) {
-        try {
-          dbService.setPendingAgentAction({
-            waId: String(listing.agent_phone).replace(/\D/g, ''),
-            kind: PENDING_KINDS.viewingAlert,
-            viewingRequestId: viewingRequest.id,
-          });
-        } catch (err) {
-          console.error(`[viewing] pending reply claim for request #${viewingRequest.id} failed: ${err.message}`);
-        }
-      }
       console.log(
         `[viewing] request #${viewingRequest?.id} (property #${id}) -> agent #${listing.agent_id} accepted via ${channel}`,
       );
@@ -2634,6 +2687,8 @@ module.exports = {
   templateOptions,
   templateValue,
   notifyViewingRequest,
+  sendViewingAlertWhatsApp,
+  sendViewingAlertFallback,
   notifyViewingRequestInBackground,
   reassignViewing,
   nudgeViewingAgent,

@@ -1213,7 +1213,9 @@
       "subscriptionShort": "Abonnement",
       "settingsShort": "Réglages",
       "messages": "Messages",
-      "messagesShort": "Messages"
+      "messagesShort": "Messages",
+      "alerts": "Alertes",
+      "alertsShort": "Alertes"
     },
     "overview": {
       "title": "Vue d'ensemble",
@@ -2945,6 +2947,35 @@
           "hint": "Répondez aux demandes de visite dans les 15 minutes."
         }
       }
+    },
+    "alerts": {
+      "title": "Alertes",
+      "intro": "Les alertes envoyées sur votre téléphone par l’application Lukka Place.",
+      "markAllRead": "Tout marquer comme lu",
+      "emptyTitle": "Aucune alerte pour l’instant",
+      "empty": "Les nouvelles demandes, visites, messages et décisions sur vos annonces apparaîtront ici.",
+      "unavailable": "Les alertes ne sont pas encore disponibles. Vous continuez à les recevoir sur WhatsApp.",
+      "unread": "Non lue",
+      "older": "Alertes plus anciennes"
+    },
+    "app": {
+      "title": "Application",
+      "sub": "Alertes sur votre téléphone",
+      "hint": "Recevez vos demandes, visites et messages instantanément, même sans avoir écrit à Lukka Place sur WhatsApp.",
+      "pitch": "Installez l’application Lukka Place pour recevoir chaque nouvelle demande en notification sur votre téléphone.",
+      "googlePlay": "Google Play",
+      "appStore": "App Store",
+      "comingSoon": "L’application sera bientôt disponible sur Google Play et l’App Store.",
+      "devices": {
+        "one": "{count} téléphone reçoit déjà vos alertes.",
+        "other": "{count} téléphones reçoivent déjà vos alertes."
+      },
+      "on": "Les alertes sont activées sur ce téléphone.",
+      "off": "Les alertes sont désactivées sur ce téléphone.",
+      "turnOn": "Activer les alertes",
+      "turnOff": "Désactiver sur ce téléphone",
+      "denied": "Les notifications sont bloquées. Autorisez-les pour Lukka Place dans les réglages de votre téléphone.",
+      "fallback": "Une demande urgente restée non lue vous est aussi envoyée sur WhatsApp après quelques minutes."
     }
   },
   "status": {
@@ -4002,6 +4033,46 @@
         "expired": "Ce code a expiré. Demandez-en un nouveau.",
         "too_many": "Trop d’essais. Demandez un nouveau code.",
         "none": "Aucun changement en cours. Saisissez votre nouveau numéro."
+      }
+    },
+    "notifications": {
+      "metaTitle": "Notifications — Lukka Place",
+      "title": "Notifications",
+      "rowSub": "Les alertes reçues dans l’application",
+      "markAllRead": "Tout marquer comme lu",
+      "emptyTitle": "Aucune notification pour l’instant",
+      "empty": "Vos visites, messages, recherches et biens enregistrés apparaîtront ici dès qu’il y aura du nouveau.",
+      "unavailable": "Les notifications ne sont pas encore disponibles. Vous continuez à recevoir vos alertes sur WhatsApp.",
+      "unread": "Non lue",
+      "older": "Notifications plus anciennes",
+      "switchesTitle": "Dans l’application",
+      "switchesHint": "Choisissez ce que l’application vous envoie. Ce que vous désactivez ici continue d’arriver sur WhatsApp si les alertes WhatsApp sont activées.",
+      "switchesUnavailable": "Ces réglages seront disponibles très bientôt.",
+      "categories": {
+        "visits": "Visites",
+        "requests": "Mes demandes « Trouver pour moi »",
+        "messages": "Messages des agents",
+        "searchAlerts": "Nouveaux biens pour mes recherches",
+        "savedListings": "Mes biens enregistrés",
+        "suggestions": "Suggestions de biens",
+        "news": "Actualités du marché"
+      }
+    },
+    "app": {
+      "title": "Application mobile",
+      "on": "Les notifications sont activées sur ce téléphone.",
+      "off": "Les notifications sont désactivées sur ce téléphone.",
+      "turnOn": "Activer les notifications",
+      "turnOff": "Désactiver sur ce téléphone",
+      "denied": "Les notifications sont bloquées. Autorisez-les pour Lukka Place dans les réglages de votre téléphone.",
+      "fallback": "Une confirmation de visite ou un message resté non lu vous est aussi envoyé sur WhatsApp après quelques minutes.",
+      "pitch": "Installez l’application Lukka Place pour être prévenu tout de suite : visites, réponses des agents et nouveaux biens qui correspondent à vos recherches.",
+      "googlePlay": "Google Play",
+      "appStore": "App Store",
+      "comingSoon": "L’application sera bientôt disponible sur Google Play et l’App Store.",
+      "devices": {
+        "one": "{count} téléphone reçoit déjà vos notifications.",
+        "other": "{count} téléphones reçoivent déjà vos notifications."
       }
     }
   },

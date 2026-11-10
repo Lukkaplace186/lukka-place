@@ -81,6 +81,7 @@ for (const key of [
   'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_TEMPLATES_WITH_IMAGE', 'AGENT_DAY_TEMPLATE',
   'VIEWING_TEMPLATES_WITH_BUTTONS',
   'AGENT_WEEKLY_TEMPLATE', 'AGENT_WEEKLY_DIGEST',
+  'FCM_SERVICE_ACCOUNT', 'PUSH_NOTIFY', 'PUSH_FALLBACK_MIN', 'PUSH_CUSTOMER_FALLBACK_MIN',
 ]) {
   process.env[key] = '';
 }
@@ -7152,7 +7153,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'sqlite-backup',
     ]);
   });
 
@@ -16305,6 +16306,566 @@ console.log('\n2. services/openai.js');
       dispatch94.dispatchNextWave = saved94.next;
       if (saved94.tplEnv === undefined) delete process.env.AGENT_LEAD_MATCH_TEMPLATE; else process.env.AGENT_LEAD_MATCH_TEMPLATE = saved94.tplEnv;
       if (saved94.ops === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = saved94.ops;
+    }
+  }
+
+  // §95 App alerts: push first, WhatsApp as the fallback (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§95 App alerts — push to the agent’s phones first, WhatsApp when there is no app, a dead push, or an urgent alert left unread');
+  {
+    const push95 = require('../services/pushNotify');
+    const viewing95 = require('../services/viewingNotifications');
+    const db95 = require('../services/db');
+
+    // A fake Postgres that understands exactly the statements pushNotify sends.
+    function fakePool95() {
+      const state = {
+        tables: true,
+        agents: [{ id: 7, verified: true, deleted: false }, { id: 8, verified: false, deleted: false }],
+        devices: [],
+        notifications: [],
+      };
+      let nextId = 1;
+      const byId = (id) => state.notifications.find((n) => String(n.id) === String(id));
+      const query = async (sql, params = []) => {
+        const q = sql.replace(/\s+/g, ' ').trim();
+        if (q.startsWith('SELECT to_regclass')) return { rows: [{ a: state.tables, b: state.tables }] };
+        if (q.startsWith('SELECT id FROM agents WHERE id = $1')) {
+          const a = state.agents.find((x) => String(x.id) === String(params[0]) && x.verified && !x.deleted);
+          return { rows: a ? [{ id: a.id }] : [] };
+        }
+        if (q.startsWith('INSERT INTO notifications')) {
+          const row = {
+            id: nextId++, user_id: params[0], kind: params[1], ref_id: params[2], title: params[3], body: params[4],
+            url: params[5], urgent: params[6], push_sent_at: null, push_result: null, read_at: null, fallback: null,
+            fallback_due_at: null, whatsapp_fallback_at: null, whatsapp_result: null,
+          };
+          state.notifications.push(row);
+          return { rows: [{ id: row.id }] };
+        }
+        if (q.startsWith('SELECT id, fcm_token FROM push_devices')) {
+          return { rows: state.devices.filter((d) => String(d.user_id) === String(params[0]) && !d.revoked_at) };
+        }
+        if (q.startsWith('UPDATE notifications SET push_result = $2 WHERE id = $1')) {
+          byId(params[0]).push_result = params[1];
+          return { rows: [], rowCount: 1 };
+        }
+        if (q.startsWith('UPDATE push_devices SET revoked_at')) {
+          for (const d of state.devices) if (params[0].map(String).includes(String(d.id)) && !d.revoked_at) d.revoked_at = new Date();
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET push_sent_at')) {
+          const row = byId(params[0]);
+          row.push_sent_at = new Date();
+          row.push_result = params[1];
+          row.fallback = params[2] ? JSON.parse(params[2]) : null;
+          row.fallback_due_at = params[2] ? new Date(Date.now() + params[3] * 60_000) : null;
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_fallback_at = COALESCE')) {
+          const row = byId(params[0]);
+          row.whatsapp_fallback_at = row.whatsapp_fallback_at || new Date();
+          row.whatsapp_result = params[1];
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_fallback_at = NOW() WHERE id IN')) {
+          const now = Date.now();
+          const due = state.notifications.filter((n) => n.fallback_due_at && n.fallback_due_at.getTime() <= now
+            && n.fallback_due_at.getTime() > now - 6 * 3600_000 && !n.whatsapp_fallback_at && !n.read_at && n.fallback);
+          for (const n of due) n.whatsapp_fallback_at = new Date();
+          return { rows: due.map((n) => ({ id: n.id, kind: n.kind, user_id: n.user_id, fallback: n.fallback })) };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_result = $2 WHERE id = $1')) {
+          byId(params[0]).whatsapp_result = params[1];
+          return { rows: [] };
+        }
+        throw new Error(`fake95: unexpected SQL ${q.slice(0, 90)}`);
+      };
+      return { state, query };
+    }
+
+    const pushed95 = [];
+    const okTransport95 = async (token, payload) => { pushed95.push({ token, payload }); return { ok: true, dead: false, error: null }; };
+    const alert95 = (extra = {}) => {
+      const calls = [];
+      return {
+        calls,
+        params: {
+          agentId: 7, phone: '243906500095', kind: 'viewing_request', refId: 12,
+          title: 'Nouvelle demande de visite', body: 'Un client souhaite visiter', url: '/compte/agent/demandes?visite=12',
+          urgent: true, fallback: { viewingRequestId: 12 },
+          sendWhatsApp: async () => { calls.push('whatsapp'); return 'session'; },
+          ...extra,
+        },
+      };
+    };
+    const savedMin95 = process.env.PUSH_FALLBACK_MIN;
+
+    try {
+      await checkAsync('without a database the alert goes on WhatsApp exactly as before', async () => {
+        push95._setPool(null);
+        const a = alert95();
+        const out = await push95.pushFirst(a.params);
+        assert.deepStrictEqual([out.pushed, out.whatsapp, out.reason], [false, 'session', 'no-database']);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+      });
+
+      await checkAsync('before the migration (no tables) it is WhatsApp, nothing recorded', async () => {
+        const fake = fakePool95();
+        fake.state.tables = false;
+        push95._setPool(fake);
+        const a = alert95();
+        const out = await push95.pushFirst(a.params);
+        assert.strictEqual(out.reason, 'no-tables');
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+        assert.strictEqual(fake.state.notifications.length, 0);
+      });
+
+      await checkAsync('an agent with the app: pushed, no WhatsApp now, recorded in the inbox with a late copy due', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 1, user_id: 7, fcm_token: 'tok-android-0000000000000001' });
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        pushed95.length = 0;
+        process.env.PUSH_FALLBACK_MIN = '5';
+        const a = alert95();
+        const out = await push95.pushFirst(a.params);
+        assert.strictEqual(out.pushed, true);
+        assert.deepStrictEqual(a.calls, [], 'no WhatsApp while the push is unread for less than the delay');
+        assert.strictEqual(pushed95.length, 1);
+        assert.strictEqual(pushed95[0].payload.url, '/compte/agent/demandes?visite=12');
+        const row = fake.state.notifications[0];
+        assert.ok(row.push_sent_at && /^sent 1\/1/.test(row.push_result));
+        assert.deepStrictEqual(row.fallback, { viewingRequestId: 12 });
+        const minutes = (row.fallback_due_at - Date.now()) / 60_000;
+        assert.ok(minutes > 4 && minutes <= 5, `late copy due in ~5 min, got ${minutes}`);
+      });
+
+      await checkAsync('a non-urgent alert that was pushed never gets a late WhatsApp copy', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 1, user_id: 7, fcm_token: 'tok-android-0000000000000001' });
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        const a = alert95({ kind: 'chat', urgent: false });
+        assert.strictEqual((await push95.pushFirst(a.params)).pushed, true);
+        assert.strictEqual(fake.state.notifications[0].fallback_due_at, null);
+      });
+
+      await checkAsync('no phone registered: WhatsApp now, and the alert still lands in the inbox', async () => {
+        const fake = fakePool95();
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        const a = alert95();
+        const out = await push95.pushFirst(a.params);
+        assert.deepStrictEqual([out.pushed, out.reason], [false, 'no-device']);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+        const row = fake.state.notifications[0];
+        assert.strictEqual(row.push_result, 'no-device');
+        assert.match(row.whatsapp_result, /^sent now \(no-device\)/);
+      });
+
+      await checkAsync('a dead token is revoked and the alert goes on WhatsApp', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 3, user_id: 7, fcm_token: 'tok-dead-00000000000000000003' });
+        push95._setPool(fake);
+        push95._setTransport(async () => ({ ok: false, dead: true, error: '404 NOT_FOUND' }));
+        const a = alert95();
+        const out = await push95.pushFirst(a.params);
+        assert.deepStrictEqual([out.pushed, out.reason], [false, 'push-failed']);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+        assert.ok(fake.state.devices[0].revoked_at, 'the phone is no longer pushed to');
+      });
+
+      await checkAsync('a transport that throws is a failed push, never an exception to the caller', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 4, user_id: 7, fcm_token: 'tok-boom-00000000000000000004' });
+        push95._setPool(fake);
+        push95._setTransport(async () => { throw new Error('socket hang up'); });
+        const a = alert95();
+        const out = await push95.pushFirst(a.params);
+        assert.strictEqual(out.pushed, false);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+        assert.ok(!fake.state.devices[0].revoked_at, 'a network error does not revoke the phone');
+      });
+
+      await checkAsync('an unverified or deleted agent is never pushed to (the shared agent gate)', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 5, user_id: 8, fcm_token: 'tok-unverified-000000000000005' });
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        pushed95.length = 0;
+        const a = alert95({ agentId: 8 });
+        const out = await push95.pushFirst(a.params);
+        assert.deepStrictEqual([out.pushed, out.reason, pushed95.length], [false, 'no-agent', 0]);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+      });
+
+      await checkAsync('PUSH_NOTIFY=off: WhatsApp only, nothing recorded, the fallback job does not run', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 1, user_id: 7, fcm_token: 'tok-android-0000000000000001' });
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        process.env.PUSH_NOTIFY = 'off';
+        try {
+          const a = alert95();
+          const out = await push95.pushFirst(a.params);
+          assert.deepStrictEqual([out.pushed, out.reason], [false, 'off']);
+          assert.deepStrictEqual(a.calls, ['whatsapp']);
+          assert.strictEqual(fake.state.notifications.length, 0);
+          assert.strictEqual(push95.pushFallbackJob.shouldRun(new Date()), false);
+        } finally {
+          delete process.env.PUSH_NOTIFY;
+        }
+      });
+
+      await checkAsync('when the WhatsApp send itself fails the caller still gets the error, and it is noted', async () => {
+        const fake = fakePool95();
+        push95._setPool(fake);
+        const a = alert95({ sendWhatsApp: async () => { throw new Error('chakra 500'); } });
+        await assert.rejects(() => push95.pushFirst(a.params), /chakra 500/);
+        assert.match(fake.state.notifications[0].whatsapp_result, /^failed now/);
+      });
+
+      await checkAsync('an urgent push left unread past the delay gets ONE WhatsApp copy; a read one gets none', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 1, user_id: 7, fcm_token: 'tok-android-0000000000000001' });
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        const late = [];
+        push95._setFallbackSender('test_urgent', async (data) => { late.push(data); return 'sent via session'; });
+        try {
+          await push95.pushFirst(alert95({ kind: 'test_urgent', fallback: { n: 1 } }).params);
+          await push95.pushFirst(alert95({ kind: 'test_urgent', fallback: { n: 2 } }).params);
+          const [unread, read] = fake.state.notifications;
+          unread.fallback_due_at = new Date(Date.now() - 1000);
+          read.fallback_due_at = new Date(Date.now() - 1000);
+          read.read_at = new Date();
+          const first = await push95.runFallbackSweep();
+          assert.deepStrictEqual([first.due, first.sent], [1, 1]);
+          assert.deepStrictEqual(late, [{ n: 1 }]);
+          assert.strictEqual(unread.whatsapp_result, 'sent via session');
+          const second = await push95.runFallbackSweep();
+          assert.strictEqual(second.due, 0, 'claimed once, never repeated');
+          assert.strictEqual(late.length, 1);
+        } finally {
+          push95._setFallbackSender('test_urgent', null);
+        }
+      });
+
+      await checkAsync('a late copy older than 6 hours is dropped, not sent', async () => {
+        const fake = fakePool95();
+        fake.state.devices.push({ id: 1, user_id: 7, fcm_token: 'tok-android-0000000000000001' });
+        push95._setPool(fake);
+        push95._setTransport(okTransport95);
+        await push95.pushFirst(alert95({ kind: 'enquiry' }).params);
+        fake.state.notifications[0].fallback_due_at = new Date(Date.now() - 7 * 3600_000);
+        assert.strictEqual((await push95.runFallbackSweep()).due, 0);
+      });
+
+      await checkAsync('the viewing late copy is skipped once the request was answered, reassigned or is gone', async () => {
+        const savedGet = db95.getViewingRequest;
+        try {
+          db95.getViewingRequest = () => ({ id: 12, status: 'CONFIRMED', agent_id: 7 });
+          assert.strictEqual(await viewing95.sendViewingAlertFallback({ viewingRequestId: 12, agentId: 7 }), 'skipped: request is CONFIRMED');
+          db95.getViewingRequest = () => ({ id: 12, status: 'PENDING', agent_id: 9 });
+          assert.strictEqual(await viewing95.sendViewingAlertFallback({ viewingRequestId: 12, agentId: 7 }), 'skipped: reassigned to another agent');
+          db95.getViewingRequest = () => null;
+          assert.strictEqual(await viewing95.sendViewingAlertFallback({ viewingRequestId: 12, agentId: 7 }), 'skipped: request not found');
+        } finally {
+          db95.getViewingRequest = savedGet;
+        }
+      });
+
+      check('the urgent kinds have their own WhatsApp senders for the late copy', () => {
+        assert.strictEqual(typeof push95.FALLBACK_SENDERS.viewing_request, 'function');
+        assert.strictEqual(typeof push95.FALLBACK_SENDERS.enquiry, 'function');
+      });
+
+      check('FCM: dead tokens are told apart from our own malformed message', () => {
+        assert.strictEqual(push95.isDeadTokenError(404, {}), true);
+        assert.strictEqual(push95.isDeadTokenError(400, { error: { status: 'INVALID_ARGUMENT', message: 'The registration token is not a valid FCM registration token' } }), true);
+        assert.strictEqual(push95.isDeadTokenError(400, { error: { status: 'INVALID_ARGUMENT', message: 'Invalid JSON payload received.' } }), false);
+        assert.strictEqual(push95.isDeadTokenError(400, { error: { details: [{ errorCode: 'UNREGISTERED' }] } }), true);
+        assert.strictEqual(push95.isDeadTokenError(503, { error: { status: 'UNAVAILABLE' } }), false);
+      });
+
+      check('FCM message: string data, high priority, a tap opens a site path only', () => {
+        const m = push95.fcmMessage('tok', { title: 'T', body: 'B', url: '/compte/agent', notificationId: 5, kind: 'chat' }).message;
+        assert.deepStrictEqual(m.data, { url: '/compte/agent', notificationId: '5', kind: 'chat', audience: 'agent' });
+        assert.strictEqual(m.android.priority, 'high');
+        assert.strictEqual(push95.safePath('https://evil.example/x'), null);
+        assert.strictEqual(push95.safePath('//evil.example'), null);
+        assert.strictEqual(push95.safePath('/compte/agent/messages/3'), '/compte/agent/messages/3');
+      });
+
+      await checkAsync('the real FCM sender signs a Google OAuth token and sends to the v1 API; 404 means a dead token', async () => {
+        const { privateKey, publicKey } = require('crypto').generateKeyPairSync('rsa', { modulusLength: 2048 });
+        const savedFcm = process.env.FCM_SERVICE_ACCOUNT;
+        process.env.FCM_SERVICE_ACCOUNT = JSON.stringify({
+          client_email: 'push@lukka-test.iam.gserviceaccount.com',
+          private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+          project_id: 'lukka-test',
+        });
+        const seen = [];
+        let sendStatus = 200;
+        const fakeFetch = async (url, init) => {
+          seen.push({ url, init });
+          if (url.startsWith('https://oauth2.googleapis.com/')) {
+            const assertion = new URLSearchParams(init.body).get('assertion');
+            const [h, c, sig] = assertion.split('.');
+            const ok = require('crypto').createVerify('RSA-SHA256').update(`${h}.${c}`)
+              .verify(publicKey, Buffer.from(sig.replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
+            assert.ok(ok, 'the JWT is signed with the service account key');
+            const claims = JSON.parse(Buffer.from(c.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+            assert.strictEqual(claims.scope, 'https://www.googleapis.com/auth/firebase.messaging');
+            return { ok: true, status: 200, json: async () => ({ access_token: 'ya29.test', expires_in: 3600 }) };
+          }
+          return { ok: sendStatus === 200, status: sendStatus, json: async () => (sendStatus === 200 ? { name: 'm/1' } : { error: { status: 'NOT_FOUND', message: 'Requested entity was not found.' } }) };
+        };
+        try {
+          const ok = await push95.fcmTransport('tok-real-0000000000000000001', { title: 'T', body: 'B', url: '/compte/agent', notificationId: 1, kind: 'chat' }, { fetchImpl: fakeFetch });
+          assert.deepStrictEqual(ok, { ok: true, dead: false, error: null });
+          const send = seen.find((r) => r.url.includes('fcm.googleapis.com'));
+          assert.strictEqual(send.url, 'https://fcm.googleapis.com/v1/projects/lukka-test/messages:send');
+          assert.strictEqual(send.init.headers.Authorization, 'Bearer ya29.test');
+          sendStatus = 404;
+          const dead = await push95.fcmTransport('tok-real-0000000000000000001', { title: 'T', body: 'B' }, { fetchImpl: fakeFetch });
+          assert.deepStrictEqual([dead.ok, dead.dead], [false, true]);
+        } finally {
+          if (savedFcm === undefined) delete process.env.FCM_SERVICE_ACCOUNT; else process.env.FCM_SERVICE_ACCOUNT = savedFcm;
+        }
+      });
+
+      check('PUSH_FALLBACK_MIN defaults to 5 and is clamped to 1–120', () => {
+        delete process.env.PUSH_FALLBACK_MIN;
+        assert.strictEqual(push95.fallbackMinutes(), 5);
+        process.env.PUSH_FALLBACK_MIN = '0';
+        assert.strictEqual(push95.fallbackMinutes(), 1);
+        process.env.PUSH_FALLBACK_MIN = '999';
+        assert.strictEqual(push95.fallbackMinutes(), 120);
+      });
+
+      check('the push-fallback job is registered before the backup', () => {
+        const names = require('../services/scheduler').JOBS.map((j) => j.name);
+        assert.ok(names.indexOf('push-fallback') > -1 && names.indexOf('push-fallback') < names.indexOf('sqlite-backup'));
+      });
+    } finally {
+      push95._setPool(null);
+      push95._setTransport(null);
+      if (savedMin95 === undefined) delete process.env.PUSH_FALLBACK_MIN; else process.env.PUSH_FALLBACK_MIN = savedMin95;
+    }
+  }
+
+  // §96 App alerts for customers: one app, categories, POST /admin/push (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§96 App alerts for customers — found by account or phone, per-kind switches, a 10-minute late copy, POST /admin/push');
+  {
+    const push96 = require('../services/pushNotify');
+
+    // The §95 fake, plus customers and notification_preferences.
+    function fakePool96({ prefsTable = true } = {}) {
+      const state = {
+        customers: [{ id: 31, phone: '243906500096' }],
+        prefs: [],
+        devices: [],
+        notifications: [],
+      };
+      let nextId = 1;
+      const byId = (id) => state.notifications.find((n) => String(n.id) === String(id));
+      const query = async (sql, params = []) => {
+        const q = sql.replace(/\s+/g, ' ').trim();
+        if (q.startsWith('SELECT to_regclass')) return { rows: [{ a: true, b: true }] };
+        if (q.startsWith('SELECT id FROM customers WHERE id = $1')) {
+          return { rows: state.customers.filter((c) => String(c.id) === String(params[0])).map((c) => ({ id: c.id })) };
+        }
+        if (q.startsWith('SELECT id FROM customers WHERE phone = $1')) {
+          return { rows: state.customers.filter((c) => c.phone === params[0]).map((c) => ({ id: c.id })) };
+        }
+        if (q.startsWith('SELECT push_enabled FROM notification_preferences')) {
+          if (!prefsTable) throw Object.assign(new Error('relation does not exist'), { code: '42P01' });
+          const row = state.prefs.find((p) => p.user_type === params[0] && String(p.user_id) === String(params[1]) && p.category === params[2]);
+          return { rows: row ? [{ push_enabled: row.push_enabled }] : [] };
+        }
+        if (q.startsWith('INSERT INTO notifications')) {
+          const row = {
+            id: nextId++, user_id: params[0], kind: params[1], user_type: params[7], title: params[3], url: params[5],
+            push_sent_at: null, push_result: null, read_at: null, fallback: null, fallback_due_at: null,
+            whatsapp_fallback_at: null, whatsapp_result: null,
+          };
+          state.notifications.push(row);
+          return { rows: [{ id: row.id }] };
+        }
+        if (q.startsWith('SELECT id, fcm_token FROM push_devices')) {
+          return { rows: state.devices.filter((d) => String(d.user_id) === String(params[0]) && d.user_type === params[1] && !d.revoked_at) };
+        }
+        if (q.startsWith('UPDATE notifications SET push_result = $2 WHERE id = $1')) {
+          byId(params[0]).push_result = params[1];
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET push_sent_at')) {
+          const row = byId(params[0]);
+          row.push_sent_at = new Date();
+          row.push_result = params[1];
+          row.fallback = params[2] ? JSON.parse(params[2]) : null;
+          row.fallback_due_at = params[2] ? new Date(Date.now() + params[3] * 60_000) : null;
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_fallback_at = COALESCE')) {
+          const row = byId(params[0]);
+          row.whatsapp_fallback_at = row.whatsapp_fallback_at || new Date();
+          row.whatsapp_result = params[1];
+          return { rows: [] };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_fallback_at = NOW() WHERE id IN')) {
+          const now = Date.now();
+          const due = state.notifications.filter((n) => n.fallback_due_at && n.fallback_due_at.getTime() <= now && !n.whatsapp_fallback_at && !n.read_at && n.fallback);
+          for (const n of due) n.whatsapp_fallback_at = new Date();
+          return { rows: due.map((n) => ({ id: n.id, kind: n.kind, user_id: n.user_id, fallback: n.fallback })) };
+        }
+        if (q.startsWith('UPDATE notifications SET whatsapp_result = $2 WHERE id = $1')) {
+          byId(params[0]).whatsapp_result = params[1];
+          return { rows: [] };
+        }
+        throw new Error(`fake96: unexpected SQL ${q.slice(0, 90)}`);
+      };
+      return { state, query };
+    }
+
+    const pushed96 = [];
+    const okTransport96 = async (token, payload) => { pushed96.push({ token, payload }); return { ok: true, dead: false, error: null }; };
+    const customerAlert = (extra = {}) => {
+      const calls = [];
+      return {
+        calls,
+        params: {
+          userType: 'customer', phone: '243906500096', kind: 'visit', category: 'visits', refId: 5,
+          title: 'Visite confirmée', body: 'Demain 10h', url: '/compte/client/visites',
+          urgent: true, fallback: { sender: 'customer_text', phone: '243906500096', text: 'Visite confirmée demain 10h' },
+          sendWhatsApp: async () => { calls.push('whatsapp'); return 'session'; },
+          ...extra,
+        },
+      };
+    };
+    const savedMin96 = process.env.PUSH_CUSTOMER_FALLBACK_MIN;
+
+    try {
+      await checkAsync('a customer is found by phone (the lead wa_id), pushed, and the push says it is a customer’s', async () => {
+        const fake = fakePool96();
+        fake.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-000000000000001' });
+        push96._setPool(fake);
+        push96._setTransport(okTransport96);
+        pushed96.length = 0;
+        delete process.env.PUSH_CUSTOMER_FALLBACK_MIN;
+        const a = customerAlert();
+        const out = await push96.pushFirst(a.params);
+        assert.strictEqual(out.pushed, true);
+        assert.deepStrictEqual(a.calls, []);
+        assert.strictEqual(pushed96[0].payload.audience, 'customer', 'a tap opens the customer inbox (appBridge alertTarget)');
+        const row = fake.state.notifications[0];
+        assert.strictEqual(row.user_type, 'customer');
+        const minutes = (row.fallback_due_at - Date.now()) / 60_000;
+        assert.ok(minutes > 9 && minutes <= 10, `customers get 10 minutes, got ${minutes}`);
+      });
+
+      await checkAsync('found by account id too; an agent’s phone with the same user id is never pushed a customer alert', async () => {
+        const fake = fakePool96();
+        fake.state.devices.push({ id: 2, user_id: 31, user_type: 'agent', fcm_token: 'tok-agent-31-0000000000000002' });
+        push96._setPool(fake);
+        push96._setTransport(okTransport96);
+        pushed96.length = 0;
+        const a = customerAlert({ phone: null, customerId: 31 });
+        const out = await push96.pushFirst(a.params);
+        assert.deepStrictEqual([out.pushed, out.reason, pushed96.length], [false, 'no-device', 0]);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+      });
+
+      await checkAsync('no customer account on that number: WhatsApp as before, nothing recorded', async () => {
+        const fake = fakePool96();
+        push96._setPool(fake);
+        const a = customerAlert({ phone: '243999999999' });
+        const out = await push96.pushFirst(a.params);
+        assert.deepStrictEqual([out.pushed, out.reason], [false, 'no-customer']);
+        assert.deepStrictEqual(a.calls, ['whatsapp']);
+        assert.strictEqual(fake.state.notifications.length, 0);
+      });
+
+      await checkAsync('a kind the customer switched off is never pushed — WhatsApp as before; no preferences table reads as on', async () => {
+        const fake = fakePool96();
+        fake.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-000000000000001' });
+        fake.state.prefs.push({ user_type: 'customer', user_id: 31, category: 'search_alerts', push_enabled: false });
+        push96._setPool(fake);
+        push96._setTransport(okTransport96);
+        pushed96.length = 0;
+        const off = await push96.pushOnly({ userType: 'customer', customerId: 31, kind: 'search_alert', category: 'search_alerts', title: 'Nouveaux biens' });
+        assert.deepStrictEqual([off.pushed, off.reason, pushed96.length], [false, 'category-off', 0]);
+        const on = await push96.pushOnly({ userType: 'customer', customerId: 31, kind: 'chat', category: 'messages', title: 'Message' });
+        assert.strictEqual(on.pushed, true, 'other kinds still push');
+        const noTable = fakePool96({ prefsTable: false });
+        noTable.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-000000000000001' });
+        push96._setPool(noTable);
+        assert.strictEqual((await push96.pushOnly({ userType: 'customer', customerId: 31, kind: 'news', category: 'news', title: 'Marché' })).pushed, true);
+      });
+
+      await checkAsync('a web alert’s late WhatsApp copy is the text it named (fallback.sender = customer_text), once', async () => {
+        const fake = fakePool96();
+        fake.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-000000000000001' });
+        push96._setPool(fake);
+        push96._setTransport(okTransport96);
+        const chakra96 = require('../services/chakra');
+        const savedSend = chakra96.sendWhatsAppMessage;
+        const sent = [];
+        chakra96.sendWhatsAppMessage = async (to, text) => { sent.push({ to, text }); return {}; };
+        try {
+          await push96.pushFirst(customerAlert({ kind: 'agent_reply' }).params);
+          fake.state.notifications[0].fallback_due_at = new Date(Date.now() - 1000);
+          const sweep = await push96.runFallbackSweep();
+          assert.deepStrictEqual([sweep.due, sweep.sent], [1, 1]);
+          assert.deepStrictEqual(sent, [{ to: '243906500096', text: 'Visite confirmée demain 10h' }]);
+          assert.strictEqual((await push96.runFallbackSweep()).due, 0);
+        } finally {
+          chakra96.sendWhatsAppMessage = savedSend;
+        }
+      });
+
+      await checkAsync('POST /admin/push needs the API key and validates what it pushes', async () => {
+        const noKey = await new Promise((resolve) => {
+          const req = http.request({ host: 'localhost', port: 3200, path: '/admin/push', method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => resolve(res.statusCode));
+          req.end('{}');
+        });
+        assert.strictEqual(noKey, 401);
+        assert.strictEqual((await adminRequest('POST', '/admin/push', { userType: 'admin', userId: 1, kind: 'x', title: 't' })).status, 400);
+        assert.strictEqual((await adminRequest('POST', '/admin/push', { userType: 'customer', kind: 'x', title: 't' })).status, 400, 'an account or a phone');
+        assert.strictEqual((await adminRequest('POST', '/admin/push', { userType: 'customer', userId: 31, kind: 'Bad Kind', title: 't' })).status, 400);
+        assert.strictEqual((await adminRequest('POST', '/admin/push', { userType: 'customer', userId: 31, kind: 'chat', title: '' })).status, 400);
+      });
+
+      await checkAsync('POST /admin/push answers {pushed} so web can send its WhatsApp message itself', async () => {
+        const fake = fakePool96();
+        fake.state.devices.push({ id: 1, user_id: 31, user_type: 'customer', fcm_token: 'tok-customer-000000000000001' });
+        push96._setPool(fake);
+        push96._setTransport(okTransport96);
+        const yes = await adminRequest('POST', '/admin/push', {
+          userType: 'customer', userId: 31, phone: '243906500096', kind: 'agent_reply', category: 'messages',
+          title: 'Réponse de votre agent', body: 'Bonjour', url: '/compte/client/visites', urgent: true, fallbackText: 'Bonjour (copie)',
+        });
+        assert.deepStrictEqual([yes.status, yes.body.pushed], [200, true]);
+        assert.deepStrictEqual(fake.state.notifications[0].fallback, { sender: 'customer_text', phone: '243906500096', text: 'Bonjour (copie)' });
+        fake.state.devices.length = 0;
+        const no = await adminRequest('POST', '/admin/push', { userType: 'customer', userId: 31, kind: 'search_alert', title: 'Nouveaux biens' });
+        assert.deepStrictEqual([no.body.pushed, no.body.reason], [false, 'no-device']);
+      });
+
+      check('PUSH_CUSTOMER_FALLBACK_MIN defaults to 10 and is clamped; agents keep their own 5', () => {
+        delete process.env.PUSH_CUSTOMER_FALLBACK_MIN;
+        assert.strictEqual(push96.fallbackMinutes('customer'), 10);
+        process.env.PUSH_CUSTOMER_FALLBACK_MIN = '500';
+        assert.strictEqual(push96.fallbackMinutes('customer'), 120);
+        assert.strictEqual(push96.fallbackMinutes('agent'), 5);
+      });
+    } finally {
+      push96._setPool(null);
+      push96._setTransport(null);
+      if (savedMin96 === undefined) delete process.env.PUSH_CUSTOMER_FALLBACK_MIN; else process.env.PUSH_CUSTOMER_FALLBACK_MIN = savedMin96;
     }
   }
 

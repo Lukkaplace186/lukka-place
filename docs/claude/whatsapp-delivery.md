@@ -77,7 +77,9 @@ production.
 
 **There is no web-push pipeline at all** — no service worker, no VAPID keys,
 no FCM. Browser push notifications are not silent; they were never built.
-WhatsApp is the only notification channel this product has.
+WhatsApp is the only notification channel this product has. *(Superseded
+2026-11-10: agents get app push through FCM — "App alerts" at the end of this
+file. There is still no browser push, on purpose.)*
 
 ## The ops desk phone — OPS_WHATSAPP_NUMBER (2026-10-07)
 
@@ -295,3 +297,82 @@ the dashboard link; inside the window they get the interactive message.
 - **Switch on**: `AGENT_LEAD_CLAIM_TEMPLATE=agent_lead_claim` in the engine
   `.env`, restart with `--update-env`, test-send to the desk number, tap both
   buttons. Keep `AGENT_LEAD_MATCH_TEMPLATE` as the fallback.
+
+## App alerts — push first, WhatsApp as the fallback (2026-11-10)
+
+**Why.** WhatsApp only reaches someone who wrote to us in the last 24 h unless
+a template is approved, and several are missing or paused. The owner chose a
+store app (Google Play + App Store) for agents, agents first, and no
+browser-installed version (agents in DRC do not add sites to their home
+screen). Plan: `~/.claude/plans/hi-claude-we-are-giggly-squirrel.md`. App
+project: `mobile/` (Capacitor shell loading `/compte/agent`, README there).
+
+- **Engine `services/pushNotify.js` `pushFirst`.** Each agent alert records a
+  `notifications` row (the in-app "Alertes" inbox), pushes to the agent's
+  `push_devices` through the FCM HTTP v1 API (OAuth token signed with the
+  service account's key, so no `firebase-admin` dependency), and calls the
+  alert's own WhatsApp send at once when it could not push: Postgres not
+  configured, tables missing (before the migration), no verified/undeleted
+  agent, no device, FCM not configured, every device refused, or
+  `PUSH_NOTIFY=off`. A dead token (404 / UNREGISTERED / malformed
+  registration token) is revoked; a network error is not. The WhatsApp half
+  throws exactly as before, so callers keep their error handling.
+- **Wired so far:** viewing requests (`viewingNotifications.notifyViewingRequest`,
+  urgent), customer enquiries (`agentEnquiryAlert.sendAgentEnquiryAlert`, used by
+  listing / profile / project / contact-link enquiries; urgent), unread chat for
+  agents (`chatNotify.deliverAlert`, not urgent, quiet hours unchanged), listing
+  approved / rejected (`routes/admin.js deliverModerationVerdict`) and trusted
+  auto-approval (`trustedAutoApprove`), both not urgent. **Not yet:** lead match
+  (waves), "Faites le point", contact taps, "La visite a eu lieu ?", contact
+  check, digest. Desk, owner and customer alerts are untouched.
+- **Urgent late copy.** A pushed urgent alert stores what its WhatsApp send
+  needs in `notifications.fallback` and is due `PUSH_FALLBACK_MIN` (5, 1–120)
+  minutes later. The `push-fallback` job (every tick, before `sqlite-backup`)
+  claims due, unread rows (`whatsapp_fallback_at` first, `FOR UPDATE SKIP
+  LOCKED`) and calls the kind's own sender (`FALLBACK_SENDERS`): viewing
+  requests only while still PENDING for that agent
+  (`sendViewingAlertFallback`), enquiries always. Older than 6 h → dropped.
+  Opening the alert (`/compte/agent/alertes/<id>`) marks it read and cancels
+  the copy.
+- **Env** (engine, read at call time): `FCM_SERVICE_ACCOUNT` (path to the
+  Firebase service-account JSON, or the JSON) — unset means alerts are
+  recorded for the inbox but not pushed; `PUSH_NOTIFY=off`; `PUSH_FALLBACK_MIN`.
+  Web: `NEXT_PUBLIC_PLAY_STORE_URL`, `NEXT_PUBLIC_APP_STORE_URL` (Réglages ›
+  Application shows "bientôt disponible" until set).
+- **Migration** `migrations/20261110_push_notifications.sql` (two tables, RLS
+  on, nothing granted). Everything runs unchanged before it: all WhatsApp.
+- **Web:** `/api/push/register` · `/unregister` · `/unread`, the inbox
+  `/compte/agent/alertes`, `lib/appBridge.js` (only active inside the app,
+  through `window.Capacitor`), logout revokes this phone (cookie
+  `lukka_push_token`). web/CLAUDE.md, "Lukka Place app".
+- verify-pipeline §95; web `tests/unit/push-notifications.test.js`.
+
+### Customers, one app (2026-11-10, part 2 phase 0)
+
+Owner decisions:
+- **One "Lukka Place" app for everyone.** It starts at `/app`
+  (`web/app/app/route.js`): a signed-in agent goes to `/compte/agent`,
+  everyone else to the listings. App id `com.lukkaplace.app`.
+- **Discovery alerts are app-only for app users** (saved-search matches, price
+  drops, similar listings); customers without the app keep WhatsApp. Visit,
+  request and chat alerts fall back to WhatsApp when left unread.
+- Plan: `~/.claude/plans/hi-claude-we-are-giggly-squirrel.md` (phases 1–3 wire
+  the customer alerts, the gaps, then the standard portal alerts).
+
+What phase 0 built:
+- **`pushNotify` takes `userType: 'customer'`**, with `customerId`, or `phone`
+  matched against `customers.phone`. Visit and request alerts only know the
+  lead's wa_id; this is the Espace Client's own phone match.
+- **`category`**: checked against `notification_preferences` (no row = on;
+  missing table = on). Off means not pushed, so WhatsApp goes as before.
+- **Customers' urgent late copy** waits `PUSH_CUSTOMER_FALLBACK_MIN` (10).
+- **The FCM data carries `audience`**, so a tap opens the right inbox.
+- **`fallback.sender`** names the WhatsApp send when it is not the kind's own.
+  `customer_text` is a plain text to `fallback.phone`.
+- **`POST /admin/push`** (API key) lets web push: `{userType, userId|phone,
+  kind, category?, title, body?, url?, urgent?, fallbackText?}` → `{pushed,
+  reason}`. When `pushed` is false the caller sends its WhatsApp itself. Web
+  helper: `lib/adminApi.js` `pushToAccount` (never throws).
+- **Migration** `20261110_push_notifications.sql` now also creates
+  `notification_preferences` (PK user_type, user_id, category).
+- verify-pipeline §96.

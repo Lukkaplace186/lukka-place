@@ -352,7 +352,8 @@ test('the migration is idempotent, bigint, cascading, and revoked from PostgREST
 test('the client book is hidden: no nav entry, and its old URL redirects to Demandes', () => {
   const src = read('components/AgentSidebar.js');
   assert.doesNotMatch(src, /\/compte\/agent\/clients/);
-  assert.match(src, /repeat\(\$\{nav\.length\}/, 'phone bar columns follow the visible NAV entries');
+  // `tabs`: the visible NAV entries on a phone (Alertes only inside the app, 2026-11-10).
+  assert.match(src, /repeat\(\$\{tabs\.length\}/, 'phone bar columns follow the visible NAV entries');
   assert.match(read('app/compte/agent/clients/page.js'), /redirect\('\/compte\/agent\/demandes'\)/);
 });
 

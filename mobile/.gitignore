@@ -1,0 +1,10 @@
+node_modules/
+# Firebase config is project-specific; keep it out of git until decided otherwise.
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+# Signing material never goes in git.
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision

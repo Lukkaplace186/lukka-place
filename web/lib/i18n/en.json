@@ -1213,7 +1213,9 @@
       "subscriptionShort": "Plan",
       "settingsShort": "Settings",
       "messages": "Messages",
-      "messagesShort": "Messages"
+      "messagesShort": "Messages",
+      "alerts": "Alerts",
+      "alertsShort": "Alerts"
     },
     "overview": {
       "title": "Overview",
@@ -2945,6 +2947,35 @@
           "hint": "Answer visit requests within 15 minutes."
         }
       }
+    },
+    "alerts": {
+      "title": "Alerts",
+      "intro": "Alerts sent to your phone by the Lukka Place app.",
+      "markAllRead": "Mark All as Read",
+      "emptyTitle": "No Alerts Yet",
+      "empty": "New requests, visits, messages and decisions on your listings will appear here.",
+      "unavailable": "Alerts are not available yet. You keep receiving them on WhatsApp.",
+      "unread": "Unread",
+      "older": "Older alerts"
+    },
+    "app": {
+      "title": "App",
+      "sub": "Alerts on your phone",
+      "hint": "Get your requests, visits and messages instantly, even if you have not written to Lukka Place on WhatsApp.",
+      "pitch": "Install the Lukka Place app to get every new request as a notification on your phone.",
+      "googlePlay": "Google Play",
+      "appStore": "App Store",
+      "comingSoon": "The app will soon be available on Google Play and the App Store.",
+      "devices": {
+        "one": "{count} phone already receives your alerts.",
+        "other": "{count} phones already receive your alerts."
+      },
+      "on": "Alerts are on for this phone.",
+      "off": "Alerts are off for this phone.",
+      "turnOn": "Turn On Alerts",
+      "turnOff": "Turn off on this phone",
+      "denied": "Notifications are blocked. Allow them for Lukka Place in your phone settings.",
+      "fallback": "An urgent request left unread is also sent to you on WhatsApp after a few minutes."
     }
   },
   "status": {
@@ -4002,6 +4033,46 @@
         "expired": "This code has expired. Ask for a new one.",
         "too_many": "Too many tries. Ask for a new code.",
         "none": "No change in progress. Enter your new number."
+      }
+    },
+    "notifications": {
+      "metaTitle": "Notifications — Lukka Place",
+      "title": "Notifications",
+      "rowSub": "Alerts received in the app",
+      "markAllRead": "Mark All as Read",
+      "emptyTitle": "No Notifications Yet",
+      "empty": "Your visits, messages, searches and saved listings will show here as soon as there is news.",
+      "unavailable": "Notifications are not available yet. You keep receiving your alerts on WhatsApp.",
+      "unread": "Unread",
+      "older": "Older notifications",
+      "switchesTitle": "In the App",
+      "switchesHint": "Choose what the app sends you. Anything you turn off here still arrives on WhatsApp if WhatsApp alerts are on.",
+      "switchesUnavailable": "These settings will be available very soon.",
+      "categories": {
+        "visits": "Visits",
+        "requests": "My \"Find it for me\" requests",
+        "messages": "Messages from agents",
+        "searchAlerts": "New listings for my searches",
+        "savedListings": "My saved listings",
+        "suggestions": "Listing suggestions",
+        "news": "Market news"
+      }
+    },
+    "app": {
+      "title": "Mobile App",
+      "on": "Notifications are on for this phone.",
+      "off": "Notifications are off for this phone.",
+      "turnOn": "Turn On Notifications",
+      "turnOff": "Turn off on this phone",
+      "denied": "Notifications are blocked. Allow them for Lukka Place in your phone settings.",
+      "fallback": "A visit confirmation or a message left unread is also sent to you on WhatsApp after a few minutes.",
+      "pitch": "Install the Lukka Place app to hear right away: visits, agents’ replies and new listings that match your searches.",
+      "googlePlay": "Google Play",
+      "appStore": "App Store",
+      "comingSoon": "The app will soon be available on Google Play and the App Store.",
+      "devices": {
+        "one": "{count} phone already receives your notifications.",
+        "other": "{count} phones already receive your notifications."
       }
     }
   },

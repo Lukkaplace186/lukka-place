@@ -921,3 +921,25 @@ export async function deleteLeadRecord(id) {
 export async function deleteViewingRequestRecord(id) {
   return engineFetch(`/admin/viewing-requests/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+/**
+ * An app alert from web (engine POST /admin/push, services/pushNotify.js):
+ * recorded in the person's inbox and pushed to their phones. Returns
+ * `{pushed}`; when false the caller sends its WhatsApp message as before.
+ * Never throws: an unreachable engine reads as "not pushed", so the caller's
+ * WhatsApp path still runs.
+ *
+ * @param {{userType: 'agent'|'customer', userId?: number, phone?: string, kind: string,
+ *          category?: string, refId?: string|number, title: string, body?: string,
+ *          url?: string, urgent?: boolean, fallbackText?: string}} alert
+ * @returns {Promise<{pushed: boolean, reason?: string}>}
+ */
+export async function pushToAccount(alert) {
+  try {
+    const result = await engineFetch('/admin/push', { method: 'POST', body: JSON.stringify(alert) });
+    return { pushed: Boolean(result?.pushed), reason: result?.reason };
+  } catch (err) {
+    console.error(`[push] /admin/push ${alert?.kind} failed: ${err.message}`);
+    return { pushed: false, reason: 'engine-unreachable' };
+  }
+}

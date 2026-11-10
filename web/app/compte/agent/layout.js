@@ -13,6 +13,8 @@ import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { agentLogoutAction } from './actions';
 import { getI18n, getT } from '@/lib/i18n/server';
 import { countUnread } from '@/lib/chat';
+import { countUnreadNotifications } from '@/lib/pushNotifications';
+import AppPushBridge from '@/components/AppPushBridge';
 import { I18nProvider } from '@/lib/i18n/client';
 
 // generateMetadata rather than a static object, so the browser-tab title
@@ -67,10 +69,11 @@ export default async function AgentDashboardLayout({ children }) {
   // three can no longer say 100 % here and "1 élément à compléter" there.
   // Messagerie: chat messages the agent has not read (lib/chat.js); the
   // sidebar keeps it live from there.
-  const [profileGaps, features, unreadMessages] = await Promise.all([
+  const [profileGaps, features, unreadMessages, unreadAlerts] = await Promise.all([
     getAgentProfileGaps(agent).catch(() => []),
     getFeatureFlags(),
     countUnread({ role: 'agent', id: agentId }).then((c) => c.messages).catch(() => 0),
+    countUnreadNotifications('agent', agentId).catch(() => 0),
   ]);
   const checklist = profileChecklist(completion, profileGaps);
   const railCompletion = completion && {
@@ -96,12 +99,14 @@ export default async function AgentDashboardLayout({ children }) {
     <I18nProvider locale={locale} messages={messages}>
       <div className="flex min-h-screen bg-page">
         <AgentKeyboardShortcuts />
+        <AppPushBridge />
         <AgentSidebar
           agentName={name}
           agentInitials={initials}
           listingsCount={listings.length}
           waitingCount={waitingCount}
           unreadMessages={unreadMessages}
+          unreadAlerts={unreadAlerts}
           completion={railCompletion}
           logoutAction={agentLogoutAction}
           features={features}

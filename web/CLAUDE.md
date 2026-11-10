@@ -4897,3 +4897,50 @@ Engine side: root docs/claude/leads-and-enquiries.md, "Matching in waves".
   row, CLAIMED / DECLINED filters, and the desk alert count in the coverage
   panel. The lead-matches CSV appends wave, level, matched_commune,
   neighbour_of, claimed_at, declined_at, answer_channel.
+
+## Lukka Place app — push alerts for agents (2026-11-10)
+
+The store app (`mobile/` at the repo root, Capacitor) loads `/compte/agent`;
+the engine pushes agent alerts first and WhatsApps only as the fallback (root
+docs/claude/whatsapp-delivery.md, "App alerts"). Web side:
+
+- **`lib/appBridge.js`** is inert in a browser; inside the app it uses
+  `window.Capacitor.Plugins.PushNotifications` (no Capacitor code in the
+  bundle): permission once, Android channel `alerts`, FCM token →
+  `POST /api/push/register`. Mounted by `components/AppPushBridge.js` in the
+  agent layout. A tapped notification opens `/compte/agent/alertes/<id>`.
+- **Routes** take the agent from the session (`getCurrentChatAgentId`:
+  token_version + deleted). The register response sets the httpOnly
+  `lukka_push_token` cookie so `agentLogoutAction` revokes this phone.
+  `/compte/agent/alertes/<id>` marks read and redirects with a RELATIVE
+  Location (behind the proxy `request.url` is localhost) to the stored path,
+  only inside `/compte/agent` (`safeAgentPath`).
+- **Alertes** (`/compte/agent/alertes`): the inbox, newest first, id cursor.
+  Desktop rail always; the phone tab bar shows it only inside the app
+  (`mobileAppOnly`, known after hydration), so a phone browser keeps its tabs.
+- **Réglages › Application** (`components/AgentAppCard.js`): in the app, on/off
+  for this phone; in a browser, store links only when
+  `NEXT_PUBLIC_PLAY_STORE_URL` / `NEXT_PUBLIC_APP_STORE_URL` are set.
+- Before `migrations/20261110_push_notifications.sql`: empty inbox, 0 unread,
+  register answers 503. `tests/unit/push-notifications.test.js`.
+- **Customers (2026-11-10, phase 0).**
+  - **One app.** `mobile/` starts at `/app` (`app/app/route.js`: agent session →
+    agent space, else `/`; relative Location).
+  - **Push plumbing is shared by both sides.** `lib/pushNotifications.js` takes
+    `userType` on every function. `lib/pushSession.js` `currentPushAccount(side)`
+    resolves the named side's own session. `/api/push/*` take `as:
+    agent|customer`.
+  - **`AppPushBridge side="customer"`** is mounted in the Espace Client layout.
+  - **Customer inbox** at `/compte/client/notifications` (not "alertes", which
+    is the saved-search tab). `[id]` marks read and redirects within
+    `/compte/client`, `/messages` or `/listings` (`safeCustomerPath`).
+  - **Mon profil › Notifications** gets three things:
+    - the inbox row with its unread count;
+    - the existing WhatsApp switch;
+    - per-kind app switches (`NotificationCategorySwitches`, categories in
+      `lib/pushRules.js CUSTOMER_CATEGORIES`; visits locked on).
+  - **"Application mobile"** is `components/AppAlertsCard.js side="customer"`
+    (the agent card, renamed and shared).
+  - **Customer logout and account deletion** revoke this phone.
+  - `lib/adminApi.js pushToAccount` is how web-side senders push (phase 1
+    wires them).

@@ -38,6 +38,7 @@
 
 const chakra = require('./chakra');
 const { insideSessionWindow } = require('./sessionWindow');
+const pushNotify = require('./pushNotify');
 
 const JOB_NAME = 'chat-notify';
 const SWEEP_INTERVAL_MS = 2 * 60 * 1000;
@@ -132,7 +133,7 @@ const SIDES = {
 function dueSql(role) {
   const s = SIDES[role];
   return `
-    SELECT t.id, t.property_id,
+    SELECT t.id, t.property_id, t.agent_id,
            ${s.phone} AS phone,
            c.full_name AS customer_name,
            (SELECT ai.first_name FROM agent_infos ai WHERE ai.agent_id = a.id
@@ -195,8 +196,14 @@ function buildAlert(role, row) {
     const link = `${SITE_URL}/compte/agent/messages/${threadId}`;
     return {
       threadId,
+      agentId: row.agent_id ?? null,
       to: String(row.phone || '').replace(/\D/g, ''),
       link,
+      push: {
+        title: `Nouveau message de ${customer}`,
+        body: `${subject}${more} : « ${excerpt} »`,
+        url: `/compte/agent/messages/${threadId}`,
+      },
       text:
         `Nouveau message de ${customer} sur Lukka Place${more}, au sujet de : ${subject}\n`
         + `« ${excerpt} »\n\n`
@@ -233,7 +240,25 @@ function buildAlert(role, row) {
  *
  * @returns {Promise<{via: 'session'|'template', outsideWindow: boolean}>}
  */
-async function deliverAlert(role, alert, { now = new Date(), client = chakra } = {}) {
+async function deliverAlert(role, alert, options = {}) {
+  // An agent with the app gets the push instead (services/pushNotify.js);
+  // not urgent: the conversation is in the app's inbox, no late WhatsApp copy.
+  if (role === 'agent' && alert.push) {
+    const outcome = await pushNotify.pushFirst({
+      agentId: alert.agentId,
+      phone: alert.to,
+      kind: 'chat',
+      refId: alert.threadId,
+      ...alert.push,
+      urgent: false,
+      sendWhatsApp: () => deliverWhatsApp(role, alert, options),
+    });
+    return outcome.pushed ? { via: 'push', outsideWindow: false } : outcome.whatsapp;
+  }
+  return deliverWhatsApp(role, alert, options);
+}
+
+async function deliverWhatsApp(role, alert, { now = new Date(), client = chakra } = {}) {
   const outsideWindow = !insideSessionWindow(alert.to, now);
   const name = templateFor(role);
   if (outsideWindow && client.templateConfigured(name)) {

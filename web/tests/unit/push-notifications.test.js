@@ -1,0 +1,162 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+  CUSTOMER_CATEGORIES,
+  PUSH_PLATFORMS,
+  parseId,
+  parseRegistration,
+  parseSide,
+  safeAgentPath,
+  safeCustomerPath,
+  switchableCustomerCategory,
+} from '@/lib/pushRules';
+import {
+  countUnreadNotifications,
+  getNotificationPreferences,
+  listNotifications,
+  markAllNotificationsRead,
+  openNotification,
+  registerDevice,
+  revokeDevice,
+  setNotificationPreference,
+} from '@/lib/pushNotifications';
+import { alertTarget } from '@/lib/appBridge';
+import { calls, enqueue, getPool, normalizeSql, reset } from '../support/fakePool.js';
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const TOKEN = 'fcm-token-'.padEnd(160, 'x');
+
+test('a registration needs a real token and a store platform', () => {
+  assert.deepStrictEqual(parseRegistration({ token: TOKEN, platform: 'Android', appVersion: '1.0.3' }), {
+    token: TOKEN, platform: 'android', appVersion: '1.0.3',
+  });
+  assert.equal(parseRegistration({ token: 'short', platform: 'android' }), null);
+  assert.equal(parseRegistration({ token: `${TOKEN} x`, platform: 'android' }), null, 'no whitespace');
+  assert.equal(parseRegistration({ token: TOKEN, platform: 'web' }), null, 'only the store apps register');
+  assert.equal(parseRegistration({ token: TOKEN, platform: 'ios', appVersion: '<script>' }).appVersion, null);
+  assert.equal(parseRegistration(null), null);
+  assert.deepStrictEqual(PUSH_PLATFORMS, ['android', 'ios']);
+  assert.equal(parseSide('customer'), 'customer');
+  assert.equal(parseSide('admin'), 'agent', 'anything else is the agent side, never a third one');
+});
+
+test('a tapped alert only ever opens a page of its own side', () => {
+  assert.equal(safeAgentPath('/compte/agent/demandes?visite=12'), '/compte/agent/demandes?visite=12');
+  assert.equal(safeAgentPath('https://evil.example/compte/agent'), '/compte/agent/alertes');
+  assert.equal(safeAgentPath('//evil.example'), '/compte/agent/alertes');
+  assert.equal(safeAgentPath('/admin'), '/compte/agent/alertes');
+  assert.equal(safeAgentPath(null), '/compte/agent/alertes');
+  assert.equal(safeCustomerPath('/compte/client/visites'), '/compte/client/visites');
+  assert.equal(safeCustomerPath('/messages/4'), '/messages/4');
+  assert.equal(safeCustomerPath('/listings/685'), '/listings/685');
+  assert.equal(safeCustomerPath('/compte/agent'), '/compte/client/notifications', 'a customer alert never opens the agent space');
+  assert.equal(safeCustomerPath('/messagesX'), '/compte/client/notifications');
+  assert.equal(safeCustomerPath('https://evil.example/listings/1'), '/compte/client/notifications');
+  assert.equal(alertTarget({ notificationId: '42', url: '/compte/agent/messages/3' }), '/compte/agent/alertes/42');
+  assert.equal(alertTarget({ notificationId: '42', audience: 'customer' }), '/compte/client/notifications/42');
+  assert.equal(alertTarget({ url: '/compte/agent/messages/3' }), '/compte/agent/messages/3');
+  assert.equal(alertTarget({ url: '/listings/9', audience: 'customer' }), '/listings/9');
+  assert.equal(alertTarget({ url: 'https://evil.example' }), '/compte/agent/alertes');
+  assert.equal(parseId('12'), 12);
+  assert.equal(parseId('12abc'), null);
+  assert.equal(parseId('-3'), null);
+});
+
+test('registering re-points a token to the signed-in account and revives it', async () => {
+  reset();
+  assert.equal(await registerDevice('customer', 7, { token: TOKEN, platform: 'android', appVersion: null }), 'ok');
+  const { sql, values } = calls[0];
+  assert.match(sql, /INSERT INTO push_devices .* ON CONFLICT \(fcm_token\) DO UPDATE/);
+  assert.match(sql, /user_type = EXCLUDED\.user_type/);
+  assert.match(sql, /revoked_at = NULL/);
+  assert.deepStrictEqual(values, [7, 'android', TOKEN, null, 'customer']);
+  await assert.rejects(() => registerDevice('admin', 7, { token: TOKEN, platform: 'ios' }), /unknown user type/);
+});
+
+test('every inbox statement is scoped to the account from the session, user type included', async () => {
+  for (const userType of ['agent', 'customer']) {
+    reset();
+    enqueue([{ id: 9, kind: 'chat', title: 'T', body: 'B', url: '/messages/1', created_at: new Date('2026-11-10T08:00:00Z'), read_at: null }]);
+    const page = await listNotifications(userType, 7);
+    assert.equal(page.items.length, 1);
+    assert.equal(page.items[0].read, false);
+    enqueue([{ n: 3 }]);
+    assert.equal(await countUnreadNotifications(userType, 7), 3);
+    enqueue([{ url: '/messages/1' }]);
+    assert.deepStrictEqual(await openNotification(userType, 7, 9), { url: '/messages/1' });
+    await markAllNotificationsRead(userType, 7);
+    await revokeDevice(userType, 7, TOKEN);
+    for (const call of calls) {
+      assert.match(call.sql, /user_type = \$\d AND user_id = \$\d/, call.sql);
+      assert.ok(call.values.includes(userType), `${userType} passed to: ${call.sql}`);
+      assert.ok(call.values.includes(7));
+    }
+  }
+});
+
+test('preferences: no row means on; a switch is an upsert for that account', async () => {
+  reset();
+  enqueue([{ category: 'news', push_enabled: false }]);
+  assert.deepStrictEqual(await getNotificationPreferences('customer', 7), { prefs: { news: false }, available: true });
+  assert.equal(await setNotificationPreference('customer', 7, 'news', true), 'ok');
+  assert.match(calls[1].sql, /ON CONFLICT \(user_type, user_id, category\) DO UPDATE/);
+  assert.deepStrictEqual(calls[1].values, [7, 'news', true, 'customer']);
+  assert.equal(switchableCustomerCategory('news'), 'news');
+  assert.equal(switchableCustomerCategory('visits'), null, 'visits cannot be switched off');
+  assert.equal(switchableCustomerCategory('anything'), null);
+  assert.deepStrictEqual(CUSTOMER_CATEGORIES.map((c) => c.key), ['visits', 'requests', 'messages', 'search_alerts', 'saved_listings', 'suggestions', 'news']);
+});
+
+test('before the migration nothing throws: empty inbox, zero unread, registration unavailable', async () => {
+  const missing = Object.assign(new Error('relation "notifications" does not exist'), { code: '42P01' });
+  const pool = getPool();
+  const saved = pool.query;
+  pool.query = async () => { throw missing; };
+  try {
+    assert.deepStrictEqual(await listNotifications('agent', 7), { items: [], nextCursor: null, available: false });
+    assert.equal(await countUnreadNotifications('customer', 7), 0);
+    assert.equal(await registerDevice('agent', 7, { token: TOKEN, platform: 'ios', appVersion: null }), 'unavailable');
+    assert.equal(await openNotification('customer', 7, 1), null);
+    assert.deepStrictEqual(await getNotificationPreferences('customer', 7), { prefs: {}, available: false });
+    assert.equal(await setNotificationPreference('customer', 7, 'news', false), 'unavailable');
+  } finally {
+    pool.query = saved;
+  }
+});
+
+test('the inbox pages with an id cursor', async () => {
+  reset();
+  enqueue(Array.from({ length: 31 }, (_, i) => ({ id: 100 - i, kind: 'enquiry', title: 't', body: '', url: null, created_at: '2026-11-10T08:00:00Z', read_at: null })));
+  const page = await listNotifications('agent', 7, { limit: 30 });
+  assert.equal(page.items.length, 30);
+  assert.equal(page.nextCursor, 71);
+  await listNotifications('agent', 7, { before: 71 });
+  assert.match(normalizeSql(calls[1].text), /AND id < \$4/);
+});
+
+test('routes take the account from that side’s session, redirect relatively, and logouts revoke this phone', () => {
+  for (const file of ['../../app/api/push/register/route.js', '../../app/api/push/unregister/route.js', '../../app/api/push/unread/route.js']) {
+    assert.match(read(file), /currentPushAccount\(parseSide\(/, file);
+  }
+  const session = read('../../lib/pushSession.js');
+  assert.match(session, /getCurrentCustomerId\(\)/);
+  assert.match(session, /getCurrentChatAgentId\(\)/);
+  assert.match(read('../../app/compte/agent/alertes/[id]/route.js'), /getCurrentChatAgentId\(\)/);
+  assert.match(read('../../app/(site)/compte/client/notifications/[id]/route.js'), /getCurrentCustomerId\(\)/);
+  for (const file of ['../../app/compte/agent/alertes/[id]/route.js', '../../app/(site)/compte/client/notifications/[id]/route.js', '../../app/app/route.js']) {
+    assert.match(read(file), /Location: (path|target)/, `${file}: a relative redirect (behind the proxy request.url is localhost)`);
+  }
+  assert.match(read('../../app/compte/agent/actions.js'), /revokeDevice\('agent', agentId, pushToken, 'logout'\)/);
+  const customerActions = read('../../app/(site)/compte/actions.js');
+  assert.match(customerActions, /revokeThisPhone\(await getCurrentCustomerId\(\), 'logout'\)/);
+  assert.match(customerActions, /revokeThisPhone\(customerId, 'account deleted'\)/);
+});
+
+test('the app starts at /app; agents land in their space, everyone else on the listings', () => {
+  const config = JSON.parse(read('../../../mobile/capacitor.config.json'));
+  assert.equal(config.server.url, 'https://lukkaplace.com/app');
+  const start = read('../../app/app/route.js');
+  assert.match(start, /target = '\/compte\/agent'/);
+  assert.match(start, /let target = '\/'/);
+});

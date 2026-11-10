@@ -423,6 +423,15 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * App alerts (services/pushNotify.js): an urgent push still unread after
+ * PUSH_FALLBACK_MIN minutes also goes on WhatsApp, once. PUSH_NOTIFY=off stops it.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./pushNotify').pushFallbackJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

@@ -1,0 +1,27 @@
+{
+  "appId": "com.lukkaplace.app",
+  "appName": "Lukka Place",
+  "webDir": "www",
+  "server": {
+    "url": "https://lukkaplace.com/app",
+    "cleartext": false,
+    "allowNavigation": ["lukkaplace.com", "www.lukkaplace.com"],
+    "errorPath": "offline.html"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#144FC5",
+      "showSpinner": false
+    }
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never"
+  }
+}

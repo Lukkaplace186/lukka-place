@@ -1,12 +1,15 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, MessageCircle } from 'lucide-react';
+import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, MessageCircle, Bell } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import { useT } from '@/lib/i18n/client';
 import { useChatUnread, useUnreadTitle } from '@/lib/useChatUnread';
+import { useAlertsUnread } from '@/lib/useAlertsUnread';
+import { inNativeApp } from '@/lib/appBridge';
 import LanguageToggle from './LanguageToggle';
 
 /**
@@ -47,6 +50,10 @@ const NAV = [
   // Messagerie (web/CLAUDE.md): customers' conversations; the badge counts
   // conversations with an unread message.
   { href: '/compte/agent/messages', labelKey: 'agent.nav.messages', shortKey: 'agent.nav.messagesShort', icon: MessageCircle, countKey: 'messages' },
+  // Alertes (lib/pushNotifications.js): what the app pushed. On a phone's tab
+  // bar only inside the Lukka Place app, where it is the alerts' home; a
+  // browser on a phone keeps the six tabs it had.
+  { href: '/compte/agent/alertes', labelKey: 'agent.nav.alerts', shortKey: 'agent.nav.alertsShort', icon: Bell, countKey: 'alerts', mobileAppOnly: true },
   // Hidden until FlexPaie payments are live (/admin/settings, lib/siteSettings.js).
   { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck, featureKey: 'agentSubscriptions' },
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
@@ -62,6 +69,7 @@ export default function AgentSidebar({
   listingsCount,
   waitingCount = 0,
   unreadMessages = 0,
+  unreadAlerts = 0,
   completion,
   logoutAction,
   features = {},
@@ -74,7 +82,13 @@ export default function AgentSidebar({
   // (lib/useChatUnread.js) — it drops as soon as a conversation is read.
   const liveUnread = useChatUnread('agent', { initial: unreadMessages });
   useUnreadTitle(liveUnread);
-  const counts = { listings: listingsCount, leads: waitingCount, messages: liveUnread };
+  const liveAlerts = useAlertsUnread({ initial: unreadAlerts });
+  const counts = { listings: listingsCount, leads: waitingCount, messages: liveUnread, alerts: liveAlerts };
+  // Known only after hydration (window.Capacitor), so the server and the
+  // first client render agree and the tab appears a moment later in the app.
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => setInApp(inNativeApp()), []);
+  const tabs = nav.filter((item) => !item.mobileAppOnly || inApp);
 
   return (
     <>
@@ -111,7 +125,7 @@ export default function AgentSidebar({
                     className={`u-tabular rounded-full px-2 py-0.5 text-xs font-bold ${
                       active
                         ? 'bg-white/[0.22] text-white'
-                        : item.countKey === 'messages'
+                        : item.countKey === 'messages' || item.countKey === 'alerts'
                           ? 'bg-blue text-white'
                           : 'bg-canvas-deep text-ink-70'
                     }`}
@@ -180,8 +194,8 @@ export default function AgentSidebar({
       >
         {/* Columns follow NAV's length (inline, since Tailwind cannot see a
             composed grid-cols-N) so adding an entry never needs this line. */}
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
-          {nav.map((item) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+          {tabs.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;
             return (
@@ -204,7 +218,7 @@ export default function AgentSidebar({
                     // it counts what is waiting on the agent.
                     <span
                       className={`u-tabular absolute -right-3 -top-1.5 grid h-[1.125rem] min-w-[1.125rem] place-items-center rounded-full px-[5px] text-[0.65625rem] font-extrabold ring-2 ring-surface ${
-                        item.countKey === 'leads' || item.countKey === 'messages' ? 'bg-blue text-white' : 'bg-canvas-deep text-ink-70'
+                        item.countKey === 'leads' || item.countKey === 'messages' || item.countKey === 'alerts' ? 'bg-blue text-white' : 'bg-canvas-deep text-ink-70'
                       }`}
                     >
                       {count}

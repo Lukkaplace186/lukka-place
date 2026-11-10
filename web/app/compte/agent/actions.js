@@ -56,6 +56,8 @@ import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { revokeDevice } from '@/lib/pushNotifications';
+import { PUSH_TOKEN_COOKIE } from '@/lib/pushRules';
 import { normaliseArea } from '@/lib/listingView';
 import { getListingQuota } from '@/lib/listingQuota';
 import { findOwnedLead } from '@/lib/agentLeadOwnership';
@@ -111,6 +113,14 @@ async function assertAgentSession() {
 
 export async function agentLogoutAction() {
   const agentId = await getCurrentAgentId();
+  // In the app: this phone stops receiving this agent's alerts.
+  const pushToken = (await cookies()).get(PUSH_TOKEN_COOKIE)?.value;
+  if (agentId && pushToken) {
+    await revokeDevice('agent', agentId, pushToken, 'logout').catch((err) => {
+      console.error(`[agent] logout: push device revoke failed: ${err.message}`);
+    });
+    (await cookies()).delete({ name: PUSH_TOKEN_COOKIE, path: '/' });
+  }
   if (agentId) await bumpAgentTokenVersion(agentId);
   await clearAgentSession();
   redirect('/compte/agent/connexion');

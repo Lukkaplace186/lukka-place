@@ -6,6 +6,7 @@ import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { ToastProvider } from '@/components/Toast';
 import ClearMoveDraft from '@/components/ClearMoveDraft';
 import ClientPortalTabs from './ClientPortalTabs';
+import AppPushBridge from '@/components/AppPushBridge';
 import { getT } from '@/lib/i18n/server';
 
 // generateMetadata rather than a static object, so the tab title follows the
@@ -58,6 +59,8 @@ export default async function ClientPortalLayout({ children }) {
     // the screen before any of the customer's content.
     <div className="min-h-screen bg-page">
       <ClientPortalTabs counts={tabCounts} />
+      {/* Inside the Lukka Place app: alerts permission + this phone's registration for this customer. */}
+      <AppPushBridge side="customer" />
 
       {/* Signed in = the account exists: the signup cards' draft is done (lib/moveDraft.js). */}
       <ClearMoveDraft />

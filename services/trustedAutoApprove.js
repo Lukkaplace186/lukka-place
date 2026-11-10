@@ -30,6 +30,7 @@
 
 const pg = require('./postgres');
 const chakra = require('./chakra');
+const pushNotify = require('./pushNotify');
 const { db } = require('./db');
 
 const JOB_NAME = 'trusted-auto-approve';
@@ -114,8 +115,20 @@ async function runTrustedAutoApprove({ notify = true } = {}) {
     if (notify) {
       const listing = db.getListingByRemotePropertyId(Number(row.id));
       if (listing?.wa_id) {
-        chakra
-          .sendWhatsAppMessage(listing.wa_id, `Bonjour, bonne nouvelle ! Votre annonce est maintenant en ligne : ${SITE_URL}/listings/${row.id}`)
+        // The app first (services/pushNotify.js), WhatsApp when the agent has none.
+        pushNotify
+          .pushFirst({
+            phone: listing.wa_id,
+            kind: 'listing_verdict',
+            refId: row.id,
+            title: 'Votre annonce est en ligne',
+            body: `Bonne nouvelle ! L'annonce n° ${row.id} est maintenant visible sur Lukka Place.`,
+            url: `/compte/agent/biens/${row.id}`,
+            sendWhatsApp: () => chakra.sendWhatsAppMessage(
+              listing.wa_id,
+              `Bonjour, bonne nouvelle ! Votre annonce est maintenant en ligne : ${SITE_URL}/listings/${row.id}`,
+            ),
+          })
           .catch((err) => console.warn(`[auto-approve] notify for #${row.id} failed: ${err.message}`));
       }
     }

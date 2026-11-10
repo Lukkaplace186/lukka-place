@@ -59,7 +59,7 @@ const deskAlert = require('./deskAlert');
 const agentEnquiryAlert = require('./agentEnquiryAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
-const { placeLabel } = require('./locations');
+const { placeLabel, placeKey } = require('./locations');
 const { agentHandoffReply } = require('./contactHandoff');
 
 /**
@@ -120,6 +120,111 @@ function parseListingEnquiry(text) {
 
   const ref = text.match(REFERENCE);
   return { propertyId, reference: ref ? ref[1].trim() : null };
+}
+
+// ---------------------------------------------------------------------------
+// The same message WITHOUT its link (2026-11-10)
+// ---------------------------------------------------------------------------
+//
+// +243 828 553 557 sent the storefront's text with no URL at all (removed in
+// the chat before sending — no web builder omits it: every caller passes the
+// listing id). It fell through to the agent "Pour publier un bien…" help, the
+// customer's screenshot became a draft, and their next sentence became an
+// agent's name. The opening line is ours and no agent's advert carries it, so
+// it identifies a customer by itself; the facts line and the Réf. line find
+// the listing among live ones.
+
+/** Accent-, case- and apostrophe-insensitive, single-spaced. */
+function foldText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[’`]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** The fixed opening web/lib/whatsapp.js buildWhatsAppMessage writes. */
+const ENQUIRY_OPENING = /je vous contacte via lukka ?place au sujet de ce bien/;
+
+/** Does the text carry the storefront enquiry's own opening line? */
+function carriesEnquiryOpening(text) {
+  return ENQUIRY_OPENING.test(foldText(text));
+}
+
+/** "1 100 $", "120 $" (fr-FR groups with spaces, NBSP or narrow NBSP). */
+const PRICE_IN_FACTS = /(\d[\d\s  .]*)\s*\$/;
+
+/**
+ * The listing as the message describes it, or null when the text is not
+ * the storefront enquiry. Every field is null when the message did not
+ * state it — nothing is filled in.
+ *
+ * @returns {{facts: string|null, reference: string|null, propertyType: string|null,
+ *            placeParts: string[], price: number|null}|null}
+ */
+function parseLinklessEnquiry(text) {
+  if (!text || typeof text !== 'string' || !carriesEnquiryOpening(text)) return null;
+  const lines = text.split(/\r?\n/).map((line) => line.trim());
+  const start = lines.findIndex((line) => ENQUIRY_OPENING.test(foldText(line)));
+  let facts = null;
+  let reference = null;
+  for (const line of lines.slice(start + 1)) {
+    if (!line) continue;
+    const ref = line.match(/^R[ée]f\s*[.:]\s*(.+)$/i);
+    if (ref) {
+      reference = ref[1].trim() || null;
+      continue;
+    }
+    if (/disponible|visiter|https?:\/\//i.test(line)) break;
+    if (!facts) facts = line;
+  }
+
+  let propertyType = null;
+  let placeParts = [];
+  let price = null;
+  for (const part of facts ? facts.split(/\s+[—–]\s+/) : []) {
+    const amount = part.match(PRICE_IN_FACTS);
+    if (amount) {
+      const n = Number.parseInt(amount[1].replace(/\D/g, ''), 10);
+      price = Number.isFinite(n) && n > 0 ? n : null;
+      continue;
+    }
+    // "Studio à Industriel, Limete" — type, then "quartier, commune[, ville]".
+    const at = part.indexOf(' à ');
+    const place = at >= 0 ? part.slice(at + 3) : part;
+    if (at >= 0) propertyType = part.slice(0, at).trim() || null;
+    placeParts = place.split(/\s*,\s*/).map((p) => p.trim()).filter(Boolean);
+  }
+  return { facts, reference, propertyType, placeParts, price };
+}
+
+/**
+ * Which live candidates fit what the message states. Only what the message
+ * states is compared; a fact the listing lacks never disqualifies it except
+ * the commune, which the message always names when it has a place.
+ *
+ * @returns {number[]} property ids
+ */
+function matchEnquiryCandidates(parsed, rows) {
+  if (!parsed || !Array.isArray(rows)) return [];
+  const type = parsed.propertyType ? foldText(parsed.propertyType) : null;
+  const placeKeys = parsed.placeParts.map((p) => placeKey(p));
+  return rows
+    .filter((row) => {
+      if (type && row.category_name && foldText(row.category_name) !== type) return false;
+      if (placeKeys.length) {
+        // A single segment with no " à " may be the type alone.
+        const single = placeKeys.length === 1 && !type;
+        const communeOk = row.commune && placeKeys.includes(placeKey(row.commune));
+        const typeOk = single && row.category_name && foldText(row.category_name) === foldText(parsed.placeParts[0]);
+        if (!communeOk && !typeOk) return false;
+        if (placeKeys.length >= 2 && row.quartier && placeKey(row.quartier) !== placeKeys[0]) return false;
+      }
+      return true;
+    })
+    .map((row) => Number(row.id));
 }
 
 /** "+243 82 112 29 37" is what a person dials; `243821122937` is what we store. */
@@ -339,8 +444,22 @@ function recordEnquiryLead({ from, propertyId, listing, conversationId }) {
  *   being swallowed because it happened to quote a listing URL.
  */
 async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
-  const parsed = parseListingEnquiry(text);
-  if (!parsed) return { handled: false };
+  let parsed = parseListingEnquiry(text);
+  // No link: our own opening line still says it is a customer asking about
+  // one of our listings. One live match is that listing; none or several is
+  // a customer whose listing we cannot name — never the agent path.
+  let linkless = null;
+  if (!parsed) {
+    linkless = parseLinklessEnquiry(text);
+    if (!linkless) return { handled: false };
+    const rows = await propertyRepository.findLiveListingsForEnquiry({ price: linkless.price, reference: linkless.reference });
+    const ids = matchEnquiryCandidates(linkless, rows);
+    if (ids.length !== 1) {
+      return handleUnidentifiedEnquiry({ from, text, primaryWamid, linkless, candidateIds: ids });
+    }
+    console.log(`[enquiry] ${from} — enquiry with no link matched property #${ids[0]} by its text`);
+    parsed = { propertyId: ids[0], reference: linkless.reference };
+  }
 
   const { propertyId, reference: quotedReference } = parsed;
 
@@ -356,6 +475,9 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
     console.error(`[enquiry] listing lookup for property #${propertyId} failed: ${err.message}`);
   }
 
+  if (!listing && linkless) {
+    return handleUnidentifiedEnquiry({ from, text, primaryWamid, linkless, candidateIds: [] });
+  }
   if (!listing) {
     // The link named a listing we cannot confirm is live. Answering "an
     // agent will call you about it" would be a promise about a property
@@ -445,8 +567,122 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
   return { handled: true, propertyId };
 }
 
+/** How the customer quoted the listing, their own words: facts line + Réf. */
+function quotedListing(linkless) {
+  return [linkless.facts, linkless.reference ? `Réf. ${linkless.reference}` : null].filter(Boolean).join('\n');
+}
+
+/** The reply when we cannot tell which listing the customer means. */
+function unidentifiedReply({ linkless, several, reached }) {
+  const quoted = quotedListing(linkless);
+  const lines = [
+    quoted ? `Bonjour ! Merci pour votre message au sujet de ce bien :\n${quoted}` : 'Bonjour ! Merci pour votre message.',
+    '',
+    several
+      ? 'Plusieurs annonces correspondent à cette description. Pouvez-vous nous envoyer le *lien de l’annonce* (bouton « Partager » sur la page) ?'
+      : 'Nous n’avons pas retrouvé cette annonce en ligne. Pouvez-vous nous envoyer le *lien de l’annonce* (bouton « Partager » sur la page) ?',
+  ];
+  lines.push('', reached
+    ? 'Notre équipe a reçu votre demande et vous répond très rapidement.'
+    : 'Vous pouvez aussi nous décrire ce que vous cherchez ici : commune, budget, nombre de chambres.');
+  return lines.join('\n');
+}
+
+/** The desk copy for an enquiry whose listing is not identified. */
+function unidentifiedOpsMessage({ linkless, from, candidateIds }) {
+  return [
+    HEADER,
+    '',
+    '⚠️ Annonce non identifiée (message sans lien).',
+    quotedListing(linkless) || '(aucun détail du bien dans le message)',
+    `• Client : ${displayPhone(from)}`,
+    candidateIds.length
+      ? `• Annonces possibles : ${candidateIds.map((id) => `#${id}`).join(', ')}`
+      : '• Aucune annonce en ligne ne correspond.',
+    '',
+    'À traiter manuellement : le client a été invité à envoyer le lien.',
+  ].join('\n');
+}
+
+/**
+ * A storefront enquiry with no link whose listing we cannot name (none or
+ * several live matches). Still a customer: a lead, the desk, and a reply
+ * asking for the link. Same 24 h de-duplication as an identified enquiry.
+ *
+ * @returns {Promise<{handled: true, propertyId: null, unidentified: true}>}
+ */
+async function handleUnidentifiedEnquiry({ from, text, primaryWamid, linkless, candidateIds = [] }) {
+  let conversation = null;
+  try {
+    conversation = db.getActiveConversation(from) || db.createConversation(from);
+    db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text, intent: 'listing_enquiry' });
+  } catch (err) {
+    console.error(`[enquiry] could not record the conversation for ${from}: ${err.message}`);
+  }
+
+  let recent = null;
+  try {
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+    recent = db.db
+      .prepare(
+        `SELECT id FROM leads WHERE wa_id = ? AND source = 'listing-whatsapp-enquiry' AND property_id IS NULL
+            AND datetime(created_at) >= datetime(?) ORDER BY id DESC LIMIT 1`,
+      )
+      .get(String(from).replace(/\D/g, ''), since) || null;
+  } catch (err) {
+    console.error(`[enquiry] recent-lead lookup for ${from} failed: ${err.message}`);
+  }
+
+  let opsNotified = false;
+  if (!recent) {
+    try {
+      db.createLead({
+        conversation_id: conversation?.id ?? null,
+        wa_id: from,
+        source: 'listing-whatsapp-enquiry',
+        property_id: null,
+        requirements_summary: `Demande de disponibilité — annonce non identifiée : ${(linkless.facts || '').slice(0, 200)}`
+          + (linkless.reference ? ` (Réf. ${linkless.reference.slice(0, 80)})` : ''),
+        status: 'NEW',
+      });
+    } catch (err) {
+      console.error(`[enquiry] could not record a lead for ${from}: ${err.message}`);
+    }
+    const OPS_NUMBER = opsNumber();
+    if (OPS_NUMBER) {
+      try {
+        await deskAlert.sendDeskAlert(OPS_NUMBER, unidentifiedOpsMessage({ linkless, from, candidateIds }), {
+          label: 'listing enquiry (unidentified)',
+        });
+        opsNotified = true;
+      } catch (err) {
+        console.error(`[enquiry] ops copy for ${from}'s unidentified enquiry failed: ${err.message}`);
+      }
+    } else {
+      console.error(`[enquiry] unidentified enquiry from ${from} reached NOBODY — OPS_WHATSAPP_NUMBER is unset`);
+    }
+  }
+
+  const reply = unidentifiedReply({ linkless, several: candidateIds.length > 1, reached: opsNotified || Boolean(recent) });
+  try {
+    await chakra.sendWhatsAppMessage(from, reply, { replyToMessageId: primaryWamid || undefined });
+    if (conversation) db.recordMessage(conversation.id, 'outbound', { text: reply, sender: 'system' });
+  } catch (err) {
+    console.error(`[enquiry] replying to ${from} about an unidentified listing failed: ${err.message}`);
+  }
+  console.log(
+    `[enquiry] ${from} — enquiry with no link, listing not identified `
+      + `(${candidateIds.length} candidate(s), ops=${opsNotified}${recent ? `, follow-up of lead #${recent.id}` : ''})`,
+  );
+  return { handled: true, propertyId: null, unidentified: true };
+}
+
 module.exports = {
   handleListingEnquiry,
+  parseLinklessEnquiry,
+  matchEnquiryCandidates,
+  carriesEnquiryOpening,
+  unidentifiedReply,
   parseListingEnquiry,
   notifyEnquiry,
   customerReply,

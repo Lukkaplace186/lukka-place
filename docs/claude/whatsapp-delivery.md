@@ -351,7 +351,7 @@ project: `mobile/` (Capacitor shell loading `/compte/agent`, README there).
   `/compte/agent/alertes`, `lib/appBridge.js` (only active inside the app,
   through `window.Capacitor`), logout revokes this phone (cookie
   `lukka_push_token`). web/CLAUDE.md, "Lukka Place app".
-- verify-pipeline §97; web `tests/unit/push-notifications.test.js`.
+- verify-pipeline §98; web `tests/unit/push-notifications.test.js`.
 
 ### Customers, one app (2026-11-10, part 2 phase 0)
 
@@ -381,7 +381,7 @@ What phase 0 built:
   helper: `lib/adminApi.js` `pushToAccount` (never throws).
 - **Migration** `20261110_push_notifications.sql` now also creates
   `notification_preferences` (PK user_type, user_id, category).
-- verify-pipeline §98.
+- verify-pipeline §99.
 
 ### Customer alerts app-first (2026-11-10, part 2 phase 1)
 
@@ -422,7 +422,7 @@ profil switches.
 - ~~Known gap: a customer who turned WhatsApp alerts off got these in the app
   neither.~~ Fixed in phase 2: the sweeps read them and the route only
   pushes.
-- verify-pipeline §99; web `tests/unit/push-notifications.test.js`.
+- verify-pipeline §100; web `tests/unit/push-notifications.test.js`.
 
 ### New customer alerts (2026-11-10, part 2 phase 2)
 
@@ -469,7 +469,7 @@ stored number. Category `requests`.
 
 **B6** is built: see "The 24 h follow-up" in docs/claude/leads-and-enquiries.md.
 
-verify-pipeline §100.
+verify-pipeline §101.
 
 ### Standard portal alerts, first batch (2026-11-10, part 2 phase 3)
 
@@ -500,7 +500,7 @@ app-only for discovery alerts. Only customers with the app are read.
   - Each customer's oldest active search that has been saved for over 30 days.
   - Asked again only after 60 days.
 - The rest of phase 3 is below ("Standard portal alerts, second batch").
-- verify-pipeline §102; web `tests/unit/push-notifications.test.js`.
+- verify-pipeline §103; web `tests/unit/push-notifications.test.js`.
 
 ### Standard portal alerts, second batch (2026-11-10, part 2 phase 3)
 
@@ -542,4 +542,4 @@ app-only for discovery alerts. Only customers with the app are read.
 **Notifications can now open more pages:** `safeCustomerPath` and
 `alertTarget` allow `/projets`, `/combien-coute` and `/agents`.
 
-verify-pipeline §103; web `tests/unit/push-notifications.test.js`.
+verify-pipeline §104; web `tests/unit/push-notifications.test.js`.

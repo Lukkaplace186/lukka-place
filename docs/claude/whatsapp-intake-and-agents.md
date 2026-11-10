@@ -624,3 +624,42 @@ model. Engine pieces:
   session announcement could not have landed (no message from them in the
   23 h before it). `REFERRAL_ANNOUNCE_ON_WRITE=off` disables. Run
   `migrations/20261103_referral_announcement_channel.sql` first. §68.
+
+## Customers on the intake number are never turned into agents (2026-11-10)
+
+Since every storefront WhatsApp button routes to the intake number (2026-11-09),
+customers and agents share one chat, and the intake's agent-first defaults
+caught two customers on 2026-11-10: the storefront enquiry arrived without its
+link and got the agent "Pour publier un bien…" help, the customer's screenshot
+became a draft, and their next sentence ("Je contacte parce que j'ai vu cette
+annonce…", "J'ai vu cette annonce dans votre site") was stored as an agent's
+name: verified agent accounts created, listings #806 and #811 sent to
+moderation. Those two accounts and listings were left for the owner to decide.
+
+- **Known customer** (`services/customerIdentity.js` `senderRole`): a lead from
+  the number in the last 60 days, an open visit, or a `customers` account on
+  the phone, AND no agent signal. An `agents` row on the number (own or linked
+  number, not soft-deleted) or a published listing from it always wins, so a
+  real agent's path is unchanged. Postgres unreachable: SQLite decides.
+- **Routing** (`routes/webhook.js`, after the enquiry / contact / signup /
+  referral branches, before the quick replies): a known customer with no draft
+  pending, not mid-onboarding, no PDF, and whose text does not stand alone as
+  a priced offer (`listingBoundary.standsAloneAsListing`) gets: silence for an
+  acknowledgment; the customer assistant (`handleBuyerMessage`) for any other
+  text, never the agent greeting, signup or how-to; `CUSTOMER_PHOTO_REPLY` for
+  a bare photo (asks for the listing link; at most once per 30 min), never a
+  draft or a model call. The "Message reçu… votre annonce ⏳" media ack is not
+  sent to them either. The not-a-listing fallback also hands a known customer
+  to the assistant instead of `FALLBACK_REPLY`.
+- **The name step refuses sentences** (`agentOnboarding.nameReplyShape`): a
+  question, a first-person opening ("je…", "j'ai…"), interest wording (vu,
+  intéressé, disponible, visite, annonce, votre site…) or more than four words
+  before the agency is not a name; no account is created. A customer-like
+  sentence after a draft made of a bare photo (no text) closes the onboarding,
+  sets the draft aside (SQLite status `customer_message`, outside every draft,
+  auto-submit and publish query) and hands the sender to the assistant;
+  otherwise `NAME_REASK_REPLY` asks again. "Moi c'est Patrick" and
+  "Jean Kabeya, Agence Horizon" still pass.
+- The link-less storefront enquiry itself: see "Listing Enquiries from the
+  Storefront's WhatsApp CTA" in `docs/claude/leads-and-enquiries.md`.
+- §97 of verify-pipeline replays both conversations.

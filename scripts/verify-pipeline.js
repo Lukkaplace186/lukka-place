@@ -16489,9 +16489,297 @@ console.log('\n2. services/openai.js');
     mem96.close();
   }
 
-  // §97 App alerts: push first, WhatsApp as the fallback (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§97 App alerts — push to the agent’s phones first, WhatsApp when there is no app, a dead push, or an urgent alert left unread');
+  // §97 A customer on the intake number stays a customer (2026-11-10)
+  // ---------------------------------------------------------------------------
+  // Replays the two production conversations of 2026-11-10 that onboarded two
+  // customers as agents and sent their screenshots to moderation (#806, #811):
+  // the storefront enquiry with no link, a screenshot, "j'ai vu cette annonce"
+  // taken as a name. Numbers are fake. services/customerIdentity.js,
+  // services/listingEnquiry.js (link-less enquiry), agentOnboarding nameReplyShape.
+  console.log('\n§97 a customer on the intake number stays a customer: no agent help, no draft, no account');
+  {
+    const enquiry96 = require('../services/listingEnquiry');
+    const identity96 = require('../services/customerIdentity');
+    const findLive96 = propertyRepo.findLiveListingsForEnquiry;
+    const contact96 = propertyRepo.getListingContactById;
+    const remote96 = identity96.remoteSignals;
+    const savedOps96 = process.env.OPS_WHATSAPP_NUMBER;
+    const OPS96 = '243846962654';
+    const ENQ96 = 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\nStudio à Industriel, Limete — 120 $ / mois\nRéf. antenne orange\n\n'
+      + 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?';
+    const STUDIO96 = { id: 790, reference: 'antenne orange', price: 120, purpose: 'rent', quartier: 'Industriel', commune: 'Limete', category_name: 'Studio', title: 'Studio à louer à Limete' };
+    const CONTACT96 = { ...ATTRIBUTED_LISTING, id: '790', reference: 'antenne orange', title: 'Studio à louer à Limete', commune: 'Limete', direct_routing_enabled: true };
+    const sent96 = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+    const text96 = (wa) => JSON.stringify(sent96(wa));
+    const rows96 = (wa) => dbService.db.prepare('SELECT COUNT(*) AS n FROM listings WHERE wa_id = ?').get(wa).n;
+    const AGENT_HELP = /Pour publier un bien|Envoyez-moi votre annonce|Deux façons de vous inscrire|Votre compte agent/;
+
+    check('the storefront text without its link is read: type, place, price and Réf.', () => {
+      assert.deepStrictEqual(enquiry96.parseLinklessEnquiry(ENQ96), {
+        facts: 'Studio à Industriel, Limete — 120 $ / mois',
+        reference: 'antenne orange',
+        propertyType: 'Studio',
+        placeParts: ['Industriel', 'Limete'],
+        price: 120,
+      });
+      const grouped = enquiry96.parseLinklessEnquiry('Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\nAppartement à Limete — 1 100 $ / mois\n\nEst-il toujours disponible ?');
+      assert.strictEqual(grouped.price, 1100);
+      assert.deepStrictEqual(grouped.placeParts, ['Limete']);
+      assert.strictEqual(grouped.reference, null);
+      assert.strictEqual(enquiry96.parseLinklessEnquiry('Studio à louer Limete 120$ antenne orange'), null);
+      assert.strictEqual(enquiry96.carriesEnquiryOpening('Appartement à louer, je vous contacte pour la visite'), false);
+    });
+
+    check('candidates must fit the stated type, commune and quartier', () => {
+      const parsed = enquiry96.parseLinklessEnquiry(ENQ96);
+      const ids = enquiry96.matchEnquiryCandidates(parsed, [
+        STUDIO96,
+        { ...STUDIO96, id: 791, commune: 'Lemba', quartier: null },
+        { ...STUDIO96, id: 792, category_name: 'Appartement' },
+        { ...STUDIO96, id: 793, quartier: 'Kingabwa' },
+      ]);
+      assert.deepStrictEqual(ids, [790]);
+    });
+
+    check('a sentence is never a name; "name, agency" still is', () => {
+      for (const s of [
+        'Je contacte parce que j’ai vu cette annonce dans votre site et je suis interessé',
+        'J’ai vu cette annoncr dans votre site',
+        'Cette maison est encore disponible ?',
+      ]) assert.deepStrictEqual(onboarding.nameReplyShape(s), { sentence: true, customerLike: true }, s);
+      assert.strictEqual(onboarding.nameReplyShape('Je suis agent immobilier depuis dix ans').customerLike, false);
+      assert.strictEqual(onboarding.nameReplyShape('Je suis agent immobilier depuis dix ans').sentence, true);
+      for (const name of ['Jean Kabeya, Agence Horizon', 'Bonjour, Jean-Pierre Kabeya Mutombo - Agence Immobilière Horizon de Kinshasa', "Moi c'est Patrick", 'Esther Mbuyi']) {
+        assert.strictEqual(onboarding.nameReplyShape(name).sentence, false, name);
+      }
+    });
+
+    await checkAsync('completeOnboarding refuses a sentence before any account is created', async () => {
+      const out = await onboarding.completeOnboarding('243999009600', 'J’ai vu cette annonce dans votre site');
+      assert.deepStrictEqual(out, { handled: false, reason: 'sentence', customerLike: true });
+    });
+
+    try {
+      process.env.OPS_WHATSAPP_NUMBER = OPS96;
+      propertyRepo.findLiveListingsForEnquiry = async () => [STUDIO96];
+      propertyRepo.getListingContactById = async (id) => (Number(id) === 790 ? CONTACT96 : null);
+
+      // --- Conversation 1 (listing #806): enquiry with no link, screenshot, sentence.
+      const C1 = '243828009601';
+      const calls1 = openaiCalls.length;
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.C96_1', ENQ96, C1));
+      await settle(600);
+      check('1 — the link-less enquiry finds its listing: lead, agent alerted, the customer handed the agent', () => {
+        assert.strictEqual(openaiCalls.length, calls1, 'no model call');
+        const leads = dbService.listLeads({ waId: C1 }).data;
+        assert.strictEqual(leads.length, 1);
+        assert.strictEqual(leads[0].source, 'listing-whatsapp-enquiry');
+        assert.strictEqual(Number(leads[0].property_id), 790);
+        assert.ok(sent96(AGENT_WA).length >= 1, 'agent alerted');
+        assert.match(text96(C1), new RegExp(`wa\\.me\\/${AGENT_WA}`));
+        assert.doesNotMatch(text96(C1), AGENT_HELP);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inboundImage('wamid.C96_2', 'media_c96_2', null, C1));
+      await settle(600);
+      check('1 — then a screenshot: no draft, no model call, asked for the link', () => {
+        assert.strictEqual(rows96(C1), 0);
+        assert.strictEqual(openaiCalls.length, calls1);
+        assert.strictEqual(sent96(C1).length, 1);
+        assert.strictEqual(sent96(C1)[0].data.text.body, identity96.CUSTOMER_PHOTO_REPLY);
+        assert.ok(!onboarding.getSession(C1));
+      });
+
+      httpCalls.length = 0;
+      completionQueue.push(assistantTextCompletion('ASSISTANT_96_C1'));
+      await post('/webhook', inbound('wamid.C96_3', 'Je contacte parce que j’ai vu cette annonce dans votre site et je suis interessé', C1));
+      await settle(600);
+      check('1 — "je contacte parce que j\'ai vu…" goes to the customer assistant, never becomes a name', () => {
+        assert.strictEqual(sent96(C1).length, 1);
+        assert.strictEqual(sent96(C1)[0].data.text.body, 'ASSISTANT_96_C1');
+        assert.ok(!onboarding.getSession(C1), 'no onboarding session');
+        assert.strictEqual(rows96(C1), 0);
+        assert.strictEqual(openaiCalls.length, calls1 + 1, 'only the assistant turn, no extraction');
+      });
+
+      // --- Conversation 2 (listing #811): a confirmed visit, then questions and a screenshot.
+      const C2 = '243999009602';
+      const lead2 = dbService.createLead({ wa_id: C2, source: 'listing-visit-request', property_id: 790 });
+      const visit2 = dbService.createViewingRequest({ leadId: lead2.id, propertyId: 790, requestedTime: 'lundi 10h' });
+      dbService.db.prepare("UPDATE viewing_requests SET status = 'CONFIRMED' WHERE id = ?").run(visit2.id);
+      const calls2 = openaiCalls.length;
+      const steps2 = [
+        ['wamid.C96_21', 'La visite est gratuite ?'],
+        ['wamid.C96_22', 'Bonjour monsieur'],
+        ['wamid.C96_24', 'J’ai vu cette annoncr dans votre site'],
+        ['wamid.C96_25', 'Cette maison est encore disponible ?'],
+      ];
+      httpCalls.length = 0;
+      for (const [wamid, body] of steps2.slice(0, 2)) {
+        completionQueue.push(assistantTextCompletion(`ASSISTANT_96_${wamid}`));
+        await post('/webhook', inbound(wamid, body, C2));
+        await settle(600);
+      }
+      await post('/webhook', inboundImage('wamid.C96_23', 'media_c96_23', null, C2));
+      await settle(600);
+      for (const [wamid, body] of steps2.slice(2)) {
+        completionQueue.push(assistantTextCompletion(`ASSISTANT_96_${wamid}`));
+        await post('/webhook', inbound(wamid, body, C2));
+        await settle(600);
+      }
+      check('2 — a customer with a confirmed visit: every question answered by the customer assistant', () => {
+        const bodies = sent96(C2).map((c) => c.data.text?.body);
+        assert.deepStrictEqual(bodies, [
+          'ASSISTANT_96_wamid.C96_21',
+          'ASSISTANT_96_wamid.C96_22',
+          identity96.CUSTOMER_PHOTO_REPLY,
+          'ASSISTANT_96_wamid.C96_24',
+          'ASSISTANT_96_wamid.C96_25',
+        ]);
+        assert.doesNotMatch(text96(C2), AGENT_HELP);
+      });
+      check('2 — no draft, no onboarding, no extraction call', () => {
+        assert.strictEqual(rows96(C2), 0);
+        assert.ok(!onboarding.getSession(C2));
+        assert.strictEqual(openaiCalls.length, calls2 + 4);
+        assert.strictEqual(completionQueue.length, 0);
+      });
+
+      // --- Not identified: none, or several, live listings fit.
+      propertyRepo.findLiveListingsForEnquiry = async () => [];
+      const C3 = '243828009603';
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.C96_31', ENQ96, C3));
+      await settle(600);
+      check('no live listing fits: a lead with no listing, the desk told, the customer asked for the link', () => {
+        const leads = dbService.listLeads({ waId: C3 }).data;
+        assert.strictEqual(leads.length, 1);
+        assert.strictEqual(leads[0].property_id, null);
+        assert.match(leads[0].requirements_summary, /non identifiée/);
+        assert.ok(sent96(OPS96).length >= 1, 'desk alerted');
+        assert.match(text96(C3), /lien de l’annonce/);
+        assert.match(text96(C3), /Notre équipe a reçu votre demande/);
+        assert.doesNotMatch(text96(C3), AGENT_HELP);
+      });
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.C96_32', ENQ96, C3));
+      await settle(600);
+      check('the same message again the same day: no second lead, no second desk alert', () => {
+        assert.strictEqual(dbService.listLeads({ waId: C3 }).data.length, 1);
+        assert.strictEqual(sent96(OPS96).length, 0);
+        assert.strictEqual(sent96(C3).length, 1);
+      });
+      propertyRepo.findLiveListingsForEnquiry = async () => [STUDIO96, { ...STUDIO96, id: 794 }];
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.C96_33', ENQ96, '243828009604'));
+      await settle(600);
+      check('several fit: the customer is asked which; with nobody reached they are asked what they look for', () => {
+        assert.match(text96('243828009604'), /Plusieurs annonces correspondent/);
+        assert.match(enquiry96.unidentifiedReply({ linkless: enquiry96.parseLinklessEnquiry(ENQ96), several: false, reached: false }), /décrire ce que vous cherchez/);
+      });
+
+      // --- The enquiry text sent WITH a screenshot is still the enquiry.
+      propertyRepo.findLiveListingsForEnquiry = async () => [STUDIO96];
+      const C5 = '243828009605';
+      httpCalls.length = 0;
+      await post('/webhook', inboundImage('wamid.C96_51', 'media_c96_51', ENQ96, C5));
+      await settle(600);
+      check('the enquiry with a screenshot attached is handled as the enquiry, not a listing', () => {
+        assert.strictEqual(rows96(C5), 0);
+        assert.strictEqual(Number(dbService.listLeads({ waId: C5 }).data[0]?.property_id), 790);
+      });
+
+      // --- An unknown sender caught at the name step (old path): screenshot draft set aside.
+      const C6 = '243828009606';
+      const draft6 = dbService.insertListing({ is_listing: true, property_type: 'appartement', commune: 'Limete', price: 120 }, C6, { wamid: 'wamid.C96_60' });
+      attachPhoto(draft6.id, 'c96shot');
+      onboarding.startOnboarding(C6, {}, 0);
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: false, intent: 'question', commune: null, price: null }, 'MODEL_REPLY_96'));
+      completionQueue.push(assistantTextCompletion('ASSISTANT_96_C6'));
+      await post('/webhook', inbound('wamid.C96_61', 'J’ai vu cette annoncr dans votre site', C6));
+      await settle(600);
+      check('a customer sentence at the name step: no account, the screenshot draft set aside, the assistant answers', () => {
+        assert.strictEqual(dbService.getListing(draft6.id).status, 'customer_message');
+        assert.ok(!dbService.findLatestPendingListing(C6));
+        assert.ok(!onboarding.getSession(C6));
+        assert.deepStrictEqual(sent96(C6).map((c) => c.data.text?.body), ['ASSISTANT_96_C6']);
+      });
+
+      // --- An agent's draft with text: a sentence is asked again, nothing is closed.
+      const C7 = '243828009607';
+      const draft7 = dbService.insertListing({ is_listing: true, property_type: 'appartement', commune: 'Limete', price: 400 }, C7, {
+        wamid: 'wamid.C96_70', rawText: 'Appartement 2 chambres à louer Limete 400$',
+      });
+      attachPhoto(draft7.id, 'c96agent');
+      onboarding.startOnboarding(C7, {}, 0);
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: false, intent: 'question', commune: null, price: null }, 'MODEL_REPLY_96'));
+      await post('/webhook', inbound('wamid.C96_71', 'Je suis agent immobilier depuis dix ans', C7));
+      await settle(600);
+      check('an agent answering with a sentence is asked for the name again; draft and question stay', () => {
+        assert.deepStrictEqual(sent96(C7).map((c) => c.data.text?.body), [onboarding.NAME_REASK_REPLY]);
+        assert.strictEqual(dbService.getListing(draft7.id).status, 'pending_confirmation');
+        assert.strictEqual(onboarding.getSession(C7).state, 'AWAITING_NAME');
+      });
+
+      // --- Real agents keep their path.
+      await checkAsync('an agent account or a published listing outweighs every customer signal', async () => {
+        identity96.remoteSignals = async () => ({ checked: true, agent: { id: 5, deleted_at: null }, customerId: null });
+        assert.deepStrictEqual(await identity96.senderRole(C2), { role: 'agent', reasons: ['agent-account'] });
+        identity96.remoteSignals = async () => ({ checked: true, agent: { id: 5, deleted_at: '2026-11-01' }, customerId: 9 });
+        assert.deepStrictEqual(await identity96.senderRole(C2), { role: 'customer', reasons: ['lead', 'open-visit', 'customer-account'] });
+        identity96.remoteSignals = async () => { throw new Error('pool down'); };
+        assert.strictEqual((await identity96.senderRole(C2)).role, 'customer');
+        assert.strictEqual((await identity96.senderRole('243828009699')).role, 'unknown');
+        const pub = dbService.insertListing({ is_listing: true, property_type: 'villa', commune: 'Gombe', price: 2000 }, C2, { wamid: 'wamid.C96_PUB' });
+        dbService.db.prepare("UPDATE listings SET status = 'published' WHERE id = ?").run(pub.id);
+        assert.deepStrictEqual(await identity96.senderRole(C2), { role: 'agent', reasons: ['published-listing'] });
+        dbService.db.prepare('DELETE FROM listings WHERE id = ?').run(pub.id);
+      });
+
+      identity96.remoteSignals = async () => ({ checked: true, agent: { id: 5, deleted_at: null }, customerId: null });
+      const C8 = '243828009608';
+      dbService.createLead({ wa_id: C8, source: 'listing-whatsapp-enquiry', property_id: 790 });
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.C96_81', 'Bonjour', C8));
+      await settle(600);
+      check('a number with an agent account gets the agent greeting as before, even with a lead on it', () => {
+        assert.deepStrictEqual(sent96(C8).map((c) => c.data.text?.body), [require('../services/quickReplies').GREETING_REPLY]);
+      });
+      httpCalls.length = 0;
+      await post('/webhook', inboundImage('wamid.C96_82', 'media_c96_82', null, C8));
+      await settle(600);
+      check('…and its photo still gets the listing ack', () => {
+        assert.ok(sent96(C8).some((c) => /un instant pendant que nous traitons votre annonce/.test(c.data.text?.body || '')));
+      });
+      completionQueue.length = 0;
+
+      identity96.remoteSignals = remote96;
+      const before9 = rows96(C2);
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, intent: 'listing', property_type: 'maison', commune: 'Ngaliema', price: 800 }, 'Annonce reçue'));
+      await post('/webhook', inbound('wamid.C96_91', 'Maison à louer Ngaliema 3 chambres 800$ par mois', C2));
+      await settle(600);
+      check('a known customer offering a property with a price still reaches listing intake', () => {
+        assert.strictEqual(rows96(C2), before9 + 1);
+        assert.strictEqual(completionQueue.length, 0);
+      });
+    } finally {
+      propertyRepo.findLiveListingsForEnquiry = findLive96;
+      propertyRepo.getListingContactById = contact96;
+      identity96.remoteSignals = remote96;
+      completionQueue.length = 0;
+      if (savedOps96 === undefined) delete process.env.OPS_WHATSAPP_NUMBER; else process.env.OPS_WHATSAPP_NUMBER = savedOps96;
+    }
+  }
+
+  // §98 App alerts: push first, WhatsApp as the fallback (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§98 App alerts — push to the agent’s phones first, WhatsApp when there is no app, a dead push, or an urgent alert left unread');
   {
     const push95 = require('../services/pushNotify');
     const viewing95 = require('../services/viewingNotifications');
@@ -16836,13 +17124,13 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §98 App alerts for customers: one app, categories, POST /admin/push (2026-11-10)
+  // §99 App alerts for customers: one app, categories, POST /admin/push (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§98 App alerts for customers — found by account or phone, per-kind switches, a 10-minute late copy, POST /admin/push');
+  console.log('\n§99 App alerts for customers — found by account or phone, per-kind switches, a 10-minute late copy, POST /admin/push');
   {
     const push96 = require('../services/pushNotify');
 
-    // The §97 fake, plus customers and notification_preferences.
+    // The §98 fake, plus customers and notification_preferences.
     function fakePool96({ prefsTable = true } = {}) {
       const state = {
         customers: [{ id: 31, phone: '243906500096' }],
@@ -17049,9 +17337,9 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §99 Customer alerts go app-first: visits, request claimed, chat (2026-11-10)
+  // §100 Customer alerts go app-first: visits, request claimed, chat (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§99 Customer alerts app-first — visits, a request taken, chat; WhatsApp unchanged without the app');
+  console.log('\n§100 Customer alerts app-first — visits, a request taken, chat; WhatsApp unchanged without the app');
   {
     const push97 = require('../services/pushNotify');
     const viewing97 = require('../services/viewingNotifications');
@@ -17182,9 +17470,9 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §100 New customer alerts: request sent, reminders, desk changes, the team takes over, saved listings (2026-11-10)
+  // §101 New customer alerts: request sent, reminders, desk changes, the team takes over, saved listings (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§100 New customer alerts — visit request sent, reminders, changes, the team takes over, saved listings let / back on the market');
+  console.log('\n§101 New customer alerts — visit request sent, reminders, changes, the team takes over, saved listings let / back on the market');
   {
     const alerts98 = require('../services/customerAlerts');
     const fav98 = require('../services/favoriteStatus');
@@ -17323,9 +17611,9 @@ console.log('\n2. services/openai.js');
     });
   }
 
-  // §101 The 24 h "Un agent vous a-t-il contacté ?" follow-up (2026-11-10)
+  // §102 The 24 h "Un agent vous a-t-il contacté ?" follow-up (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§101 24 h follow-up — asked once, one per customer a day, three answers: contacted / relaunch / closed');
+  console.log('\n§102 24 h follow-up — asked once, one per customer a day, three answers: contacted / relaunch / closed');
   {
     const follow99 = require('../services/requestFollowup');
     const window99 = require('../services/sessionWindow');
@@ -17447,9 +17735,9 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §102 Standard portal alerts for app users: instant match, similar listings, new photos, "Toujours en recherche ?" (2026-11-10)
+  // §103 Standard portal alerts for app users: instant match, similar listings, new photos, "Toujours en recherche ?" (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§102 Portal alerts for app users — instant match, similar listings, new photos, "Toujours en recherche ?"');
+  console.log('\n§103 Portal alerts for app users — instant match, similar listings, new photos, "Toujours en recherche ?"');
   {
     const portal100 = require('../services/portalAlerts');
     const fav100 = require('../services/favoriteStatus');
@@ -17525,9 +17813,9 @@ console.log('\n2. services/openai.js');
     });
   }
 
-  // §103 Scheduled portal alerts: enquired-listing price cuts, new projects, weekly summary, monthly prices (2026-11-10)
+  // §104 Scheduled portal alerts: enquired-listing price cuts, new projects, weekly summary, monthly prices (2026-11-10)
   // ---------------------------------------------------------------------------
-  console.log('\n§103 Scheduled portal alerts — the engine sends web the listings customers asked about, and calls each task on time');
+  console.log('\n§104 Scheduled portal alerts — the engine sends web the listings customers asked about, and calls each task on time');
   {
     const portal101 = require('../services/portalAlerts');
 

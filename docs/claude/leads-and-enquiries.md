@@ -149,6 +149,21 @@ so nothing downstream was going to break the loop either.
   *agent* alert only lands if that agent has messaged this number recently.
   See "Outbound WhatsApp: what actually works" below.
 
+- **Without its link (2026-11-10).** A customer sent the storefront text with
+  no URL (no web builder omits it: every caller of `buildWhatsAppMessage`
+  passes the listing id, so it was removed in the chat). The fixed opening
+  "je vous contacte via Lukka Place au sujet de ce bien" now identifies the
+  enquiry on its own (`parseLinklessEnquiry`): the facts line (type, "quartier,
+  commune", price) and the Réf. line are matched against live listings
+  (`propertyRepository.findLiveListingsForEnquiry`: same price and/or the same
+  reference under the public filter, then type, commune and quartier in JS).
+  Exactly one match is handled like a link. None or several: a lead with no
+  listing (`listing-whatsapp-enquiry`, `property_id` NULL, "annonce non
+  identifiée"), a desk alert naming the candidates, and a reply asking for the
+  listing's link — never the agent help; one lead and one alert per 24 h. The
+  opening also lifts the no-media guard, since customers send it with a
+  screenshot. §97.
+
 ## Automated Agent Matching (live)
 
 > **Changed 2026-11-10**: requests now go in waves with a one-tap claim — see
@@ -576,4 +591,4 @@ cherche plus".
 - **Web:** `POST /admin/leads/:id/followup-answer` with the account's numbers.
 
 `REQUEST_FOLLOWUP=off` stops the job; answers already sent are still handled.
-verify-pipeline §101; web `tests/unit/push-notifications.test.js`.
+verify-pipeline §102; web `tests/unit/push-notifications.test.js`.

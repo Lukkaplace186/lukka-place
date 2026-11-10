@@ -17,6 +17,8 @@ const {
   attributeListingToAgent,
   findByWamid,
   findLatestPendingListing,
+  setDraftAsideAsCustomerMessage,
+  clearOnboardingSession,
   findRecentPublishedListing,
   resyncListing,
   findListingAwaitingSalePrice,
@@ -67,7 +69,8 @@ const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleTapButtonReply } = require('../services/contactTapAlert');
 const { handleLeadButtonReply } = require('../services/leadClaims');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
-const { handleListingEnquiry } = require('../services/listingEnquiry');
+const { handleListingEnquiry, carriesEnquiryOpening } = require('../services/listingEnquiry');
+const customerIdentity = require('../services/customerIdentity');
 const { handleContactLink } = require('../services/contactRelay');
 const salesReferral = require('../services/salesReferral');
 const opsDesk = require('../services/opsDesk');
@@ -667,10 +670,23 @@ function enqueueMessage(message) {
     //   anyway. A first version of this ack fired unconditionally and broke
     //   exactly this — sent an ack even while human-handoff silence should
     //   have suppressed any reply — caught by scripts/verify-pipeline.js.
-    if (message.media?.length && !findLatestPendingListing(key)) {
-      chakra.sendWhatsAppMessage(key, ACK_REPLY).catch((err) => {
-        console.error(`[chakra] failed to send ack to ${key}: ${err.message}`);
-      });
+    // Not to a known customer, nor with the storefront enquiry as caption:
+    // "nous traitons votre annonce" is the agent's ack (2026-11-10, a
+    // customer's screenshot got it). Decided after the role lookup, so it is
+    // still fire-and-forget.
+    if (message.media?.length && !findLatestPendingListing(key) && !(message.text && carriesEnquiryOpening(message.text))) {
+      customerIdentity.senderRole(key)
+        .catch(() => null)
+        .then((role) => {
+          if (role?.role === 'customer') {
+            console.log(`[customer] ${key}: media from a customer — no listing ack`);
+            return undefined;
+          }
+          return chakra.sendWhatsAppMessage(key, ACK_REPLY);
+        })
+        .catch((err) => {
+          console.error(`[chakra] failed to send ack to ${key}: ${err.message}`);
+        });
     }
   }
 
@@ -1235,7 +1251,12 @@ async function processGroup(messages) {
     //   - `handled: false` from the handler itself — a link naming a
     //     listing that is not live falls straight through, so nothing is
     //     swallowed on the strength of a URL alone.
-    if (!pending && hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
+    // Our own opening line ("je vous contacte via Lukka Place au sujet de ce
+    // bien") lifts the no-media guard: no agent's advert carries it, and a
+    // customer sends it with a screenshot (2026-11-10). It also stands for the
+    // link when the link is missing (services/listingEnquiry.js).
+    const enquiryOpening = hasText && carriesEnquiryOpening(text);
+    if (!pending && hasText && (mediaRefs.length === 0 || enquiryOpening) && pdfRefs.length === 0) {
       try {
         const enquiry = await handleListingEnquiry({ from, text, primaryWamid });
         if (enquiry.handled) return;
@@ -1243,6 +1264,8 @@ async function processGroup(messages) {
         // Never costs the sender a reply: fall through to the ordinary path.
         console.error(`[enquiry] handling a listing enquiry from ${from} failed: ${err.message}`);
       }
+    }
+    if (!pending && hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
       // The same, from an agent's profile / the directory (/agents/<id>) or a
       // project page (/projets/<slug>) — services/contactRelay.js. Same guards.
       try {
@@ -1286,6 +1309,50 @@ async function processGroup(messages) {
         if (referral.handled) return;
       } catch (err) {
         console.error(`[sales-referral] handling a referral code from ${from} failed: ${err.message}`);
+      }
+    }
+
+    // KNOWN CUSTOMER (2026-11-10, services/customerIdentity.js). Customers
+    // and agents write to the same number since the storefront's WhatsApp
+    // buttons route through it, and the agent-first defaults below turned two
+    // customers into agents and their screenshots into listings (#806, #811).
+    // A sender with a customer signal (lead, open visit, customer account)
+    // and no agent signal (agent account, published listing):
+    //   - an acknowledgment stays silent, as for anyone;
+    //   - any other text goes to the customer assistant, never the agent
+    //     how-to, greeting or signup reply;
+    //   - a photo with no text gets a question back, never a draft.
+    // Not when a draft awaits them, mid-onboarding (that question owns the
+    // reply, and refuses sentences), with a PDF, or when the text stands
+    // alone as a property on offer — a customer may also have one to let.
+    if (!pending && pdfRefs.length === 0 && onboarding.getSession(from)?.state !== 'AWAITING_NAME'
+      && (hasText || mediaRefs.length) && !(hasText && listingBoundary.standsAloneAsListing(text))) {
+      let role = null;
+      try {
+        role = await customerIdentity.senderRole(from);
+      } catch (err) {
+        console.error(`[customer] role lookup for ${from} failed: ${err.message}`);
+      }
+      if (role?.role === 'customer') {
+        const quick = hasText && mediaRefs.length === 0 ? matchQuickReply(text) : null;
+        if (quick && quick.kind === 'ack') {
+          console.log(`[customer] ${label} — acknowledgment from customer ${from}, no reply`);
+          return;
+        }
+        if (hasText) {
+          console.log(`[customer] ${label} — ${from} is a customer (${role.reasons.join(', ')}): customer assistant`);
+          await handleBuyerMessage({ from, text, primaryWamid, intent: 'question' });
+          return;
+        }
+        if (customerIdentity.claimPhotoReply(from)) {
+          await chakra.sendWhatsAppMessage(from, customerIdentity.CUSTOMER_PHOTO_REPLY, {
+            replyToMessageId: primaryWamid || undefined,
+          });
+          console.log(`[customer] ${label} — photo from customer ${from} (${role.reasons.join(', ')}): asked for the link, no draft`);
+        } else {
+          console.log(`[customer] ${label} — photo from customer ${from}: asked recently, no draft, no reply`);
+        }
+        return;
       }
     }
 
@@ -1538,6 +1605,29 @@ async function processGroup(messages) {
         console.log(`[onboarding] ${from} registered from WhatsApp`);
         return;
       }
+      // A question or a sentence is never a name (2026-11-10). One that reads
+      // as a customer asking about a property, after a draft made of a bare
+      // photo (their screenshot), ends the onboarding: the draft is set aside
+      // (never moderated) and the customer assistant answers. Otherwise the
+      // name is asked again.
+      if (result.reason === 'sentence') {
+        const screenshotDraft = pending && !String(pending.raw_text || '').trim();
+        if (result.customerLike && (!pending || screenshotDraft)) {
+          if (pending) setDraftAsideAsCustomerMessage(pending.id, 'name-reply-was-a-customer-question');
+          clearOnboardingSession(from);
+          console.log(
+            `[onboarding] ${from} answered the name question as a customer — onboarding closed`
+              + (pending ? `, draft #${pending.id} set aside` : '') + '; customer assistant',
+          );
+          await handleBuyerMessage({ from, text, primaryWamid, intent: 'question' });
+          return;
+        }
+        await chakra.sendWhatsAppMessage(from, onboarding.NAME_REASK_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+        console.log(`[onboarding] ${from} reply was a sentence, not a name — asked again, no account`);
+        return;
+      }
       console.log(`[onboarding] ${from} reply not usable as a name (${result.reason}) — falling through`);
     }
 
@@ -1766,6 +1856,19 @@ async function processGroup(messages) {
         reply = listingCard.composeIntakeReply(modelReply, updated);
       }
     } else if (onboarding.getSession(from)?.state !== 'AWAITING_NAME') {
+      // A known customer whose message reached this far (it read as an
+      // offer, the model disagreed) is answered as a customer, not with the
+      // agent how-to (2026-11-10).
+      let role = null;
+      try {
+        role = await customerIdentity.senderRole(from);
+      } catch (err) {
+        console.error(`[customer] role lookup for ${from} failed: ${err.message}`);
+      }
+      if (role?.role === 'customer' && hasText) {
+        await handleBuyerMessage({ from, text, primaryWamid, intent: extracted.intent || 'question' });
+        return;
+      }
       // Not a listing and nothing pending: the model's own prose used to go
       // out here ("veuillez visiter notre site" with no link, launch
       // 2026-10-20). Send the fixed how-to instead, and only once per

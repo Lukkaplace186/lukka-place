@@ -671,6 +671,33 @@ function findLatestPendingListing(waId) {
 }
 
 /**
+ * Set a draft aside as a customer's message (2026-11-10): a screenshot a
+ * customer sent, not a property they offer. Status 'customer_message' is
+ * outside every query that reads drafts or publishes them (pending,
+ * auto-submit, publish), so it never reaches moderation; the row and its
+ * photos stay on file. Only a draft still pending moves.
+ *
+ * @returns {boolean} whether the draft was set aside
+ */
+function setDraftAsideAsCustomerMessage(id, reason = null) {
+  const info = db
+    .prepare(
+      `UPDATE listings
+          SET status = 'customer_message',
+              parsed_json = json_set(CASE WHEN json_valid(parsed_json) THEN parsed_json ELSE '{}' END,
+                                     '$.set_aside_reason', ?, '$.set_aside_at', datetime('now'))
+        WHERE id = ? AND status = 'pending_confirmation'`,
+    )
+    .run(reason, Number(id));
+  return info.changes > 0;
+}
+
+/** Forget an open onboarding question (the sender turned out to be a customer). */
+function clearOnboardingSession(waId) {
+  return db.prepare("DELETE FROM agent_onboarding WHERE wa_id = ? AND state = 'AWAITING_NAME'").run(String(waId)).changes > 0;
+}
+
+/**
  * Mark a listing published. Idempotent — publishing an already-published
  * listing just leaves it published.
  *
@@ -4905,6 +4932,8 @@ module.exports = {
   attributeListingToAgent,
   findByWamid,
   findLatestPendingListing,
+  setDraftAsideAsCustomerMessage,
+  clearOnboardingSession,
   publishListing,
   expandAndPublishListing,
   photosByProperty,

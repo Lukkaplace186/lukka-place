@@ -4832,7 +4832,7 @@
       },
       "flag": {
         "no_photos": "No photos",
-        "few_photos": "1–2 photos",
+        "few_photos": "Fewer than 3 photos",
         "missing_commune": "No commune",
         "missing_price": "No price",
         "missing_content": "Missing title or description",

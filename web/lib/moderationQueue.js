@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
-import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MODERATION_QUEUE_STATUSES } from './moderation';
+import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MIN_LISTING_MEDIA, MODERATION_QUEUE_STATUSES } from './moderation';
 import { VIDEOS_SQL, VIDEO_COUNT_SQL, isVideoPoster, listingVideos } from './listingVideos';
 import { monthlyEquivalent } from './leaseTerm';
 import { SOCIAL_FILTER_SQL, hasTeamSocialPosts } from './teamSocialPosts';
@@ -256,7 +256,12 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
       SELECT b.*,
         -- A video counts as media (lib/listingVideos.js): a video-only listing is not "no photos".
         (b.photo_count = 0 AND b.video_count = 0 AND (COALESCE(b.featured_image, '') = '' OR b.featured_image LIKE '%noimage%')) AS f_no_photos,
-        (b.photo_count BETWEEN 1 AND 2) AS f_few_photos,
+        -- Fewer than the 3-photo standard (MIN_LISTING_MEDIA); a video counts as one.
+        -- Approval counts the same thing (actions.js publishProblem); a cover
+        -- photo outside the gallery does not count, so "no photos" is the
+        -- only case this leaves out.
+        (b.photo_count + b.video_count < ${MIN_LISTING_MEDIA}
+          AND NOT (b.photo_count = 0 AND b.video_count = 0 AND (COALESCE(b.featured_image, '') = '' OR b.featured_image LIKE '%noimage%'))) AS f_few_photos,
         (b.commune IS NULL) AS f_missing_commune,
         (b.price IS NULL OR b.price <= 0) AS f_missing_price,
         (b.title IS NULL OR b.description IS NULL OR btrim(b.description) = '') AS f_missing_content,

@@ -17,11 +17,10 @@ import { DUPLICATE_FLAGS } from '@/lib/moderation';
 export const NEW_ACCOUNT_DAYS = 7;
 
 /** Flags another cell of the row already shows, so the checks column leaves them out. */
-// "no_photos" is NOT here: a listing with no photo and no video is spelled out
-// in the checks column too — the red 0 on the thumbnail alone let the column
-// say "Aucun signal" (2026-11-10).
+// "no_photos" and "few_photos" are NOT here: fewer than the 3-photo standard
+// is spelled out in the checks column too — the red 0 on the thumbnail alone
+// let the column say "Aucun signal" (2026-11-10).
 export const SHOWN_ELSEWHERE = new Set([
-  'few_photos', // thumbnail badge
   'price_outlier', 'missing_price', // price cell
   'missing_commune', // place line
   'agent_unverified', 'no_agent', // agent cell
@@ -89,10 +88,10 @@ export function initials(name) {
   return letters.map((word) => word.match(/[\p{L}\p{N}]/u)[0].toUpperCase()).join('');
 }
 
-/** Thumbnail badge tone: none (red), 1–2 (amber), enough (plain). Videos count as media. */
+/** Thumbnail badge tone: under the 3-photo standard (red), enough (plain). Videos count as media. */
 export function photoTone(row) {
   if (row?.flags?.includes('no_photos')) return 'danger';
-  if (row?.flags?.includes('few_photos')) return 'warning';
+  if (row?.flags?.includes('few_photos')) return 'danger';
   return 'plain';
 }
 
@@ -109,7 +108,7 @@ export function readiness(row, now) {
   if (!row?.agentId || !row.agentVerified) return 'check';
   if (!row.agentCreatedAt || agentFacts(row, now).newAccount) return 'check';
   if ((row.flags || []).length > 0) return 'check';
-  if (!(Number(row.photoCount) >= READY_MIN_PHOTOS)) return 'check';
+  if (!((Number(row.photoCount) || 0) + (Number(row.videoCount) || 0) >= READY_MIN_PHOTOS)) return 'check';
   return 'ready';
 }
 

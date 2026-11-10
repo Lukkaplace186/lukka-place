@@ -16437,6 +16437,57 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §96 Review mode reads what the agent actually sent (2026-11-10)
+  // ---------------------------------------------------------------------------
+  // web /admin/listings/review shows the inbound messages beside what we
+  // extracted (services/listingSource.js, GET /admin/properties/sources).
+  console.log('\n§96 the review mode gets the messages the agent sent around each listing, nothing else');
+  {
+    const source96 = require('../services/listingSource');
+    const Database96 = require('better-sqlite3');
+    const mem96 = new Database96(':memory:');
+    mem96.exec(`CREATE TABLE listings (id INTEGER PRIMARY KEY, wa_id TEXT, raw_text TEXT, remote_property_id INTEGER, created_at TEXT);
+      CREATE TABLE whatsapp_message_log (id INTEGER PRIMARY KEY AUTOINCREMENT, direction TEXT, wa_id TEXT, kind TEXT, body TEXT, media_count INTEGER, created_at TEXT);`);
+    // #806 on 2026-11-10: a customer's enquiry, a screenshot, then a sentence taken for a name.
+    mem96.prepare('INSERT INTO listings (id, wa_id, raw_text, remote_property_id, created_at) VALUES (826, ?, NULL, 806, ?)').run('243800000096', '2026-11-10 10:06:08');
+    const log96 = mem96.prepare('INSERT INTO whatsapp_message_log (direction, wa_id, kind, body, media_count, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+    log96.run('in', '243800000096', 'text', 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien', null, '2026-11-10T10:04:31.777Z');
+    log96.run('out', '243800000096', 'text', 'Pour publier un bien…', null, '2026-11-10T10:04:45.584Z');
+    log96.run('in', '243800000096', 'media', null, 1, '2026-11-10T10:05:55.188Z');
+    log96.run('in', '243800000096', 'text', 'Je contacte parce que j’ai vu cette annonce', null, '2026-11-10T10:07:34.268Z');
+    log96.run('in', '243800000096', 'text', 'Un message de la veille', null, '2026-11-09T09:00:00.000Z');
+    log96.run('in', '243899999999', 'text', 'Quelqu’un d’autre', null, '2026-11-10T10:05:00.000Z');
+
+    check('only the sender\'s inbound messages around the draft, oldest first; replies and other days left out', () => {
+      const out = source96.getListingSources([806], mem96);
+      assert.strictEqual(out[806].channel, 'whatsapp');
+      assert.deepStrictEqual(out[806].messages.map((m) => [m.kind, m.body, m.mediaCount]), [
+        ['text', 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien', null],
+        ['media', null, 1],
+        ['text', 'Je contacte parce que j’ai vu cette annonce', null],
+      ]);
+      assert.strictEqual(out[806].messages[0].at, '2026-11-10T10:04:31.777Z');
+    });
+
+    check('a listing made on the web form has no WhatsApp source; ids are parsed, capped and deduplicated', () => {
+      assert.deepStrictEqual(source96.getListingSources([999], mem96)[999], { propertyId: 999, channel: 'web', rawText: null, messages: [] });
+      assert.deepStrictEqual(source96.parseIds('806, 806,abc,-1,812'), [806, 812]);
+      assert.strictEqual(source96.parseIds(Array.from({ length: 150 }, (_, i) => i + 1).join(',')).length, source96.MAX_IDS);
+      // SQLite's own "YYYY-MM-DD HH:MM:SS" is UTC.
+      assert.strictEqual(source96.toMs('2026-11-10 10:06:08'), Date.parse('2026-11-10T10:06:08Z'));
+    });
+
+    check('GET /admin/properties/sources is read-only and refuses a call without ids', () => {
+      const routes96 = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      const block = routes96.slice(routes96.indexOf("router.get('/properties/sources'"), routes96.indexOf("router.get('/viewing-requests/by-customer'"));
+      assert.ok(block.includes('listingSource.getListingSources(ids)'));
+      assert.ok(/status\(400\)/.test(block));
+      assert.ok(!/chakra|send/i.test(block.replace(/nothing is sent/i, '')));
+    });
+    mem96.close();
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

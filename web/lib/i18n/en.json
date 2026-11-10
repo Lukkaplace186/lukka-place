@@ -4815,7 +4815,97 @@
           "other": "{count} listings"
         },
         "vsMedian": "{ratio}× the median",
-        "duplicateLabel": "Possible duplicate · {whose}"
+        "duplicateLabel": "Possible duplicate · {whose}",
+        "nameLooksLikeSentence": "Name looks like a sentence"
+      },
+      "decidedBy": "Decided by {name}",
+      "decidedByUnknown": "Decided with the shared password",
+      "noteQuoted": "Note: “{note}”",
+      "viewer": {
+        "open": "See the photos of listing #{id}",
+        "photosOf": "Listing Photos",
+        "photoOf": "Photo {n} of {total}",
+        "noPhoto": "No photo",
+        "previous": "Previous photo",
+        "next": "Next photo"
+      },
+      "queue": {
+        "toCheck": "To Check",
+        "toCheckHint": "A signal, a new account or fewer than 3 photos: look at them one by one.",
+        "ready": "Ready",
+        "readyHint": "Verified agent registered over 7 days ago, no signal, at least 3 photos.",
+        "reviewThese": {
+          "one": "Review this one",
+          "other": "Review these {count}"
+        },
+        "approveAll": "Approve all ({count})",
+        "summaryLabel": "Queue summary",
+        "pendingCount": "{count} pending",
+        "oldest": "oldest waiting",
+        "toCheckCount": "{count} to check",
+        "startReview": "Start the review"
+      },
+      "review": {
+        "heading": "Listing Review",
+        "counter": "{n} of {total}",
+        "quit": "Exit",
+        "keyEscape": "Esc",
+        "keyEnter": "Enter",
+        "order": "{check} to check, then {ready} ready",
+        "onlyToCheck": "{count} to check",
+        "waiting": "waiting for",
+        "photos": "Photos",
+        "fullScreen": "Full screen",
+        "vsMedianLong": "{ratio}× the {commune} median ({sample} listings)",
+        "alreadyApproved": "Already approved in this review.",
+        "alreadyRejected": "Already rejected in this review.",
+        "toLookAt": "To look at",
+        "agentMessage": "Agent’s message",
+        "whatWeRead": "What we read",
+        "sourceUnavailable": "The original message could not be loaded.",
+        "webCreated": "Created on the website: no WhatsApp message. Here is the description they typed.",
+        "noMessage": "No message found for this listing.",
+        "photosSent": {
+          "one": "{count} photo sent",
+          "other": "{count} photos sent"
+        },
+        "attachment": "Attachment ({kind})",
+        "notStated": "not stated",
+        "months": "{count} months",
+        "rent": "Rent",
+        "sale": "Sale",
+        "field": {
+          "type": "Type",
+          "transaction": "Transaction",
+          "price": "Price",
+          "place": "Place",
+          "reference": "Référence",
+          "beds": "Bedrooms",
+          "baths": "Bathrooms",
+          "area": "Area",
+          "deposit": "Deposit",
+          "advance": "Advance",
+          "commission": "Commission"
+        },
+        "fixField": "Fix a field",
+        "previous": "Previous",
+        "skip": "Skip",
+        "afterDecision": "After each decision, the next listing opens.",
+        "approve": "Approve",
+        "reject": "Reject",
+        "rejectTitle": "Why Reject This Listing?",
+        "rejectHint": "Listing #{id}. One tap is enough: the agent gets this reason on WhatsApp.",
+        "rejectAndNext": "Reject and go to the next one",
+        "approvedToast": "Listing #{id} approved.",
+        "rejectedToast": "Listing #{id} rejected, the agent is told.",
+        "doneTitle": "Review Complete",
+        "emptyTitle": "No Listing Waiting",
+        "doneSummary": "{approved} approved, {rejected} rejected, {skipped} skipped.",
+        "reviewSkipped": {
+          "one": "Review the skipped one",
+          "other": "Review the {count} skipped"
+        },
+        "backToQueue": "Back to listings"
       }
     },
     "subscriptions": {

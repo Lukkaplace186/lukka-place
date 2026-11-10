@@ -6,6 +6,7 @@ import { VIDEOS_SQL, VIDEO_COUNT_SQL, isVideoPoster, listingVideos } from './lis
 import { monthlyEquivalent } from './leaseTerm';
 import { SOCIAL_FILTER_SQL, hasTeamSocialPosts } from './teamSocialPosts';
 import { TARGET_KEY_PATTERN } from './teamSocialTargets';
+import { photoSet } from './listingCompare';
 
 /**
  * The listing moderation queue — one server page at a time, with quality flags.
@@ -326,6 +327,9 @@ function toRow(row, medians) {
     agentVerified: Boolean(row.agent_verified),
     agentCreatedAt: row.agent_created_at ? new Date(row.agent_created_at).toISOString() : null,
     agentListingCount: row.agent_listing_count == null ? null : Number(row.agent_listing_count),
+    // Featured first, no repeats, no placeholder (lib/listingCompare.js photoSet).
+    photos: photoSet({ featured_image: row.featured_image, gallery: row.gallery }),
+    descriptionSnippet: row.description_snippet || null,
     approveStatus: row.approve_status,
     status: row.status,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -389,6 +393,11 @@ export async function listModerationQueue({
               -- an account created minutes ago reads very differently from an
               -- agency's 70th. Page rows only.
               (SELECT COUNT(*)::int FROM properties q WHERE q.agent_id = f.agent_id AND q.deleted_at IS NULL) AS agent_listing_count,
+              -- Every photo for the list's photo viewer and the review mode, and
+              -- the start of the description for the row's grey line. Page rows only.
+              (SELECT COALESCE(array_agg(psi.image ORDER BY psi.id), ARRAY[]::text[])
+                 FROM property_slider_images psi WHERE psi.property_id = f.id) AS gallery,
+              LEFT(f.description, 280) AS description_snippet,
               ${DUPLICATE_IDS_SQL}
        FROM flagged f
        LEFT JOIN console_admin_users mu ON mu.id = f.moderated_by

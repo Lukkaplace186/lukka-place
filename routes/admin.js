@@ -20,6 +20,7 @@ const chakra = require('../services/chakra');
 const { insideSessionWindow } = require('../services/sessionWindow');
 const deskAlert = require('../services/deskAlert');
 const propertyRepository = require('../services/propertyRepository');
+const listingSource = require('../services/listingSource');
 const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground, MAX_CLAIMS } = require('../services/leadDispatch');
@@ -1135,6 +1136,22 @@ router.get('/viewing-requests/counts-by-property', (req, res) => {
   } catch (err) {
     console.error(`[admin] GET /viewing-requests/counts-by-property failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not count viewing requests.' });
+  }
+});
+
+/**
+ * What the agent sent for each listing — web's review mode shows it beside
+ * what we extracted (services/listingSource.js). `ids` = property ids, at most
+ * 100. Inbound text only; nothing is sent to anyone.
+ */
+router.get('/properties/sources', (req, res) => {
+  const ids = listingSource.parseIds(req.query.ids);
+  if (!ids.length) return res.status(400).json({ success: false, error: 'ids must list property ids.' });
+  try {
+    return res.json({ success: true, data: listingSource.getListingSources(ids) });
+  } catch (err) {
+    console.error(`[admin] GET /properties/sources failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read listing sources.' });
   }
 });
 

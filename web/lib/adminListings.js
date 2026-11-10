@@ -127,6 +127,41 @@ export async function getListingsForCompare(ids) {
 }
 
 /**
+ * The facts review mode shows under "Ce que nous avons lu" — what the
+ * extraction wrote, each one as stored (NULL stays "non indiqué"). Up to 100
+ * ids; returns a Map by id.
+ */
+export async function getListingFactsForReview(ids) {
+  const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 100);
+  if (clean.length === 0) return new Map();
+  const { rows } = await getPool().query(
+    `SELECT p.id, p.bath, p.area, p.currency,
+            to_jsonb(p) ->> 'deposit_months' AS deposit_months,
+            to_jsonb(p) ->> 'advance_months' AS advance_months,
+            to_jsonb(p) ->> 'commission_months' AS commission_months,
+            to_jsonb(p) ->> 'parcelle_subtype' AS parcelle_subtype,
+            (SELECT cc.name FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name,
+            pc.description
+     FROM properties p
+     LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
+     WHERE p.id = ANY($2::bigint[])`,
+    [CONTENT_LANGUAGE_ID, clean],
+  );
+  return new Map(rows.map((row) => [Number(row.id), {
+    bath: row.bath == null ? null : Number(row.bath),
+    area: row.area,
+    currency: row.currency,
+    depositMonths: row.deposit_months == null ? null : Number(row.deposit_months),
+    advanceMonths: row.advance_months == null ? null : Number(row.advance_months),
+    commissionMonths: row.commission_months == null ? null : Number(row.commission_months),
+    parcelleSubtype: row.parcelle_subtype || null,
+    categoryName: row.category_name || null,
+    description: row.description || null,
+  }]));
+}
+
+/**
  * The moderation state a moderator needs to read off a compared listing.
  * Deleted wins, then rejected, pending, suspended (approved but hidden), live.
  */

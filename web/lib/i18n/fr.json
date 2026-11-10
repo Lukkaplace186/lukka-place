@@ -4815,7 +4815,97 @@
           "other": "{count} annonces"
         },
         "vsMedian": "{ratio}× la médiane",
-        "duplicateLabel": "Doublon possible · {whose}"
+        "duplicateLabel": "Doublon possible · {whose}",
+        "nameLooksLikeSentence": "Le nom ressemble à une phrase"
+      },
+      "decidedBy": "Décidé par {name}",
+      "decidedByUnknown": "Décidé avec le mot de passe partagé",
+      "noteQuoted": "Note : « {note} »",
+      "viewer": {
+        "open": "Voir les photos de l’annonce #{id}",
+        "photosOf": "Photos de l’annonce",
+        "photoOf": "Photo {n} sur {total}",
+        "noPhoto": "Aucune photo",
+        "previous": "Photo précédente",
+        "next": "Photo suivante"
+      },
+      "queue": {
+        "toCheck": "À vérifier",
+        "toCheckHint": "Un signal, un nouveau compte ou moins de 3 photos : à regarder une par une.",
+        "ready": "Prêtes",
+        "readyHint": "Agent vérifié inscrit depuis plus de 7 jours, aucun signal, au moins 3 photos.",
+        "reviewThese": {
+          "one": "Revoir celle-ci",
+          "other": "Revoir ces {count}"
+        },
+        "approveAll": "Tout approuver ({count})",
+        "summaryLabel": "Résumé de la file",
+        "pendingCount": "{count} en attente",
+        "oldest": "la plus ancienne il y a",
+        "toCheckCount": "{count} à vérifier",
+        "startReview": "Commencer la revue"
+      },
+      "review": {
+        "heading": "Revue des annonces",
+        "counter": "{n} sur {total}",
+        "quit": "Quitter",
+        "keyEscape": "Échap",
+        "keyEnter": "Entrée",
+        "order": "{check} à vérifier, puis {ready} prêtes",
+        "onlyToCheck": "{count} à vérifier",
+        "waiting": "attend depuis",
+        "photos": "Photos",
+        "fullScreen": "Plein écran",
+        "vsMedianLong": "{ratio}× la médiane de {commune} ({sample} biens)",
+        "alreadyApproved": "Déjà approuvée dans cette revue.",
+        "alreadyRejected": "Déjà refusée dans cette revue.",
+        "toLookAt": "À regarder",
+        "agentMessage": "Message de l’agent",
+        "whatWeRead": "Ce que nous avons lu",
+        "sourceUnavailable": "Le message d’origine n’a pas pu être chargé.",
+        "webCreated": "Créée depuis le site : pas de message WhatsApp. Voici la description saisie.",
+        "noMessage": "Aucun message retrouvé pour cette annonce.",
+        "photosSent": {
+          "one": "{count} photo envoyée",
+          "other": "{count} photos envoyées"
+        },
+        "attachment": "Pièce jointe ({kind})",
+        "notStated": "non indiqué",
+        "months": "{count} mois",
+        "rent": "Location",
+        "sale": "Vente",
+        "field": {
+          "type": "Type",
+          "transaction": "Transaction",
+          "price": "Prix",
+          "place": "Lieu",
+          "reference": "Référence",
+          "beds": "Chambres",
+          "baths": "Salles de bain",
+          "area": "Surface",
+          "deposit": "Garantie",
+          "advance": "Avance",
+          "commission": "Commission"
+        },
+        "fixField": "Corriger un champ",
+        "previous": "Précédente",
+        "skip": "Passer",
+        "afterDecision": "Après chaque décision, l’annonce suivante s’ouvre.",
+        "approve": "Approuver",
+        "reject": "Refuser",
+        "rejectTitle": "Pourquoi refuser cette annonce ?",
+        "rejectHint": "Annonce #{id}. Un geste suffit : l’agent reçoit ce motif sur WhatsApp.",
+        "rejectAndNext": "Refuser et passer à la suivante",
+        "approvedToast": "Annonce #{id} approuvée.",
+        "rejectedToast": "Annonce #{id} refusée, l’agent est prévenu.",
+        "doneTitle": "Revue terminée",
+        "emptyTitle": "Aucune annonce en attente",
+        "doneSummary": "{approved} approuvée(s), {rejected} refusée(s), {skipped} passée(s).",
+        "reviewSkipped": {
+          "one": "Revoir celle passée",
+          "other": "Revoir les {count} passées"
+        },
+        "backToQueue": "Retour aux annonces"
       }
     },
     "subscriptions": {

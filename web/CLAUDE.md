@@ -322,6 +322,36 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   table fits a 1440 px screen without scrolling. A new account's first
   listing is the one to read twice: on 2026-11-10 two customers were onboarded
   as agents by the WhatsApp intake, their message text became their "name".
+- **Review mode and the queue split** (2026-11-10, same day). Cells shared by
+  the queue and review mode: `app/admin/listings/ModerationCells.js`; rules:
+  `lib/moderationRow.js` (`readiness`, `splitQueue`, `reviewOrder`,
+  `queueSummary`, `nameLooksLikeSentence`, `agentTextLine`).
+  - **Pending tab, unfiltered**: a summary line ("5 en attente · la plus
+    ancienne il y a 3 h · 2 à vérifier", over the whole pending queue up to
+    100; past 100 the "à vérifier" count is left out) with "Commencer la
+    revue", then **À vérifier** ("Revoir ces N" → `?only=check`) and
+    **Prêtes** = verified agent registered more than 7 days ago, no flag at
+    all, ≥3 photos, with "Tout approuver (N)" (the same bulk action, which still
+    re-checks each listing and reports skips). A filter or sort shows one table.
+  - **Each row** has the agent's first words in grey: the first inbound
+    WhatsApp text (engine `GET /admin/properties/sources`,
+    `services/listingSource.js`: inbound messages from 15 min before to 30 min
+    after the draft, `adminApi.getListingSources`), else the text we read,
+    else the description (web-form listing). Engine down = no grey line, never
+    a broken page. The thumbnail opens `PhotoViewer` (all photos, ← → inside it,
+    swipe, approve/reject). Decided tabs show only the date; who, when and the
+    note open in a popover (hover or tap).
+  - **`/admin/listings/review`** (`listings.moderate`): full screen over the
+    console, À vérifier then Prêtes, oldest first. Photo gallery, agent card,
+    checks, "Message de l'agent" (those inbound messages) beside "Ce que nous
+    avons lu" (`getListingFactsForReview`; NULL = "non indiqué", the three
+    entry costs separate). Keys: A approve, R reasons (1–7, Entrée confirms),
+    → skip, ← back, Échap leaves; ignored while typing or with the photo viewer
+    open. Each decision opens the next undecided listing; the end screen counts
+    approved / rejected / skipped and can go back over the skipped ones. Reject
+    reasons are chips everywhere (`RejectReasons.js`, also the queue's dialog).
+    A same-agent re-send is still refused by `moderateListingsAction` and the
+    reason is shown; compare first.
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while

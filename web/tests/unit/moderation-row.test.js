@@ -74,3 +74,44 @@ test('the photo badge turns amber for 1–2 photos and red for none', () => {
   assert.equal(photoTone({ flags: ['few_photos'] }), 'warning');
   assert.equal(photoTone({ flags: [] }), 'plain');
 });
+
+test('Prêtes: verified agent older than a week, no flag, at least 3 photos; everything else is checked', async () => {
+  const { readiness, splitQueue, reviewOrder, queueSummary } = await import('@/lib/moderationRow');
+  const ok = { id: 810, agentId: 60, agentVerified: true, agentCreatedAt: '2026-10-22T11:16:49Z', flags: [], photoCount: 8, createdAt: '2026-11-10T10:56:19Z' };
+  assert.equal(readiness(ok, NOW), 'ready');
+  assert.equal(readiness({ ...ok, photoCount: 2 }, NOW), 'check');
+  assert.equal(readiness({ ...ok, flags: ['price_outlier'] }, NOW), 'check');
+  assert.equal(readiness({ ...ok, agentVerified: false }, NOW), 'check');
+  assert.equal(readiness({ ...ok, agentId: null }, NOW), 'check');
+  assert.equal(readiness({ ...ok, agentCreatedAt: '2026-11-10T10:07:47Z' }, NOW), 'check');
+  assert.equal(readiness({ ...ok, agentCreatedAt: null }, NOW), 'check');
+
+  const customer = { ...ok, id: 806, agentCreatedAt: '2026-11-10T10:07:47Z', photoCount: 1, flags: ['few_photos'], createdAt: '2026-11-10T10:07:48Z' };
+  const rows = [customer, ok, { ...ok, id: 809, createdAt: '2026-11-10T09:00:00Z' }];
+  assert.deepEqual(splitQueue(rows, NOW).check.map((r) => r.id), [806]);
+  assert.deepEqual(reviewOrder(rows, NOW).map((r) => r.id), [806, 809, 810]);
+  assert.deepEqual(reviewOrder(rows, NOW, { only: 'check' }).map((r) => r.id), [806]);
+
+  const summary = queueSummary(rows, 3, NOW);
+  assert.deepEqual(summary, { total: 3, oldestAt: '2026-11-10T09:00:00Z', oldestMinutes: 180, toCheck: 1, complete: true });
+  assert.equal(queueSummary(rows, 140, NOW).complete, false);
+});
+
+test('a name that reads like a message is pointed out; real names and agencies are not', async () => {
+  const { nameLooksLikeSentence } = await import('@/lib/moderationRow');
+  for (const name of ['Je contacte parce que j’ai vu cette annonce dans votre site', 'Ok', 'J’ai vu cette annoncr dans votre site', 'Bonjour monsieur', 'La visite est gratuite ?']) {
+    assert.equal(nameLooksLikeSentence(name), true, name);
+  }
+  for (const name of ['Delmas PERRIER', 'Prince Immo Tout Kin', 'Mr Trésor', 'Andrew', 'Groupe Géant Vert', '', null]) {
+    assert.equal(nameLooksLikeSentence(name), false, String(name));
+  }
+});
+
+test('the grey line is what the agent typed first, else what we read, else the description', async () => {
+  const { agentTextLine } = await import('@/lib/moderationRow');
+  const source = { messages: [{ kind: 'media', body: null }, { kind: 'text', body: 'Bonjour, je vous contacte\nvia Lukka Place' }], rawText: 'lu' };
+  assert.equal(agentTextLine(source, {}), 'Bonjour, je vous contacte via Lukka Place');
+  assert.equal(agentTextLine({ messages: [], rawText: 'Appartement 2 chambres' }, {}), 'Appartement 2 chambres');
+  assert.equal(agentTextLine({ channel: 'web', messages: [] }, { descriptionSnippet: 'Belle villa' }), 'Belle villa');
+  assert.equal(agentTextLine(null, {}), null);
+});

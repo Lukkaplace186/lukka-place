@@ -299,6 +299,18 @@ hand.
   old phone-only SQL runs; the console says the migration is missing.
 - §68 of verify-pipeline; `web/tests/unit/agent-whatsapp-numbers.test.js`.
 
+### What the agent sent, for the admin's review mode (2026-11-10)
+
+`services/listingSource.js`, `GET /admin/properties/sources?ids=` (≤100,
+read-only), verify-pipeline §96. Per property: the SQLite listing behind it
+(`remote_property_id`, newest), its `raw_text`, and the sender's INBOUND
+`whatsapp_message_log` rows from 15 min before to 30 min after the draft's
+`created_at` (at most 12, oldest first; SQLite's `YYYY-MM-DD HH:MM:SS` is UTC).
+No SQLite row = `channel: 'web'`. Web shows them as the queue's grey line and
+in review mode beside what we extracted (web/CLAUDE.md, "Review mode"). The
+`raw_text` can be empty when the listing was read from a photo: the messages
+are the only record of what was typed then.
+
 ### Same agent, same listing — held and asked (2026-11-10)
 
 Owner decision: the same property with ANOTHER agent is fine (co-mandates);

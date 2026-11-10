@@ -92,3 +92,81 @@ export function photoTone(row) {
   if (row?.flags?.includes('few_photos')) return 'warning';
   return 'plain';
 }
+
+/** At least this many photos for a listing to go straight to "Prêtes". */
+export const READY_MIN_PHOTOS = 3;
+
+/**
+ * "ready" (Prêtes: one tap approves them all) or "check" (À vérifier: one by
+ * one in review mode). Ready = a verified agent whose account is older than
+ * NEW_ACCOUNT_DAYS, no quality flag at all, at least READY_MIN_PHOTOS photos.
+ * Anything unknown is "check".
+ */
+export function readiness(row, now) {
+  if (!row?.agentId || !row.agentVerified) return 'check';
+  if (!row.agentCreatedAt || agentFacts(row, now).newAccount) return 'check';
+  if ((row.flags || []).length > 0) return 'check';
+  if (!(Number(row.photoCount) >= READY_MIN_PHOTOS)) return 'check';
+  return 'ready';
+}
+
+/** Rows split for the pending tab, each group keeping the queue's order. */
+export function splitQueue(rows, now) {
+  const check = [];
+  const ready = [];
+  for (const row of rows || []) (readiness(row, now) === 'ready' ? ready : check).push(row);
+  return { check, ready };
+}
+
+/** The review order: everything to check first, then the ready ones, oldest first within each. */
+export function reviewOrder(rows, now, { only = null } = {}) {
+  const { check, ready } = splitQueue(rows, now);
+  const byAge = (a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || a.id - b.id;
+  if (only === 'check') return [...check].sort(byAge);
+  if (only === 'ready') return [...ready].sort(byAge);
+  return [...check.sort(byAge), ...ready.sort(byAge)];
+}
+
+/** "5 en attente · la plus ancienne il y a 3 h · 2 à vérifier" — from the pending rows (all of them when total fits). */
+export function queueSummary(rows, total, now) {
+  const list = rows || [];
+  const oldest = list.reduce((min, row) => (row.createdAt && (!min || row.createdAt < min) ? row.createdAt : min), null);
+  return {
+    total: Number(total) || 0,
+    oldestAt: oldest,
+    oldestMinutes: oldest ? Math.max(0, Math.round((now - new Date(oldest).getTime()) / 60000)) : null,
+    toCheck: splitQueue(list, now).check.length,
+    complete: list.length >= (Number(total) || 0),
+  };
+}
+
+const REPLY_WORDS = new Set(['ok', 'oui', 'non', 'merci', 'bonjour', 'bonsoir', 'salut', 'svp', 'stp', 'd’accord', "d'accord", 'okay']);
+
+/**
+ * A name that reads like a message rather than a person or an agency — what
+ * onboarding stored when it took a customer's sentence for their name
+ * (2026-11-10: "Je contacte parce que j'ai vu…", "Ok"). A hint for the
+ * moderator, never a verdict.
+ */
+export function nameLooksLikeSentence(name) {
+  const text = String(name || '').trim();
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const words = lower.split(/\s+/).filter(Boolean);
+  if (words.length === 1 && REPLY_WORDS.has(words[0].replace(/[.!]+$/, ''))) return true;
+  if (/[?!]/.test(text)) return true;
+  if (words.length > 5) return true;
+  return /^(je|j['’]|j ai|bonjour|bonsoir|salut|merci|svp|s['’]il|est-ce|c['’]est|voici|cette|ce bien)\b/.test(lower);
+}
+
+/**
+ * The grey line under a row's title: the first thing the agent typed on
+ * WhatsApp (services/listingSource.js), else the text we read, else the start
+ * of the description (a listing made on the web form). Null when nothing.
+ */
+export function agentTextLine(source, row) {
+  const firstText = source?.messages?.find((message) => message.body && String(message.body).trim());
+  const text = firstText?.body || source?.rawText || row?.descriptionSnippet || null;
+  if (!text) return null;
+  return String(text).replace(/\s+/g, ' ').trim().slice(0, 220) || null;
+}

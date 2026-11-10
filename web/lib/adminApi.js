@@ -195,6 +195,19 @@ export async function countViewingRequestsByProperty() {
 }
 
 /**
+ * What each listing's agent actually sent on WhatsApp (engine
+ * services/listingSource.js): `{ [propertyId]: { channel, rawText, messages } }`.
+ * The approval queue's grey line and review mode. At most 100 ids.
+ * @param {number[]} ids
+ */
+export async function getListingSources(ids) {
+  const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 100);
+  if (!clean.length) return {};
+  const { data = {} } = await engineFetch(`/admin/properties/sources?ids=${clean.join(',')}`);
+  return data;
+}
+
+/**
  * @param {number} id
  * @param {{status?: string, requestedTime?: string}} patch `requestedTime` lets
  *   "Reprogrammer" propose a new free-text time in the same write as the status change.

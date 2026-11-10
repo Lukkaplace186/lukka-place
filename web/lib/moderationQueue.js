@@ -272,6 +272,11 @@ function toRow(row, medians) {
     flags,
     blocking: flags.some((flag) => BLOCKING_FLAGS.has(flag)),
     outlier,
+    // The listings each duplicate flag points at (DUPLICATE_IDS_SQL).
+    duplicates: {
+      duplicate_listing: idList(row.dup_listing_ids),
+      duplicate_photo: idList(row.dup_photo_ids),
+    },
   };
 }
 
@@ -310,7 +315,8 @@ export async function listModerationQueue({
     pool.query(`${cte} SELECT COUNT(*)::int AS total FROM flagged f ${flagWhere}`, params),
     pool.query(
       `${cte}
-       SELECT f.*, f.created_at::text AS cursor_ts, mu.full_name AS moderated_by_name
+       SELECT f.*, f.created_at::text AS cursor_ts, mu.full_name AS moderated_by_name,
+              ${DUPLICATE_IDS_SQL}
        FROM flagged f
        LEFT JOIN console_admin_users mu ON mu.id = f.moderated_by
        ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
@@ -328,6 +334,35 @@ export async function listModerationQueue({
     cursors: keysetable ? pageCursors(rawRows) : null,
   };
 }
+
+/**
+ * Which listings a duplicate flag points at, so the flag can open them side by
+ * side (/admin/listings/compare). Same conditions as f_duplicate_listing /
+ * f_duplicate_photo above, newest first, at most DUPLICATE_LINK_LIMIT each.
+ * Only computed for the rows of the page shown, never for the whole tab.
+ */
+export const DUPLICATE_LINK_LIMIT = 5;
+export const DUPLICATE_IDS_SQL = `
+  CASE WHEN f.f_duplicate_listing THEN ARRAY(
+    SELECT DISTINCT o.id FROM property_contents oc
+    JOIN properties o ON o.id = oc.property_id
+    WHERE LOWER(oc.title) = LOWER(f.title) AND oc.property_id <> f.id
+      AND o.price = f.price AND o.approve_status <> 2
+    ORDER BY o.id DESC LIMIT ${DUPLICATE_LINK_LIMIT}
+  ) END AS dup_listing_ids,
+  CASE WHEN f.f_duplicate_photo THEN ARRAY(
+    SELECT x.id FROM (
+      SELECT o.id FROM properties o
+      WHERE COALESCE(f.featured_image, '') <> '' AND f.featured_image NOT LIKE '%noimage%'
+        AND o.featured_image = f.featured_image AND o.id <> f.id
+      UNION
+      SELECT s2.property_id FROM property_slider_images s1
+      JOIN property_slider_images s2 ON s2.image = s1.image AND s2.property_id <> s1.property_id
+      WHERE s1.property_id = f.id AND s1.image NOT LIKE '%noimage%'
+    ) x ORDER BY x.id DESC LIMIT ${DUPLICATE_LINK_LIMIT}
+  ) END AS dup_photo_ids`;
+
+const idList = (value) => (Array.isArray(value) ? value.map(Number).filter((n) => Number.isInteger(n) && n > 0) : []);
 
 /** Tab counts — one scan, every status. */
 export async function getModerationCounts() {

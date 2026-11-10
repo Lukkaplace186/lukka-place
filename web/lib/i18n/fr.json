@@ -4755,7 +4755,43 @@
       "quartierOther": "Autre (saisir le nom)…",
       "quartierOtherPlaceholder": "Nom du quartier ou lieu-dit (pas un point de référence)",
       "quartierPickCommune": "Choisissez d'abord la commune",
-      "quartierHint": "Un point de référence (maison communale, église, avenue…) va dans Référence."
+      "quartierHint": "Un point de référence (maison communale, église, avenue…) va dans Référence.",
+      "compare": {
+        "title": "Comparer les annonces",
+        "intro": "L’annonce de la file d’attente, en premier, à côté des annonces que son signalement désigne. « Identique » marque une valeur égale à celle de la première ; les photos partagées sont entourées de rouge.",
+        "back": "Retour aux annonces",
+        "nothing": "Il faut au moins deux annonces existantes pour comparer.",
+        "reference": "Annonce comparée",
+        "same": "Identique",
+        "noPhotos": "Aucune photo",
+        "photoCount": "{count} photo(s)",
+        "sharedPhotos": "{count} photo(s) en commun",
+        "open": "Ouvrir l’annonce",
+        "public": "Voir sur le site",
+        "approve": "Approuver",
+        "rejectDuplicate": "Refuser : en double",
+        "approved": "Annonce #{id} approuvée.",
+        "rejected": "Annonce #{id} refusée comme doublon. L’agent est prévenu.",
+        "failed": "Impossible d’enregistrer la décision. Réessayez.",
+        "openFromFlag": "Comparer avec {count} annonce(s)",
+        "state": {
+          "live": "En ligne",
+          "pending": "En attente",
+          "rejected": "Refusée",
+          "hidden": "Masquée",
+          "deleted": "Supprimée"
+        },
+        "field": {
+          "title": "Titre",
+          "price": "Prix",
+          "reference": "Référence",
+          "place": "Lieu",
+          "beds": "Chambres",
+          "agent": "Agent",
+          "created": "Reçue le",
+          "description": "Description"
+        }
+      }
     },
     "subscriptions": {
       "lead": "Forfaits, attribution aux agents et suivi des paiements.",

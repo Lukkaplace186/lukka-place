@@ -13,6 +13,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { formatPrice } from '@/lib/format';
 import { QUALITY_FLAG_LABEL_KEYS, REJECTION_REASON_CODES, REJECTION_REASON_LABEL_KEYS } from '@/lib/moderation';
 import { useT } from '@/lib/i18n/client';
+import { compareHref } from '@/lib/listingCompare';
 import { Chip } from '../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { moderateListingsAction } from './actions';
@@ -236,11 +237,26 @@ export default function ModerationTable({ rows, status, canModerate, canDelete =
                   ) : (
                     <div className="flex max-w-[16rem] flex-wrap gap-1">
                       {row.blocking ? <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-danger" aria-label={t('admin.moderation.blocking')} /> : null}
-                      {row.flags.map((flag) => (
-                        <Chip key={flag} tone={['missing_price', 'missing_content', 'extraction_failure', 'duplicate_photo', 'duplicate_listing'].includes(flag) ? 'danger' : 'warning'}>
-                          {t(QUALITY_FLAG_LABEL_KEYS[flag])}
-                        </Chip>
-                      ))}
+                      {row.flags.map((flag) => {
+                        const chip = (
+                          <Chip tone={['missing_price', 'missing_content', 'extraction_failure', 'duplicate_photo', 'duplicate_listing'].includes(flag) ? 'danger' : 'warning'}>
+                            {t(QUALITY_FLAG_LABEL_KEYS[flag])}
+                          </Chip>
+                        );
+                        // A duplicate flag opens this listing next to the ones it matches.
+                        const others = row.duplicates?.[flag];
+                        if (!others?.length) return <span key={flag}>{chip}</span>;
+                        return (
+                          <Link
+                            key={flag}
+                            href={compareHref(row.id, others)}
+                            title={t('admin.moderation.compare.openFromFlag', { count: others.length })}
+                            className="rounded-full underline decoration-danger/50 underline-offset-2 hover:decoration-danger focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue"
+                          >
+                            {chip}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </td>

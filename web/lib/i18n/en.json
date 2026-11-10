@@ -4755,7 +4755,43 @@
       "quartierOther": "Other (type the name)…",
       "quartierOtherPlaceholder": "Quartier or local place name (not a landmark)",
       "quartierPickCommune": "Choose the commune first",
-      "quartierHint": "A landmark (town hall, church, avenue…) goes in Reference."
+      "quartierHint": "A landmark (town hall, church, avenue…) goes in Reference.",
+      "compare": {
+        "title": "Compare Listings",
+        "intro": "The listing from the queue, first, next to the listings its flag points at. “Same” marks a value equal to the first one’s; shared photos are outlined in red.",
+        "back": "Back to listings",
+        "nothing": "At least two existing listings are needed to compare.",
+        "reference": "Compared listing",
+        "same": "Same",
+        "noPhotos": "No photos",
+        "photoCount": "{count} photo(s)",
+        "sharedPhotos": "{count} photo(s) in common",
+        "open": "Open listing",
+        "public": "View on the site",
+        "approve": "Approve",
+        "rejectDuplicate": "Reject: duplicate",
+        "approved": "Listing #{id} approved.",
+        "rejected": "Listing #{id} rejected as a duplicate. The agent is told.",
+        "failed": "Could not save the decision. Try again.",
+        "openFromFlag": "Compare with {count} listing(s)",
+        "state": {
+          "live": "Live",
+          "pending": "Pending",
+          "rejected": "Rejected",
+          "hidden": "Hidden",
+          "deleted": "Deleted"
+        },
+        "field": {
+          "title": "Title",
+          "price": "Price",
+          "reference": "Reference",
+          "place": "Place",
+          "beds": "Bedrooms",
+          "agent": "Agent",
+          "created": "Received",
+          "description": "Description"
+        }
+      }
     },
     "subscriptions": {
       "lead": "Plans, assignment to agents and payment tracking.",

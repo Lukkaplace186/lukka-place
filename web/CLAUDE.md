@@ -307,8 +307,10 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
     against the first listing, shows a red banner for the same agent, and on
     an older live copy offers "Retirer (doublon) — garder n° X"
     (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
-    message `withdrawn_duplicate` with `keep_id`). The queue's banner links
-    `?status=approved&flag=same_agent_resend` ("Faire le ménage").
+    message `withdrawn_duplicate` with `keep_id`). The queue's red "N annonces
+    en ligne en double" banner was removed on the owner's request the same
+    day; the list is `?status=approved&flag=same_agent_resend` (the i18n keys
+    `compare.liveResends` / `cleanUp` are kept, unused, for when it returns).
 - **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
   `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
   1–2, red none), place as "quartier, commune" under the title, the median

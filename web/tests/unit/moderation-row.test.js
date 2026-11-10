@@ -73,9 +73,9 @@ test('name, agency and initials never print phone digits or repeat themselves', 
   assert.equal(initials('Élodie « Kin » Mbala'), 'ÉM');
 });
 
-test('the photo badge turns red under the 3-photo standard', () => {
+test('the photo badge: red with none, orange under the 3-photo standard', () => {
   assert.equal(photoTone({ flags: ['no_photos'] }), 'danger');
-  assert.equal(photoTone({ flags: ['few_photos'] }), 'danger');
+  assert.equal(photoTone({ flags: ['few_photos'] }), 'warning');
   assert.equal(photoTone({ flags: [] }), 'plain');
 });
 
@@ -128,19 +128,19 @@ test('the grey line is the text we read, else the first real message, else the d
   assert.equal(agentTextLine(null, {}), null);
 });
 
-test('the 3-photo standard: approval refuses fewer, a video counts as one', async () => {
-  const { mediaShortfall, MIN_LISTING_MEDIA, BLOCKING_FLAGS } = await import('@/lib/moderation');
+test('the 3-photo standard: an orange warning, never a refusal; a video counts as one', async () => {
+  const { MIN_LISTING_MEDIA, BLOCKING_FLAGS } = await import('@/lib/moderation');
   const { checkFlags, photoTone, readiness } = await import('@/lib/moderationRow');
   assert.equal(MIN_LISTING_MEDIA, 3);
-  assert.equal(mediaShortfall(806, 3, 0), null);
-  assert.equal(mediaShortfall(806, 2, 1), null);
-  assert.match(mediaShortfall(806, 2, 0), /#806 : 2 photo\(s\)\. Il en faut au moins 3/);
-  assert.match(mediaShortfall(806, 0, 1), /0 photo\(s\) et 1 vidéo\(s\)/);
-  assert.match(mediaShortfall(806, null), /0 photo\(s\)/);
-  // Under the standard is red and listed in the checks column.
-  assert.ok(BLOCKING_FLAGS.has('few_photos') && BLOCKING_FLAGS.has('no_photos'));
+  // Orange (not a blocking flag) and listed in the checks column; no photo at all stays red.
+  assert.ok(!BLOCKING_FLAGS.has('few_photos') && BLOCKING_FLAGS.has('no_photos'));
   assert.deepEqual(checkFlags(['few_photos']), ['few_photos']);
-  assert.equal(photoTone({ flags: ['few_photos'] }), 'danger');
+  assert.equal(photoTone({ flags: ['few_photos'] }), 'warning');
+  // Approval never counts photos (owner, 2026-11-10: a warning, not a refusal).
+  const fs = await import('node:fs');
+  const actions = fs.readFileSync(new URL('../../app/admin/listings/actions.js', import.meta.url), 'utf8');
+  const check = actions.slice(actions.indexOf('async function publishProblem'), actions.indexOf('async function writeDecision'));
+  assert.ok(check.length > 100 && !/photo|slider|video/i.test(check));
   const ok = { agentId: 1, agentVerified: true, agentCreatedAt: '2026-10-01T00:00:00Z', flags: [], photoCount: 2, videoCount: 1 };
   assert.equal(readiness(ok, NOW), 'ready');
   assert.equal(readiness({ ...ok, videoCount: 0 }, NOW), 'check');

@@ -88,10 +88,10 @@ export function initials(name) {
   return letters.map((word) => word.match(/[\p{L}\p{N}]/u)[0].toUpperCase()).join('');
 }
 
-/** Thumbnail badge tone: under the 3-photo standard (red), enough (plain). Videos count as media. */
+/** Thumbnail badge tone: none (red), under the 3-photo standard (orange), enough (plain). Videos count as media. */
 export function photoTone(row) {
   if (row?.flags?.includes('no_photos')) return 'danger';
-  if (row?.flags?.includes('few_photos')) return 'danger';
+  if (row?.flags?.includes('few_photos')) return 'warning';
   return 'plain';
 }
 

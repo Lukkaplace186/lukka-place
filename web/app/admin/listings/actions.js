@@ -5,8 +5,7 @@ import { getPool } from '@/lib/db';
 import { notifyListingModeration } from '@/lib/adminApi';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
-import { EXTRACTION_FAILURE_MARKERS, REJECTION_REASON_CODES, mediaShortfall } from '@/lib/moderation';
-import { VIDEO_COUNT_SQL } from '@/lib/listingVideos';
+import { EXTRACTION_FAILURE_MARKERS, REJECTION_REASON_CODES } from '@/lib/moderation';
 import { findSameAgentResends } from '@/lib/moderationQueue';
 
 /**
@@ -50,9 +49,7 @@ async function notifyBestEffort(listingId, status, reason) {
  */
 async function publishProblem(pool, listingId) {
   const { rows } = await pool.query(
-    `SELECT p.price, pc.title, pc.description,
-            (SELECT COUNT(*)::int FROM property_slider_images si WHERE si.property_id = p.id) AS photo_count,
-            ${VIDEO_COUNT_SQL} AS video_count
+    `SELECT p.price, pc.title, pc.description
      FROM properties p
      LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
      WHERE p.id = $1`,
@@ -70,8 +67,7 @@ async function publishProblem(pool, listingId) {
   if (EXTRACTION_FAILURE_MARKERS.some((marker) => description.includes(marker))) {
     return `Annonce #${listingId} : la description est un message d'erreur d'extraction, pas une vraie description.`;
   }
-  // The 3-photo standard (lib/moderation.js MIN_LISTING_MEDIA), same count as the queue's flags.
-  return mediaShortfall(listingId, listing.photo_count, listing.video_count);
+  return null;
 }
 
 async function writeDecision(pool, session, listingId, approveStatus, { reasonCode = null, note = null } = {}) {

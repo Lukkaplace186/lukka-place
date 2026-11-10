@@ -257,9 +257,8 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
         -- A video counts as media (lib/listingVideos.js): a video-only listing is not "no photos".
         (b.photo_count = 0 AND b.video_count = 0 AND (COALESCE(b.featured_image, '') = '' OR b.featured_image LIKE '%noimage%')) AS f_no_photos,
         -- Fewer than the 3-photo standard (MIN_LISTING_MEDIA); a video counts as one.
-        -- Approval counts the same thing (actions.js publishProblem); a cover
-        -- photo outside the gallery does not count, so "no photos" is the
-        -- only case this leaves out.
+        -- An orange warning, never a refusal (owner, 2026-11-10). A cover
+        -- photo outside the gallery does not count; "no photos" is its own flag.
         (b.photo_count + b.video_count < ${MIN_LISTING_MEDIA}
           AND NOT (b.photo_count = 0 AND b.video_count = 0 AND (COALESCE(b.featured_image, '') = '' OR b.featured_image LIKE '%noimage%'))) AS f_few_photos,
         (b.commune IS NULL) AS f_missing_commune,

@@ -51,6 +51,7 @@ const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, for
 const { utcOffsetForCommune } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
 const pushNotify = require('../services/pushNotify');
+const customerAlerts = require('../services/customerAlerts');
 
 const router = express.Router();
 
@@ -1229,11 +1230,27 @@ router.patch('/viewing-requests/:id', (req, res) => {
     scheduledAt = resolved.value;
   }
 
+  const before = db.getViewingRequest(id);
   try {
     if (status !== undefined || requestedTime !== undefined) {
       db.updateViewingRequest(id, { status, requestedTime });
     }
     if (scheduledAt !== undefined) db.setViewingScheduledAt(id, scheduledAt);
+    // The customer's app hears a desk change (push only; WhatsApp unchanged:
+    // this route is still an override that messages nobody on WhatsApp).
+    setImmediate(() => {
+      try {
+        const after = db.getViewingRequestWithLead(id);
+        if (!after) return;
+        if (status === 'CANCELLED' && before?.status !== 'CANCELLED') {
+          customerAlerts.notifyVisitChanged(after, 'desk-cancelled');
+        } else if (scheduledAt && scheduledAt !== before?.scheduled_at && after.status === 'CONFIRMED') {
+          customerAlerts.notifyVisitChanged(after, 'desk-rescheduled', { scheduledAt });
+        }
+      } catch (err) {
+        console.error(`[admin] visit #${id} customer app notice failed: ${err.message}`);
+      }
+    });
     return res.json({ success: true, viewingRequest: db.getViewingRequest(id) });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });

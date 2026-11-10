@@ -432,6 +432,26 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * Customer visit reminders (services/customerAlerts.js): the evening before
+ * and 2 h before a confirmed visit, in the app (WhatsApp inside the 24 h
+ * window). VISIT_REMINDERS=off stops it.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./customerAlerts').visitRemindersJob);
+}
+
+/**
+ * Saved listings let / sold, under offer, offline, back on the market
+ * (services/favoriteStatus.js): once a day at 11 h Kinshasa, app only.
+ * FAVORITE_STATUS=off stops it.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./favoriteStatus').favoriteStatusJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

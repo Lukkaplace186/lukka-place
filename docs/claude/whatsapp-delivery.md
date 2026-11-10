@@ -413,10 +413,57 @@ profil switches.
 - **Stays on WhatsApp:** replies to a WhatsApp message the customer just
   sent (proposal thanks, check-in follow-ups, "Notez l'agent", enquiry
   handoff, signup welcome, assistant), and the codes.
-- **Known gap:** the saved-search and price-drop sweeps still select only
-  customers who did NOT turn off WhatsApp alerts
-  (`customers.whatsapp_alerts_opted_out_at`). So a customer who turned
-  WhatsApp off gets these in the app neither. Phase 2 should let the app
-  path ignore the WhatsApp opt-out.
+- ~~Known gap: a customer who turned WhatsApp alerts off got these in the app
+  neither.~~ Fixed in phase 2: the sweeps read them and the route only
+  pushes.
 - verify-pipeline §97; web `tests/unit/push-notifications.test.js`.
+
+### New customer alerts (2026-11-10, part 2 phase 2)
+
+New since the app. Every alert here is fire-and-forget. None of them has a
+Meta template, so "WhatsApp in window" means a session text that is sent only
+when the customer wrote to us in the last 24 h (`sessionWindow`).
+
+**Opt-out fix.** The saved-search and price-drop sweeps now also read
+customers who turned WhatsApp alerts off (`whatsapp_opted_out`). The cron
+route pushes to them and never WhatsApps them.
+
+**`services/customerAlerts.js`:**
+
+| | Alert | Channel | Where it is sent |
+|---|---|---|---|
+| B1 | Visit request sent | push only | end of `notifyViewingRequest`; new requests only, not reassignments |
+| B2 | Visit reminders: the evening before (18–21 h Kinshasa) and 2 h before | push, else WhatsApp in window | job `visit-reminders`, every 5 min |
+| B3 | The desk changed the visit: cancelled or rescheduled from the console, or reassigned | push only | the console `PATCH /viewing-requests/:id` still WhatsApps nobody; reassignment via `reassignViewing` |
+| B4 | The customer's own cancel or accept from the Espace Client | push only | `respondFromCustomer` |
+| B7 | Nobody took the request (`unclaimed` / `no-coverage`): the team takes over | push, else WhatsApp in window | `leadDispatch.alertDeskOnce` |
+| B8 | Move project, 24 h with no agency: the team is calling | push, else WhatsApp in window | `moveFollowup` |
+| B12 | A project enquiry was passed on | push only | `projectEnquiry` |
+
+Notes on B2:
+- Each reminder is stamped on the row before it is sent, in the new SQLite
+  columns `viewing_requests.reminder_eve_sent_at` and
+  `reminder_soon_sent_at`.
+- A 2 h reminder also closes the evening one.
+- `VISIT_REMINDERS=off` stops the job.
+
+**B5, an agent proposed a listing:** web `proposeListingAction` →
+`notifyCustomerOfProposal`, using `sendToCustomerAppFirst` with the lead's
+stored number. Category `requests`.
+
+**B9–B11, saved listings** (`services/favoriteStatus.js`, job
+`favorite-status`, 11 h Kinshasa):
+- Detects a saved listing that was let or sold, went under offer, was
+  withdrawn, or is back on the market.
+- Records the last state told in the new Postgres table
+  `favorite_status_notices`.
+- First sight is recorded silently.
+- App only, category `saved_listings`, at most 5 a customer per run.
+- `FAVORITE_STATUS=off`, `FAVORITE_STATUS_HOUR`.
+
+**Not built yet:** B6, the 24 h "Un agent vous a-t-il contacté ?" check
+with its three answers. It needs a page, the desk relaunch and template
+`suivi_demande_client`.
+
+verify-pipeline §98.
 

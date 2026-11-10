@@ -225,6 +225,11 @@ async function handleProjectEnquiry({ developmentId, waId, name, interest, messa
     );
   }
 
+  if (developerNotified || opsNotified) {
+    // eslint-disable-next-line global-require
+    require('./customerAlerts').notifyProjectEnquiry({ waId: from, leadId: lead.id, projectName: project.name });
+  }
+
   return { ok: true, lead: db.getLead(lead.id), developerNotified, opsNotified };
 }
 

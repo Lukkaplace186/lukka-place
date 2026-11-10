@@ -724,6 +724,13 @@ async function notifyViewingRequest({
     );
   }
 
+  // The customer's app: "request sent" (services/customerAlerts.js, push only).
+  // Only on a new request — a reassignment tells them its own way.
+  if (!reassign && recordRouting && viewingRequest?.id) {
+    // eslint-disable-next-line global-require
+    require('./customerAlerts').notifyVisitRequested({ viewingRequest, lead, listingLabel: listing ? listingLabel(listing, id) : null });
+  }
+
   return { agentNotified, opsNotified, routingType, reason: agentSkipReason || undefined };
 }
 
@@ -776,6 +783,8 @@ async function reassignViewing(viewingRequestId, agentId) {
   console.log(
     `[viewing] request #${request.id} REASSIGNED to agent #${agent.agent_id} — notified: ${result.agentNotified}`,
   );
+  // eslint-disable-next-line global-require
+  require('./customerAlerts').notifyVisitChanged(updated, 'reassigned', { agentName: agent.agent_name || null });
   return { ok: true, agentId: agent.agent_id, agentNotified: result.agentNotified, reason: result.reason };
 }
 
@@ -2316,6 +2325,9 @@ async function respondFromCustomer({ viewingRequestId, waId, action, via = 'the 
   );
 
   console.log(`[viewing] request #${request.id} ${rule.to} by its customer from ${via} — agent told: ${agentNotified}`);
+  // A written trace in the customer's app of what they just did (push only).
+  // eslint-disable-next-line global-require
+  require('./customerAlerts').notifyVisitChanged(request, action === 'CANCEL' ? 'customer-cancelled' : 'customer-accepted');
   return { ok: true, status: rule.to, unchanged: false, agentNotified };
 }
 

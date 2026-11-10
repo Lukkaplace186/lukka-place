@@ -7153,7 +7153,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'sqlite-backup',
     ]);
   });
 
@@ -17000,6 +17000,147 @@ console.log('\n2. services/openai.js');
       push97._setPool(null);
       push97._setTransport(null);
     }
+  }
+
+  // §98 New customer alerts: request sent, reminders, desk changes, the team takes over, saved listings (2026-11-10)
+  // ---------------------------------------------------------------------------
+  console.log('\n§98 New customer alerts — visit request sent, reminders, changes, the team takes over, saved listings let / back on the market');
+  {
+    const alerts98 = require('../services/customerAlerts');
+    const fav98 = require('../services/favoriteStatus');
+    const push98 = require('../services/pushNotify');
+    const window98 = require('../services/sessionWindow');
+    const chakra98 = require('../services/chakra');
+
+    // Kinshasa = UTC+1. 2026-11-12 17:30 UTC = 18:30 Kinshasa.
+    const at = (iso) => new Date(iso);
+
+    check('reminders: the 2 h one inside 2 h; the evening one only for tomorrow, 18–21 h Kinshasa; each once', () => {
+      const now = at('2026-11-12T17:30:00Z');
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-12T19:00:00Z' }, now), 'soon');
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-12T19:00:00Z', reminder_soon_sent_at: 'x' }, now), null);
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-13T09:00:00Z' }, now), 'eve', 'tomorrow 10 h Kinshasa');
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-13T09:00:00Z', reminder_eve_sent_at: 'x' }, now), null);
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-13T09:00:00Z' }, at('2026-11-12T14:00:00Z')), null, '15 h is too early');
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-13T09:00:00Z' }, at('2026-11-12T20:30:00Z')), null, '21 h 30 is too late');
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-14T09:00:00Z' }, now), null, 'the day after tomorrow');
+      assert.strictEqual(alerts98.reminderDue({ scheduled_at: '2026-11-12T17:00:00Z' }, now), null, 'already started');
+      assert.match(alerts98.reminderCopy('soon', { scheduled_at: '2026-11-12T19:00:00Z' }, 'Appartement Gombe').text, /Appartement Gombe/);
+    });
+
+    await checkAsync('the reminders job: no app → WhatsApp only inside the 24 h window, else nothing; stamped once', async () => {
+      const savedSend = chakra98.sendWhatsAppMessage;
+      const sent = [];
+      chakra98.sendWhatsAppMessage = async (to, text) => { sent.push({ to, text }); return {}; };
+      try {
+        const lead = dbService.createLead({ wa_id: '243906500098', name: 'Client 98' });
+        const v = dbService.createViewingRequest({ leadId: lead.id, propertyId: 9801, requestedTime: 'demain 10h' });
+        dbService.updateViewingRequest(v.id, { status: 'CONFIRMED' });
+        dbService.setViewingScheduledAt(v.id, '2026-11-12T19:00:00.000Z');
+        const lead2 = dbService.createLead({ wa_id: '243906500099', name: 'Client 99' });
+        const v2 = dbService.createViewingRequest({ leadId: lead2.id, propertyId: 9802, requestedTime: 'demain 10h' });
+        dbService.updateViewingRequest(v2.id, { status: 'CONFIRMED' });
+        dbService.setViewingScheduledAt(v2.id, '2026-11-12T18:45:00.000Z');
+        window98.recordInbound('243906500098', at('2026-11-12T10:00:00Z'));
+
+        const now = at('2026-11-12T17:30:00Z');
+        const first = await alerts98.runVisitReminders(now, { listingLabel: async () => 'Appartement Gombe' });
+        assert.strictEqual(first.whatsapp, 1);
+        assert.ok(first.none >= 1, 'the customer outside the window is not messaged');
+        assert.deepStrictEqual(sent.map((m) => m.to), ['243906500098']);
+        assert.match(sent[0].text, /Rappel : votre visite \(Appartement Gombe\)/);
+        const second = await alerts98.runVisitReminders(now, { listingLabel: async () => null });
+        assert.strictEqual(second.due, 0, 'never twice');
+        const row = dbService.getViewingRequest(v.id);
+        assert.ok(row.reminder_soon_sent_at && row.reminder_eve_sent_at, 'the 2 h reminder also closes the evening one');
+      } finally {
+        chakra98.sendWhatsAppMessage = savedSend;
+      }
+    });
+
+    await checkAsync('desk changes and the customer’s own answers reach the app as push only, with the right words', async () => {
+      const saved = push98.pushOnly;
+      const pushed = [];
+      push98.pushOnly = async (p) => { pushed.push(p); return { pushed: true }; };
+      try {
+        const request = { id: 12, lead_wa_id: '243906500098' };
+        await alerts98.notifyVisitChanged(request, 'desk-cancelled');
+        await alerts98.notifyVisitChanged(request, 'desk-rescheduled', { scheduledAt: '2026-11-13T09:00:00Z' });
+        await alerts98.notifyVisitChanged(request, 'reassigned', { agentName: 'Immo Kin' });
+        await alerts98.notifyVisitChanged(request, 'customer-accepted');
+        await alerts98.notifyVisitChanged(request, 'nonsense');
+        assert.deepStrictEqual(pushed.map((p) => p.title), ['Visite annulée', 'Horaire de visite mis à jour', 'Un autre agent s’occupe de votre visite', 'Horaire accepté']);
+        assert.ok(pushed.every((p) => p.userType === 'customer' && p.category === 'visits' && p.url === '/compte/client/visites?visite=12'));
+        assert.match(pushed[2].body, /Immo Kin/);
+        pushed.length = 0;
+        await alerts98.notifyVisitRequested({ viewingRequest: { id: 7 }, lead: { wa_id: '243906500098' }, listingLabel: 'Villa Ngaliema' });
+        assert.deepStrictEqual([pushed[0].kind, pushed[0].title], ['visit_requested', 'Demande de visite envoyée']);
+        await alerts98.notifyProjectEnquiry({ waId: '243906500098', leadId: 3, projectName: 'Tour Gombe' });
+        assert.match(pushed[1].body, /Tour Gombe/);
+      } finally {
+        push98.pushOnly = saved;
+      }
+    });
+
+    await checkAsync('nobody took the request: the customer hears the team takes over, only for unclaimed / no coverage', async () => {
+      const savedFirst = push98.pushFirst;
+      const seen = [];
+      push98.pushFirst = async (p) => { seen.push(p); return { pushed: true }; };
+      try {
+        assert.strictEqual(await alerts98.notifyRequestWithTeam({ id: 5, wa_id: '243906500098' }, 'no-commune'), 'none');
+        assert.strictEqual(await alerts98.notifyRequestWithTeam({ id: 5, wa_id: '243906500098' }, 'unclaimed'), 'push');
+        assert.strictEqual(await alerts98.notifyMoveFollowup({ id: 6, wa_id: '243906500098' }), 'push');
+        assert.deepStrictEqual(seen.map((p) => [p.kind, p.category]), [['request_with_team', 'requests'], ['move_followup', 'requests']]);
+      } finally {
+        push98.pushFirst = savedFirst;
+      }
+    });
+
+    check('saved listings: each change has its words; withdrawn after let is not news twice', () => {
+      assert.strictEqual(fav98.noticeFor({ property_id: 1, state: 'closed', purpose: 'rent', title: 'Studio' }).title, 'Un bien enregistré a été loué');
+      assert.strictEqual(fav98.noticeFor({ property_id: 1, state: 'closed', purpose: 'sale' }).title, 'Un bien enregistré a été vendu');
+      assert.strictEqual(fav98.noticeFor({ property_id: 1, state: 'under_offer' }).url, '/listings/1');
+      assert.strictEqual(fav98.noticeFor({ property_id: 1, state: 'active', told_state: 'under_offer' }).title, 'De nouveau disponible');
+      assert.strictEqual(fav98.noticeFor({ property_id: 1, state: 'withdrawn', told_state: 'closed' }), null);
+      assert.match(fav98.ROWS_SQL, /p\.status = 1 AND p\.approve_status = 1/, 'the public gate');
+    });
+
+    await checkAsync('saved listings job: first sight is recorded silently, a change is pushed (app only), capped at 5 per customer', async () => {
+      const upserts = [];
+      const rows = [
+        { customer_id: 1, property_id: 10, state: 'active', told_state: null },
+        { customer_id: 1, property_id: 11, state: 'closed', told_state: 'active', purpose: 'rent', title: 'Studio' },
+        ...Array.from({ length: 6 }, (_, i) => ({ customer_id: 2, property_id: 20 + i, state: 'under_offer', told_state: 'active' })),
+      ];
+      const pool = {
+        query: async (sql, params) => {
+          if (/^\s*SELECT cf\.customer_id/.test(sql)) return { rows };
+          upserts.push(params);
+          return { rows: [] };
+        },
+      };
+      const pushes = [];
+      const result = await fav98.runFavoriteStatus({ pool, push: async (p) => { pushes.push(p); return { pushed: true }; } });
+      assert.deepStrictEqual([result.baseline, result.told, result.capped], [1, 6, 1]);
+      assert.ok(pushes.every((p) => p.userType === 'customer' && p.category === 'saved_listings'));
+      assert.strictEqual(upserts.length, rows.length, 'every state recorded, told or not');
+      const missing = { query: async () => { throw Object.assign(new Error('no table'), { code: '42P01' }); } };
+      assert.strictEqual((await fav98.runFavoriteStatus({ pool: missing })).skipped, 'no-table');
+    });
+
+    check('the reminders and saved-listings jobs are registered before the backup, and wired where things happen', () => {
+      const names = require('../services/scheduler').JOBS.map((j) => j.name);
+      assert.ok(names.indexOf('visit-reminders') > -1 && names.indexOf('favorite-status') < names.indexOf('sqlite-backup'));
+      const src = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+      assert.match(src('services/viewingNotifications.js'), /notifyVisitRequested\(/);
+      assert.match(src('services/viewingNotifications.js'), /notifyVisitChanged\(updated, 'reassigned'/);
+      assert.match(src('services/viewingNotifications.js'), /'customer-cancelled' : 'customer-accepted'/);
+      assert.match(src('routes/admin.js'), /notifyVisitChanged\(after, 'desk-cancelled'\)/);
+      assert.match(src('services/leadDispatch.js'), /notifyRequestWithTeam\(lead, reason\)/);
+      assert.match(src('services/moveFollowup.js'), /notifyMoveFollowup\(lead\)/);
+      assert.match(src('services/projectEnquiry.js'), /notifyProjectEnquiry\(/);
+      assert.match(src('migrations/20261110_push_notifications.sql'), /CREATE TABLE IF NOT EXISTS favorite_status_notices/);
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

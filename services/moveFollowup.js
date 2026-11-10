@@ -99,6 +99,9 @@ async function runMoveFollowups({ now = Date.now(), send = deskAlert.sendDeskAle
         result.nobody += 1;
       }
     }
+    // The customer hears the team is calling (app, or WhatsApp in the 24 h window).
+    // eslint-disable-next-line global-require
+    require('./customerAlerts').notifyMoveFollowup(lead).catch(() => {});
     try {
       markFollowedUp(lead.id);
     } catch (err) {

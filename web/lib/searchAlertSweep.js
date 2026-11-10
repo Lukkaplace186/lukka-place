@@ -145,6 +145,7 @@ export async function runAlertSweepChunk({
       await deps.send(search.phone, {
         // For the app (cron route: pushed when the customer has it, else WhatsApp).
         customerId: search.customer_id ?? null,
+        whatsappOptedOut: search.whatsapp_opted_out === true,
         push: {
           title: fresh.length > 1
             ? `${fresh.length} nouveaux biens pour « ${clip(search.label, 60)} »`

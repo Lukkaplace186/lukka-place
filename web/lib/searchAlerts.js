@@ -41,12 +41,14 @@ export async function getSavedSearchesDueForAlerts({ afterId = 0, limit = 200, n
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT css.id, css.customer_id, css.query, css.label, css.created_at, c.phone,
-            ${FREQUENCY_SQL} AS alert_frequency
+            ${FREQUENCY_SQL} AS alert_frequency,
+            -- 2026-11-10: a customer who turned WhatsApp alerts off is still
+            -- read, for the app only (cron search-alerts: never WhatsApped).
+            (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NOT NULL AS whatsapp_opted_out
        FROM customer_saved_searches css
        JOIN customers c ON c.id = css.customer_id
       WHERE css.id > $1
         AND c.phone IS NOT NULL
-        AND (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NULL
         AND css.created_at < $2
         AND ${FREQUENCY_SQL} <> 'off'
         AND (

@@ -3445,6 +3445,10 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   ['proposal_sent_at', 'TEXT'],
   ['proposal_reminded_at', 'TEXT'],
   ['proposal_refused_at', 'TEXT'],
+  // Customer visit reminders (services/customerAlerts.js, 2026-11-10): the
+  // evening before and 2 h before, each stamped before it is sent.
+  ['reminder_eve_sent_at', 'TEXT'],
+  ['reminder_soon_sent_at', 'TEXT'],
 ];
 
 /** viewing_requests.direct_contact_channel — same words as leads.contact_channel. */

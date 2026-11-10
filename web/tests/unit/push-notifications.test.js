@@ -238,3 +238,27 @@ test('the cron route pushes saved-search matches and price drops to app users on
     assert.match(read(file), /sendToCustomerAppFirst\(/, file);
   }
 });
+
+// --- Phase 2 ------------------------------------------------------------------
+
+test('WhatsApp alerts switched off: saved-search matches and price drops still reach the app, never WhatsApp', () => {
+  const route = read('../../app/api/cron/search-alerts/route.js');
+  const send = route.slice(route.indexOf('async function send('));
+  const pushAt = send.indexOf("pushedToApp(phone, customerId, 'search_alert'");
+  const optOutAt = send.indexOf('if (whatsappOptedOut) return;');
+  const whatsappAt = send.indexOf('sendWhatsAppMessage(phone, text)');
+  assert.ok(pushAt > -1 && optOutAt > pushAt && whatsappAt > optOutAt, 'push first, then the opt-out stops WhatsApp');
+  assert.match(route, /'price_drop', 'saved_listings', push\)\) return;\s*if \(whatsappOptedOut\) return;/);
+  assert.match(read('../../lib/searchAlertSweep.js'), /whatsappOptedOut: search\.whatsapp_opted_out === true/);
+  assert.match(read('../../lib/favoritePriceDropSweep.js'), /whatsappOptedOut: row\.whatsapp_opted_out === true/);
+});
+
+test('an agent proposing a listing tells the customer (app first), after the write and without blocking it', () => {
+  const src = read('../../app/compte/agent/actions.js');
+  const action = src.slice(src.indexOf('export async function proposeListingAction'), src.indexOf('async function notifyCustomerOfProposal'));
+  assert.ok(action.indexOf('createLeadProposal(') < action.indexOf('notifyCustomerOfProposal('), 'after the proposal is recorded');
+  assert.match(action, /notifyCustomerOfProposal\(leadId, listing\)\.catch\(/, 'fire-and-forget');
+  const notify = src.slice(src.indexOf('async function notifyCustomerOfProposal'));
+  assert.match(notify, /const \{ lead \} = \(await getLead\(leadId\)\) \|\| \{\};/, 'the stored lead number, never the form');
+  assert.match(notify, /kind: 'listing_proposed', category: 'requests'/);
+});

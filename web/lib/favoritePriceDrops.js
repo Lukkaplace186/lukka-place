@@ -40,12 +40,13 @@ function cutFavoritesFrom(extraJoins = '') {
 export async function getUnnotifiedFavoritePriceDrops({ limit = 500 } = {}) {
   const { rows } = await getPool().query(
     `SELECT cf.customer_id, c.phone, p.id AS property_id, pc.title, p.price, p.purpose, p.price_period,
-            pd.price_drop_from, pd.price_drop_at
+            pd.price_drop_from, pd.price_drop_at,
+            -- 2026-11-10: read for the app even when WhatsApp alerts are off; never WhatsApped then.
+            (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NOT NULL AS whatsapp_opted_out
        ${cutFavoritesFrom(`JOIN customers c ON c.id = cf.customer_id
   LEFT JOIN property_contents pc ON pc.property_id = cf.property_id AND pc.language_id = 20`)}
         AND c.phone IS NOT NULL
         -- Any customer number, confirmed or not (2026-11-06, owner decision).
-        AND (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM customer_price_drop_notifications n
            WHERE n.customer_id = cf.customer_id AND n.property_id = p.id AND n.price_drop_at = pd.price_drop_at

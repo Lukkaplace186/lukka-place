@@ -144,7 +144,8 @@ test('the due-search query pages by id and reaches opted-in, due searches, confi
   assert.match(sql, /css\.id > \$1/);
   assert.match(sql, /ORDER BY css\.id LIMIT \$3/);
   assert.doesNotMatch(sql, /phone_verified_at/, '2026-11-06: customers carry no phone confirmation');
-  assert.match(sql, /whatsapp_alerts_opted_out_at'\) IS NULL/);
+  // 2026-11-10: opted-out customers are read for the app; the cron route never WhatsApps them.
+  assert.match(sql, /whatsapp_alerts_opted_out_at'\) IS NOT NULL AS whatsapp_opted_out/);
   assert.match(sql, /<> 'off'/);
   assert.match(sql, /interval '20 hours'/);
   assert.match(sql, /interval '6 days'/);

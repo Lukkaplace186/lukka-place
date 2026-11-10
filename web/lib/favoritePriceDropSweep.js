@@ -66,12 +66,12 @@ export async function runFavoritePriceDropSweep({ siteUrl, deps }) {
   const byCustomer = new Map();
   for (const row of rows) {
     const key = String(row.customer_id);
-    if (!byCustomer.has(key)) byCustomer.set(key, { phone: row.phone, drops: [] });
+    if (!byCustomer.has(key)) byCustomer.set(key, { phone: row.phone, whatsappOptedOut: row.whatsapp_opted_out === true, drops: [] });
     byCustomer.get(key).drops.push(row);
   }
   result.customers = byCustomer.size;
 
-  for (const [customerId, { phone, drops }] of byCustomer) {
+  for (const [customerId, { phone, whatsappOptedOut, drops }] of byCustomer) {
     // Newest cut first; anything past the cap waits for tomorrow's message.
     const batch = drops
       .slice()
@@ -82,6 +82,7 @@ export async function runFavoritePriceDropSweep({ siteUrl, deps }) {
       await deps.send(phone, priceDropMessageText({ drops: batch, siteUrl }), {
         // For the app (cron route: pushed when the customer has it, else WhatsApp).
         customerId: Number(customerId),
+        whatsappOptedOut,
         push: {
           title: batch.length > 1 ? `${batch.length} biens enregistrés baissent de prix` : 'Un bien enregistré baisse de prix',
           body: `${clip(first.title || `Annonce n° ${first.property_id}`, 90)} : ${formatPrice(first.price_drop_from, first.purpose, first.price_period)} → ${formatPrice(first.price, first.purpose, first.price_period)}`,

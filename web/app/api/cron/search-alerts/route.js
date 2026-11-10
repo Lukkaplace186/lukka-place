@@ -68,8 +68,10 @@ export async function POST(request) {
     return pushed;
   }
 
-  async function send(phone, { bodyParams, text, customerId, push }) {
+  async function send(phone, { bodyParams, text, customerId, whatsappOptedOut, push }) {
     if (await pushedToApp(phone, customerId, 'search_alert', 'search_alerts', push)) return;
+    // WhatsApp alerts switched off and no app to push to: nothing is sent.
+    if (whatsappOptedOut) return;
     if (template) {
       try {
         await sendWhatsAppTemplate(phone, { template, languageCode, bodyParams });
@@ -94,8 +96,9 @@ export async function POST(request) {
         siteUrl,
         deps: {
           getDrops: () => getUnnotifiedFavoritePriceDrops(),
-          send: async (phone, text, { customerId, push } = {}) => {
+          send: async (phone, text, { customerId, whatsappOptedOut, push } = {}) => {
             if (await pushedToApp(phone, customerId, 'price_drop', 'saved_listings', push)) return;
+            if (whatsappOptedOut) return;
             await sendWhatsAppMessage(phone, text);
           },
           recordNotified: recordFavoritePriceDropsNotified,

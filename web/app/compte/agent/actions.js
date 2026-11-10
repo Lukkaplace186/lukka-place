@@ -45,6 +45,7 @@ import {
   updateLeadStatus,
   sendWhatsAppMessage,
   sendToCustomerAppFirst,
+  getLead,
   respondToViewingRequest,
   recordViewingDirectContact,
   createLeadProposal,
@@ -54,6 +55,7 @@ import {
   answerLeadMatch,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES } from '@/lib/adminLabels';
+import { SITE_URL } from '@/lib/constants';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
@@ -898,6 +900,13 @@ export async function proposeListingAction(leadId, formData) {
     return { ok: false, error: err.message };
   }
 
+  // The customer hears about it (2026-11-10, customer alert B5): in the app,
+  // else on WhatsApp as today's replies go. After the write, never awaited,
+  // never failing the proposal itself.
+  notifyCustomerOfProposal(leadId, listing).catch((err) =>
+    console.error(`[compte/agent] proposal notice for lead #${leadId} failed: ${err.message}`),
+  );
+
   revalidatePath('/compte/agent/demandes');
   revalidatePath('/compte/agent');
   // A pitch is immediately visible on the customer's own side — their
@@ -906,6 +915,21 @@ export async function proposeListingAction(leadId, formData) {
   revalidatePath('/compte/client/messages');
   revalidatePath('/compte/client');
   return { ok: true };
+}
+
+/** B5 — "Un agent vous propose un bien", to the lead's own number (the stored row). */
+async function notifyCustomerOfProposal(leadId, listing) {
+  const { lead } = (await getLead(leadId)) || {};
+  const phone = String(lead?.wa_id || '').replace(/\D/g, '');
+  if (!/^\d{7,15}$/.test(phone)) return;
+  const title = String(listing?.title || `Annonce n° ${listing?.id}`).slice(0, 120);
+  const link = `${String(SITE_URL).replace(/\/+$/, '')}/listings/${listing.id}`;
+  const result = await sendToCustomerAppFirst(
+    phone,
+    `🏠 [Lukka Place] Un agent vous propose un bien pour votre recherche :\n${title}\n${link}`,
+    { kind: 'listing_proposed', category: 'requests', title: 'Un agent vous propose un bien', body: title, url: `/listings/${listing.id}` },
+  );
+  console.log(`[compte/agent] proposal of #${listing.id} on lead #${leadId}: customer told via ${result.via}`);
 }
 
 /**

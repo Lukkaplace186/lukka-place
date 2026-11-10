@@ -288,6 +288,10 @@ async function alertDeskOnce(lead, reason, details = {}, { send } = {}) {
       )
       .run(reason, lead.id);
     if (taken.changes === 0) return { sent: false, reason: 'already-alerted' };
+    // The customer hears the team took over (services/customerAlerts.js):
+    // in the app, or on WhatsApp inside the 24 h window. Fire-and-forget.
+    // eslint-disable-next-line global-require
+    require('./customerAlerts').notifyRequestWithTeam(lead, reason).catch(() => {});
     const desk = String(process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '');
     if (!desk) {
       console.error(`[dispatch] lead #${lead.id}: ${reason} and OPS_WHATSAPP_NUMBER is unset — nobody told`);

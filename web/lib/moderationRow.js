@@ -17,8 +17,11 @@ import { DUPLICATE_FLAGS } from '@/lib/moderation';
 export const NEW_ACCOUNT_DAYS = 7;
 
 /** Flags another cell of the row already shows, so the checks column leaves them out. */
+// "no_photos" is NOT here: a listing with no photo and no video is spelled out
+// in the checks column too — the red 0 on the thumbnail alone let the column
+// say "Aucun signal" (2026-11-10).
 export const SHOWN_ELSEWHERE = new Set([
-  'no_photos', 'few_photos', // thumbnail badge
+  'few_photos', // thumbnail badge
   'price_outlier', 'missing_price', // price cell
   'missing_commune', // place line
   'agent_unverified', 'no_agent', // agent cell

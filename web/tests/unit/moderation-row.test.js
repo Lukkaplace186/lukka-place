@@ -12,6 +12,10 @@ test('each fact appears once: flags another cell shows leave the checks column',
     checkFlags(['few_photos', 'duplicate_photo', 'duplicate_listing', 'price_outlier', 'missing_content', 'availability_unanswered']),
     ['missing_content', 'availability_unanswered'],
   );
+  // No photo and no video is spelled out in the checks column, not only as the
+  // red 0 on the thumbnail (2026-11-10: such a row read "Aucun signal").
+  assert.deepEqual(checkFlags(['no_photos', 'few_photos']), ['no_photos']);
+  assert.ok(!SHOWN_ELSEWHERE.has('no_photos'));
   // Every flag the queue computes is either shown in the checks column or somewhere else.
   for (const flag of SHOWN_ELSEWHERE) assert.ok(QUALITY_FLAGS.includes(flag), flag);
   for (const flag of DUPLICATE_FLAGS) assert.ok(SHOWN_ELSEWHERE.has(flag), flag);

@@ -41,7 +41,7 @@ export const QUALITY_FLAG_LABEL_KEYS = Object.fromEntries(
 );
 
 /** Flags that should stop a moderator and make them look twice. */
-export const BLOCKING_FLAGS = new Set(['missing_price', 'missing_content', 'extraction_failure', 'same_agent_resend']);
+export const BLOCKING_FLAGS = new Set(['missing_price', 'missing_content', 'extraction_failure', 'same_agent_resend', 'no_photos']);
 
 export const MODERATION_QUEUE_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
 

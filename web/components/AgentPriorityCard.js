@@ -22,7 +22,12 @@ const LEVEL_STYLE = {
 };
 const PARTS = ['up_to_date', 'new_listing', 'requests', 'visits'];
 
-export default async function AgentPriorityCard({ agentId }) {
+/**
+ * `audience="admin"` (2026-11-10, owner decision: the team sees every
+ * agency's level too) is the same card on /admin/agents/[id], worded about
+ * the agency rather than to it.
+ */
+export default async function AgentPriorityCard({ agentId, audience = 'agent' }) {
   let priority = null;
   try {
     ({ priority } = await getAgentPriority(agentId));
@@ -32,6 +37,7 @@ export default async function AgentPriorityCard({ agentId }) {
   }
   if (!priority) return null;
   const t = await getT();
+  const admin = audience === 'admin';
   const levelName = (level) => t(`agent.priority.levels.${level}`);
   const parts = PARTS.map((key) => priority.parts.find((p) => p.key === key)).filter(Boolean);
 
@@ -42,8 +48,8 @@ export default async function AgentPriorityCard({ agentId }) {
           <Award strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 id="agent-priority-title" className="u-title-card text-ink">{t('agent.priority.title')}</h2>
-          <p className="u-micro mt-0.5 text-ink-70">{t('agent.priority.lead')}</p>
+          <h2 id="agent-priority-title" className="u-title-card text-ink">{admin ? t('admin.agentProfile.priorityTitle') : t('agent.priority.title')}</h2>
+          <p className="u-micro mt-0.5 text-ink-70">{admin ? t('admin.agentProfile.priorityLead') : t('agent.priority.lead')}</p>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-extrabold ${LEVEL_STYLE[priority.level] || LEVEL_STYLE.bronze}`}>
           {levelName(priority.level)}
@@ -87,7 +93,7 @@ export default async function AgentPriorityCard({ agentId }) {
         })}
       </ul>
 
-      <p className="u-micro text-ink-45">{t('agent.priority.private')}</p>
+      <p className="u-micro text-ink-45">{admin ? t('admin.agentProfile.priorityFoot') : t('agent.priority.private')}</p>
     </section>
   );
 }

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AlertTriangle, Radar } from 'lucide-react';
-import { getMatchingStats, listLeadMatches } from '@/lib/adminApi';
+import { getAgentPriorityLevels, getMatchingStats, listLeadMatches } from '@/lib/adminApi';
 import { getAgentNamesByIds } from '@/lib/agents';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildHref, firstParam, parsePage } from '@/lib/adminPagination';
@@ -28,6 +28,8 @@ const MATCH_STATUS_LABEL_KEYS = {
   ANSWERED: 'admin.matching.statusAnswered',
   UNANSWERED: 'admin.matching.statusUnanswered',
 };
+
+const LEVEL_TONE = { or: 'warning', argent: 'blue', bronze: 'neutral' };
 
 function pct(part, whole) {
   if (!whole) return null;
@@ -103,7 +105,12 @@ export default async function AdminMatchingPage({ searchParams }) {
     ...(stats?.byAgent || []).map((row) => row.agent_id),
     ...(matches?.data || []).map((row) => row.agent_id),
   ];
-  const agentNames = await getAgentNamesByIds(agentIds).catch(() => new Map());
+  // Every agency's current priority level (engine services/agentPriority.js)
+  // — the one the next request will use, not the one stored on old rows.
+  const [agentNames, levels] = await Promise.all([
+    getAgentNamesByIds(agentIds).catch(() => new Map()),
+    getAgentPriorityLevels((stats?.byAgent || []).map((row) => row.agent_id)).catch(() => ({})),
+  ]);
   const agentLabel = (id) => agentNames.get(Number(id))?.name || `Agent #${id}`;
 
   const totals = stats?.totals;
@@ -351,6 +358,7 @@ export default async function AdminMatchingPage({ searchParams }) {
               <thead className="bg-canvas-alt">
                 <tr>
                   <th className={TH}>{t('admin.matching.colAgency')}</th>
+                  <th className={TH}>{t('admin.matching.colLevel')}</th>
                   <th className={TH}>{t('admin.matching.alertsReceived')}</th>
                   <th className={TH}>{t('admin.matching.colTaken')}</th>
                   <th className={TH}>{t('admin.matching.colDeclined')}</th>
@@ -369,6 +377,13 @@ export default async function AdminMatchingPage({ searchParams }) {
                           {agentLabel(row.agent_id)}
                         </Link>
                         <div className="u-micro u-tabular text-ink-35">{row.agent_phone || '—'}</div>
+                      </td>
+                      <td className={TD}>
+                        {levels[row.agent_id] ? (
+                          <Chip tone={LEVEL_TONE[levels[row.agent_id].level] || 'neutral'}>
+                            {t(`admin.matching.levels.${levels[row.agent_id].level}`)} · {Math.round(levels[row.agent_id].points)}
+                          </Chip>
+                        ) : '—'}
                       </td>
                       <td className={`${TD} u-tabular`}>{row.pushes}</td>
                       <td className={`${TD} u-tabular`}>{row.claims}</td>

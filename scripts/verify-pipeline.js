@@ -16262,6 +16262,14 @@ console.log('\n2. services/openai.js');
         assert.deepStrictEqual(resp.body.priority.parts.map((p) => p.key), ['up_to_date', 'new_listing', 'requests', 'visits']);
       });
 
+      await checkAsync('GET /admin/agents/priority-levels answers every requested agency\'s level for the admin console', async () => {
+        const resp = await adminRequest('GET', '/admin/agents/priority-levels?ids=9410,9411,abc');
+        assert.strictEqual(resp.status, 200);
+        assert.deepStrictEqual(Object.keys(resp.body.levels).sort(), ['9410', '9411']);
+        assert.ok(['or', 'argent', 'bronze'].includes(resp.body.levels['9410'].level));
+        assert.strictEqual(typeof resp.body.levels['9410'].points, 'number');
+      });
+
       check('neighbouring communes come from verified centre points, same city, within 6 km', () => {
         assert.deepStrictEqual(neighbours94.neighbouringCommunes('Limete').map((n) => n.commune), ['Kalamu', 'Ngaba', 'Matete']);
         assert.deepStrictEqual(neighbours94.neighbouringCommunes('Maluku'), []);

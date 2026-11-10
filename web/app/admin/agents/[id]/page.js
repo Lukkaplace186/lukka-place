@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import AgentPriorityCard from '@/components/AgentPriorityCard';
 import { ArrowLeft, ExternalLink, Pencil } from 'lucide-react';
 import { getAgentForAdmin } from '@/lib/agents';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
@@ -110,6 +112,11 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
     content = (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
         <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session?.role, 'agents.manage')} />
+        <div className="flex flex-col gap-6">
+        {/* The same Or / Argent / Bronze card the agency sees on its dashboard. */}
+        <Suspense fallback={null}>
+          <AgentPriorityCard agentId={agent.id} audience="admin" />
+        </Suspense>
         <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
           <h2 className="u-title-card text-ink">{t('admin.agentPanel.subscriptionHistory')}</h2>
           {billing.length === 0 ? (
@@ -132,6 +139,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               ))}
             </ul>
           )}
+        </div>
         </div>
       </div>
     );

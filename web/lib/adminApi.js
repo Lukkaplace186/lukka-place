@@ -626,6 +626,17 @@ export async function getAgentPriority(agentId) {
   return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/priority`);
 }
 
+/**
+ * Levels of several agencies at once (admin console): { <id>: { level, points } }.
+ * @returns {Promise<Record<string, {level: string, points: number}>>}
+ */
+export async function getAgentPriorityLevels(agentIds) {
+  const ids = [...new Set((agentIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+  if (ids.length === 0) return {};
+  const body = await engineFetch(`/admin/agents/priority-levels?ids=${ids.join(',')}`);
+  return body.levels || {};
+}
+
 export async function getMatchingStats({ days = 30 } = {}) {
   return engineFetch(`/admin/leads/matching-stats?days=${encodeURIComponent(days)}`);
 }

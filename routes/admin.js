@@ -1816,6 +1816,52 @@ async function deliverModerationVerdict(status, listing, propertyId, reason = {}
 }
 
 // ---------------------------------------------------------------------------
+// Agency priority levels (services/agentPriority.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Priority levels of several agencies at once, for the admin console
+ * (/admin/matching's agency table): `ids` comma-separated, at most 200.
+ * Answers { levels: { <id>: { level, points } } }. Declared before
+ * '/agents/:id/...' routes so 'levels' is never read as an id.
+ */
+router.get('/agents/priority-levels', async (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map((s) => Number.parseInt(s, 10))
+    .filter((n) => Number.isInteger(n) && n > 0)
+    .slice(0, 200);
+  try {
+    const levels = await agentPriority.computeLevels(ids);
+    const out = {};
+    for (const [id, value] of levels) out[id] = { level: value.level, points: value.points };
+    return res.json({ success: true, levels: out });
+  } catch (err) {
+    console.error(`[admin] GET /agents/priority-levels failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not compute the priority levels.' });
+  }
+});
+
+/**
+ * An agency's priority level for customer requests (services/agentPriority.js):
+ * Or / Argent / Bronze, its points per part, and what is left to the next
+ * level. For that agency's own dashboard and its admin profile; never public.
+ */
+router.get('/agents/:id/priority', async (req, res) => {
+  const agentId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(agentId) || agentId <= 0) {
+    return res.status(400).json({ success: false, error: 'agent id must be a positive integer.' });
+  }
+  try {
+    const priority = await agentPriority.getAgentPriority(agentId);
+    return res.json({ success: true, priority });
+  } catch (err) {
+    console.error(`[admin] GET /agents/${agentId}/priority failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not compute the priority level.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Agent listing attribution (web/)
 // ---------------------------------------------------------------------------
 
@@ -1841,25 +1887,6 @@ async function deliverModerationVerdict(status, listing, propertyId, reason = {}
  * NULL agent_id, so an attribution an admin made by hand always wins, and a
  * second call simply links nothing.
  */
-/**
- * An agency's priority level for customer requests (services/agentPriority.js):
- * Or / Argent / Bronze, its points per part, and what is left to the next
- * level. For that agency's own dashboard; never shown publicly.
- */
-router.get('/agents/:id/priority', async (req, res) => {
-  const agentId = Number.parseInt(req.params.id, 10);
-  if (!Number.isFinite(agentId) || agentId <= 0) {
-    return res.status(400).json({ success: false, error: 'agent id must be a positive integer.' });
-  }
-  try {
-    const priority = await agentPriority.getAgentPriority(agentId);
-    return res.json({ success: true, priority });
-  } catch (err) {
-    console.error(`[admin] GET /agents/${agentId}/priority failed: ${err.message}`);
-    return res.status(500).json({ success: false, error: 'Could not compute the priority level.' });
-  }
-});
-
 router.post('/agents/claim-listings', async (req, res) => {
   const waId = String(req.body?.wa_id ?? '').replace(/\D/g, '');
   if (!waId) {

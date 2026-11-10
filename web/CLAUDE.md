@@ -4891,6 +4891,11 @@ Engine side: root docs/claude/leads-and-enquiries.md, "Matching in waves".
   from engine `GET /admin/agents/:id/priority`, points per part with what to do
   next. Agency only, never public. Renders nothing when the engine cannot
   answer (an unread level is not shown as Bronze).
+- **The team sees every level too** (owner decision, same day): the same card
+  with `audience="admin"` on `/admin/agents/[id]` (overview tab, worded about
+  the agency), and a "Niveau" column (level · points) in `/admin/matching`'s
+  agency table, read live from engine `GET /admin/agents/priority-levels?ids=`
+  — the level the next request will use, not the one stored on old match rows.
 - **`/admin/matching`** counts open requests only (directed ones in the first
   tile's hint), "Prises par une agence" with the share taken within 1 h, a
   response rate over claims + passes, wave / level / neighbour on each match

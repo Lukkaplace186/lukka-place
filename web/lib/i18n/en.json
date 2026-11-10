@@ -4883,7 +4883,8 @@
         "or": "Gold",
         "argent": "Silver",
         "bronze": "Bronze"
-      }
+      },
+      "colLevel": "Level"
     },
     "agentPanel": {
       "firstName": "First Name",
@@ -5459,7 +5460,10 @@
       "noLogs": "No request has reached this agent yet.",
       "joined": "Joined {date}",
       "publicPage": "Public page",
-      "listingsQuota": "Listings (total / quota)"
+      "listingsQuota": "Listings (total / quota)",
+      "priorityTitle": "Priority for Customer Requests",
+      "priorityLead": "The level that decides which agencies receive a request first. The agency sees the same card on its dashboard.",
+      "priorityFoot": "Not public: only the agency and the team see it."
     },
     "audit": {
       "title": "Audit Log",

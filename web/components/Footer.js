@@ -1,5 +1,5 @@
 import Link from '@/components/IntentLink';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getSupportWhatsAppHref } from '@/lib/whatsapp';
 import { cachedSeoFacets } from '@/lib/listingsCached';
 import { OVERLAY_PROPERTY_TYPES, seoPath } from '@/lib/seoPages';
 import { socialProfiles } from '@/lib/seoSchema';
@@ -166,7 +166,9 @@ export default async function Footer() {
   // The opening line of the WhatsApp message follows the visitor's language
   // too — a French greeting from someone browsing in English reads as a
   // template they were never meant to see.
-  const whatsappHref = social.whatsapp || getCentralWhatsAppHref(t('footer.whatsappGreeting'));
+  // Customer service number, not the intake number the listing buttons use
+  // (owner, 2026-11-11) — see getSupportWhatsAppHref.
+  const whatsappHref = social.whatsapp || getSupportWhatsAppHref(t('footer.whatsappGreeting'));
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt empty:hidden">

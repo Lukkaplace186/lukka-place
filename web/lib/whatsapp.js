@@ -99,3 +99,17 @@ export function getCentralWhatsAppHref(message) {
   const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
   return phoneNumber ? buildWhatsAppLink(phoneNumber, message) : null;
 }
+
+/**
+ * Customer service (owner, 2026-11-11): the site-wide footer icon opens the
+ * admin / service-client number (+243 846 962 654), not the intake number the
+ * listing buttons use — customers writing about general matters were landing
+ * on the intake number. Listing CTAs keep getCentralWhatsAppHref.
+ * NEXT_PUBLIC_SUPPORT_WHATSAPP_NUMBER overrides the default.
+ */
+export const SUPPORT_WHATSAPP_NUMBER = '243846962654';
+
+export function getSupportWhatsAppHref(message) {
+  const phoneNumber = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP_NUMBER || SUPPORT_WHATSAPP_NUMBER).replace(/\D/g, '');
+  return phoneNumber ? buildWhatsAppLink(phoneNumber, message) : null;
+}

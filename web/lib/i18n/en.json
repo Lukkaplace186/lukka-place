@@ -7375,7 +7375,7 @@
       "summaryHint": "One or two sentences: shown in the list and in WhatsApp / Google previews.",
       "bodyFr": "Article",
       "formatHelpTitle": "Formatting",
-      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.",
+      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.\n\nLive data (alone on their line, recomputed on every read):\n{{indice}} — the Lukka Index for every commune, latest month\n{{indice commune=Gombe mois=6}} — one commune, month by month (table)\n{{indice commune=Gombe mois=12 affichage=graphique}} — the same as a line chart\n{{indice commune=Gombe offre=vente}} — asking sale prices\n{{prix commune=Gombe}} — the price guide, by bedrooms\n{{prix commune=Gombe chambres=2}} — a single row\nA commune with a space in its name: commune=\"Mont Ngafula\".",
       "sectionCover": "Cover Image",
       "cover": "Image",
       "replaceCover": "Replace the Image",
@@ -7427,7 +7427,21 @@
         "badType": "Unknown property type.",
         "coverType": "The image must be JPEG, PNG or WebP.",
         "coverSize": "The image is over {max} MB.",
-        "gone": "This article no longer exists."
+        "gone": "This article no longer exists.",
+        "badEmbed": "Invalid data block: “{line}”. {reason}"
+      },
+      "embedErrors": {
+        "unknownKind": "Use {{indice …}} or {{prix …}}.",
+        "badSyntax": "Write options as key=value, with double quotes when the value has a space.",
+        "unknownOption": "Unknown or repeated option. indice: commune, mois, offre, affichage; prix: commune, chambres.",
+        "badCommune": "Unknown commune, or one found in several cities: write its full name.",
+        "communeRequired": "The price guide needs a commune (commune=Gombe).",
+        "badBeds": "chambres must be a number from 1 to 5.",
+        "badMonths": "mois must be a number from {min} to {max}.",
+        "badPurpose": "offre must be location or vente.",
+        "badView": "affichage must be tableau or graphique.",
+        "saleNeedsCommune": "The sales index is read commune by commune: add commune=…",
+        "chartNeedsCommune": "The chart follows one commune over time: add commune=…"
       }
     },
     "campaign": {
@@ -8049,7 +8063,32 @@
     "empty": "No articles in this category yet.",
     "seeListings": "See listings online",
     "relatedListings": "Listings Online Right Now",
-    "shareWhatsApp": "Share on WhatsApp"
+    "shareWhatsApp": "Share on WhatsApp",
+    "data": {
+      "indexTitle": "Lukka Index — Median Asking Rent in {commune} over {n} Months",
+      "indexTitleSale": "Lukka Index — Median Asking Sale Price in {commune} over {n} Months",
+      "indexAllTitle": "Lukka Index — Median Asking Rent by Commune",
+      "indexAllTitleMonth": "Lukka Index — Median Asking Rent by Commune, {month}",
+      "medianRent": "Median rent",
+      "medianSale": "Median price",
+      "month": "Month",
+      "asks": "Listings",
+      "indexSource": "Live figures: monthly records of the listings published on Lukka Place, asking prices. A median is only published from {n} listings.",
+      "indexLink": "See the Lukka Index",
+      "indexNoMonths": "No monthly record exists yet for {commune}.",
+      "indexThin": "Not enough listings in {commune} yet to publish a median (at least {n} a month).",
+      "dashNote": "“—”: fewer than {n} listings that month, so no median is published.",
+      "gapNote": "A break in the line marks a month with fewer than {n} listings: no median is published.",
+      "pricesTitle": "Asking Rents in {commune} by Bedrooms",
+      "pricesSource": "Live figures: monthly asking rents for unfurnished long-term rentals, Lukka Place listings and listings seen elsewhere, at least {n} listings per row.",
+      "pricesLink": "See the price guide",
+      "pricesNone": "Not enough listings in {commune} yet to publish a median rent (at least {n}).",
+      "beds": "Bedrooms",
+      "bedsCount": "{n} bed.",
+      "range": "Range (25–75%)",
+      "listings": "Listings",
+      "unavailable": "The figures cannot be shown right now."
+    }
   },
   "projects": {
     "meta": {

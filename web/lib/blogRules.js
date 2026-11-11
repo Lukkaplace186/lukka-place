@@ -15,12 +15,24 @@
  * Inside any line, [texte](/location/appartements/gombe) is a link: a site
  * path or an https URL. Anything else in brackets stays text.
  *
- * It parses to the same blocks lib/guides.js holds ({h2}|{p}|{ul}|{ol}), so
- * one renderer serves both; a block's text is a string or an array of
- * segments ({text} | {text, href}).
+ * A line on its own between {{ and }} is a LIVE DATA BLOCK: a table or a
+ * chart computed from the market data each time the page is read (never a
+ * figure typed into the post). See parseDataBlock below for the grammar:
+ *
+ *   {{indice}}                                 every commune, latest month
+ *   {{indice commune=Gombe mois=6}}            one commune, month by month
+ *   {{indice commune=Gombe affichage=graphique offre=vente}}
+ *   {{prix commune=Gombe}}                     the price guide by bedrooms
+ *   {{prix commune=Gombe chambres=2}}
+ *
+ * It parses to the same blocks lib/guides.js holds ({h2}|{p}|{ul}|{ol}), plus
+ * {data}, so one renderer serves both; a block's text is a string or an array
+ * of segments ({text} | {text, href}). The figures behind a {data} block are
+ * fetched by lib/blogData.js (server-only) and drawn by
+ * components/blog/DataBlock.js.
  */
 import { seoPath, listingsHrefFor, SEO_PROPERTY_TYPES } from './seoPages';
-import { cityOfCommune } from './cities';
+import { CITIES, DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
 
 export const BLOG_CATEGORIES = ['guide', 'actualite'];
 export const BLOG_STATUSES = ['draft', 'published'];
@@ -79,6 +91,122 @@ export function parseInline(line) {
   return segments;
 }
 
+// ---------------------------------------------------------------------------
+// Live data blocks
+// ---------------------------------------------------------------------------
+
+export const DATA_KINDS = ['indice', 'prix'];
+/** Months an {{indice commune=…}} block may show (default DATA_DEFAULT_MONTHS). */
+export const DATA_MONTHS = { min: 2, max: 24 };
+export const DATA_DEFAULT_MONTHS = 6;
+const DATA_OPTIONS = {
+  indice: ['commune', 'mois', 'offre', 'affichage'],
+  prix: ['commune', 'chambres'],
+};
+
+function foldName(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * What a writer typed ("gombe", "Mont Ngafula", "Kasa-Vubu") → the commune
+ * key, or null. An exact key wins; then a Kinshasa commune by its label
+ * (Kalamu is Kinshasa's, "Kalamu (Boma)" must be typed in full); then a label
+ * only one city has. Never a guess between two.
+ */
+export function resolveCommuneKey(text) {
+  const wanted = foldName(text);
+  if (!wanted) return null;
+  const all = CITIES.flatMap((city) => city.communes.map((c) => ({ key: c.key, city: city.name })));
+  const exact = all.find((c) => foldName(c.key) === wanted);
+  if (exact) return exact.key;
+  const byLabel = all.filter((c) => foldName(communeLabel(c.key)) === wanted);
+  const kinshasa = byLabel.find((c) => c.city === DEFAULT_CITY);
+  if (kinshasa) return kinshasa.key;
+  return byLabel.length === 1 ? byLabel[0].key : null;
+}
+
+/**
+ * One trimmed line → null when it is not a data block, else
+ * `{ kind, commune, months, purpose, view, beds }` or `{ error, source }`
+ * (error: an i18n key under admin.blog.embedErrors).
+ *
+ * Options are key=value, a value with spaces in double quotes:
+ *  - indice: commune (optional; without it, every commune for the latest
+ *    month), mois (2–24, default 6), offre=location|vente (vente needs a
+ *    commune), affichage=tableau|graphique (graphique needs a commune).
+ *  - prix: commune (required), chambres (1–5, optional).
+ */
+export function parseDataBlock(line) {
+  const outer = String(line || '').match(/^\{\{(.*)\}\}$/);
+  if (!outer) return null;
+  const source = line;
+  const fail = (error) => ({ error, source });
+  const inner = outer[1].trim();
+  const head = inner.match(/^([a-zA-Z]+)/);
+  const kind = head ? head[1].toLowerCase() : '';
+  if (!DATA_KINDS.includes(kind)) return fail('unknownKind');
+
+  const options = {};
+  let rest = inner.slice(head[1].length);
+  const pair = /^\s+([a-zA-Z]+)=(?:"([^"]*)"|([^\s"]+))/;
+  while (rest.trim()) {
+    const m = rest.match(pair);
+    if (!m) return fail('badSyntax');
+    const key = m[1].toLowerCase();
+    if (!DATA_OPTIONS[kind].includes(key) || key in options) return fail('unknownOption');
+    options[key] = (m[2] ?? m[3]).trim();
+    rest = rest.slice(m[0].length);
+  }
+
+  let commune = null;
+  if (options.commune !== undefined) {
+    commune = resolveCommuneKey(options.commune);
+    if (!commune) return fail('badCommune');
+  }
+
+  if (kind === 'prix') {
+    if (!commune) return fail('communeRequired');
+    let beds = null;
+    if (options.chambres !== undefined) {
+      if (!/^[1-5]$/.test(options.chambres)) return fail('badBeds');
+      beds = Number(options.chambres);
+    }
+    return { kind, commune, beds };
+  }
+
+  let months = DATA_DEFAULT_MONTHS;
+  if (options.mois !== undefined) {
+    months = /^\d{1,2}$/.test(options.mois) ? Number(options.mois) : NaN;
+    if (!(months >= DATA_MONTHS.min && months <= DATA_MONTHS.max)) return fail('badMonths');
+  }
+  const purposeWord = (options.offre ?? 'location').toLowerCase();
+  if (!['location', 'vente'].includes(purposeWord)) return fail('badPurpose');
+  const viewWord = (options.affichage ?? 'tableau').toLowerCase();
+  if (!['tableau', 'graphique'].includes(viewWord)) return fail('badView');
+  const purpose = purposeWord === 'vente' ? 'sale' : 'rent';
+  const view = viewWord === 'graphique' ? 'chart' : 'table';
+  // Without a commune the block is the Kinshasa-wide index, which exists for
+  // rents only and is one month (a table).
+  if (!commune && purpose === 'sale') return fail('saleNeedsCommune');
+  if (!commune && view === 'chart') return fail('chartNeedsCommune');
+  return { kind, commune, months, purpose, view };
+}
+
+/** The first invalid data block of a body, as `{ error, source }`, or null. */
+export function firstDataBlockError(text) {
+  for (const raw of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+    const block = parseDataBlock(raw.trim());
+    if (block?.error) return block;
+  }
+  return null;
+}
+
 /** The body text → blocks. */
 export function parseBody(text) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
@@ -100,6 +228,13 @@ export function parseBody(text) {
     if (!line) {
       flushParagraph();
       flushList();
+      continue;
+    }
+    const data = parseDataBlock(line);
+    if (data) {
+      flushParagraph();
+      flushList();
+      blocks.push({ data });
       continue;
     }
     const heading = line.match(/^#{2,3}\s+(.+)$/);
@@ -170,6 +305,12 @@ export function validatePostInput(input, { now = new Date() } = {}) {
   // An English version is all or nothing: a half-translated page reads worse
   // than the French one.
   if ((titleEn || bodyEn) && !(titleEn && bodyEn)) return { ok: false, error: 'englishIncomplete', field: 'title_en' };
+  // A data block that cannot be read is refused at save time, so a published
+  // page never carries one that silently draws nothing.
+  for (const [field, body] of [['body_fr', bodyFr], ['body_en', bodyEn]]) {
+    const bad = firstDataBlockError(body);
+    if (bad) return { ok: false, error: 'badEmbed', field, line: bad.source, reason: bad.error };
+  }
 
   const slug = String(input.slug || '').trim() || slugify(titleFr);
   if (!isValidSlug(slug)) return { ok: false, error: 'badSlug', field: 'slug' };

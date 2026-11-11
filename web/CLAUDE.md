@@ -3846,6 +3846,37 @@ Tests: `tests/unit/blog.test.js`.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
 
+### Live data blocks in posts (2026-11-11)
+
+A line on its own between `{{ }}` is a table or chart computed when the page
+is read, never a figure typed into the post. Grammar and validation:
+`parseDataBlock` (`lib/blogRules.js`); figures: `lib/blogData.js`
+(`resolveDataBlocks`, server-only, each source read once per page, never
+throws); drawing: `components/blog/DataBlock.js` + `SeriesChart.js`. Tests:
+`tests/unit/blog-data-blocks.test.js`.
+
+- `{{indice}}` — the `/indice-lukka` table (`getLukkaIndex`, latest month, every
+  commune). `{{indice commune=Gombe mois=6 offre=location|vente
+  affichage=tableau|graphique}}` — one commune month by month from
+  `market_snapshots_monthly` (`getMarketSeries`, so a month below `MIN_SAMPLE`
+  asks prints "—" beside its count, or a break in the line). `{{prix
+  commune=Gombe chambres=2}}` — the `/combien-coute` rows (`getPriceGuides`,
+  blended and de-duplicated there). Option words are French; a value with a
+  space goes in double quotes.
+- **A block that cannot be read is refused at save** (`badEmbed` with the line
+  and the reason, FR and EN bodies), so a published page never carries one that
+  silently draws nothing; an old one renders nothing publicly and a warning in
+  the preview. Communes go through `resolveCommuneKey`: exact key, then
+  Kinshasa's commune for a shared label, else only a label one city has —
+  never a guess between two.
+- Empty data says so ("pas encore assez d'annonces…", "ne peuvent pas être
+  affichés pour le moment"); each block names its source and links to
+  `/indice-lukka` or `/combien-coute`. Every figure stays an asking price.
+- The chart is server-rendered (no client JS): the plot is an SVG stretched to
+  its box with `vector-effect: non-scaling-stroke`, while labels and dots are
+  HTML placed by percentage so they keep 11px on a 375px phone; each dot has a
+  native tooltip, and the numbers are repeated in an `sr-only` table.
+
 ## WhatsApp tap placement, "Agences" in the menu, /admin/cms and SEO defaults (2026-10-27)
 
 Tests: `tests/unit/dashboard-click-breakdown.test.js`, `agent-directory.test.js`,

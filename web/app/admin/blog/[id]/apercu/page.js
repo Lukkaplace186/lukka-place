@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ArticleBody from '@/components/blog/ArticleBody';
 import { getPostForAdmin } from '@/lib/blog';
+import { resolveDataBlocks } from '@/lib/blogData';
 import { articleFromPost, postListingsHref, postState, readingMinutes } from '@/lib/blogRules';
 import { getT } from '@/lib/i18n/server';
 import { firstParam } from '@/lib/adminPagination';
@@ -17,7 +18,8 @@ export const metadata = {
 /**
  * The article as /guides/<slug> will show it, whatever its state and
  * whether the blog is on. The live listings block is named, not drawn (its
- * cards are storefront components); the link it would carry is shown.
+ * cards are storefront components); the link it would carry is shown. Live
+ * data blocks are drawn with today's figures, as a reader would see them.
  */
 export default async function BlogPreviewPage({ params, searchParams }) {
   const t = await getT();
@@ -32,6 +34,7 @@ export default async function BlogPreviewPage({ params, searchParams }) {
   if (!post) notFound();
   const article = articleFromPost(post, lang);
   const listingsHref = postListingsHref(post);
+  const blocks = await resolveDataBlocks(article.blocks);
 
   return (
     <div className="flex max-w-3xl flex-col gap-5">
@@ -55,7 +58,7 @@ export default async function BlogPreviewPage({ params, searchParams }) {
             <Image src={article.coverUrl} alt={article.coverAlt} fill sizes="720px" className="object-cover" />
           </div>
         ) : null}
-        <ArticleBody blocks={article.blocks} />
+        <ArticleBody blocks={blocks} preview />
         {listingsHref ? (
           <p className="u-micro rounded-lg bg-canvas-alt px-3.5 py-2.5 text-ink-70">
             {t('admin.blog.previewListings')}{' '}

@@ -1563,7 +1563,8 @@
       "placesLeft": {
         "one": "Plus que {count} place",
         "other": "Plus que {count} places"
-      }
+      },
+      "howPaymentBodyOnline": "Payez votre forfait en ligne par mobile money (M-Pesa, Orange Money, Airtel Money, Afrimoney) ou par carte, via MaishaPay. Il est activé dès la confirmation du paiement."
     },
     "meta": {
       "title": "Espace agent — Lukka Place"
@@ -1760,7 +1761,8 @@
       "listingsIncluded": {
         "one": "{count} bien publié",
         "other": "{count} biens publiés"
-      }
+      },
+      "pay": "Payer ce forfait"
     },
     "sold": {
       "notDeleted": "supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.",
@@ -3013,6 +3015,92 @@
       "errorConfirm": "Tapez SUPPRIMER pour confirmer la suppression.",
       "errorCommissions": "Votre compte ne peut pas être supprimé tout de suite : une commission commerciale est en cours. Écrivez-nous sur WhatsApp, nous le supprimerons pour vous.",
       "done": "Votre compte agent a été supprimé."
+    },
+    "checkout": {
+      "metaTitle": "Payer mon forfait — Espace agent — LukkaPlace",
+      "returnMetaTitle": "Résultat du paiement — Espace agent — LukkaPlace",
+      "title": "Paiement du forfait",
+      "eyebrow": "Abonnement",
+      "heading": "Passez à la formule {plan}",
+      "trialEnds": "Votre essai gratuit se termine le {date}. Réglez votre abonnement pour continuer à publier vos biens.",
+      "intro": "Réglez votre abonnement pour continuer à publier vos biens sur LukkaPlace.",
+      "billingTitle": "Type de paiement",
+      "autoLabel": "Abonnement automatique",
+      "autoBodyMonthly": "Chaque mois, une nouvelle demande de paiement vous est envoyée : vous la validez avec votre code PIN. Arrêt à tout moment depuis l’Espace Agent.",
+      "autoBodyYearly": "Chaque année, une nouvelle demande de paiement vous est envoyée : vous la validez avec votre code PIN. Arrêt à tout moment depuis l’Espace Agent.",
+      "recommended": "Recommandé",
+      "onceLabel": "Paiement unique · {period}",
+      "onceBody": "Vous payez cette période seulement. Nous vous prévenons avant la fin pour renouveler.",
+      "periodMonthly": "1 mois",
+      "periodYearly": "1 an",
+      "methodTitle": "Mode de paiement",
+      "methodLegend": "Choisissez un mode de paiement",
+      "cardLabel": "Carte bancaire",
+      "cardSub": "Visa · Mastercard",
+      "networkLegend": "Réseau de votre carte",
+      "phoneLabel": "Numéro {provider}",
+      "phoneHint": "La demande de paiement arrive sur ce téléphone. Entrez votre code PIN pour la valider.",
+      "cardNote": "Vous saisirez les informations de votre carte sur la page sécurisée de MaishaPay, puis vous reviendrez ici.",
+      "termsBefore": "J’accepte les",
+      "termsLink": "Conditions Générales d’Adhésion des Commissionnaires",
+      "termsAfter": ". Les paiements ne sont pas remboursables.",
+      "mandateMonthly": "J’autorise une demande de paiement de {amount} chaque mois jusqu’à ce que j’arrête l’abonnement.",
+      "mandateYearly": "J’autorise une demande de paiement de {amount} chaque année jusqu’à ce que j’arrête l’abonnement.",
+      "summaryTitle": "Récapitulatif",
+      "yourPlan": "Votre formule",
+      "perMonth": "/ mois",
+      "perYear": "/ an",
+      "listingsRow": "Biens publiés",
+      "renewalRow": "Renouvellement",
+      "renewalAutoMonthly": "Automatique, chaque mois",
+      "renewalAutoYearly": "Automatique, chaque année",
+      "renewalNone": "Aucun, rappel avant la fin",
+      "methodRow": "Mode de paiement",
+      "total": "Total à payer",
+      "payMobile": "Payer {amount} avec {provider}",
+      "payCard": "Continuer vers le paiement par carte",
+      "acceptFirst": "Acceptez les conditions d’adhésion pour continuer.",
+      "secure": "Le paiement est traité par MaishaPay. LukkaPlace ne voit jamais votre code PIN ni les données de votre carte.",
+      "sending": "Envoi…",
+      "redirecting": "Ouverture de la page de paiement…",
+      "waitingTitle": "Validez le paiement sur votre téléphone",
+      "waitingBody": "Une demande de {amount} vient d’arriver sur votre {provider} (numéro se terminant par {last}). Entrez votre code PIN pour la valider. Cette page se met à jour toute seule.",
+      "waitingStatus": "En attente de votre validation…",
+      "changeMethod": "Changer de mode de paiement",
+      "paidTitle": "Votre abonnement est actif",
+      "paidBody": "Votre formule {plan} est active. Le reçu figure dans votre historique de facturation.",
+      "paidRef": "Référence du paiement",
+      "publishListing": "Publier un bien",
+      "goSubscription": "Voir mon abonnement",
+      "failedTitle": "Le paiement n’a pas abouti",
+      "failedBody": "Le paiement a été annulé ou refusé. Vérifiez votre solde ou essayez un autre mode de paiement.",
+      "tryAgain": "Réessayer",
+      "timeoutTitle": "Pas encore de confirmation",
+      "timeoutBody": "Si vous avez validé le paiement, la confirmation peut prendre quelques minutes. Votre abonnement sera mis à jour dès qu’elle arrive.",
+      "checkAgain": "Vérifier à nouveau",
+      "help": "Besoin d’aide ? Écrire à l’équipe sur WhatsApp",
+      "helpMessage": "Bonjour, j’ai une question sur le paiement de mon abonnement LukkaPlace.",
+      "errors": {
+        "phone": "Entrez un numéro de mobile money de la RDC valide, par exemple 081 234 5678.",
+        "provider": "Le paiement n’a pas pu démarrer chez MaishaPay. Réessayez dans un instant ou choisissez un autre mode.",
+        "package": "Ce forfait n’est plus proposé. Choisissez-en un autre sur la page Abonnement.",
+        "terms": "Acceptez les conditions d’adhésion pour continuer.",
+        "pending_exists": "Une demande de paiement est déjà ouverte sur votre téléphone. Validez-la, ou attendez 3 minutes avant d’en demander une autre.",
+        "not_configured": "Le paiement en ligne n’est pas encore disponible. Contactez l’équipe LukkaPlace.",
+        "no_agency": "Votre compte n’est rattaché à aucune agence. Contactez l’équipe LukkaPlace.",
+        "generic": "Le paiement n’a pas pu démarrer. Vérifiez votre connexion et réessayez."
+      },
+      "renewal": {
+        "title": "Renouvellement automatique",
+        "onMobile": "Activé. La prochaine demande de paiement arrivera vers le {date} sur votre {provider} (numéro se terminant par {last}).",
+        "onCard": "Activé. Nous vous enverrons le lien de paiement par carte vers le {date}.",
+        "off": "Désactivé. Votre forfait reste actif jusqu’au {date}.",
+        "stop": "Arrêter le renouvellement automatique",
+        "resume": "Réactiver le renouvellement automatique",
+        "stopped": "Renouvellement automatique arrêté. Votre forfait reste actif jusqu’au {date}.",
+        "resumed": "Renouvellement automatique réactivé.",
+        "failed": "La modification n’a pas pu être enregistrée. Réessayez."
+      }
     }
   },
   "status": {

@@ -14,6 +14,9 @@ import AgentPlanPicker from '@/components/AgentPlanPicker';
 import { getT } from '@/lib/i18n/server';
 import { redirect } from 'next/navigation';
 import { getFeatureFlags } from '@/lib/siteSettings';
+import { isMaishapayConfigured } from '@/lib/maishapay';
+import { getAgentOnlineSubscription } from '@/lib/maishapayPayments';
+import AgentAutoRenewCard from '@/components/AgentAutoRenewCard';
 
 // generateMetadata, not a static object: a static export is evaluated at
 // module load, where there is no request and so no translator.
@@ -74,10 +77,12 @@ export default async function AgentSubscriptionPage() {
   // No monthly lead quota meter: nothing on the dashboard counts against
   // packages.monthly_pitch_limit any more (2026-09-22 — "Proposer un bien",
   // the only quota-counted action, was removed from the lead card).
-  const [packages, history, openRequests] = await Promise.all([
+  const checkoutEnabled = isMaishapayConfigured();
+  const [packages, history, openRequests, onlineSubscription] = await Promise.all([
     getPurchasablePackages(),
     getAgentBillingHistory(agent.vendor_id),
     getOpenPlanChangeRequests(agentId),
+    checkoutEnabled ? getAgentOnlineSubscription(agentId).catch(() => null) : null,
   ]);
 
   // The agent's current package, matched against the purchasable list.
@@ -123,7 +128,7 @@ export default async function AgentSubscriptionPage() {
               {t('agent.subscription.howPaymentWorks')}
             </h2>
             <p className="u-micro leading-relaxed text-ink-70">
-              {t('agent.subscription.howPaymentBody')}
+              {checkoutEnabled ? t('agent.subscription.howPaymentBodyOnline') : t('agent.subscription.howPaymentBody')}
             </p>
             <p className="u-micro leading-relaxed text-ink-45">
               {t('agent.subscription.whatPlanDetermines')}
@@ -137,6 +142,18 @@ export default async function AgentSubscriptionPage() {
           </div>
         </div>
 
+        {onlineSubscription && (
+          <AgentAutoRenewCard
+            subscription={{
+              auto_renew: onlineSubscription.auto_renew,
+              renewal_channel: onlineSubscription.renewal_channel,
+              renewal_provider: onlineSubscription.renewal_provider,
+              renewal_phone: onlineSubscription.renewal_phone,
+            }}
+            endLabel={formatDate(onlineSubscription.current_period_end)}
+          />
+        )}
+
         <section className="flex flex-col gap-4">
           <div>
             <h2 className="u-title-section text-ink">{t('agent.subscription.availablePlans')}</h2>
@@ -148,6 +165,7 @@ export default async function AgentSubscriptionPage() {
             packages={packages}
             currentPackageId={currentPackage?.id ?? null}
             openRequestPackageIds={openRequests.map((r) => r.package_id).filter((id) => id != null)}
+            checkoutEnabled={checkoutEnabled}
           />
         </section>
 

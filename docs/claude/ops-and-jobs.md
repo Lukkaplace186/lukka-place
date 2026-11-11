@@ -57,6 +57,16 @@ about the request and lives on the row — `viewing_requests.sla_alerted_at`,
 `.checkin_sent_at`. Confusing the two either spams one customer or skips every
 other one.
 
+### `subscription-renewals` (2026-11-12)
+
+Daily in the Kinshasa hour `SUBSCRIPTION_RENEWAL_HOUR` (default 10), registered
+right after `sales-commissions`. Calls web `POST /api/cron/subscription-renewals`
+(Bearer `CRON_SECRET`); the rules live in web `lib/subscriptionRenewals.js`
+(web/CLAUDE.md, "MaishaPay"). Per-subscription idempotence is on the row
+(`subscriptions.renewal_notified_at`, `renewal_attempts`, claimed by an UPDATE
+before any prompt), not in `job_runs`. Does nothing until the MaishaPay keys are
+set. verify-pipeline §106.
+
 ## Admin console at scale (engine side)
 
 The web console (web/CLAUDE.md, "Built for 30k agents") asks the engine for one

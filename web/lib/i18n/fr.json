@@ -5193,7 +5193,7 @@
       "transfer": "Transférer",
       "subscriptionHistory": "Historique d’abonnement",
       "testAccount": "Compte de test",
-      "testAccountHint": "Ses annonces sont exclues des statistiques du marché, des exports et des rapports. Pour les retirer du site, archivez-les.",
+      "testAccountHint": "Compte de démonstration : absent de l’annuaire des agents et des moteurs de recherche, ne reçoit aucune demande de client réel, ses annonces ne sont jamais publiées automatiquement et sont exclues des statistiques du marché, des exports et des rapports. Une annonce déjà approuvée reste en ligne : archivez-la pour la retirer.",
       "markedTest": "Compte marqué comme compte de test.",
       "unmarkedTest": "Le compte compte à nouveau dans les données du marché.",
       "testAccountUnavailable": "Indisponible tant que la migration des données du marché n’a pas été appliquée."
@@ -5791,6 +5791,11 @@
       "receipt": "Reçu"
     },
     "customerProfile": {
+      "testAccount": "Compte de test",
+      "testAccountHint": "Compte de démonstration ou de test : il n’est pas compté dans les inscriptions ni dans le tunnel d’inscription.",
+      "markedTest": "Compte marqué comme compte de test.",
+      "unmarkedTest": "Le compte compte à nouveau dans les inscriptions.",
+      "testAccountUnavailable": "Indisponible tant que la migration 20261112_customer_test_flag.sql n’a pas été appliquée.",
       "back": "← Tous les clients",
       "joined": "Inscrit le {date}",
       "lastLogin": "Dernière connexion {date}",

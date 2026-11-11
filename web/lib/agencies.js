@@ -42,7 +42,10 @@ export async function getAgentProfile(id) {
        (SELECT direct_routing_enabled FROM agents WHERE id = $1) AS direct_routing_enabled,
        -- "Membre depuis …" on the public profile. Through jsonb so a table
        -- without the column reads as no date rather than a 42703.
-       (SELECT to_jsonb(a) ->> 'created_at' FROM agents a WHERE a.id = $1) AS member_since`,
+       (SELECT to_jsonb(a) ->> 'created_at' FROM agents a WHERE a.id = $1) AS member_since,
+       -- A test / demo account's profile still opens from a direct link
+       -- (tutorials show it) but is kept out of search engines.
+       (SELECT COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false) FROM agents a WHERE a.id = $1) AS is_test`,
     [agent.id, agent.vendor_id || null],
   );
   const own = rows[0]?.own_details;
@@ -53,6 +56,7 @@ export async function getAgentProfile(id) {
     bio: bio || null,
     direct_routing_enabled: rows[0]?.direct_routing_enabled ?? null,
     member_since: rows[0]?.member_since || null,
+    is_test: Boolean(rows[0]?.is_test),
   };
 }
 

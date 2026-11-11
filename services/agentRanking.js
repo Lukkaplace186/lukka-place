@@ -258,6 +258,9 @@ async function rankAgentsForRequest(
         AND a.phone_verified_at IS NOT NULL
         AND a.deleted_at IS NULL
         AND a.direct_routing_enabled IS DISTINCT FROM false
+        -- Test / demo accounts (agents.is_test) never receive a real
+        -- customer's request. Through jsonb so this runs before the column.
+        AND NOT COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false)
         -- Coverage is the hard filter. LOWER() on both sides because
         -- primary_communes is agent-entered through a checkbox list built
         -- from the canonical hierarchy, while a lead's commune comes from the

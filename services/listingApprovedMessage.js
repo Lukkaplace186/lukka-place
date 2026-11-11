@@ -5,10 +5,10 @@
  * (routes/admin.js, moderation verdict) or by trusted auto-approval
  * (services/trustedAutoApprove.js). One wording for both.
  *
- * Owner decision 2026-11-11: the link takes the agent to THEIR OWN listings
- * (Mes biens, /compte/agent/biens — login first when signed out, then back),
- * not to the public listing page. The app push already opened the listing in
- * the agent's dashboard.
+ * The link opens the listing's PUBLIC page (owner decision 2026-11-11, after
+ * trying Mes biens for a few hours): the page the agent shares with customers,
+ * the same one annonce_en_ligne_v2's button opens. The app push opens the
+ * listing in the agent's dashboard.
  */
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
@@ -25,10 +25,7 @@ const MES_BIENS_URL = `${SITE_URL}${MES_BIENS_PATH}`;
 const APPROVED_TEMPLATES_WITH_LISTING_LINK = new Set(['annonce_en_ligne', 'annonce_en_ligne_v2']);
 
 function listingApprovedText(propertyId) {
-  return [
-    `Bonjour, bonne nouvelle ! Votre annonce n° ${propertyId} est maintenant en ligne sur Lukka Place.`,
-    `Retrouvez et gérez toutes vos annonces dans votre espace : ${MES_BIENS_URL}`,
-  ].join('\n\n');
+  return `Bonjour, bonne nouvelle ! Votre annonce n° ${propertyId} est maintenant en ligne : ${SITE_URL}/listings/${propertyId}`;
 }
 
 /** The template's button parameter: the listing id for a dynamic-link name, nothing otherwise. */

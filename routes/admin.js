@@ -1694,7 +1694,7 @@ router.post('/viewing-requests/:id/nudge', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 const MODERATION_MESSAGES = {
-  // Links to the agent's own listings (Mes biens), owner decision 2026-11-11.
+  // Links to the public listing page (services/listingApprovedMessage.js).
   approved: (propertyId) => listingApprovedText(propertyId),
   rejected: (propertyId, reason) => {
     const why = MODERATION_REJECTION_REASONS[reason?.code];

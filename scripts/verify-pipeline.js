@@ -11832,7 +11832,7 @@ console.log('\n2. services/openai.js');
         sent54.length = 0;
         assert.strictEqual(await admin54.deliverModerationVerdict('approved', agent, 311, {}, now), 'session', 'wrote 5 h ago');
         assert.deepStrictEqual(sent54.map((m) => m.kind), ['text']);
-        assert.match(sent54[0].text, /n° 311 .*https:\/\/lukkaplace\.com\/compte\/agent\/biens/s, 'Mes biens since 2026-11-11 (§107)');
+        assert.match(sent54[0].text, /https:\/\/lukkaplace\.com\/listings\/311/);
 
         window54.recordInbound(agent.wa_id, new Date('2026-10-26T08:00:00Z'));
         assert.strictEqual(window54.lastInboundAt(agent.wa_id), '2026-10-27T10:00:00.000Z', 'an older delivery never moves the time back');
@@ -11974,7 +11974,7 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(approved57.status, 202);
         assert.strictEqual(sent57.length, 1);
         assert.strictEqual(sent57[0].to, '243810009314');
-        assert.match(sent57[0].text, /n° 9314 .*\/compte\/agent\/biens/s, 'Mes biens since 2026-11-11 (§107)');
+        assert.match(sent57[0].text, /listings\/9314/);
       });
 
       const none57 = await adminRequest('POST', '/admin/properties/9315/notify', { status: 'approved' });
@@ -18034,12 +18034,12 @@ console.log('\n2. services/openai.js');
     }
   }
 
-  // §107 The listing-approved message takes the agent to their own listings
+  // §107 One listing-approved wording; the button parameter only where the button is dynamic
   // ---------------------------------------------------------------------------
-  // Owner decision 2026-11-11: the text, and the v3 template's STATIC button,
-  // open Mes biens (/compte/agent/biens), not the public listing page.
-  // annonce_en_ligne_v2 (dynamic …/listings/{{1}}) still gets the id.
-  console.log('\n§107 listing approved → Mes biens, the button parameter only for the dynamic-link templates');
+  // 2026-11-11: the text links to the public listing page, like
+  // annonce_en_ligne_v2's dynamic …/listings/{{1}} button (which gets the id).
+  // A possible v3 with a STATIC button (e.g. Mes biens) must get no parameter.
+  console.log('\n§107 listing approved → the listing page, the button parameter only for the dynamic-link templates');
   {
     const approved107 = require('../services/listingApprovedMessage');
     const admin107 = require('../routes/admin');
@@ -18047,11 +18047,10 @@ console.log('\n2. services/openai.js');
     const sent107 = [];
     chakra.sendTemplate = async (to, name, opts) => { sent107.push({ to, name, opts }); return { messageId: 'wamid.107' }; };
     try {
-      check('the approval text names the listing and links to Mes biens, never the public page', () => {
+      check('the approval text names the listing and links to its public page', () => {
         const text = admin107.MODERATION_MESSAGES.approved(412);
         assert.match(text, /annonce n° 412 est maintenant en ligne/);
-        assert.ok(text.includes('https://lukkaplace.com/compte/agent/biens'), text);
-        assert.ok(!text.includes('/listings/'), text);
+        assert.ok(text.includes('https://lukkaplace.com/listings/412'), text);
       });
       check('trusted auto-approval sends the same text', () => {
         const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'trustedAutoApprove.js'), 'utf8');

@@ -579,24 +579,18 @@ variables, never throws).
 `only_outside_window` (answers `sent: false, reason: 'inside-window'`).
 §106 of verify-pipeline; web `tests/unit/price-drop-template.test.js`.
 
-### Listing approved → the agent's own listings (2026-11-11, owner)
+### Listing approved → the listing page (2026-11-11, owner)
 
-The approval should take the agent to **their own listings** (Mes biens,
-`/compte/agent/biens`), not the public listing page. Same day:
+Tried for a few hours the same day: switching `annonce_en_ligne_v2` off and
+pointing the approval to Mes biens. The owner chose the listing page back —
+it is the page the agent shares with customers.
 
-- `LISTING_APPROVED_TEMPLATE` was commented out for a few hours, then
-  **switched back on (`annonce_en_ligne_v2`, owner, same day)**: its DYNAMIC
-  button opens the public `/listings/{{1}}` — the page agents share with
-  customers. v3 below is optional, only if the owner later wants Mes biens.
-- The text (team approval and trusted auto-approval, one wording in
-  `services/listingApprovedMessage.js`) names the listing number and links to
-  Mes biens; a signed-out agent logs in first and lands there. The app push
-  still opens the listing in the dashboard (`/compte/agent/biens/<id>`).
-- **To submit: `annonce_en_ligne_v3`**: Utility, fr, intake account, picture
-  header, body as v2, STATIC "Visit website" button "Mes annonces" →
-  `https://lukkaplace.com/compte/agent/biens`. `approvedTemplateUrlButton`
-  sends the id only to `annonce_en_ligne` / `_v2` (dynamic), nothing to any
-  other name, so v3 needs no code change. Once approved:
-  `LISTING_APPROVED_TEMPLATE=annonce_en_ligne_v3`, add it to
-  `TEMPLATES_WITH_IMAGE`, restart, test-send to the desk and tap the button.
-  verify-pipeline §107.
+- `LISTING_APPROVED_TEMPLATE=annonce_en_ligne_v2` is on (DYNAMIC button
+  `/listings/{{1}}`). The session text (team approval and trusted
+  auto-approval, one wording in `services/listingApprovedMessage.js`) says
+  "Votre annonce n° X est maintenant en ligne : …/listings/X". The app push
+  opens the listing in the dashboard (`/compte/agent/biens/<id>`).
+- `approvedTemplateUrlButton` sends the id only to `annonce_en_ligne` /
+  `_v2` (dynamic); a future template with a STATIC button (e.g.
+  `annonce_en_ligne_v3` → Mes biens) would get none, so it needs no code
+  change. verify-pipeline §107.

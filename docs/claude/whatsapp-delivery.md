@@ -200,8 +200,8 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   only reaches an agent who wrote within 24 h. To bring the template back, fix
   its button at Meta to `https://lukkaplace.com/listings/{{1}}` (listing pages
   are `/listings/`, never `/biens/`).
-- **The "Toujours disponible ?" check is PAUSED (2026-11-05, owner: to be
-  reworked).** `AVAILABILITY_CHECK=off` in production makes the
+- **The "Toujours disponible ?" check was PAUSED (2026-11-05, owner: to be
+  reworked; replaced by "Faites le point", switched ON 2026-11-11).** `AVAILABILITY_CHECK=off` in production makes the
   `listing-availability-check` job never run (`availabilityCheck.checkEnabled`,
   read at call time); answers to questions already sent are still handled.
   Delete the line and restart to resume. §74. **Reworked 2026-11-09**: the
@@ -573,7 +573,7 @@ variables, never throws).
 | `baisse_prix_client` | web `PRICE_DROP_TEMPLATE` | first name, listing, old, new · link `/listings/{{1}}` | web cron, via engine `/send-whatsapp-template` `only_outside_window` |
 | `alerte_nouveaux_biens` | web `SEARCH_ALERT_TEMPLATE` | label, count, first, link | web cron (template first) |
 | `agent_lead_claim` | `AGENT_LEAD_CLAIM_TEMPLATE` | 5 · Je m'en occupe / Pas dispo | `leadDispatch` |
-| `point_annonces_agent` | `LISTING_STATUS_TEMPLATE` | name, what · link + Rien n'a changé | `agentStatusCheck` (paused with `AVAILABILITY_CHECK=off`) |
+| `point_annonces_agent` | `LISTING_STATUS_TEMPLATE` | name, what · link + Rien n'a changé | `agentStatusCheck` (on since 2026-11-11, daily 10:00 Kinshasa) |
 
 `/admin/send-whatsapp-template` now also takes `url_button` and
 `only_outside_window` (answers `sent: false, reason: 'inside-window'`).

@@ -490,8 +490,8 @@ answered, 1 "loué" that never gave its price. 4 of 380 listings had ever been
 confirmed, and no rental or sale had a recorded price.
 
 - **The job** (`services/agentStatusCheck.js`, still job `listing-availability-check`,
-  same `AVAILABILITY_CHECK_HOUR` and `AVAILABILITY_CHECK=off` switch, which is
-  still set in production): ONE message per agent with a verified phone,
+  same `AVAILABILITY_CHECK_HOUR` and `AVAILABILITY_CHECK=off` switch — **removed
+  from production 2026-11-11 (owner)**, first run 10:00 Kinshasa on 2026-11-12): ONE message per agent with a verified phone,
   active and not deleted, who has a public listing (active, under offer, or
   auto-paused) unconfirmed for 14 days, and no request in 14 days. Confirming
   everything puts the whole portfolio on one clock. No reminder is ever sent.

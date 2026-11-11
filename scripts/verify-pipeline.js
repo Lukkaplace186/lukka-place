@@ -17884,6 +17884,25 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §105 Customer sign-up funnel table (2026-11-11)
+  // ---------------------------------------------------------------------------
+  // Web-only writer (lib/signupFunnel.js); the engine never touches it. Pinned
+  // here because it is a schema change: idempotent, closed to the public API,
+  // and the step list matches the one web's rules allow.
+  console.log('\n§105 Customer sign-up funnel — customer_signup_events migration');
+  check('the sign-up funnel migration is idempotent, RLS on, and its steps match web lib/signupFunnelRules.js', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261111_customer_signup_funnel.sql'), 'utf8');
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS customer_signup_events/);
+    assert.match(sql, /CREATE INDEX IF NOT EXISTS customer_signup_events_created_idx/);
+    assert.match(sql, /ALTER TABLE customer_signup_events ENABLE ROW LEVEL SECURITY/);
+    assert.match(sql, /REVOKE ALL ON customer_signup_events FROM anon, authenticated/);
+    const rules = fs.readFileSync(path.join(__dirname, '..', 'web/lib/signupFunnelRules.js'), 'utf8');
+    for (const step of ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit', 'refused', 'created']) {
+      assert.ok(sql.includes(`'${step}'`) && rules.includes(`'${step}'`), step);
+    }
+    for (const reason of ['name', 'phone', 'password', 'exists', 'ref']) assert.ok(sql.includes(`'${reason}'`), reason);
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

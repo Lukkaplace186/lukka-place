@@ -5079,3 +5079,41 @@ docs/claude/whatsapp-delivery.md, "App alerts"). Web side:
   - **Customer logout and account deletion** revoke this phone.
   - `lib/adminApi.js pushToAccount` is how web-side senders push (phase 1
     wires them).
+
+## Customer sign-up funnel and the 1,000-account goal (2026-11-11)
+
+Owner goal: 1,000 customer accounts; the bottleneck is visitors who never
+create one. `/admin/croissance` counted accounts by channel
+(`account_acquisitions`, "Where visitors and accounts come from" above) but
+nothing said which prompt produced an account or where people gave up.
+This replaces the 2026-10-27 "no target" decision on that page.
+
+- **Entry** = where a sign-up started (`lib/signupFunnelRules.js`
+  `SIGNUP_ENTRIES`): favorite / save_search / alert (AuthPromptModal, by its
+  `trigger`), nudge (SignupNudge), messages, updates, login_page,
+  partner_invite (static links), price_guide (reserved), direct (no or
+  unknown entry). It rides to `/compte/inscription` as `?entree=`, then a
+  hidden `entry` field into `signupAction`. A new sign-up link adds
+  `withSignupEntry(href, entry)`; a new entry is added to the rules list,
+  both dictionaries (`admin.growth.signup.entries.*`) and, if it is a prompt,
+  `PROMPT_ENTRIES`.
+- **Steps**: prompt_shown → prompt_open (prompts only) → form_view (page
+  load, `CustomerSignupTracker`) → form_start (first character typed — the
+  name field is autoFocused, so focus means nothing) → submit → refused (with
+  the reason) | created (with the customer id). Browsers report the first
+  five through `POST /api/telemetry/signup-funnel` (`form: 'customer'`,
+  `sanitizeCustomerSignupEvent`); refused/created come from `signupAction`
+  only (`recordSignupOutcome`), so a browser cannot fake an account.
+- **Table** `customer_signup_events` (engine
+  `migrations/20261111_customer_signup_funnel.sql`, RLS on, verify §105).
+  Recording never throws and is silent before the migration; the funnel
+  section then says tracking has not started. Team browsers (`lp_staff`,
+  impersonation) are stored as `staff` and left out.
+- **Dashboard**: `/admin/croissance` opens on the goal (all customer rows,
+  today, this Kinshasa week, pace over 14 days, an estimate labelled as one,
+  none without a pace) and shows the funnel by entry (distinct visitors per
+  step, accounts and refusals as counts) plus refusals by reason, and the
+  accounts of the window with no recorded entry (before tracking, or by
+  WhatsApp). `/admin/dashboard` carries a one-line goal banner for roles with
+  `partners.view`. `CUSTOMER_SIGNUP_GOAL` (1000) is the one place the target lives.
+- Tests: `tests/unit/customer-signup-funnel.test.js`.

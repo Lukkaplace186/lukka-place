@@ -7,7 +7,9 @@ import { CHANNELS, CHANNEL_LABELS_FR, channelOf, dailySummaryText, paidChannelCo
  * Every figure is counted from rows that exist: customer accounts and where
  * they came from (account_acquisitions), agent accounts, visitors
  * (page_views, people only), partner conversions, and the ad spend the team
- * typed in. No target (owner decision 2026-10-27): the page counts.
+ * typed in. "No target" (owner, 2026-10-27) was replaced on 2026-11-11 by
+ * the 1,000-account goal and the sign-up funnel, which live in
+ * lib/signupFunnel.js; this module still only counts.
  *
  * Days are Kinshasa days. Before the attribution migration every account is
  * "inconnu" and partner figures are empty; nothing throws.

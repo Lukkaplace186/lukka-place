@@ -53,7 +53,7 @@ export default async function CustomerLoginPage({ searchParams }) {
 
         <p className="mt-5 text-center text-sm text-ink-45">
           {t('auth.noAccountYet')}{' '}
-          <Link href={`/compte/inscription?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
+          <Link href={`/compte/inscription?next=${encodeURIComponent(next)}&entree=login_page`} className="font-semibold text-blue-deep hover:underline">
             {t('common.actions.signup')}
           </Link>
         </p>

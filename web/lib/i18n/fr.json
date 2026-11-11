@@ -7712,7 +7712,59 @@
       "dailyAuto": "(tirage automatique)",
       "dailyNone": "Aucune annonce ne remplit les conditions aujourd’hui.",
       "dailyHint": "Une annonce en ligne avec au moins 3 photos, la même toute la journée. Saisissez un numéro d'annonce pour choisir celle d'aujourd'hui ; la carte 4:5 se fait depuis la page de l'annonce.",
-      "dailyPick": "Choisir"
+      "dailyPick": "Choisir",
+      "signup": {
+        "goalTitle": "Objectif : {goal} comptes clients",
+        "total": "Comptes clients",
+        "today": "Aujourd'hui",
+        "week": "Cette semaine",
+        "pace": "Rythme",
+        "perDay": "{n} / jour",
+        "paceHint": "moyenne des 14 derniers jours",
+        "remaining": "Restants",
+        "eta": "À ce rythme, objectif atteint dans ~{days} jours (estimation)",
+        "etaNone": "Aucun compte sur les 14 derniers jours : pas de rythme mesuré",
+        "reached": "Objectif atteint",
+        "bannerCount": "{total} / {goal} comptes clients",
+        "bannerLine": "Aujourd'hui {today} · cette semaine {week}",
+        "funnelTitle": "Inscriptions par point de départ",
+        "funnelLead": "Où chaque inscription a commencé (le ♥, une alerte, la carte « Créez un compte »…), et combien de personnes arrivent à chaque étape. Proposé et Cliqué n'existent que pour les invitations ; les liens commencent à « Page ouverte ». Personnes distinctes par étape, comptes et refus en nombre. Équipe exclue.",
+        "notMeasured": "Le suivi des inscriptions démarre une fois la migration 20261111_customer_signup_funnel.sql appliquée.",
+        "noEvents": "Aucune étape enregistrée sur la période.",
+        "unmeasured": "{n} compte(s) créé(s) sur la période sans point de départ enregistré (avant le suivi, ou par WhatsApp).",
+        "refusalsTitle": "Ce qui renvoie les gens au formulaire",
+        "noRefusals": "Aucun refus sur la période.",
+        "columns": {
+          "entry": "Point de départ",
+          "shown": "Proposé",
+          "opened": "Cliqué",
+          "formView": "Page ouverte",
+          "formStart": "Formulaire commencé",
+          "submit": "Envoyé",
+          "refused": "Refusé",
+          "created": "Comptes",
+          "conversion": "Conversion"
+        },
+        "entries": {
+          "favorite": "♥ Favori",
+          "save_search": "Sauvegarder la recherche",
+          "alert": "Créer une alerte",
+          "nudge": "Carte « Créez un compte »",
+          "messages": "Page Messages",
+          "updates": "Page Mises à jour",
+          "login_page": "Lien sous la connexion",
+          "partner_invite": "Invitation partenaire",
+          "price_guide": "Guide des prix",
+          "direct": "Direct / autre lien"
+        },
+        "refusals": {
+          "name": "Nom manquant",
+          "phone": "Numéro invalide",
+          "password": "Mot de passe trop court",
+          "exists": "Numéro déjà inscrit",
+          "ref": "Code de parrainage inconnu"
+        }
+      }
     },
     "blog": {
       "title": "Guides & Actualités",

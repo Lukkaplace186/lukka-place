@@ -81,7 +81,7 @@ export default async function InvitePage({ params }) {
         <p className="u-eyebrow text-blue-deep">{t('auth.invite.invitedBy', { name: inviterName })}</p>
         <h1 className="u-title-hero text-ink">{t('auth.invite.title')}</h1>
         <p className="u-body text-ink-70">{t('auth.invite.lead')}</p>
-        <a href={viaGo(code, '/compte/inscription')} className="u-btn-primary u-press inline-flex h-12 items-center justify-center rounded-lg bg-blue px-6 text-base font-bold text-white hover:bg-blue-deep">
+        <a href={viaGo(code, '/compte/inscription?entree=partner_invite')} className="u-btn-primary u-press inline-flex h-12 items-center justify-center rounded-lg bg-blue px-6 text-base font-bold text-white hover:bg-blue-deep">
           {t('auth.invite.cta')}
         </a>
         {whatsappSignupLink(code) ? (

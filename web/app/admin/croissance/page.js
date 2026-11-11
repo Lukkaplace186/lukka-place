@@ -11,6 +11,8 @@ import { ErrorNote, Stat } from '../LeadRoutingUI';
 import { TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { BUTTON, BUTTON_PRIMARY, INPUT } from '../sales/styles';
 import { pickListingOfTheDayAction, saveAdSpendAction } from './actions';
+import { getSignupFunnel, getSignupProgress } from '@/lib/signupFunnel';
+import { SignupFunnelSection, SignupGoalCard } from './SignupSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +35,9 @@ function money(amount, currency) {
  * The launch dashboard (growth plan item 21): customer accounts per day and
  * by channel (lib/growthRules.js), new agents, visitors and listings viewed
  * per visitor, cost per account for the paid channels from the spend typed
- * in here, and today's "Bien du jour". No target (owner decision): it counts.
+ * in here, and today's "Bien du jour". "No target" (owner, 2026-10-27) was
+ * replaced on 2026-11-11: the page opens on the 1,000-account goal and the
+ * sign-up funnel by entry (SignupSections.js, lib/signupFunnel.js).
  */
 export default async function AdminGrowthPage({ searchParams }) {
   const t = await getT();
@@ -46,6 +50,11 @@ export default async function AdminGrowthPage({ searchParams }) {
   let data = null;
   let daily = null;
   let loadError = null;
+  // The 1,000-account goal and the sign-up funnel (2026-11-11) load on their
+  // own: a failure there leaves the rest of the page standing.
+  const [progressResult, funnelResult] = await Promise.allSettled([getSignupProgress(), getSignupFunnel({ days })]);
+  const progress = progressResult.status === 'fulfilled' ? progressResult.value : null;
+  const funnel = funnelResult.status === 'fulfilled' ? funnelResult.value : null;
   try {
     [data, daily] = await Promise.all([getGrowthDashboard({ days }), getListingOfTheDay()]);
   } catch (err) {
@@ -81,6 +90,9 @@ export default async function AdminGrowthPage({ searchParams }) {
         </p>
       ) : null}
       {loadError ? <ErrorNote>{loadError}</ErrorNote> : null}
+
+      {progress ? <SignupGoalCard t={t} progress={progress} /> : null}
+      {progressResult.status === 'rejected' ? <ErrorNote>{progressResult.reason?.message}</ErrorNote> : null}
 
       {data ? (
         <>
@@ -136,6 +148,9 @@ export default async function AdminGrowthPage({ searchParams }) {
             </TableFrame>
             <p className="u-micro text-ink-45">{t('admin.growth.channelsHint')}</p>
           </section>
+
+          {funnel ? <SignupFunnelSection t={t} funnel={funnel} /> : null}
+          {funnelResult.status === 'rejected' ? <ErrorNote>{funnelResult.reason?.message}</ErrorNote> : null}
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-4">

@@ -43,7 +43,7 @@ export default async function MessagesPage({ searchParams }) {
               {t('chat.guest.login')}
             </Link>
             <Link
-              href="/compte/inscription?next=%2Fmessages"
+              href="/compte/inscription?next=%2Fmessages&entree=messages"
               className="u-press u-btn-secondary inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold text-ink no-underline"
             >
               {t('chat.guest.signup')}

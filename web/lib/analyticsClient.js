@@ -168,6 +168,17 @@ export function trackSignupStep(form, step) {
   beacon('/api/telemetry/signup-funnel', { form, step });
 }
 
+/**
+ * A step towards a CUSTOMER account, with the entry it started from
+ * (lib/signupFunnelRules.js): stored, and shown on /admin/croissance.
+ *
+ * @param {'prompt_shown'|'prompt_open'|'form_view'|'form_start'|'submit'} step
+ * @param {string} entry
+ */
+export function trackCustomerSignup(step, entry) {
+  beacon('/api/telemetry/signup-funnel', { form: 'customer', step, entry });
+}
+
 const ATTRIBUTION_KEY = 'lp_attr';
 
 /**

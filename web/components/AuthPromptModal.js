@@ -1,7 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { trackCustomerSignup } from '@/lib/analyticsClient';
+import { SIGNUP_ENTRY_PARAM, entryForPromptTrigger } from '@/lib/signupFunnelRules';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import PhoneField from './PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
@@ -43,6 +46,13 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
   const t = useT();
   const router = useRouter();
   const locale = useLocale();
+  // The sign-up funnel (lib/signupFunnelRules.js): which prompt this is.
+  const entry = entryForPromptTrigger(trigger);
+
+  // Shown once per opening: the modal mounts only when a guest taps.
+  useEffect(() => {
+    if (open) trackCustomerSignup('prompt_shown', entry);
+  }, [open, entry]);
 
   // Read straight off the form rather than from controlled state: PhoneField
   // owns two values (the typed number and the picked country) and both have
@@ -53,9 +63,11 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
     const data = new FormData(e.currentTarget);
     const phone = String(data.get('phone') || '').trim();
     const country = String(data.get('phoneCountry') || '');
+    trackCustomerSignup('prompt_open', entry);
 
     const params = new URLSearchParams();
     params.set('next', next);
+    params.set(SIGNUP_ENTRY_PARAM, entry);
     // Straight to the account card: they came to save, not for the move
     // questions (2026-11-08) — app/(site)/compte/inscription/page.js.
     params.set('from', 'save');

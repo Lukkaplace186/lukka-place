@@ -6,6 +6,7 @@ import { getT } from '@/lib/i18n/server';
 import { getAdminSession } from '@/lib/adminSession';
 import { cn } from '@/lib/utils';
 import KpiHeader from './KpiHeader';
+import SignupGoal from './SignupGoal';
 import ExecutiveTab from './tabs/ExecutiveTab';
 import DemandLeadsTab from './tabs/DemandLeadsTab';
 import SupplyVerificationTab from './tabs/SupplyVerificationTab';
@@ -86,6 +87,10 @@ export default async function AdminDashboardPage({ searchParams }) {
           </a>
         </div>
       </div>
+
+      <Suspense fallback={null}>
+        <SignupGoal role={role} />
+      </Suspense>
 
       <Suspense fallback={<div aria-hidden="true" className="mb-6 h-28 animate-pulse rounded-card bg-canvas-alt" />}>
         <KpiHeader sinceDays={sinceDays} periodLabel={periodLabel} />

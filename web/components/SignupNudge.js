@@ -9,6 +9,8 @@ import { useT } from '@/lib/i18n/client';
 import { getFavoriteIds, subscribeFavorites } from '@/lib/localFavorites';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { NUDGE_EVENT, NUDGE_SESSION_KEY, nudgeAllowedOn, shouldNudge } from '@/lib/signupNudgeRules';
+import { trackCustomerSignup } from '@/lib/analyticsClient';
+import { withSignupEntry } from '@/lib/signupFunnelRules';
 
 function signedIn() {
   try {
@@ -70,6 +72,7 @@ export default function SignupNudge() {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- shown in response to a browser event
     setReason(pending);
+    trackCustomerSignup('prompt_shown', 'nudge');
   }, [pending, pathname, reason]);
 
   if (!reason) return null;
@@ -92,7 +95,11 @@ export default function SignupNudge() {
       <div className="min-w-0 flex-1">
         <p className="u-micro-strong text-ink">{t(`auth.nudge.${reason}`)}</p>
         <p className="u-micro text-ink-70">{t('auth.nudge.text')}</p>
-        <Link href={`/compte/inscription?next=${next}`} className="u-micro-strong mt-1.5 inline-block text-blue-deep underline">
+        <Link
+          href={withSignupEntry(`/compte/inscription?next=${next}`, 'nudge')}
+          onClick={() => trackCustomerSignup('prompt_open', 'nudge')}
+          className="u-micro-strong mt-1.5 inline-block text-blue-deep underline"
+        >
           {t('auth.nudge.cta')}
         </Link>
       </div>

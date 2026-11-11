@@ -18,6 +18,7 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
 import { getT } from '@/lib/i18n/server';
+import { recordSignupOutcome } from '@/lib/signupFunnel';
 
 // Shared connections (a carrier's NAT) carry many people: generous, still far
 // from enough to walk a list of numbers.
@@ -65,7 +66,12 @@ function typedValues(formData) {
   };
 }
 
-function refuse(error, formData) {
+/**
+ * A refusal, recorded in the sign-up funnel with its reason (2026-11-11):
+ * which field sends people back is the friction the dashboard has to show.
+ */
+async function refuse(error, formData) {
+  await recordSignupOutcome({ step: 'refused', entry: formData.get('entry'), refusal: error });
   return { error, values: typedValues(formData), attempt: Date.now() };
 }
 
@@ -128,6 +134,8 @@ export async function signupAction(_prevState, formData) {
   // Where the account came from and which partner's link brought it
   // (lib/accountAcquisition.js). Never throws.
   await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: typedCode || null });
+  // The sign-up funnel's last step, with the entry it started from. Never throws.
+  await recordSignupOutcome({ step: 'created', entry: formData.get('entry'), customerId: Number(customer.id) });
 
   // The visitor's own device state (favourites, saved searches) joins the
   // new account.

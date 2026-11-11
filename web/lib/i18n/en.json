@@ -7712,7 +7712,59 @@
       "dailyAuto": "(automatic draw)",
       "dailyNone": "No listing meets the conditions today.",
       "dailyHint": "A live listing with at least 3 photos, the same all day. Type a listing number to pick today's; the 4:5 card is made from the listing's page.",
-      "dailyPick": "Pick"
+      "dailyPick": "Pick",
+      "signup": {
+        "goalTitle": "Goal: {goal} Customer Accounts",
+        "total": "Customer accounts",
+        "today": "Today",
+        "week": "This week",
+        "pace": "Pace",
+        "perDay": "{n} / day",
+        "paceHint": "average of the last 14 days",
+        "remaining": "Remaining",
+        "eta": "At this pace, goal reached in ~{days} days (estimate)",
+        "etaNone": "No account in the last 14 days: no pace measured",
+        "reached": "Goal reached",
+        "bannerCount": "{total} / {goal} customer accounts",
+        "bannerLine": "Today {today} · this week {week}",
+        "funnelTitle": "Sign-Ups by Starting Point",
+        "funnelLead": "Where each sign-up started (the ♥, an alert, the \"Create an account\" card…), and how many people reach each step. Shown and Clicked exist only for prompts; links start at \"Page opened\". Distinct people per step, accounts and refusals as counts. Team excluded.",
+        "notMeasured": "Sign-up tracking starts once the 20261111_customer_signup_funnel.sql migration has run.",
+        "noEvents": "No step recorded in this period.",
+        "unmeasured": "{n} account(s) created in this period with no recorded starting point (before tracking, or through WhatsApp).",
+        "refusalsTitle": "What Sends People Back to the Form",
+        "noRefusals": "No refusal in this period.",
+        "columns": {
+          "entry": "Starting point",
+          "shown": "Shown",
+          "opened": "Clicked",
+          "formView": "Page opened",
+          "formStart": "Form started",
+          "submit": "Sent",
+          "refused": "Refused",
+          "created": "Accounts",
+          "conversion": "Conversion"
+        },
+        "entries": {
+          "favorite": "♥ Favourite",
+          "save_search": "Save search",
+          "alert": "Create alert",
+          "nudge": "\"Create an account\" card",
+          "messages": "Messages page",
+          "updates": "Updates page",
+          "login_page": "Link under login",
+          "partner_invite": "Partner invitation",
+          "price_guide": "Price guide",
+          "direct": "Direct / other link"
+        },
+        "refusals": {
+          "name": "Missing name",
+          "phone": "Invalid number",
+          "password": "Password too short",
+          "exists": "Number already registered",
+          "ref": "Unknown referral code"
+        }
+      }
     },
     "blog": {
       "title": "Guides & News",

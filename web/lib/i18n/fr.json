@@ -1563,7 +1563,8 @@
       "placesLeft": {
         "one": "Plus que {count} place",
         "other": "Plus que {count} places"
-      }
+      },
+      "howPaymentBodyOnline": "Payez votre forfait en ligne par Mobile Money (M-Pesa, Orange Money, Airtel Money) : il est activé dès que le paiement est confirmé. Vous pouvez aussi le demander à l’équipe et régler en espèces ou par virement."
     },
     "meta": {
       "title": "Espace agent — Lukka Place"
@@ -1760,7 +1761,9 @@
       "listingsIncluded": {
         "one": "{count} bien publié",
         "other": "{count} biens publiés"
-      }
+      },
+      "payOnline": "Payer en ligne",
+      "orRequest": "ou demander à l’équipe"
     },
     "sold": {
       "notDeleted": "supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.",
@@ -3013,6 +3016,73 @@
       "errorConfirm": "Tapez SUPPRIMER pour confirmer la suppression.",
       "errorCommissions": "Votre compte ne peut pas être supprimé tout de suite : une commission commerciale est en cours. Écrivez-nous sur WhatsApp, nous le supprimerons pour vous.",
       "done": "Votre compte agent a été supprimé."
+    },
+    "checkout": {
+      "metaTitle": "Paiement de l’abonnement — Espace agent — Lukka Place",
+      "title": "Paiement",
+      "backToPlans": "Retour aux forfaits",
+      "eyebrow": "Abonnement commissionnaire",
+      "heading": "Passez à la formule {plan}",
+      "intro": "Réglez votre forfait par Mobile Money. Il est activé dès que le paiement est confirmé.",
+      "notOpen": "Le paiement en ligne n’est pas encore ouvert. Vous pouvez demander ce forfait à l’équipe depuis la page Abonnement.",
+      "summary": "Récapitulatif",
+      "yourPlan": "Votre formule",
+      "plan": "Forfait",
+      "priority": "Priorité ×{n} dans l’attribution automatique des demandes de vos communes",
+      "yourDetails": "Vos informations",
+      "agency": "Agence ou commissionnaire",
+      "agencyUnknown": "Non renseigné — vous pouvez l’ajouter dans Paramètres.",
+      "phoneLabel": "Numéro {operator} qui paie",
+      "phoneHint": "Un numéro de la RDC. Le reçu vous est envoyé sur WhatsApp au numéro de votre compte.",
+      "method": "Mode de paiement",
+      "howTitle": "Comment ça se passe",
+      "howBody": "Après avoir cliqué sur Payer, une demande de paiement arrive sur votre téléphone {operator}. Validez-la avec votre code PIN. Gardez cette page ouverte : elle se met à jour toute seule.",
+      "cardSoon": "Le paiement par carte bancaire n’est pas encore proposé.",
+      "total": "Total à payer",
+      "oneOff": "Paiement unique · {term}",
+      "termsBefore": "J’accepte les",
+      "termsLink": "conditions générales de Lukka Place",
+      "termsAfter": " et le paiement de {amount} pour ce forfait.",
+      "pay": "Payer {amount}",
+      "sending": "Envoi de la demande…",
+      "secure": "Le paiement est traité par FlexPaie. Lukka Place ne voit jamais votre code PIN.",
+      "reference": "Référence :",
+      "tryAgain": "Réessayer",
+      "contactTeam": "Écrire à l’équipe",
+      "whatsappHelp": "Bonjour, j’ai un souci avec le paiement du forfait « {plan} » (référence {ref}).",
+      "term": {
+        "monthly": "1 mois",
+        "yearly": "1 an",
+        "lifetime": "à vie"
+      },
+      "waiting": {
+        "title": "Validez sur votre téléphone",
+        "body": "Une demande de {amount} a été envoyée sur votre {operator}. Entrez votre code PIN pour confirmer. Cette page se met à jour dès que le paiement est reçu."
+      },
+      "paid": {
+        "title": "Paiement reçu",
+        "body": "Votre forfait « {plan} » est activé.",
+        "cta": "Voir mon abonnement"
+      },
+      "failed": {
+        "title": "Le paiement n’a pas abouti",
+        "body": "Aucun montant n’a été validé. Vérifiez votre solde et réessayez."
+      },
+      "timeout": {
+        "title": "Toujours en attente",
+        "body": "Nous n’avons pas encore de confirmation. Si vous avez validé sur votre téléphone, votre forfait sera activé dès que le paiement nous parvient. Sinon, réessayez."
+      },
+      "errors": {
+        "phone": "Entrez un numéro Mobile Money de la RDC (ex. 81 234 5678).",
+        "terms": "Cochez la case pour accepter les conditions.",
+        "noAgency": "Votre compte n’est pas encore rattaché à une agence. Contactez l’équipe Lukka Place pour payer ce forfait.",
+        "package": "Ce forfait ne peut pas être payé en ligne.",
+        "notConfigured": "Le paiement en ligne n’est pas encore ouvert.",
+        "provider": "Le service de paiement n’a pas accepté la demande. Réessayez dans un instant.",
+        "auth": "Votre session a expiré. Reconnectez-vous puis réessayez.",
+        "network": "Connexion perdue. Vérifiez votre réseau et réessayez.",
+        "generic": "Une erreur est survenue. Réessayez."
+      }
     }
   },
   "status": {

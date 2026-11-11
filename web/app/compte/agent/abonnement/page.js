@@ -14,6 +14,7 @@ import AgentPlanPicker from '@/components/AgentPlanPicker';
 import { getT } from '@/lib/i18n/server';
 import { redirect } from 'next/navigation';
 import { getFeatureFlags } from '@/lib/siteSettings';
+import { isFlexpaieConfigured } from '@/lib/flexpaie';
 
 // generateMetadata, not a static object: a static export is evaluated at
 // module load, where there is no request and so no translator.
@@ -67,6 +68,9 @@ export default async function AgentSubscriptionPage() {
   // sends back to the dashboard rather than showing plans nobody can pay for.
   if (!(await getFeatureFlags()).agentSubscriptions) redirect('/compte/agent');
   const t = await getT();
+  // Online payment (FlexPaie) is offered only once its credentials are set;
+  // until then the plan picker files a request, as before.
+  const checkoutEnabled = isFlexpaieConfigured();
   const agentId = await getCurrentAgentId();
   const { agent, listings, waitingCount } = await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
@@ -123,7 +127,7 @@ export default async function AgentSubscriptionPage() {
               {t('agent.subscription.howPaymentWorks')}
             </h2>
             <p className="u-micro leading-relaxed text-ink-70">
-              {t('agent.subscription.howPaymentBody')}
+              {t(checkoutEnabled ? 'agent.subscription.howPaymentBodyOnline' : 'agent.subscription.howPaymentBody')}
             </p>
             <p className="u-micro leading-relaxed text-ink-45">
               {t('agent.subscription.whatPlanDetermines')}
@@ -148,6 +152,7 @@ export default async function AgentSubscriptionPage() {
             packages={packages}
             currentPackageId={currentPackage?.id ?? null}
             openRequestPackageIds={openRequests.map((r) => r.package_id).filter((id) => id != null)}
+            checkoutEnabled={checkoutEnabled}
           />
         </section>
 

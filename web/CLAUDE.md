@@ -620,8 +620,8 @@ cascade; engine leads and visits stay).
   exist: agents log in individually and `vendors` has no account of its own.
   Branches are admin-managed until then.
 - **Card payments** are not offered. Mobile-money payment through FlexPaie
-  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
-  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
+  (invoices, failed-payment tracking, and since 2026-11-12 the checkout page)
+  is built but not live until its credentials are set — see "FlexPaie" below. Receipts cover what the ledger can prove.
 
 ## Layout & shell
 
@@ -3027,8 +3027,22 @@ From an owner walkthrough on a phone. Engine migration
     subscription active. A second callback is a no-op.
   - **The API shape comes from the community SDK's docs, not FlexPaie's own**
     (none was available): confirm field names and codes with a sandbox
-    payment before setting the key in production. There is no payment UI yet;
-    the Abonnements tab stays hidden until there is.
+    payment before setting the key in production.
+  - **Checkout page (2026-11-12)**: `/compte/agent/abonnement/paiement?forfait=<id>`
+    (`components/AgentCheckout.js`, pure rules `lib/checkoutRules.js`,
+    `tests/unit/agent-checkout.test.js`), built from the "Paiement abonnement
+    agent" design. Plan, price and perks are the `packages` row; agency and
+    phone the agent's own. Operator choice (M-Pesa / Orange / Airtel) only
+    words the instructions — FlexPaie routes by number. Departures from the
+    design, on purpose: no card (not built), no "Abonnement automatique"
+    (FlexPaie push has no recurring mandate), no "non remboursable" (no terms
+    say so; the checkbox links `/conditions`). Flow: initiate → waiting
+    (poll `/status` every 4 s, up to 5 min) → paid / failed / timeout.
+    The plan picker shows "Payer en ligne" only when `isFlexpaieConfigured()`;
+    otherwise the request queue is unchanged. **Going live** = the three
+    FlexPaie env vars on the server (after a sandbox payment) + the
+    `agentSubscriptions` switch on `/admin/settings`; a free or trial plan is
+    never payable online.
 
 ## Console create / delete for listings and agents (2026-10-20)
 

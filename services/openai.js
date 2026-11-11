@@ -1304,9 +1304,22 @@ function executeRequestViewing(args = {}, context) {
       property_id: args.property_id ?? context.selectedPropertyId ?? null,
     });
 
+  const propertyId = args.property_id ?? context.selectedPropertyId ?? null;
+
+  // The customer already asked to visit this listing and the agent has not
+  // answered yet: they are refining the same request (a new time, "avec mon
+  // frère"), not making a second one. Update it; the agent is not alerted
+  // twice (2026-11-11, visits #21/#22).
+  const open = dbService.findPendingViewingFor({ waId: lead.wa_id || context.waId, propertyId });
+  if (open) {
+    dbService.refreshPendingViewing(open.id, { requestedTime: args.requested_time, preferredSlotAt: null });
+    console.log(`[openai] request_viewing: customer already has request #${open.id} on property #${propertyId} — updated, no new alert`);
+    return { created: false, updated: true, viewing_request_id: open.id, lead_id: open.lead_id, status: open.status };
+  }
+
   const viewing = dbService.createViewingRequest({
     leadId: lead.id,
-    propertyId: args.property_id ?? context.selectedPropertyId ?? null,
+    propertyId,
     requestedTime: args.requested_time || null,
   });
   dbService.updateLeadStatus(lead.id, 'VIEWING_REQUESTED');

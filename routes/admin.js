@@ -935,6 +935,16 @@ router.post('/viewing-requests', (req, res) => {
   }
 
   try {
+    // Same customer, same listing, still unanswered: the form was sent again
+    // (a new time, a double tap). That request takes the new time and the
+    // agent is not alerted twice (2026-11-11, visits #21/#22).
+    const open = db.findPendingViewingFor({ waId: db.getLead(numericLeadId)?.wa_id, propertyId });
+    if (open) {
+      const viewingRequest = db.refreshPendingViewing(open.id, { requestedTime, preferredSlotAt });
+      console.log(`[admin] POST /viewing-requests: request #${open.id} on property #${propertyId} repeated — updated, no new alert`);
+      return res.status(200).json({ success: true, viewingRequest, reused: true });
+    }
+
     const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt });
     // The lead IS a visit request now. Without this the web form's leads sat at
     // NEW forever, and the customer's own account could not show them as visits.

@@ -23,6 +23,7 @@ import { can } from '@/lib/adminRoles';
 import { AgentContact, WhatsAppLink } from '../ContactCell';
 import ServerViewTools from '../table/ServerViewTools';
 import { NewItemsNotice } from '../LiveQueueCounts';
+import { viewingGroups } from '@/lib/viewingGroups';
 
 export const metadata = {
   title: 'Visites — Admin — Lukka Place',
@@ -105,6 +106,7 @@ export default async function AdminViewingsPage({ searchParams }) {
   }
 
   const rows = feed?.data || [];
+  const groups = viewingGroups(rows);
   // A request with no agent_id was never routed to anyone (it predates
   // routing, or fell back to the central number). The listing still names its
   // agent, so that agent is shown — marked "not alerted" — with a one-click
@@ -215,6 +217,8 @@ export default async function AdminViewingsPage({ searchParams }) {
             <EmptyRow colSpan={8}>{loadError ? '—' : t('admin.viewings.empty')}</EmptyRow>
           ) : (
             rows.map((row) => {
+              const group = groups.get(Number(row.id));
+              const isCopy = Boolean(group?.duplicateOf || group?.possibleDuplicateOf);
               const listing = labels.get(Number(row.property_id));
               const agentId = row.agent_id ? Number(row.agent_id) : null;
               const listingAgentId = agentId ? null : listingAgentOf(row);
@@ -222,7 +226,7 @@ export default async function AdminViewingsPage({ searchParams }) {
               const listingLabel = listing?.reference ? `Réf. ${listing.reference}` : row.property_id ? `#${row.property_id}` : '';
               const isEscalated = row.status === 'PENDING' && row.sla_alerted_at;
               return (
-                <tr key={row.id} className={TR_DENSE}>
+                <tr key={row.id} className={isCopy ? `${TR_DENSE} bg-canvas text-ink-45` : TR_DENSE}>
                   <td className={TD_DENSE}>
                     {row.property_id ? (
                       <Link href={`/admin/listings/${row.property_id}`} className="font-semibold text-blue-deep hover:underline">
@@ -233,6 +237,18 @@ export default async function AdminViewingsPage({ searchParams }) {
                     <div className="u-tabular text-ink-35">
                       #{row.id}{row.resolved_commune ? ` · ${row.resolved_commune}` : ''}
                     </div>
+                    {/* One request said twice: the copy names the request that
+                        stands, the request names its copies (lib/viewingGroups.js). */}
+                    {group?.duplicateOf ? (
+                      <div className="mt-1"><Chip>{t('admin.viewings.duplicateOf', { id: group.duplicateOf })}</Chip></div>
+                    ) : group?.possibleDuplicateOf ? (
+                      <div className="mt-1"><Chip tone="warning">{t('admin.viewings.possibleDuplicateOf', { id: group.possibleDuplicateOf })}</Chip></div>
+                    ) : null}
+                    {group?.copies?.length ? (
+                      <div className="mt-1">
+                        <Chip>{t('admin.viewings.sameRequestAs', { ids: group.copies.map((id) => `#${id}`).join(', ') })}</Chip>
+                      </div>
+                    ) : null}
                   </td>
                   <td className={TD_DENSE}>
                     <div className="max-w-[10rem] truncate text-ink">{row.lead_name || '—'}</div>
@@ -331,6 +347,14 @@ export default async function AdminViewingsPage({ searchParams }) {
                         </div>
                       </>
                     ) : '—'}
+                    {/* The agent's "déjà loué / vendu" on this request took the
+                        listing off the site (engine takeListingOffMarket). */}
+                    {row.listing_closed_at ? (
+                      <div className="mt-1 flex flex-col items-start gap-0.5">
+                        <Chip tone="warning">{t('admin.viewings.listingTakenDown')}</Chip>
+                        <span className="text-ink-45">{formatKinshasa(row.listing_closed_at)}</span>
+                      </div>
+                    ) : null}
                   </td>
                   <td className={TD_DENSE}>
                     <ViewingRowActions

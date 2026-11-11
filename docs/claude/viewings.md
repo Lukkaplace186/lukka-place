@@ -160,6 +160,10 @@ pas d'équivalent" when there are none, never an empty list). The customer
 should not wait on the agent filling in a questionnaire to learn this visit
 isn't happening.
 
+**Superseded 2026-11-11** — answer 1 now CLOSES the listing at once, off the
+site, without a price; see "One request said twice; déjà loué takes the
+listing off the site" at the end of this file. History:
+
 Answering **1 (déjà loué/vendu)** retires the listing and asks what it closed
 at. **This reuses the existing transaction record rather than creating a new
 one**, and that is a deliberate departure from the original spec, which asked
@@ -739,3 +743,39 @@ never chased.
   Pas convaincu / Agent absent = visit_feedback_good|bad|noshow), inside it the
   session buttons as before. Unset → unchanged. Drafted as `avis_visite_client`.
 - §90 of verify-pipeline.
+
+## One request said twice; "déjà loué" takes the listing off the site (2026-11-11)
+
+Found on visits #21/#22 (listing 805, Prince Immo): the assistant called
+`request_viewing` twice 76 s apart as the customer refined the time, the agent
+got two alerts and answered #22 with "1 — déjà loué"; #21 stayed PENDING and
+escalated, and the listing stayed on the site as "sous offre".
+
+- **A repeat updates, never duplicates.** The assistant
+  (`services/openai.js` `executeRequestViewing`) and `POST
+  /admin/viewing-requests` look up the customer's PENDING request on the same
+  listing (`db.findPendingViewingFor`, by wa_id, so two leads still match) and
+  update its wording / picked slot (`refreshPendingViewing`). No second agent
+  alert; the route answers 200 `reused: true`. The batch route is unchanged.
+- **An answer closes the copies.** `recordAgentResponse` (every agent answer,
+  WhatsApp or dashboard) runs `db.closeDuplicateViewings`: the same
+  customer's other PENDING/RESCHEDULED requests on the listing become
+  CANCELLED with `duplicate_of` = the answered id, their pending agent
+  questions cleared, nobody messaged. The customer's own list leaves them out.
+- **"Déjà loué / vendu" closes the listing** (`takeListingOffMarket`):
+  `postgres.closeListingFromAgent` sets `listing_status = 'closed'`,
+  `sold_at`, `status = 0`, no `sold_price` (optional since 2026-11-09),
+  only `WHERE agent_id` = the answering agent — a reassigned agent's answer
+  falls back to `under_offer` as before and declines nobody else. On a close:
+  `listing_closed_at` on the request; the agent is told "annonce n° X retirée
+  du site … Erreur ? Remettez-la en ligne : /compte/agent/biens"; every other
+  live visit on the listing (PENDING/RESCHEDULED/CONFIRMED) is DECLINED with
+  PROPERTY_NO_LONGER_AVAILABLE and its customer told "ce bien n'est plus
+  disponible" with similar homes. The closing-price question still follows and
+  fills `sold_price`; *passer* leaves it closed without one.
+- **/admin/viewings** (`web/lib/viewingGroups.js`): a copy shows "Doublon de
+  #22 · fermé" (or, for older copies never closed, "Même client, même bien que
+  #22") on a grey row; the request that stands shows "Même demande : #21"; a
+  request whose answer took the listing down shows "Annonce retirée du site
+  (louée / vendue)" with the time. Only rows on the same page are paired.
+- verify-pipeline §108; web `tests/unit/viewing-groups.test.js`.

@@ -5929,12 +5929,34 @@ console.log('\n2. services/openai.js');
   propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
   httpCalls.length = 0;
 
+  // A customer with no open request on this listing (viewingLead already has
+  // one: a repeat would update it, §108).
+  const routeLead = dbService.createLead({
+    wa_id: '243990111303',
+    name: 'Route Visitor',
+    source: 'listing-visit-request',
+    property_id: 303,
+  });
   const viewingRouteResponse = await adminRequest('POST', '/admin/viewing-requests', {
-    lead_id: viewingLead.id,
+    lead_id: routeLead.id,
     property_id: 303,
     requested_time: 'samedi 11h',
   });
   await settle();
+  httpCalls.splice(1);
+  const repeatResponse = await adminRequest('POST', '/admin/viewing-requests', {
+    lead_id: routeLead.id,
+    property_id: 303,
+    requested_time: 'samedi 15h',
+  });
+  await settle();
+
+  check('the same visitor sending the form again updates their request (200, reused) and alerts nobody', () => {
+    assert.strictEqual(repeatResponse.status, 200);
+    assert.strictEqual(repeatResponse.body.reused, true);
+    assert.strictEqual(repeatResponse.body.viewingRequest.requested_time, 'samedi 15h');
+    assert.strictEqual(httpCalls.length, 1, 'still only the first alert');
+  });
 
   check('POST /admin/viewing-requests still returns 201 for the visitor', () =>
     assert.strictEqual(viewingRouteResponse.status, 201));
@@ -18080,6 +18102,137 @@ console.log('\n2. services/openai.js');
     } finally {
       chakra.sendTemplate = saved107.template;
       if (saved107.env === undefined) delete process.env.LISTING_APPROVED_TEMPLATE; else process.env.LISTING_APPROVED_TEMPLATE = saved107.env;
+    }
+  }
+
+  // §108 One visit request said twice; "déjà loué / vendu" takes the listing off the site
+  // ---------------------------------------------------------------------------
+  // 2026-11-11: the assistant saved visits #21 and #22 (same customer, same
+  // listing) 76 s apart; the agent answered #22 with "1 — déjà loué" and #21
+  // stayed pending and escalated, while listing #805 stayed on the site as
+  // "sous offre". Now: a repeat updates the open request; an answer closes the
+  // customer's other copies; the listing's own agent's "déjà loué" closes the
+  // listing (status 0, no price) and declines every other live visit on it.
+  console.log('\n§108 duplicate visit requests close with the answer; "déjà loué" takes the listing off the site');
+  {
+    const vn108 = require('../services/viewingNotifications');
+    const pg108 = require('../services/postgres');
+    const matching108 = require('../services/propertyMatching');
+    const openai108 = require('../services/openai');
+    const CUSTOMER = '243977000108';
+    const OTHER = '243977000208';
+    const AGENT = '243999000108';
+    const PROPERTY = 91008;
+    const saved108 = {
+      text: chakra.sendWhatsAppMessage,
+      buttons: chakra.sendInteractiveButtons,
+      template: chakra.sendTemplate,
+      listing: propertyRepository.getListingContactById,
+      close: pg108.closeListingFromAgent,
+      underOffer: pg108.markPropertyUnderOffer,
+      match: matching108.matchProperties,
+    };
+    const sent108 = [];
+    const closeCalls = [];
+    let closeResult = true;
+    chakra.sendWhatsAppMessage = async (to, text) => { sent108.push({ to, text }); return { messageId: 'wamid.108' }; };
+    chakra.sendInteractiveButtons = async (to, text) => { sent108.push({ to, text }); return { messageId: 'wamid.108b' }; };
+    chakra.sendTemplate = async () => { throw new Error('no template in §108'); };
+    propertyRepository.getListingContactById = async (id) => (Number(id) === PROPERTY
+      ? { id: PROPERTY, title: 'Appartement 2 chambres', commune: 'Limete', agent_id: 67, agent_phone: AGENT, phone_verified_at: '2026-01-01' }
+      : null);
+    pg108.closeListingFromAgent = async (id, agentId) => { closeCalls.push({ id, agentId }); return closeResult; };
+    pg108.markPropertyUnderOffer = async () => true;
+    matching108.matchProperties = async () => ({ data: [] });
+    try {
+      const lead = dbService.createLead({ wa_id: CUSTOMER, name: 'Client 108', source: 'whatsapp', property_id: PROPERTY });
+      const first = dbService.createViewingRequest({ leadId: lead.id, propertyId: PROPERTY, requestedTime: 'à votre convenance' });
+
+      check('a repeat on the same listing finds the unanswered request', () => {
+        assert.strictEqual(dbService.findPendingViewingFor({ waId: `+${CUSTOMER}`, propertyId: PROPERTY }).id, first.id);
+        assert.strictEqual(dbService.findPendingViewingFor({ waId: CUSTOMER, propertyId: PROPERTY + 1 }), null);
+        const refreshed = dbService.refreshPendingViewing(first.id, { requestedTime: 'à convenir avec le frère du client' });
+        assert.strictEqual(refreshed.requested_time, 'à convenir avec le frère du client');
+      });
+      check('the assistant and the web form reuse it instead of creating a second', () => {
+        const ai = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+        assert.match(ai, /findPendingViewingFor\(\{ waId: lead\.wa_id \|\| context\.waId, propertyId \}\)/);
+        const route = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(route, /const open = db\.findPendingViewingFor\(/);
+        assert.match(route, /reused: true/);
+      });
+
+      // An older copy that slipped through (two leads, as #21/#22 had).
+      const copyLead = dbService.createLead({ wa_id: CUSTOMER, name: 'Client 108', source: 'web', property_id: PROPERTY });
+      const copy = dbService.createViewingRequest({ leadId: copyLead.id, propertyId: PROPERTY, requestedTime: 'samedi' });
+      const otherLead = dbService.createLead({ wa_id: OTHER, name: 'Autre client', source: 'web', property_id: PROPERTY });
+      const otherVisit = dbService.createViewingRequest({ leadId: otherLead.id, propertyId: PROPERTY, requestedTime: 'lundi' });
+
+      await vn108.handleViewingButtonReply({ from: AGENT, replyId: `viewing_decline:${first.id}` });
+
+      check('answering one request closes the same customer\'s copy, not another customer\'s', () => {
+        const closedCopy = dbService.getViewingRequest(copy.id);
+        assert.strictEqual(closedCopy.status, 'CANCELLED');
+        assert.strictEqual(closedCopy.duplicate_of, first.id);
+        assert.strictEqual(dbService.getViewingRequest(otherVisit.id).status, 'PENDING');
+        const mine = dbService.listViewingRequestsForCustomer(CUSTOMER).map((r) => r.id);
+        assert.ok(mine.includes(first.id) && !mine.includes(copy.id), 'the copy is left out of the customer\'s own list');
+      });
+
+      sent108.length = 0;
+      const reason = await vn108.handleAgentTextReply({ from: AGENT, text: '1' });
+
+      check('"déjà loué" from the listing\'s own agent closes the listing, and the agent is told how to undo it', () => {
+        assert.strictEqual(reason.action, 'declined-already-taken');
+        assert.deepStrictEqual(closeCalls, [{ id: PROPERTY, agentId: 67 }]);
+        assert.ok(dbService.getViewingRequest(first.id).listing_closed_at, 'stamped on the request');
+        const toAgent = sent108.filter((m) => m.to === AGENT).map((m) => m.text).join('\n');
+        assert.match(toAgent, new RegExp(`annonce n° ${PROPERTY} est retirée du site`));
+        assert.match(toAgent, /compte\/agent\/biens/);
+        assert.match(toAgent, /prix final conclu/);
+      });
+      check('every other live visit on the listing is declined with the same reason, its customer told', () => {
+        const other = dbService.getViewingRequest(otherVisit.id);
+        assert.strictEqual(other.status, 'DECLINED');
+        assert.strictEqual(other.decline_reason_code, 'PROPERTY_NO_LONGER_AVAILABLE');
+        assert.ok(sent108.some((m) => m.to === OTHER && /n'est plus disponible/.test(m.text)), 'the other customer hears it');
+      });
+
+      check('the close is guarded by the listing\'s agent and records no price', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'postgres.js'), 'utf8');
+        const fn = src.slice(src.indexOf('async function closeListingFromAgent'), src.indexOf('/** Where a sold_price came from'));
+        assert.match(fn, /WHERE id = \$1 AND agent_id = \$2 AND listing_status IS DISTINCT FROM 'closed'/);
+        assert.match(fn, /status = 0/);
+        assert.doesNotMatch(fn, /sold_price/);
+      });
+
+      // A reassigned agent (or any refusal): the listing is NOT closed, only
+      // marked under offer as before, and nobody else is declined.
+      dbService.clearPendingAgentAction(AGENT);
+      closeResult = false;
+      const lead2 = dbService.createLead({ wa_id: '243977000308', name: 'Client 3', source: 'web', property_id: PROPERTY });
+      const second = dbService.createViewingRequest({ leadId: lead2.id, propertyId: PROPERTY, requestedTime: 'mardi' });
+      const waiting = dbService.createViewingRequest({
+        leadId: dbService.createLead({ wa_id: '243977000408', name: 'Client 4', source: 'web', property_id: PROPERTY }).id,
+        propertyId: PROPERTY,
+        requestedTime: 'mercredi',
+      });
+      await vn108.handleViewingButtonReply({ from: AGENT, replyId: `viewing_decline:${second.id}` });
+      await vn108.handleAgentTextReply({ from: AGENT, text: '1' });
+      check('when the listing cannot be closed, no other visit is declined and nothing is stamped', () => {
+        assert.strictEqual(dbService.getViewingRequest(second.id).listing_closed_at, null);
+        assert.strictEqual(dbService.getViewingRequest(waiting.id).status, 'PENDING');
+      });
+      dbService.clearPendingAgentAction(AGENT);
+      void openai108;
+    } finally {
+      chakra.sendWhatsAppMessage = saved108.text;
+      chakra.sendInteractiveButtons = saved108.buttons;
+      chakra.sendTemplate = saved108.template;
+      propertyRepository.getListingContactById = saved108.listing;
+      pg108.closeListingFromAgent = saved108.close;
+      pg108.markPropertyUnderOffer = saved108.underOffer;
+      matching108.matchProperties = saved108.match;
     }
   }
 

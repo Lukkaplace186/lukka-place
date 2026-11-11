@@ -1175,10 +1175,8 @@ function unavailableTemplate(listing, viewingRequest, propertyId, reason) {
  * The customer's recovery path. Real alternatives or an honest apology —
  * never an empty "here are 3 listings:" followed by nothing.
  */
-function tenantAlternativesText(alternatives) {
-  const lines = [
-    'Bonjour, l\'agent n\'est pas disponible pour ce bien actuellement.',
-  ];
+function tenantAlternativesText(alternatives, opening = 'Bonjour, l\'agent n\'est pas disponible pour ce bien actuellement.') {
+  const lines = [opening];
   if (alternatives.length) {
     lines.push('', `Voici ${alternatives.length} logement${alternatives.length > 1 ? 's' : ''} similaire${alternatives.length > 1 ? 's' : ''} disponible${alternatives.length > 1 ? 's' : ''} immédiatement à proximité :`, '');
     for (const alt of alternatives) {
@@ -1492,6 +1490,16 @@ async function recordAgentResponse(request, outcome, via = 'WHATSAPP') {
   } catch (err) {
     console.error(`[viewing] first-response stamp for #${request.id} failed: ${err.message}`);
   }
+  // The same customer's other unanswered requests on this listing are this
+  // request said twice: closed now, as duplicates of it, with nobody messaged.
+  try {
+    const closed = dbService.closeDuplicateViewings(request);
+    if (closed.length) {
+      console.log(`[viewing] request #${request.id} answered — duplicate(s) ${closed.map((id) => `#${id}`).join(', ')} closed`);
+    }
+  } catch (err) {
+    console.error(`[viewing] closing duplicates of #${request.id} failed: ${err.message}`);
+  }
   await agentPerformance.logResponse({ viewingRequestId: request.id, outcome });
 }
 
@@ -1680,7 +1688,7 @@ async function sendSimilarHomesTemplate({ request, listing, propertyId, news, la
   });
 }
 
-async function sendAlternativesToTenant({ request, listing, propertyId }) {
+async function sendAlternativesToTenant({ request, listing, propertyId, notice = "L'agent n'est pas disponible pour ce bien" }) {
   let alternatives = [];
   try {
     const { data } = await propertyMatchingService.matchProperties({
@@ -1696,8 +1704,10 @@ async function sendAlternativesToTenant({ request, listing, propertyId }) {
   // 24h window. It cannot carry a list, so the alternatives still follow as a
   // text — which only lands inside the window, and is the whole message when
   // no template is configured.
-  const declineTemplate = unavailableTemplate(listing, request, propertyId, "L'agent n'est pas disponible pour ce bien");
-  const alternativesMessage = tenantAlternativesText(alternatives);
+  const declineTemplate = unavailableTemplate(listing, request, propertyId, notice);
+  const alternativesMessage = notice === LISTING_GONE_NOTICE
+    ? tenantAlternativesText(alternatives, "Bonjour, ce bien n'est plus disponible : il vient d'être loué ou vendu.")
+    : tenantAlternativesText(alternatives);
   const declineWhatsApp = async () => {
     const viaTemplate = await sendLifecycleTemplate(request.lead_wa_id, declineTemplate, 'decline notice');
     // The list itself is a session text; outside the customer's window the
@@ -1713,8 +1723,8 @@ async function sendAlternativesToTenant({ request, listing, propertyId }) {
   const sent = await tellCustomer(request, {
     kind: 'visit_unavailable',
     text: alternatives.length
-      ? `L'agent n'est pas disponible pour ce bien. ${alternatives.length} bien(s) similaire(s) vous attendent.`
-      : "L'agent n'est pas disponible pour ce bien.",
+      ? `${notice}. ${alternatives.length} bien(s) similaire(s) vous attendent.`
+      : `${notice}.`,
     fallback: { template: declineTemplate, text: alternativesMessage, alsoText: alternatives.length > 0, label: 'decline notice' },
     whatsapp: declineWhatsApp,
   });
@@ -2738,7 +2748,7 @@ async function handleAgentTextReply({ from, text, hasMedia = false }) {
       // ask for the figure that upgrades 'under_offer' to a real 'closed'
       // transaction record — the same two-step the WhatsApp status flow in
       // routes/webhook.js already performs, landing on the same columns.
-      await retireListing(ctx, from);
+      await takeListingOffMarket(ctx, from);
       return { handled: true, action: 'declined-already-taken', awaiting: PENDING_KINDS.closingPrice };
     }
 
@@ -2851,7 +2861,11 @@ async function recordClosingPrice(ctx, from, amount) {
   };
 }
 
-/** Stays 'under_offer': off the market, transaction not recorded, no price invented. */
+/**
+ * No price given: the listing stays as takeListingOffMarket left it — closed
+ * with sold_price NULL (off the site), or under offer when it could not be
+ * closed. No price is invented.
+ */
 async function skipClosingPrice(ctx, from) {
   dbService.clearPendingAgentAction(from);
   await trySend(from, CLOSING_PRICE_SKIPPED, 'closing price skipped');
@@ -2867,23 +2881,60 @@ function remotePropertyIdFor(ctx) {
   return Number(ctx.propertyId);
 }
 
+/** Told to the agent when their "déjà loué / vendu" took the listing off the site. */
+function listingTakenDownText(propertyId) {
+  return [
+    `${HEADER_BRAND} C'est noté : l'annonce n° ${propertyId} est retirée du site (louée / vendue).`,
+    `Erreur ? Remettez-la en ligne depuis votre espace : ${SITE_URL}/compte/agent/biens`,
+  ].join('\n');
+}
+
+const LISTING_GONE_NOTICE = "Ce bien n'est plus disponible";
+
 /**
- * Take the listing off the market and ask what it went for.
- *
- * markPropertyUnderOffer, not markPropertySold: 'closed' must carry a real
- * sold_price, because the institutional market export (asking vs achieved) is
- * built on that figure and a closed row with a NULL price silently corrupts
- * it. 'under_offer' needs no figure, retires the listing from active browsing
- * immediately, and is honest about what we actually know.
+ * The listing's own agent answered "1 — Bien déjà loué / vendu" (2026-11-11,
+ * owner): the listing leaves the site at once as let / sold, without a price
+ * (optional since 2026-11-09; the closing-price question that follows fills
+ * it), and every other customer with a live visit on it is told and offered
+ * similar homes. A reassigned agent is authorised on the VISIT, not on the
+ * listing: postgres.closeListingFromAgent refuses, and the listing is only
+ * marked under offer, as before.
  */
-async function retireListing(ctx, from) {
-  let retired = false;
+async function takeListingOffMarket(ctx, from) {
+  const pg = require('./postgres');
+  const remoteId = remotePropertyIdFor(ctx);
+  let closed = false;
+  let underOffer = false;
   try {
-    retired = await require('./postgres').markPropertyUnderOffer(remotePropertyIdFor(ctx));
+    closed = await pg.closeListingFromAgent(remoteId, ctx.listing?.agent_id ?? null);
+    if (!closed) underOffer = await pg.markPropertyUnderOffer(remoteId);
   } catch (err) {
-    console.error(`[viewing] could not retire property #${ctx.propertyId}: ${err.message}`);
+    console.error(`[viewing] could not take property #${ctx.propertyId} off the site: ${err.message}`);
   }
-  console.log(`[viewing] property #${ctx.propertyId} marked under_offer (written: ${retired})`);
+  console.log(`[viewing] property #${ctx.propertyId} ${closed ? 'closed (let/sold, off the site)' : `not closed — under_offer written: ${underOffer}`}`);
+
+  if (closed) {
+    dbService.markViewingListingClosed(ctx.request.id);
+    await trySend(from, listingTakenDownText(ctx.propertyId), 'listing taken down');
+
+    // Everyone else waiting on a visit of this listing: declined with the
+    // same reason, and offered similar homes. The agent is not asked again.
+    const others = dbService.listLiveViewingsOnProperty(ctx.propertyId, ctx.request.id);
+    for (const other of others) {
+      try {
+        dbService.updateViewingRequest(other.id, { status: 'DECLINED' });
+        dbService.setViewingDeclineReason(other.id, `1 — ${DECLINE_REASONS[1]} (annonce retirée, demande #${ctx.request.id})`);
+        dbService.setViewingDeclineCode(other.id, 'PROPERTY_NO_LONGER_AVAILABLE', 'AGENT');
+        dbService.clearPendingAgentActionsForViewing(other.id);
+        const alternatives = await sendAlternativesToTenant({
+          request: other, listing: ctx.listing, propertyId: ctx.propertyId, notice: LISTING_GONE_NOTICE,
+        });
+        console.log(`[viewing] request #${other.id} declined: property #${ctx.propertyId} is let/sold — ${alternatives.count} alternative(s), told: ${alternatives.sent}`);
+      } catch (err) {
+        console.error(`[viewing] closing request #${other.id} on taken-down property #${ctx.propertyId} failed: ${err.message}`);
+      }
+    }
+  }
 
   dbService.setPendingAgentAction({
     waId: from,
@@ -2891,6 +2942,7 @@ async function retireListing(ctx, from) {
     viewingRequestId: ctx.request.id,
   });
   await trySend(from, CLOSING_PRICE_ASK, 'closing price ask');
+  return { closed, underOffer };
 }
 
 module.exports = {

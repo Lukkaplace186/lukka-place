@@ -635,6 +635,27 @@ async function markPropertySold(remotePropertyId, soldPrice, soldAt = new Date()
   return updated;
 }
 
+/**
+ * The listing's own agent says it is let / sold (decline reason 1 on a visit,
+ * 2026-11-11): 'closed' at once, off the site (status = 0), sold_at now and
+ * NO price — the owner made the price optional on 2026-11-09 (web "Faites le
+ * point"); the closing-price question that follows fills it in. Only when
+ * `agentId` IS the listing's agent: a reassigned agent's answer never takes
+ * someone else's listing down (the caller falls back to under_offer).
+ *
+ * @returns {Promise<boolean>} whether the listing was closed by this call.
+ */
+async function closeListingFromAgent(remotePropertyId, agentId) {
+  if (!isConfigured() || !remotePropertyId || !agentId) return false;
+  const { rowCount } = await getPool().query(
+    `UPDATE properties
+        SET listing_status = 'closed', sold_at = COALESCE(sold_at, NOW()), status = 0, updated_at = NOW()
+      WHERE id = $1 AND agent_id = $2 AND listing_status IS DISTINCT FROM 'closed'`,
+    [remotePropertyId, agentId],
+  );
+  return rowCount > 0;
+}
+
 /** Where a sold_price came from — properties.price_source's CHECK constraint. */
 const PRICE_SOURCES = ['WHATSAPP_AGENT_REPLY', 'ADMIN_DASHBOARD', 'DIRECT_INPUT'];
 
@@ -1192,6 +1213,7 @@ async function syncListingToPostgres(row) {
 
 module.exports = {
   markPropertyUnderOffer,
+  closeListingFromAgent,
   archivePropertyAsWithdrawn,
   setListingPrice,
   PRICE_CHANGE_SOURCES,

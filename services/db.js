@@ -3484,6 +3484,14 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // evening before and 2 h before, each stamped before it is sent.
   ['reminder_eve_sent_at', 'TEXT'],
   ['reminder_soon_sent_at', 'TEXT'],
+  // Same customer, same listing, still unanswered when the agent answered
+  // another of their requests (2026-11-11): closed as CANCELLED with the id of
+  // the request that was answered. The admin shows them as one; the customer's
+  // own list leaves them out. closeDuplicateViewings.
+  ['duplicate_of', 'INTEGER'],
+  // When the agent's "déjà loué / vendu" answer on THIS request took the
+  // listing off the site (services/viewingNotifications.js takeListingOffMarket).
+  ['listing_closed_at', 'TEXT'],
 ];
 
 /** viewing_requests.direct_contact_channel — same words as leads.contact_channel. */
@@ -3618,7 +3626,7 @@ function listViewingRequestsForCustomer(waId, { limit } = {}) {
               CASE WHEN vr.decline_reason_by = 'CUSTOMER' THEN vr.decline_reason_code END AS customer_reason_code
          FROM viewing_requests vr
          JOIN leads l ON l.id = vr.lead_id
-        WHERE l.wa_id = @waId
+        WHERE l.wa_id = @waId AND vr.duplicate_of IS NULL
         ORDER BY vr.created_at DESC, vr.id DESC
         LIMIT @limit`,
     )
@@ -4187,6 +4195,90 @@ function findOpenViewingFor({ waId, propertyId } = {}) {
         ORDER BY v.id DESC LIMIT 1`,
     )
     .get(wa, Number(propertyId)) || null;
+}
+
+/**
+ * This customer's UNANSWERED (PENDING) request on this listing, if any — the
+ * one a second "request a visit" should update instead of duplicating
+ * (2026-11-11: the assistant saved #21 and #22 76 s apart, the agent got two
+ * alerts and answered one).
+ */
+function findPendingViewingFor({ waId, propertyId } = {}) {
+  const wa = String(waId || '').replace(/\D/g, '');
+  if (!wa || propertyId == null) return null;
+  return db
+    .prepare(
+      `SELECT v.* FROM viewing_requests v JOIN leads l ON l.id = v.lead_id
+        WHERE l.wa_id = ? AND v.property_id = ? AND v.status = 'PENDING'
+        ORDER BY v.id DESC LIMIT 1`,
+    )
+    .get(wa, Number(propertyId)) || null;
+}
+
+/**
+ * The agent answered `request`: the same customer's other unanswered requests
+ * on the same listing are the same request. They are closed (CANCELLED,
+ * duplicate_of = the answered id), with their pending agent questions, and
+ * nobody is messaged — the customer hears the answer once.
+ *
+ * @returns {number[]} the ids closed.
+ */
+function closeDuplicateViewings(request) {
+  const wa = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!wa || request?.property_id == null || request?.id == null) return [];
+  const ids = db
+    .prepare(
+      `SELECT v.id FROM viewing_requests v JOIN leads l ON l.id = v.lead_id
+        WHERE l.wa_id = ? AND v.property_id = ? AND v.id <> ? AND v.status IN ('PENDING', 'RESCHEDULED')`,
+    )
+    .all(wa, Number(request.property_id), Number(request.id))
+    .map((r) => r.id);
+  const close = db.prepare(
+    `UPDATE viewing_requests SET status = 'CANCELLED', duplicate_of = ?
+      WHERE id = ? AND status IN ('PENDING', 'RESCHEDULED')`,
+  );
+  const closed = ids.filter((id) => close.run(Number(request.id), id).changes > 0);
+  for (const id of closed) clearPendingAgentActionsForViewing(id);
+  return closed;
+}
+
+/**
+ * Other customers' live requests on a listing that has just gone (PENDING,
+ * RESCHEDULED, CONFIRMED), with their lead's contact — each is declined and
+ * the customer offered similar homes.
+ */
+function listLiveViewingsOnProperty(propertyId, exceptId = null) {
+  if (propertyId == null) return [];
+  return db
+    .prepare(
+      `SELECT v.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.id AS lead_row_id
+         FROM viewing_requests v JOIN leads l ON l.id = v.lead_id
+        WHERE v.property_id = ? AND v.id <> ? AND v.status IN ('PENDING', 'RESCHEDULED', 'CONFIRMED')
+        ORDER BY v.id`,
+    )
+    .all(Number(propertyId), Number(exceptId ?? -1));
+}
+
+/**
+ * The customer's new wording / pick on an unanswered request they are
+ * repeating. Only a PENDING row changes; the picked instant is replaced with
+ * the time so an accept never pins the old pick.
+ */
+function refreshPendingViewing(id, { requestedTime, preferredSlotAt } = {}) {
+  const text = requestedTime == null ? '' : String(requestedTime).trim();
+  if (text) {
+    db.prepare(
+      `UPDATE viewing_requests SET requested_time = ?, preferred_slot_at = ? WHERE id = ? AND status = 'PENDING'`,
+    ).run(text, toNullable(preferredSlotAt), Number(id));
+  }
+  return getViewingRequest(id);
+}
+
+/** Stamp that this request's answer took the listing off the site; first stamp wins. */
+function markViewingListingClosed(id, at = new Date().toISOString()) {
+  return db
+    .prepare('UPDATE viewing_requests SET listing_closed_at = ? WHERE id = ? AND listing_closed_at IS NULL')
+    .run(at, Number(id)).changes > 0;
 }
 
 function listAgentContactAttempts({ leadId = null, viewingRequestId = null } = {}) {
@@ -4994,6 +5086,11 @@ module.exports = {
   listAgentContactAttempts,
   findRecentLeadFor,
   findOpenViewingFor,
+  findPendingViewingFor,
+  closeDuplicateViewings,
+  listLiveViewingsOnProperty,
+  markViewingListingClosed,
+  refreshPendingViewing,
   CONTACT_ATTEMPT_CHANNELS,
   CONTACT_ATTEMPT_SOURCES,
   markViewingProposalSent,

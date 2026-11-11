@@ -45,7 +45,7 @@ import {
  * moves the figure, never the number of adverts we say it rests on.
  */
 
-const COMMUNE_EXPR = `(
+export const COMMUNE_EXPR = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
   WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
@@ -68,10 +68,16 @@ export const LUKKA_RENTS_SQL = `
      AND ${NOT_TEST_LISTING_SQL}
 `;
 
-/** Market observations that count, one row each. $2 = residential kinds. */
-export const MARKET_RENTS_SQL = `
+/**
+ * Market observations that count, one row each. $2 = residential kinds.
+ * `asOf` is the SQL instant the rules are read at: NOW() for the guide, a bound
+ * parameter when the Lukka Index recomputes the figure as of an earlier day
+ * (lib/lukkaIndex.js) — one text, so the two can never apply different rules.
+ */
+export function marketRentsSql(asOf = 'NOW()') {
+  return `
   SELECT o.commune, o.beds::int AS beds, o.monthly_usd::numeric AS amount, o.source AS src,
-         (COALESCE(o.posted_at, o.first_seen_at) >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent
+         (COALESCE(o.posted_at, o.first_seen_at) >= ${asOf} - INTERVAL '${RECENT_DAYS} days') AS recent
     FROM market_observations o
    WHERE o.excluded_reason IS NULL
      AND o.purpose = 'rent'
@@ -80,8 +86,9 @@ export const MARKET_RENTS_SQL = `
      AND o.property_kind = ANY($2::text[])
      AND o.beds BETWEEN 1 AND 5
      AND o.commune IS NOT NULL
-     AND COALESCE(o.posted_at, o.first_seen_at) >= NOW() - INTERVAL '${MARKET_WINDOW_DAYS} days'
-     AND o.last_seen_at >= NOW() - INTERVAL '${STILL_LISTED_DAYS} days'
+     AND COALESCE(o.posted_at, o.first_seen_at) >= ${asOf} - INTERVAL '${MARKET_WINDOW_DAYS} days'
+     AND COALESCE(o.posted_at, o.first_seen_at) <= ${asOf}
+     AND o.last_seen_at >= ${asOf} - INTERVAL '${STILL_LISTED_DAYS} days'
      AND NOT EXISTS (
        SELECT 1 FROM properties lp
         WHERE lp.id = o.property_id
@@ -90,6 +97,9 @@ export const MARKET_RENTS_SQL = `
                OR (to_jsonb(lp) ->> 'deleted_at') IS NOT NULL)
      )
 `;
+}
+
+export const MARKET_RENTS_SQL = marketRentsSql();
 
 /**
  * The blended guide: every commune × bedrooms with at least $1 listings after

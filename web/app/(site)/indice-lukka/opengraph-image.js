@@ -5,7 +5,8 @@ import { communeLabel } from '@/lib/cities';
 
 /**
  * The Lukka Index as one shareable picture (1200×630, the size every chat
- * app previews): the latest month's median asking rent for the top communes.
+ * app previews): today's median asking rent for the top communes (Lukka
+ * Place listings and asking prices seen elsewhere, lib/lukkaIndex.js).
  * Also what /indice-lukka's "Télécharger l'image" saves. French always, like
  * every share card.
  */
@@ -17,7 +18,7 @@ export const revalidate = 3600;
 const ROYAL = '#1E3AA8';
 const INK = '#0B1120';
 
-const monthLabel = (month) => new Date(`${month}T00:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const dayLabel = (day) => new Date(`${day}T00:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 const money = (value) => `${String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} $`;
 
 export default async function Image() {
@@ -28,7 +29,7 @@ export default async function Image() {
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#FFFFFF', fontFamily: 'Jakarta', padding: 56 }}>
         <div style={{ display: 'flex', color: ROYAL, fontSize: 30, fontWeight: 800 }}>Indice Lukka</div>
         <div style={{ display: 'flex', color: INK, fontSize: 44, fontWeight: 800, marginTop: 8 }}>
-          {index ? `Loyer médian demandé — ${monthLabel(index.month)}` : 'Loyer médian demandé'}
+          {index ? `Loyer médian demandé — ${dayLabel(index.asOf)}` : 'Loyer médian demandé'}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', marginTop: 28 }}>
           {rows.map((row) => (
@@ -42,7 +43,9 @@ export default async function Image() {
           ))}
         </div>
         <div style={{ display: 'flex', marginTop: 'auto', color: '#5C6679', fontSize: 22 }}>
-          lukkaplace.com/indice-lukka — annonces publiques, par mois, au moins 5 annonces par commune
+          {index
+            ? `lukkaplace.com/indice-lukka — ${String(index.listings).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} annonces (Lukka Place et marché), au moins 5 par commune`
+            : 'lukkaplace.com/indice-lukka'}
         </div>
       </div>
     ),

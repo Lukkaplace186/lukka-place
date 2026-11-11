@@ -1563,7 +1563,8 @@
       "placesLeft": {
         "one": "Only {count} slot left",
         "other": "Only {count} slots left"
-      }
+      },
+      "howPaymentBodyOnline": "Pay for your plan online by mobile money (M-Pesa, Orange Money, Airtel Money, Afrimoney) or by card, through MaishaPay. It is activated as soon as the payment is confirmed."
     },
     "meta": {
       "title": "Agent Area — Lukka Place"
@@ -1760,7 +1761,8 @@
       "listingsIncluded": {
         "one": "{count} published listing",
         "other": "{count} published listings"
-      }
+      },
+      "pay": "Pay for this plan"
     },
     "sold": {
       "notDeleted": "deleted: the property stays on your dashboard and can be put back online at any time.",
@@ -3013,6 +3015,92 @@
       "errorConfirm": "Type SUPPRIMER to confirm the deletion.",
       "errorCommissions": "Your account cannot be deleted right away: a sales commission is still open. Message us on WhatsApp and we will delete it for you.",
       "done": "Your agent account has been deleted."
+    },
+    "checkout": {
+      "metaTitle": "Pay for My Plan — Agent Area — LukkaPlace",
+      "returnMetaTitle": "Payment Result — Agent Area — LukkaPlace",
+      "title": "Plan Payment",
+      "eyebrow": "Subscription",
+      "heading": "Upgrade to the {plan} Plan",
+      "trialEnds": "Your free trial ends on {date}. Pay for your plan to keep publishing your listings.",
+      "intro": "Pay for your plan to keep publishing your listings on LukkaPlace.",
+      "billingTitle": "Payment Type",
+      "autoLabel": "Automatic subscription",
+      "autoBodyMonthly": "Each month, a new payment request is sent to you: you approve it with your PIN. Stop at any time from the Agent Area.",
+      "autoBodyYearly": "Each year, a new payment request is sent to you: you approve it with your PIN. Stop at any time from the Agent Area.",
+      "recommended": "Recommended",
+      "onceLabel": "One-off payment · {period}",
+      "onceBody": "You pay for this period only. We remind you before it ends so you can renew.",
+      "periodMonthly": "1 month",
+      "periodYearly": "1 year",
+      "methodTitle": "Payment Method",
+      "methodLegend": "Choose a payment method",
+      "cardLabel": "Bank card",
+      "cardSub": "Visa · Mastercard",
+      "networkLegend": "Your card network",
+      "phoneLabel": "{provider} number",
+      "phoneHint": "The payment request arrives on this phone. Enter your PIN to approve it.",
+      "cardNote": "You will enter your card details on MaishaPay’s secure page, then come back here.",
+      "termsBefore": "I accept the",
+      "termsLink": "Agent Membership Terms",
+      "termsAfter": ". Payments are non-refundable.",
+      "mandateMonthly": "I authorise a payment request of {amount} each month until I stop the subscription.",
+      "mandateYearly": "I authorise a payment request of {amount} each year until I stop the subscription.",
+      "summaryTitle": "Summary",
+      "yourPlan": "Your plan",
+      "perMonth": "/ month",
+      "perYear": "/ year",
+      "listingsRow": "Published listings",
+      "renewalRow": "Renewal",
+      "renewalAutoMonthly": "Automatic, every month",
+      "renewalAutoYearly": "Automatic, every year",
+      "renewalNone": "None, reminder before the end",
+      "methodRow": "Payment method",
+      "total": "Total to pay",
+      "payMobile": "Pay {amount} with {provider}",
+      "payCard": "Continue to card payment",
+      "acceptFirst": "Accept the membership terms to continue.",
+      "secure": "The payment is processed by MaishaPay. LukkaPlace never sees your PIN or your card details.",
+      "sending": "Sending…",
+      "redirecting": "Opening the payment page…",
+      "waitingTitle": "Approve the Payment on Your Phone",
+      "waitingBody": "A request for {amount} has just arrived on your {provider} (number ending in {last}). Enter your PIN to approve it. This page updates by itself.",
+      "waitingStatus": "Waiting for your approval…",
+      "changeMethod": "Change payment method",
+      "paidTitle": "Your Subscription Is Active",
+      "paidBody": "Your {plan} plan is active. The receipt is in your billing history.",
+      "paidRef": "Payment reference",
+      "publishListing": "Publish a listing",
+      "goSubscription": "View my subscription",
+      "failedTitle": "The Payment Did Not Go Through",
+      "failedBody": "The payment was cancelled or declined. Check your balance or try another payment method.",
+      "tryAgain": "Try again",
+      "timeoutTitle": "No Confirmation Yet",
+      "timeoutBody": "If you approved the payment, confirmation can take a few minutes. Your subscription will update as soon as it arrives.",
+      "checkAgain": "Check again",
+      "help": "Need help? Message the team on WhatsApp",
+      "helpMessage": "Bonjour, j’ai une question sur le paiement de mon abonnement LukkaPlace.",
+      "errors": {
+        "phone": "Enter a valid DRC mobile money number, for example 081 234 5678.",
+        "provider": "MaishaPay could not start the payment. Try again in a moment or choose another method.",
+        "package": "This plan is no longer offered. Choose another one on the Subscription page.",
+        "terms": "Accept the membership terms to continue.",
+        "pending_exists": "A payment request is already open on your phone. Approve it, or wait 3 minutes before asking for another.",
+        "not_configured": "Online payment is not available yet. Contact the LukkaPlace team.",
+        "no_agency": "Your account is not linked to an agency. Contact the LukkaPlace team.",
+        "generic": "The payment could not start. Check your connection and try again."
+      },
+      "renewal": {
+        "title": "Automatic Renewal",
+        "onMobile": "On. The next payment request will arrive around {date} on your {provider} (number ending in {last}).",
+        "onCard": "On. We will send you the card payment link around {date}.",
+        "off": "Off. Your plan stays active until {date}.",
+        "stop": "Stop automatic renewal",
+        "resume": "Turn automatic renewal back on",
+        "stopped": "Automatic renewal stopped. Your plan stays active until {date}.",
+        "resumed": "Automatic renewal turned back on.",
+        "failed": "The change could not be saved. Try again."
+      }
     }
   },
   "status": {

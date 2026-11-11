@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowUpRight, Camera, Check, Clock3, Star } from 'lucide-react';
 import { photoPerkLines } from '@/lib/photoAllowance';
@@ -36,17 +37,17 @@ function priceLabel(pkg) {
  *   2. Opens WhatsApp to the team with the plan pre-filled, so the request
  *      also *arrives* rather than sitting in a queue nobody is watching.
  *
- * This platform has no payment gateway — /admin/subscriptions is a manual
- * ledger by deliberate product decision (cash, bank transfer, Mobile Money).
- * A "Payer maintenant" button would be a fabrication; a request an admin
- * genuinely acts on is the real mechanism, so that's what this is.
+ * With `checkoutEnabled` (MaishaPay configured, 2026-11-12) a paid plan's
+ * button is "Payer ce forfait" → /compte/agent/abonnement/payer. Without it
+ * there is no gateway and the request below is the real mechanism; a
+ * "Payer maintenant" button would then be a fabrication.
  *
  * The WhatsApp window is opened from the click handler *before* awaiting the
  * server action: a popup opened after an await has lost the user-gesture
  * context browsers require, and is blocked. The request is still filed if
  * the popup is blocked anyway, and vice versa — neither depends on the other.
  */
-export default function AgentPlanPicker({ packages, currentPackageId, openRequestPackageIds }) {
+export default function AgentPlanPicker({ packages, currentPackageId, openRequestPackageIds, checkoutEnabled = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -169,6 +170,16 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                   <Clock3 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                   Demande en cours
                 </span>
+              ) : checkoutEnabled && !pkg.is_trial && Number(pkg.price) > 0 ? (
+                // Online payment is live (MaishaPay configured): the plan is
+                // paid on /compte/agent/abonnement/payer instead of requested.
+                <Link
+                  href={`/compte/agent/abonnement/payer?forfait=${pkg.id}`}
+                  className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white"
+                >
+                  {t('agent.plans.pay')}
+                  <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                </Link>
               ) : (
                 <button
                   type="button"

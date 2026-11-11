@@ -7153,7 +7153,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'portal-daily', 'weekly-summary', 'monthly-market', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'subscription-renewals', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'portal-daily', 'weekly-summary', 'monthly-market', 'sqlite-backup',
     ]);
   });
 
@@ -17901,6 +17901,63 @@ console.log('\n2. services/openai.js');
       assert.ok(sql.includes(`'${step}'`) && rules.includes(`'${step}'`), step);
     }
     for (const reason of ['name', 'phone', 'password', 'exists', 'ref']) assert.ok(sql.includes(`'${reason}'`), reason);
+  });
+
+  // ---------------------------------------------------------------------------
+  // §106 MaishaPay payments and automatic renewal (2026-11-12)
+  // ---------------------------------------------------------------------------
+  // Web owns the flow (web/lib/maishapay*.js, lib/subscriptionRenewals.js);
+  // the engine only holds the daily timer, which calls web's endpoint.
+  console.log('\n§106 MaishaPay — renewal job timing and call, migration shape');
+  check('the renewal run fires in its Kinshasa hour, once', () => {
+    const renewSched = require('../services/scheduler');
+    assert.strictEqual(renewSched.RENEWAL_JOB_NAME, 'subscription-renewals');
+    const hourUtc = (renewSched.RENEWAL_HOUR_KINSHASA + 23) % 24;
+    const inHour = new Date(Date.UTC(2026, 10, 12, hourUtc, 15));
+    const outOfHour = new Date(Date.UTC(2026, 10, 12, (hourUtc + 3) % 24, 15));
+    dbService.db.prepare('DELETE FROM job_runs WHERE name = ?').run('subscription-renewals');
+    assert.strictEqual(renewSched.subscriptionRenewalsDue(outOfHour), false);
+    assert.strictEqual(renewSched.subscriptionRenewalsDue(inHour), true);
+    dbService.recordJobRun('subscription-renewals', { ok: true, detail: '{}' });
+    assert.strictEqual(renewSched.subscriptionRenewalsDue(inHour), false, 'a run inside the gap is skipped');
+  });
+
+  await checkAsync('the renewal run calls the web endpoint with the cron secret and surfaces a failure', async () => {
+    const renewSched = require('../services/scheduler');
+    const secretBefore = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = 'verify-secret';
+    try {
+      const requests = [];
+      const ok = await renewSched.runSubscriptionRenewals({
+        fetchImpl: async (url, init) => {
+          requests.push({ url, init });
+          return { ok: true, status: 200, json: async () => ({ ok: true, prompted: 1 }) };
+        },
+      });
+      assert.strictEqual(ok.prompted, 1);
+      assert.ok(requests[0].url.endsWith('/api/cron/subscription-renewals'));
+      assert.strictEqual(requests[0].init.headers.Authorization, 'Bearer verify-secret');
+      await assert.rejects(
+        () => renewSched.runSubscriptionRenewals({ fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }) }),
+        /returned 500/,
+      );
+    } finally {
+      if (secretBefore === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = secretBefore;
+    }
+  });
+
+  check('the MaishaPay migration is additive and its operator codes match web lib/maishapayRules.js', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_maishapay_payments.sql'), 'utf8');
+    assert.doesNotMatch(sql, /DROP TABLE|DROP COLUMN/i);
+    assert.match(sql, /CHECK \(provider IN \('flexpaie', 'maishapay'\)\)/);
+    for (const col of ['payment_channel', 'wallet_provider', 'auto_renew', 'is_renewal', 'renewal_phone', 'renewal_attempts']) {
+      assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${col}\\b`), col);
+    }
+    const rules = fs.readFileSync(path.join(__dirname, '..', 'web/lib/maishapayRules.js'), 'utf8');
+    for (const code of ['MPESA', 'ORANGE', 'AIRTEL', 'AFRICELL', 'VISA', 'MASTERCARD']) {
+      assert.ok(sql.includes(`'${code}'`) && rules.includes(`'${code}'`), code);
+    }
   });
 
   console.log(`\n${'-'.repeat(60)}`);

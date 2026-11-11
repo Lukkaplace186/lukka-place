@@ -220,12 +220,14 @@ export async function deletePackage(packageId, { dryRun = false } = {}) {
 }
 
 /** monthly -> +1 month, yearly -> +1 year, lifetime -> the '9999' sentinel this schema already uses elsewhere (see web/app/admin/subscriptions/page.js's own formatDate). A real trial overrides the term entirely with a short, real expiry. */
-function computeExpireDate(term, { isTrial, trialDays }) {
+function computeExpireDate(term, { isTrial, trialDays, from = null }) {
   if (isTrial && trialDays > 0) {
     return new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
   }
   if (term === 'lifetime') return new Date('9999-12-30T00:00:00Z');
-  const date = new Date();
+  // `from`: a renewal paid before the current period ends starts where that
+  // period ends (lib/maishapayRules.js renewalStart), so no paid day is lost.
+  const date = from ? new Date(from) : new Date();
   if (term === 'yearly') date.setFullYear(date.getFullYear() + 1);
   else date.setMonth(date.getMonth() + 1);
   return date;
@@ -257,6 +259,7 @@ function computeExpireDate(term, { isTrial, trialDays }) {
 export async function assignPackageToAgent({
   agentId, packageId, isTrial = false, price = null, currency = null, currencySymbol = null,
   paymentMethod = null, transactionId = null, receipt = null, client: outerClient = null,
+  startFrom = null,
 }) {
   const client = outerClient || (await getPool().connect());
   try {
@@ -285,17 +288,18 @@ export async function assignPackageToAgent({
     if (!packageRows.length) throw new Error(`No package #${packageId}`);
     const { term, trial_days: packageTrialDays } = packageRows[0];
 
-    const expireDate = computeExpireDate(term, { isTrial, trialDays: packageTrialDays || 0 });
+    const expireDate = computeExpireDate(term, { isTrial, trialDays: packageTrialDays || 0, from: startFrom });
     const membershipId = await nextId(client, 'memberships');
 
     await client.query(
       `INSERT INTO memberships
          (id, package_id, vendor_id, status, is_trial, trial_days, price, currency, currency_symbol,
           payment_method, transaction_id, receipt, start_date, expire_date, created_at, updated_at)
-       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12, NOW(), NOW())`,
+       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($13::timestamptz, NOW()), $12, NOW(), NOW())`,
       [
         membershipId, packageId, vendorId, isTrial ? 1 : 0, isTrial ? (packageTrialDays || 0) : 0,
         price, currency, currencySymbol, paymentMethod, transactionId, receipt, expireDate,
+        startFrom ? new Date(startFrom) : null,
       ],
     );
 

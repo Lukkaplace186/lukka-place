@@ -619,9 +619,9 @@ cascade; engine leads and visits stay).
   users from `/compte/agent`) needs an agency-level login, which does not
   exist: agents log in individually and `vendors` has no account of its own.
   Branches are admin-managed until then.
-- **Card payments** are not offered. Mobile-money payment through FlexPaie
-  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
-  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
+- **Card payments** are offered only through MaishaPay (2026-11-12, "MaishaPay"
+  below), live once its keys are set. FlexPaie (mobile money only) stays
+  scaffolded and unused. Receipts cover what the ledger can prove.
 
 ## Layout & shell
 
@@ -3029,6 +3029,55 @@ From an owner walkthrough on a phone. Engine migration
     (none was available): confirm field names and codes with a sandbox
     payment before setting the key in production. There is no payment UI yet;
     the Abonnements tab stays hidden until there is.
+- **MaishaPay** (2026-11-12, owner decision: MaishaPay is the gateway for agent
+  plans; FlexPaie code untouched beside it). `lib/maishapayRules.js` (pure),
+  `lib/maishapay.js` (HTTP), `lib/maishapayPayments.js` (flow),
+  `lib/subscriptionRenewals.js` (monthly renewal), routes
+  `/api/payments/maishapay/{initiate,webhook}`, `/api/payments/status`
+  (provider-neutral poll), `/api/cron/subscription-renewals`; pages
+  `/compte/agent/abonnement/payer?forfait=<id>` (`AgentCheckout`) and
+  `/compte/agent/abonnement/retour?facture=<id>` (`PaymentReturn`);
+  `migrations/20261112_maishapay_payments.sql` (run it BEFORE setting the
+  keys). Tests: `tests/unit/maishapay.test.js`, verify-pipeline §106.
+  - **Env (server-only):** `MAISHAPAY_PUBLIC_KEY`, `MAISHAPAY_SECRET_KEY`,
+    `MAISHAPAY_GATEWAY_MODE` (0 sandbox, default; 1 live). Keys whose prefix
+    does not match the mode (`MP-SB…` vs `MP-LIVE…`) count as unset. Optional
+    `MAISHAPAY_COLLECT_URL`, `MAISHAPAY_CHECK_URL`. Unset → the plan picker
+    keeps "Demander ce forfait" and `/payer` sends back to Abonnement. The
+    Abonnements switch on `/admin/settings` still gates the whole tab.
+  - **Mobile money** (M-Pesa, Orange Money, Airtel Money, Afrimoney): the agent
+    types the number on our page, MaishaPay has the operator push a PIN prompt,
+    the page polls `/api/payments/status` every 4 s for 3 min ("pas encore de
+    confirmation" after that — never "échoué"). One open prompt per agency per
+    3 minutes (`pending_exists`); an unanswered one is cancelled after 15 min
+    by the daily sweep, after one last check.
+  - **Card** (Visa, Mastercard): MaishaPay answers a `paymentPage`; the browser
+    goes there and returns through the SAME callback URL, which sends a browser
+    (Accept: text/html) on to `/retour` with a 303 and answers MaishaPay's
+    server in JSON. The return query string is never a verdict.
+  - **Only MaishaPay's status check marks an invoice paid** (`?useRef=1` on our
+    reference; SUCCESS, amount and currency covering the invoice when given).
+    A mismatch is never credited nor failed. `markPaid` (lib/payments.js) now
+    takes `paymentMethod` ("MaishaPay · M-Pesa" in the ledger) and handles
+    renewals; FlexPaie invoices behave exactly as before.
+  - **"Abonnement automatique"**: mobile money cannot be debited without the
+    payer, so each period the engine's `subscription-renewals` job (daily,
+    `SUBSCRIPTION_RENEWAL_HOUR`, default 10 Kinshasa) creates a renewal invoice
+    and a new PIN prompt to the saved number, within a day of the end, once a
+    day, three times a period at most, and tells the agent (app first, WhatsApp
+    otherwise). A card subscription gets the checkout link instead (no card is
+    stored). A paid renewal extends from where the paid period ends
+    (`assignPackageToAgent({ startFrom })`), so paying early loses no day.
+    Paying again by hand for the same plan extends it too. Agents stop / resume
+    from the "Renouvellement automatique" card on Abonnement; stopping never
+    shortens the paid period. A subscription 3 days past its end is `expired`.
+  - **The API shape is NOT from a complete official reference.** MaishaPay's
+    own pages document v1 mobile money and the hosted checkout; the v2 paths,
+    the card `paymentPage`, the status check and its `transactionStatus` come
+    from the MIT Laravel package `uzhlaravel/maishapay`. MaishaPay requires a
+    successful sandbox payment before live keys: use that payment to confirm
+    every field read in `lib/maishapayRules.js` (and the callback body in
+    `payment_logs`) before `MAISHAPAY_GATEWAY_MODE=1`.
 
 ## Console create / delete for listings and agents (2026-10-20)
 

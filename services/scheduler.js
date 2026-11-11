@@ -373,6 +373,46 @@ async function runSalesCommissions({ fetchImpl = fetch } = {}) {
 registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => runSalesCommissions() });
 
 /**
+ * The daily automatic-renewal run for MaishaPay plan subscriptions (web
+ * lib/subscriptionRenewals.js): a new PIN prompt to the saved number of each
+ * auto-renewing subscription ending within a day, or the checkout link for a
+ * card. Like the commission run it calls web's own endpoint; the rules and the
+ * per-subscription claim (no second prompt on a retry) live there.
+ *
+ * Fires in the Kinshasa hour SUBSCRIPTION_RENEWAL_HOUR (default 10 — a PIN
+ * prompt at dawn goes unanswered); MIN_GAP_MS stops the sixty ticks inside
+ * that hour from running it sixty times.
+ */
+const RENEWAL_JOB_NAME = 'subscription-renewals';
+const CONFIGURED_RENEWAL_HOUR = Number.parseInt(process.env.SUBSCRIPTION_RENEWAL_HOUR, 10);
+const RENEWAL_HOUR_KINSHASA = Number.isFinite(CONFIGURED_RENEWAL_HOUR) ? CONFIGURED_RENEWAL_HOUR : 10;
+
+function subscriptionRenewalsDue(now = new Date()) {
+  if (now.getUTCHours() !== (RENEWAL_HOUR_KINSHASA + 23) % 24) return false;
+  const last = db.getLastJobRun(RENEWAL_JOB_NAME);
+  if (!last?.succeeded_at) return true;
+  return Date.now() - new Date(last.succeeded_at).getTime() >= MIN_GAP_MS;
+}
+
+async function runSubscriptionRenewals({ fetchImpl = fetch } = {}) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) throw new Error('CRON_SECRET is not set — the renewal endpoint would reject this call');
+  const response = await fetchImpl(`${webBaseUrl()}/api/cron/subscription-renewals`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: '{}',
+    signal: AbortSignal.timeout(5 * 60 * 1000),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.ok === false) {
+    throw new Error(`renewal run returned ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+  return body;
+}
+
+registerJob({ name: RENEWAL_JOB_NAME, shouldRun: subscriptionRenewalsDue, run: () => runSubscriptionRenewals() });
+
+/**
  * The launch morning run (services/growthDaily.js): the agents' referral
  * credits on web, then yesterday's summary to the owners' phones.
  */
@@ -577,6 +617,11 @@ module.exports = {
   SALES_HOUR_KINSHASA,
   salesCommissionsDue,
   runSalesCommissions,
+  // The daily automatic-renewal run (MaishaPay subscriptions).
+  RENEWAL_JOB_NAME,
+  RENEWAL_HOUR_KINSHASA,
+  subscriptionRenewalsDue,
+  runSubscriptionRenewals,
   // The multi-job runner.
   registerJob,
   runJob,

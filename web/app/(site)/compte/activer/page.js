@@ -1,5 +1,6 @@
 import { getT } from '@/lib/i18n/server';
 import { activateCustomerAction } from './actions';
+import { CUSTOMER_PASSWORD_MIN } from '@/lib/passwordRules';
 
 export async function generateMetadata() {
   const t = await getT();
@@ -8,7 +9,7 @@ export async function generateMetadata() {
 
 const ERRORS = {
   invalid: 'auth.activateCustomer.errors.invalid',
-  password: 'auth.errors.passwordMin8',
+  password: 'auth.errors.passwordMin6',
   mismatch: 'auth.activateCustomer.errors.mismatch',
 };
 
@@ -34,11 +35,11 @@ export default async function ActivateCustomerPage({ searchParams }) {
           <input type="hidden" name="token" value={token} />
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ink-45">
             {t('auth.password')}
-            <input type="password" name="password" autoComplete="new-password" minLength={8} required className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink" />
+            <input type="password" name="password" autoComplete="new-password" minLength={CUSTOMER_PASSWORD_MIN} required className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink" />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ink-45">
             {t('auth.activateCustomer.confirm')}
-            <input type="password" name="password_confirm" autoComplete="new-password" minLength={8} required className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink" />
+            <input type="password" name="password_confirm" autoComplete="new-password" minLength={CUSTOMER_PASSWORD_MIN} required className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm normal-case tracking-normal text-ink" />
           </label>
           {error ? <p className="text-sm text-red-600" role="alert">{t(error)}</p> : null}
           <button type="submit" className="u-btn-primary mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep">

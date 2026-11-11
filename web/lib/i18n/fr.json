@@ -7681,7 +7681,7 @@
       "perDay": "Comptes clients par jour",
       "byChannel": "Par canal",
       "channel": "Canal",
-      "costPerAccount": "Coût par compte vérifié",
+      "costPerAccount": "Coût par compte",
       "noSpend": "Aucune dépense saisie",
       "channelsHint": "Canal = le code d'un partenaire, sinon la dernière source (publicité, réseau, recherche…), sinon la première.",
       "channels": {
@@ -8278,7 +8278,8 @@
       "agencyNameRequired": "Indiquez le nom de votre agence ou votre nom commercial.",
       "partnerCodeUnknown": "Ce code de parrainage n'existe pas. Corrigez-le ou laissez le champ vide.",
       "fullNameRequired": "Indiquez votre nom et prénom.",
-      "lockedReset": "Réinitialiser mon mot de passe maintenant"
+      "lockedReset": "Réinitialiser mon mot de passe maintenant",
+      "passwordMin6": "Le mot de passe doit contenir au moins 6 caractères."
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -8419,7 +8420,8 @@
     "agentFirstPassword": "Vous avez rejoint Lukka Place sur WhatsApp : votre compte n’a pas encore de mot de passe. Saisissez le code reçu sur WhatsApp et choisissez-en un.",
     "agentNoPasswordHint": "Inscrit sur WhatsApp, sans mot de passe ? Touchez « Mot de passe oublié » : un code WhatsApp vous permet d’en créer un.",
     "agentLoginMetaTitle": "Connexion agent — Lukka Place",
-    "agentNoAccountYet": "Pas encore de compte agent ?"
+    "agentNoAccountYet": "Pas encore de compte agent ?",
+    "minSixChars": "6 caractères minimum."
   },
   "updates": {
     "title": "Actualités",

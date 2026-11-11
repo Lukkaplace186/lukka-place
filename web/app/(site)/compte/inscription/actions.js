@@ -19,6 +19,7 @@ import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
 import { getT } from '@/lib/i18n/server';
 import { recordSignupOutcome } from '@/lib/signupFunnel';
+import { passwordLongEnough } from '@/lib/passwordRules';
 
 // Shared connections (a carrier's NAT) carry many people: generous, still far
 // from enough to walk a list of numbers.
@@ -97,18 +98,19 @@ export async function signupAction(_prevState, formData) {
   if (fullName.length < 2) return refuse('name', formData);
   if (!phone) return refuse('phone', formData);
 
-  // Minimal length check, no policy engine — matches this app's low-ceremony
-  // posture (adminAuth.js has no password policy either).
-  if (password.length < 8) return refuse('password', formData);
+  // Minimal length check, no policy engine: 6 for customers since 2026-11-11
+  // (lib/passwordRules.js — eight on a phone keyboard lost people).
+  if (!passwordLongEnough(password, 'customer')) return refuse('password', formData);
 
   const existing = await getCustomerByPhone(phone);
   if (existing) return refuse('exists', formData);
 
-  // The optional "Code de parrainage" (an agent's, a creator's): a code that
-  // is not a live partner's is sent back BEFORE the account exists, so the
-  // person can correct it or clear the field. A lookup that fails never
-  // blocks signup.
-  const typedCode = String(formData.get('partner_code') || '').trim().slice(0, 20);
+  // The optional "Code de parrainage" (an agent's, a creator's). An unknown
+  // code no longer stops the account (owner decision 2026-11-11: an optional
+  // field must never cost a customer): it is left out, logged, and the
+  // partner link this browser followed (lp_ref cookie) still counts. A
+  // lookup that fails keeps the code, as before.
+  let typedCode = String(formData.get('partner_code') || '').trim().slice(0, 20);
   if (typedCode) {
     let known = null;
     try {
@@ -117,7 +119,10 @@ export async function signupAction(_prevState, formData) {
       console.error(`[customer-auth] partner code check failed, signing up without it: ${err.message}`);
       known = true;
     }
-    if (!known) return refuse('ref', formData);
+    if (!known) {
+      console.log(`[customer-auth] unknown partner code "${normalisePartnerCode(typedCode) || 'malformed'}" ignored at sign-up`);
+      typedCode = '';
+    }
   }
 
   // Two taps, or two tabs, can both pass the "exists" check above; the

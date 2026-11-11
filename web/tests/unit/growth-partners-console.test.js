@@ -153,11 +153,13 @@ test('the invite page remembers the partner from the browser, through the same h
 
 // --- item 12: code field at signup ------------------------------------------------------
 
-test('customer signup refuses an unknown partner code before the account exists, and credits a typed one', () => {
+// Changed 2026-11-11 (owner): an unknown code is left out, never a refusal.
+test('customer signup leaves an unknown partner code out before the account exists, and credits a typed one', () => {
   const action = read('app/(site)/compte/inscription/actions.js');
-  const refuse = action.indexOf("refuse('ref'");
+  assert.equal(action.includes("refuse('ref'"), false);
+  const dropped = action.indexOf("typedCode = '';");
   const create = action.indexOf('await createCustomer(');
-  assert.ok(refuse > 0 && refuse < create, 'the refusal comes before createCustomer');
+  assert.ok(dropped > 0 && dropped < create, 'the unknown code is dropped before createCustomer');
   assert.match(action, /typedCode: typedCode \|\| null/);
   assert.match(read('app/(site)/compte/inscription/SignupForm.js'), /name="partner_code"/);
 });

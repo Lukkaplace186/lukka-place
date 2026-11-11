@@ -139,8 +139,13 @@ export async function getGrowthDashboard({ days = 30 } = {}) {
   }), { accounts: 0, verified: 0, agents: 0, visitorDays: 0, listingViews: 0 });
   totals.viewsPerVisitor = totals.visitorDays > 0 ? Math.round((totals.listingViews / totals.visitorDays) * 10) / 10 : null;
 
-  const verifiedByChannel = Object.fromEntries(Object.entries(byChannel).map(([channel, v]) => [channel, v.verified]));
-  return { days: list, totals, byChannel, costs: paidChannelCosts(spend, verifiedByChannel), spend };
+  // Cost per ACCOUNT, every account (2026-11-11). It was per verified
+  // account, but customers stopped confirming their number on 2026-11-06, so
+  // new web accounts are never verified and the cost per paid account only
+  // grew, however well the ads did. `verified` stays in the data (referral
+  // credits still use confirmation); the page no longer shows it.
+  const accountsByChannel = Object.fromEntries(Object.entries(byChannel).map(([channel, v]) => [channel, v.accounts]));
+  return { days: list, totals, byChannel, costs: paidChannelCosts(spend, accountsByChannel), spend };
 }
 
 // ---------------------------------------------------------------------------

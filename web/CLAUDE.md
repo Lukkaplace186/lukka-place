@@ -5117,3 +5117,23 @@ This replaces the 2026-10-27 "no target" decision on that page.
   WhatsApp). `/admin/dashboard` carries a one-line goal banner for roles with
   `partners.view`. `CUSTOMER_SIGNUP_GOAL` (1000) is the one place the target lives.
 - Tests: `tests/unit/customer-signup-funnel.test.js`.
+
+### Sign-up friction fixes (2026-11-11, owner)
+
+- **Customer passwords: 6 characters** (`lib/passwordRules.js`
+  `CUSTOMER_PASSWORD_MIN`) on sign-up, the WhatsApp activation page and the
+  customer password reset (`verifyAndResetPassword` applies the role's own
+  minimum; the reset page reads it from the attempt's role). Agents keep 8:
+  confirming an agent's number claims its listings. Console accounts keep 12.
+- **An unknown "Code de parrainage" no longer refuses a customer sign-up.**
+  The code is dropped (logged as `[customer-auth] unknown partner code … ignored`)
+  and the account is created; the partner link the browser followed
+  (`lp_ref`) still credits. The funnel's `ref` refusal stays in the
+  vocabulary for older rows. Agent sign-up is unchanged.
+- **`/admin/croissance` cost per account counts every account**, not only
+  verified ones, and the page no longer shows "Numéros vérifiés": customers
+  stopped confirming their number on 2026-11-06, so the figure only fell and
+  the cost per paid account only rose. `verified` stays in
+  `getGrowthDashboard`'s data; referral credits (`lib/referralCredits.js`)
+  still require a confirmed number, an owner pricing decision not changed here.
+- Tests: `tests/unit/customer-signup-friction.test.js`.

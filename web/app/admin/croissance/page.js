@@ -96,9 +96,8 @@ export default async function AdminGrowthPage({ searchParams }) {
 
       {data ? (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label={t('admin.growth.accounts')} value={frNumber(data.totals.accounts)} />
-            <Stat label={t('admin.growth.verified')} value={frNumber(data.totals.verified)} />
             <Stat label={t('admin.growth.agents')} value={frNumber(data.totals.agents)} />
             <Stat label={t('admin.growth.visitorDays')} value={frNumber(data.totals.visitorDays)} hint={t('admin.growth.visitorDaysHint')} />
             <Stat label={t('admin.growth.viewsPerVisitor')} value={data.totals.viewsPerVisitor == null ? '—' : frNumber(data.totals.viewsPerVisitor)} />
@@ -122,7 +121,6 @@ export default async function AdminGrowthPage({ searchParams }) {
                 <tr>
                   <th className={TH_STICKY}>{t('admin.growth.channel')}</th>
                   <th className={`${TH_STICKY} text-right`}>{t('admin.growth.accounts')}</th>
-                  <th className={`${TH_STICKY} text-right`}>{t('admin.growth.verified')}</th>
                   <th className={`${TH_STICKY} text-right`}>{t('admin.growth.costPerAccount')}</th>
                 </tr>
               </thead>
@@ -139,7 +137,6 @@ export default async function AdminGrowthPage({ searchParams }) {
                     <tr key={channel} className={TR_DENSE}>
                       <td className={TD_DENSE}>{t(`admin.growth.channels.${channel}`)}</td>
                       <td className={`${TD_DENSE} u-tabular text-right font-bold text-ink`}>{frNumber(data.byChannel[channel].accounts)}</td>
-                      <td className={`${TD_DENSE} u-tabular text-right`}>{frNumber(data.byChannel[channel].verified)}</td>
                       <td className={`${TD_DENSE} u-tabular text-right`}>{costText}</td>
                     </tr>
                   );

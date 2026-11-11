@@ -6,6 +6,7 @@ import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { consumeCustomerActivationToken } from '@/lib/customers';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { passwordLongEnough } from '@/lib/passwordRules';
 
 /**
  * Sets the first password of a customer account created on WhatsApp
@@ -22,7 +23,7 @@ export async function activateCustomerAction(formData) {
   const back = `/compte/activer?phone=${encodeURIComponent(phone || '')}&token=${encodeURIComponent(token)}`;
 
   if (!phone || !token) redirect(`${back}&error=invalid`);
-  if (password.length < 8) redirect(`${back}&error=password`);
+  if (!passwordLongEnough(password, 'customer')) redirect(`${back}&error=password`);
   if (password !== confirm) redirect(`${back}&error=mismatch`);
 
   const customer = await consumeCustomerActivationToken({ phone, token, passwordHash: hashPassword(password) });

@@ -113,8 +113,10 @@ export function parseInline(line) {
  * as nothing in public and as a warning in the console preview, and
  * bodyProblems() lists them so saving or importing refuses the body.
  */
-export const DIRECTIVES = ['tableau', 'chiffres', 'graphique', 'astuce', 'attention', 'info', 'citation', 'prix', 'annonces'];
-const ONE_LINE = new Set(['prix', 'annonces']);
+export const DIRECTIVES = ['tableau', 'chiffres', 'graphique', 'astuce', 'attention', 'info', 'citation', 'prix', 'annonces', 'calculateur'];
+const ONE_LINE = new Set(['prix', 'annonces', 'calculateur']);
+/** `:::calculateur type=…` — the interactive tools an article can embed. */
+export const CALCULATORS = ['garantie'];
 const CALLOUT_TONES = { astuce: 'tip', attention: 'warning', info: 'info' };
 export const BLOCK_LIMITS = { stats: 4, chartPoints: 24, chartSeries: 3, priceCommunes: 8, tableColumns: 8, tableRows: 60 };
 
@@ -259,6 +261,11 @@ function directiveBlock(name, attrs, inner) {
       if (!['location', 'vente'].includes(transaction)) return invalid(name, 'transaction=location ou vente');
       return { listings: { commune, propertyType, transaction } };
     }
+    case 'calculateur': {
+      const kind = (attrs.type || 'garantie').toLowerCase();
+      if (!CALCULATORS.includes(kind)) return invalid(name, `type=${CALCULATORS.join(' ou ')}`);
+      return { calculator: { kind } };
+    }
     default:
       return invalid(name, 'bloc inconnu');
   }
@@ -374,6 +381,7 @@ function wordsOf(b) {
   if (b.chart) return [b.chart.title, ...b.chart.points.map((pt) => pt.label)].join(' ');
   if (b.callout) return [b.callout.title, ...b.callout.blocks.map(wordsOf)].join(' ');
   if (b.quote) return blockText(b.quote.text);
+  if (b.calculator || b.prices || b.listings) return '';
   return blockText(b.h2 || b.p || b.ul || b.ol);
 }
 
@@ -516,23 +524,27 @@ export function articleFromPost(row, locale = 'fr') {
   };
 }
 
-/** A lib/guides.js guide → the same shape. Always French. */
-export function articleFromGuide(guide) {
+/**
+ * A lib/guides.js guide → the same shape, in English for an English reader
+ * when the guide carries an `en` version (all-or-nothing, like a post).
+ */
+export function articleFromGuide(guide, locale = 'fr') {
+  const en = locale === 'en' && guide.en?.title && guide.en?.body ? guide.en : null;
   return {
     source: 'code',
     id: null,
     slug: guide.slug,
     category: 'guide',
-    lang: 'fr',
-    title: guide.title,
-    summary: guide.description,
-    blocks: guide.body,
+    lang: en ? 'en' : 'fr',
+    title: en ? en.title : guide.title,
+    summary: en ? en.description : guide.description,
+    blocks: en ? en.body : guide.body,
     coverUrl: null,
     coverAlt: '',
     publishedAt: new Date(`${guide.published}T08:00:00+01:00`).toISOString(),
     updatedAt: new Date(`${guide.updated}T08:00:00+01:00`).toISOString(),
     listings: null,
-    cta: guide.cta,
+    cta: (en && en.cta) || guide.cta,
   };
 }
 
@@ -541,7 +553,7 @@ export function articleFromGuide(guide) {
  * its guide, newest first. Posts are only passed in when the blog is on.
  */
 export function mergeArticles(guides, posts, locale = 'fr') {
-  const bySlug = new Map(guides.map((g) => [g.slug, articleFromGuide(g)]));
+  const bySlug = new Map(guides.map((g) => [g.slug, articleFromGuide(g, locale)]));
   for (const post of posts) bySlug.set(post.slug, articleFromPost(post, locale));
   return [...bySlug.values()].sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
 }

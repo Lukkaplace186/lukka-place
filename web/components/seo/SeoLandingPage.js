@@ -264,9 +264,8 @@ export default async function SeoLandingPage({ transaction, params }) {
   crumbs[crumbs.length - 1] = { label: crumbs[crumbs.length - 1].label };
 
   const refineHref = listingsHrefFor(filters);
-  const guideOrder = purpose === 'sale'
-    ? ['acheter-parcelle-kinshasa-diaspora', 'parcelle-maison-appartement-kinshasa', 'louer-sans-arnaque-kinshasa']
-    : ['garantie-3-1-1-kinshasa', 'louer-sans-arnaque-kinshasa', 'parcelle-maison-appartement-kinshasa'];
+  // The one guide left (2026-11-11) is about renting.
+  const guideOrder = purpose === 'sale' ? [] : ['garantie-3-1-1-kinshasa'];
   const guides = guideOrder.map((s) => GUIDES.find((g) => g.slug === s)).filter(Boolean);
 
   const jsonLd = {

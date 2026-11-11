@@ -20,13 +20,15 @@ test('app mode comes from the cookie or the app user agent, nothing else', () =>
   assert.equal(isAppUserAgent(null), false);
 });
 
-test('each path lights the right tab', () => {
-  assert.equal(activeAppTab('/'), 'home');
+test('each path lights the right tab (Search, Saved, Account — the app design)', () => {
+  assert.deepEqual(APP_TABS.map((tab) => tab.key), ['search', 'saved', 'account']);
+  assert.equal(activeAppTab('/'), 'search');
   assert.equal(activeAppTab('/listings?commune=Gombe'), 'search');
-  assert.equal(activeAppTab('/favoris'), 'favorites');
-  assert.equal(activeAppTab('/compte/client/favoris'), 'favorites');
-  assert.equal(activeAppTab('/compte/client/notifications/12'), 'notifications');
-  assert.equal(activeAppTab('/compte/client/parametres'), 'account');
+  assert.equal(activeAppTab('/favoris'), 'saved');
+  assert.equal(activeAppTab('/compte/client/favoris'), 'saved');
+  assert.equal(activeAppTab('/compte/client/alertes'), 'saved');
+  assert.equal(activeAppTab('/compte/menu'), 'account');
+  assert.equal(activeAppTab('/compte/client/notifications/12'), 'account');
   assert.equal(activeAppTab('/compte/connexion'), 'account');
   assert.equal(activeAppTab('/a-propos'), null);
 });
@@ -38,18 +40,21 @@ test('a listing page keeps its own bottom bar, so the tabs step aside', () => {
 });
 
 test('every tab label exists in both dictionaries', () => {
+  const lookup = (dict, key) => key.split('.').reduce((node, part) => node?.[part], dict);
   for (const lang of ['fr', 'en']) {
     const dict = JSON.parse(read(`lib/i18n/${lang}.json`));
-    for (const tab of APP_TABS) {
-      const [ns, key] = tab.labelKey.split('.');
-      assert.equal(typeof dict[ns][key], 'string', `${lang} ${tab.labelKey}`);
-    }
+    for (const tab of APP_TABS) assert.equal(typeof lookup(dict, tab.labelKey), 'string', `${lang} ${tab.labelKey}`);
     assert.equal(typeof dict.nav.appTabs, 'string', `${lang} nav.appTabs`);
+    assert.equal(typeof dict.appShell.bell, 'string', `${lang} appShell.bell`);
   }
 });
 
 test('the site layout swaps the footer for the tabs in app mode, and /app sets the cookie', () => {
-  assert.match(read('app/(site)/layout.js'), /\{app \? <AppTabBar \/> : <Footer \/>\}/);
+  const layout = read('app/(site)/layout.js');
+  assert.match(layout, /\{app \? \(\s*<Suspense fallback=\{null\}>\s*<AppTabBar \/>\s*<\/Suspense>\s*\) : \(\s*<Footer \/>/);
+  assert.match(layout, /\{app \? \(\s*<AppTopBar \/>\s*\) : \(\s*<Header /, 'the app top bar replaces the header');
+  assert.match(layout, /const Chrome = app \? AppMotion : Passthrough/, 'motion only in app mode');
+  assert.match(layout, /'appShell'/, 'the app wording ships with the site namespaces');
   const route = read('app/app/route.js');
   assert.match(route, /cookies\.set\(APP_MODE_COOKIE, '1'/);
   assert.match(route, /cookies\.delete\(\{ name: APP_MODE_COOKIE/);
@@ -57,32 +62,90 @@ test('the site layout swaps the footer for the tabs in app mode, and /app sets t
   assert.equal(config.appendUserAgent, 'LukkaPlaceApp');
 });
 
-test('in the app the home page is an app screen, without the website marketing bands', () => {
+test('in the app the home page is the design search home, on real data', () => {
   const page = read('app/(site)/(home)/page.js');
   assert.match(page, /if \(app\) return <AppHomePage /);
   const appHome = page.slice(page.indexOf('async function AppHomePage'), page.indexOf('export default async function HomePage'));
   assert.match(appHome, /<AppHomeTop/);
+  assert.match(appHome, /cachedLiveListingsCount\(\)/, 'the band states the real live count');
+  assert.match(appHome, /latestSavedSearch\(\)/);
   assert.doesNotMatch(appHome, /HomeAlertBand|ValueProposition/);
+  const top = read('components/AppHomeTop.js');
+  assert.match(top, /liveCount > 0 \?/, 'no count line at 0');
+  // The entrance moves, never fades: the server HTML must show the search card.
+  const rise = top.slice(top.indexOf('const rise'), top.indexOf('};', top.indexOf('const rise')));
+  assert.doesNotMatch(rise, /opacity/);
   for (const lang of ['fr', 'en']) {
-    const app = JSON.parse(read(`lib/i18n/${lang}.json`)).home.app;
-    assert.match(app.greetingNamed, /\{name\}/, lang);
-    for (const key of ['find', 'prices', 'projects', 'agencies']) assert.equal(typeof app.quick[key], 'string', `${lang} ${key}`);
+    const app = JSON.parse(read(`lib/i18n/${lang}.json`)).appShell;
+    assert.match(app.home.count.other, /\{count\}/, lang);
+    for (const key of ['title', 'continue', 'latest', 'seeAll', 'findTitle', 'findText']) assert.equal(typeof app.home[key], 'string', `${lang} ${key}`);
   }
 });
 
-test('the tab bar shows unread alerts on Notifications and unread messages on Compte, signed in only', () => {
+test('unread app alerts sit on the top bar bell, unread messages on the Account tab, signed in only', () => {
+  const top = read('components/app/AppTopBar.js');
+  assert.match(top, /useAlertsUnread\(\{ side: 'customer', loadNow: true, enabled: loggedIn \}\)/);
+  assert.match(top, /compte\/connexion\?next=/, 'signed out, the bell asks to sign in first');
   const bar = read('components/AppTabBar.js');
-  assert.match(bar, /useAlertsUnread\(\{ side: 'customer', loadNow: true, enabled: loggedIn \}\)/);
   assert.match(bar, /useChatUnread\('customer', \{ enabled: loggedIn \}\)/);
-  assert.match(bar, /notifications: \{ count: unreadAlerts/);
-  assert.match(bar, /account: \{ count: unreadMessages/);
+  assert.match(bar, /tab\.key === 'account' \? unreadMessages : 0/);
+  assert.match(bar, /layoutId="app-tab-active"/, 'the active marker slides between tabs');
   // The counts are read before the listing page's early return (hooks order).
-  assert.ok(bar.indexOf('useAlertsUnread(') < bar.indexOf('if (hidesAppTabs(pathname)) return null'));
+  assert.ok(bar.indexOf('useChatUnread(') < bar.indexOf('if (hidesAppTabs(pathname) || mapView) return null'));
   const hook = read('lib/useAlertsUnread.js');
   assert.match(hook, /if \(!enabled\) return undefined;/);
   assert.match(hook, /if \(loadNow\) load\(\);/);
+});
+
+test('the account menu is public, and shows private rows only with a session', () => {
+  assert.match(read('middleware.js'), /'\/compte\/menu',/);
+  const page = read('app/(site)/compte/menu/page.js');
+  assert.match(page, /getPortalCustomer\(\)/);
+  assert.match(page, /\{portal \? \(\s*<Group title=\{t\('appShell\.account\.yourSpace'\)\}>/);
+  assert.match(page, /<form action=\{logoutAction\}>/);
+  assert.match(page, /meta=\{counts\?\.viewings \?\? null\}/, 'an unknown count is left out, not 0');
+});
+
+test('motion is in the app only, and respects reduced motion', () => {
+  assert.match(read('components/app/AppMotion.js'), /reducedMotion="user"/);
+  const pkg = JSON.parse(read('package.json'));
+  assert.ok(pkg.dependencies.motion, 'motion is a dependency');
+  assert.match(read('lib/appFont.js'), /preload: false/, 'the website never downloads the serif');
+});
+
+test('Saved in the app: the design screen, except a shared selection link', () => {
+  const page = read('app/(site)/favoris/page.js');
+  assert.match(page, /if \(!shared && \(await isAppRequest\(\)\)\) return <AppSavedScreen accountSearches=\{await accountSearches\(\)\} \/>/);
+  assert.match(page, /return <FavorisView \/>/);
+  const screen = read('components/app/AppSavedScreen.js');
+  // The same stores the website reads: the account when signed in, this phone otherwise.
+  assert.match(screen, /useSyncExternalStore\(subscribeFavorites, getFavoriteIds/);
+  assert.match(screen, /fetch\(`\/api\/listings\?ids=\$\{key\}`\)/, 'saved listings come through the public gate');
+  assert.match(screen, /t\('appShell\.saved\.gone', \{ count: gone \}\)/, 'a saved listing no longer online is counted, not shown');
+  // The alert switch writes through the Alertes tab's own action and puts itself back on failure.
+  assert.match(screen, /updateAlertPreferencesAction\(search\.id, \{ frequency: wanted \}\)/);
+  assert.match(screen, /setFrequency\(previous\)/);
+  assert.match(screen, /const wanted = next \? DEFAULT_ALERT_FREQUENCY : 'off'/);
+  assert.match(screen, /const signedIn = Array\.isArray\(accountSearches\)/, 'signed out: no switch, a sign-in prompt');
+});
+
+test('results in the app: app cards, the floating bar above the tabs, no tabs on the map', () => {
+  const page = read('app/(site)/listings/(search)/(results)/page.js');
+  assert.match(page, /appMode=\{app\}/);
+  assert.match(page, /<FloatingControlBar hasResults=\{count > 0\} aboveTabBar=\{app\} \/>/);
+  const view = read('components/ListingsSplitView.js');
+  assert.match(view, /appMode \? \(\s*<AppListingCard key=\{listing\.id\} listing=\{listing\} priority=\{i < 2\} \/>/);
+  assert.match(read('components/FloatingControlBar.js'), /aboveTabBar \? 'bottom-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]' : 'bottom-6'/);
+  assert.match(read('components/AppTabBar.js'), /useSearchParams\(\)\?\.get\('view'\) === 'map'/);
+});
+
+test('the app screens share one grey ground and the Saved wording exists in both languages', () => {
+  assert.match(read('app/(site)/layout.js'), /min-h-screen bg-canvas-alt/);
   for (const lang of ['fr', 'en']) {
-    const label = JSON.parse(read(`lib/i18n/${lang}.json`)).nav.unreadNotifications;
-    assert.match(label.other, /\{count\}/, lang);
+    const saved = JSON.parse(read(`lib/i18n/${lang}.json`)).appShell.saved;
+    for (const key of ['title', 'homes', 'searches', 'emptyHomesTitle', 'emptyHomesText', 'browse', 'emptySearchesTitle', 'searchesHint', 'alerts', 'signInForAlerts']) {
+      assert.equal(typeof saved[key], 'string', `${lang} ${key}`);
+    }
+    assert.match(saved.gone.other, /\{count\}/, lang);
   }
 });

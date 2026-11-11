@@ -8,17 +8,17 @@ import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import HomeDiscovery from '@/components/HomeDiscovery';
 import HomeAlertBand from '@/components/HomeAlertBand';
 import HomeMarketBand from '@/components/HomeMarketBand';
-import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
+import { cachedFeaturedListings, cachedListingsTotal, cachedLiveListingsCount, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
 import { organizationSchema, socialProfiles, websiteSchema } from '@/lib/seoSchema';
-import { getFeatureFlags, getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
+import { getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
 import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { mergeSocialLinks, seoMetadata } from '@/lib/siteSettingsRules';
 import AppHomeTop from '@/components/AppHomeTop';
 import { isAppRequest } from '@/lib/appMode';
-import { getCurrentCustomerId, getCustomerById } from '@/lib/customers';
+import { getCurrentCustomerId, listSavedSearches } from '@/lib/customers';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -145,42 +145,40 @@ export async function generateMetadata() {
   };
 }
 
-/** The signed-in customer's first name for the app's greeting, or null. */
-async function customerFirstName() {
+/** The signed-in customer's latest saved search, for "pick up where you left off"; null otherwise. */
+async function latestSavedSearch() {
   try {
     const id = await getCurrentCustomerId();
     if (!id) return null;
-    const name = String((await getCustomerById(id))?.full_name || '').trim().split(/\s+/)[0];
-    return name || null;
+    return (await listSavedSearches(id))[0] || null;
   } catch {
     return null;
   }
 }
 
 /**
- * Inside the store app (lib/appModeRules.js) the home page is an app screen:
- * a greeting band, the search card, shortcuts, then the listing shelves.
- * The website's marketing sections (alert band, "Notre approche") and the
- * SEO markup are left out; the tab bar replaces the footer.
+ * Inside the store app (lib/appModeRules.js) the home page is the app
+ * design's "Search home" (components/AppHomeTop.js): the live listing count,
+ * the search card, the customer's latest saved search and the newest
+ * listings. The website's marketing sections and the SEO markup are left
+ * out; the tab bar replaces the footer.
  */
-async function AppHomePage({ propertyTypes, communes, total, saved, weeklyNew }) {
-  const [firstName, features] = await Promise.all([customerFirstName(), getFeatureFlags()]);
+async function AppHomePage({ propertyTypes, communes, total }) {
+  const [liveCount, savedSearch, featured] = await Promise.all([
+    cachedLiveListingsCount().catch(() => 0),
+    latestSavedSearch(),
+    // The same newest-first 60-second copy "Sélection de la semaine" reads.
+    cachedFeaturedListings().catch(() => ({ data: [] })),
+  ]);
   return (
-    <>
-      <AppHomeTop
-        firstName={firstName}
-        propertyTypes={propertyTypes}
-        communes={communes}
-        initialCount={total}
-        weeklyNew={weeklyNew}
-        showProjects={Boolean(features.publicProjects)}
-      />
-      <RecentlyViewed variant="strip" minItems={2} />
-      {saved ? <SavedListings listings={saved.listings} /> : <FeaturedListings />}
-      {features.publicProjects ? <NewProjectsStrip /> : null}
-      <HomeDiscovery propertyTypes={propertyTypes} />
-      <HomeMarketBand />
-    </>
+    <AppHomeTop
+      liveCount={liveCount}
+      propertyTypes={propertyTypes}
+      communes={communes}
+      initialCount={total}
+      savedSearch={savedSearch ? { query: savedSearch.query, label: savedSearch.label } : null}
+      listings={(featured.data || []).slice(0, 6)}
+    />
   );
 }
 
@@ -196,7 +194,7 @@ export default async function HomePage() {
     cachedWeeklyNewCount().catch(() => 0),
     isAppRequest(),
   ]);
-  if (app) return <AppHomePage propertyTypes={propertyTypes} communes={communes} total={total} saved={saved} weeklyNew={weeklyNew} />;
+  if (app) return <AppHomePage propertyTypes={propertyTypes} communes={communes} total={total} />;
   // The profiles the footer shows, so Google ties them to the site (sameAs).
   const profiles = mergeSocialLinks(await getSocialLinks(), socialProfiles());
 

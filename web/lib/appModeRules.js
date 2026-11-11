@@ -25,24 +25,25 @@ export function isAppMode({ cookieValue, userAgent } = {}) {
 }
 
 /**
- * The tab bar's five tabs, as French paths (localizeHref turns them into the
- * reader's language). Keys, not text: see components/navItems.js.
+ * The tab bar's three tabs (the app design, 2026-11-11: Search, Saved,
+ * Account; notifications are the bell in the top bar), as French paths —
+ * localizeHref turns them into the reader's language. Keys, not text: see
+ * components/navItems.js.
  */
 export const APP_TABS = [
-  { key: 'home', href: '/', labelKey: 'nav.home' },
-  { key: 'search', href: '/listings', labelKey: 'nav.search' },
-  { key: 'favorites', href: '/favoris', labelKey: 'nav.favorites' },
-  { key: 'notifications', href: '/compte/client/notifications', labelKey: 'nav.notifications' },
-  { key: 'account', href: '/compte/client', labelKey: 'nav.account' },
+  { key: 'search', href: '/', labelKey: 'appShell.tabs.search' },
+  { key: 'saved', href: '/favoris', labelKey: 'appShell.tabs.saved' },
+  { key: 'account', href: '/compte/menu', labelKey: 'appShell.tabs.account' },
 ];
+
+/** The account menu (app/(site)/compte/menu): public, it offers sign-in when signed out. */
+export const APP_ACCOUNT_PATH = '/compte/menu';
 
 /** Which tab a (French) path belongs to, or null. */
 export function activeAppTab(pathname) {
   const path = String(pathname || '/').split(/[?#]/)[0];
-  if (path === '/') return 'home';
-  if (path === '/listings' || path.startsWith('/listings/')) return 'search';
-  if (path === '/favoris' || path.startsWith('/compte/client/favoris')) return 'favorites';
-  if (path.startsWith('/compte/client/notifications')) return 'notifications';
+  if (path === '/' || path === '/listings' || path.startsWith('/listings/')) return 'search';
+  if (path === '/favoris' || path.startsWith('/compte/client/favoris') || path.startsWith('/compte/client/alertes')) return 'saved';
   if (path.startsWith('/compte')) return 'account';
   return null;
 }

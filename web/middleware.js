@@ -73,6 +73,10 @@ const PUBLIC_COMPTE_PATHS = new Set([
   // A customer account created on WhatsApp sets its first password here,
   // before any session exists; guarded by the single-use token in its URL.
   '/compte/activer',
+  // The app's account menu (2026-11-11): offers sign-in when signed out, and
+  // reads the session itself for the signed-in part. Nothing private renders
+  // without one.
+  '/compte/menu',
 ]);
 const PUBLIC_AGENT_PATHS = new Set([
   '/compte/agent/connexion',

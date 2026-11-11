@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Header from '@/components/Header';
 import { getFeatureFlags, getGrowthSettings } from '@/lib/siteSettings';
 import AdTracking from '@/components/AdTracking';
@@ -6,6 +7,9 @@ import SignupNudge from '@/components/SignupNudge';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import AppTabBar from '@/components/AppTabBar';
+import AppTopBar from '@/components/app/AppTopBar';
+import AppMotion from '@/components/app/AppMotion';
+import { appSerif } from '@/lib/appFont';
 import { isAppRequest } from '@/lib/appMode';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
@@ -58,7 +62,7 @@ import { I18nProvider } from '@/lib/i18n/client';
  * payload.
  */
 const SITE_NAMESPACES = [
-  'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates', 'chat',
+  'appShell', 'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates', 'chat',
 ];
 // `projects` ships from app/(site)/projets/layout.js only.
 
@@ -67,13 +71,25 @@ export default async function SiteLayout({ children }) {
   const { locale, messages } = await getI18n(SITE_NAMESPACES);
   const [features, growth, app] = await Promise.all([getFeatureFlags(), getGrowthSettings(), isAppRequest()]);
 
+  // Inside the store app (lib/appModeRules.js): the app's top bar and tab bar
+  // instead of the website's header and footer, the motion provider, and the
+  // display serif. The website is drawn exactly as before.
+  const Chrome = app ? AppMotion : Passthrough;
+
   return (
     <I18nProvider locale={locale} messages={messages}>
+      <Chrome>
+      {/* display: contents on the website: no box, so its layout is untouched. */}
+      <div className={app ? `${appSerif.variable} min-h-screen bg-canvas-alt` : 'contents'}>
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <VisitCartMount />
-        <Header hiddenHrefs={[...(features.publicProjects ? [] : ['/projets']), ...(features.publicBlog ? [] : ['/guides'])]} />
+        {app ? (
+          <AppTopBar />
+        ) : (
+          <Header hiddenHrefs={[...(features.publicProjects ? [] : ['/projets']), ...(features.publicBlog ? [] : ['/guides'])]} />
+        )}
         <SiteShell>
           {/* min-h-0 alongside flex-1: a flex item's default min-height is
               `auto` (its content size), not 0 — the standard real fix for the
@@ -84,7 +100,13 @@ export default async function SiteLayout({ children }) {
               column's height. */}
           <main className="min-h-0 flex-1">{children}</main>
           {/* Inside the store app: the tab bar instead of the footer (lib/appModeRules.js). */}
-          {app ? <AppTabBar /> : <Footer />}
+          {app ? (
+            <Suspense fallback={null}>
+              <AppTabBar />
+            </Suspense>
+          ) : (
+            <Footer />
+          )}
         </SiteShell>
         <ImpersonationBanner />
         {/* Meta / TikTok pixels, and the consent banner in Europe (lib/adTrackingRules.js). */}
@@ -94,6 +116,12 @@ export default async function SiteLayout({ children }) {
         {/* "Créez un compte…" at the right moments (growth plan item 24). */}
         <SignupNudge />
       </CurrencyRateProvider>
+      </div>
+      </Chrome>
     </I18nProvider>
   );
+}
+
+function Passthrough({ children }) {
+  return children;
 }

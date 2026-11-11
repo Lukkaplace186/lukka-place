@@ -30,7 +30,7 @@ import SaveSearchButton from './SaveSearchButton';
  * "Trier" opens a bottom sheet over SortDropdown.js's exact SORT_OPTIONS
  * rather than a second sort implementation.
  */
-export default function FloatingControlBar({ hasResults = true }) {
+export default function FloatingControlBar({ hasResults = true, aboveTabBar = false }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sortOpen, setSortOpen] = useState(false);
@@ -53,7 +53,12 @@ export default function FloatingControlBar({ hasResults = true }) {
 
   return (
     <>
-      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 lg:hidden">
+      {/* In the store app the tab bar holds the bottom edge: the pill sits just above it. */}
+      <div
+        className={`fixed left-1/2 z-40 -translate-x-1/2 lg:hidden ${
+          aboveTabBar ? 'bottom-[calc(5rem+env(safe-area-inset-bottom))]' : 'bottom-6'
+        }`}
+      >
         {/* "Prestige white" — bg-surface (the real --surface, #fff) at 95%
             with backdrop-blur, not a flat opaque white: real elevation
             (shadow-xl) plus a hairline border-line/80 (this app's real

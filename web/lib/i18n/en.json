@@ -9082,5 +9082,74 @@
       "openedOn": "Conversation opened on {date}",
       "panelLabel": "Customer details"
     }
+  },
+  "appShell": {
+    "tabs": {
+      "search": "Search",
+      "saved": "Saved",
+      "account": "Account"
+    },
+    "bell": "Notifications",
+    "home": {
+      "title": "Find the Right Home",
+      "count": {
+        "one": "{count} home to rent and buy in the DRC",
+        "other": "{count} homes to rent and buy in the DRC"
+      },
+      "continue": "Pick up Where You Left Off",
+      "continueFallback": "Your saved search",
+      "latest": "Recently Added",
+      "seeAll": "See all",
+      "findTitle": "Not Found It Yet?",
+      "findText": "Describe what you are looking for and agencies send you homes."
+    },
+    "card": {
+      "photos": {
+        "one": "{count} photo",
+        "other": "{count} photos"
+      }
+    },
+    "account": {
+      "title": "Account",
+      "guestTitle": "Sign in or Create an Account",
+      "guestText": "Keep your saved homes, searches and visits on every device.",
+      "signIn": "Sign in",
+      "signUp": "Create an account",
+      "agentPrompt": "Agent or agency?",
+      "agentLogin": "Agent space",
+      "yourSpace": "My Space",
+      "profile": "My profile",
+      "visits": "My visits",
+      "requests": "My requests",
+      "messages": "Messages",
+      "notifications": "Notifications",
+      "alerts": "Search alerts",
+      "services": "Services",
+      "find": "Find it for me",
+      "prices": "Rent prices",
+      "agencies": "Agencies",
+      "preferences": "Preferences",
+      "language": "Language",
+      "currency": "Currency",
+      "publishTitle": "List a Property",
+      "publishText": "For agents and agencies",
+      "signOut": "Sign out"
+    },
+    "saved": {
+      "title": "Saved",
+      "homes": "Homes",
+      "searches": "Searches",
+      "emptyHomesTitle": "No Saved Homes Yet",
+      "emptyHomesText": "Tap the heart on a listing to keep it here.",
+      "browse": "Browse homes",
+      "gone": {
+        "one": "{count} saved home is no longer online.",
+        "other": "{count} saved homes are no longer online."
+      },
+      "emptySearchesTitle": "No Saved Searches Yet",
+      "searchesHint": "Save a search from the results and we tell you as soon as a home matches.",
+      "alerts": "Alerts",
+      "signInForAlerts": "Sign in to hear about new homes."
+    }
   }
 }

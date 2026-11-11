@@ -97,6 +97,44 @@ export default async function AdminMoveProjectsPage({ searchParams }) {
             />
           </div>
 
+          <section id="projets" className="flex scroll-mt-4 flex-col gap-3">
+            <div>
+              <h2 className="u-title-section text-ink">{t('admin.moveProjects.list')}</h2>
+              <p className="u-micro mt-1 text-ink-45">{t('admin.moveProjects.listHint')}</p>
+            </div>
+            <TableToolbar
+              params={params}
+              filters={[
+                {
+                  type: 'select', param: 'reason', label: t('admin.moveProjects.reason'),
+                  options: withCurrent(stats.reasons.map((row) => row.reason), filters.reason).map((value) => ({ value, label: reasonLabel(value) })),
+                },
+                {
+                  type: 'select', param: 'commune', label: t('admin.moveProjects.commune'),
+                  options: withCurrent(stats.communes.map((row) => row.commune), filters.commune).map((value) => ({ value, label: communeLabel(value) })),
+                },
+                {
+                  type: 'select', param: 'status', label: t('admin.moveProjects.colStatus'),
+                  options: MOVE_STATUSES.map((value) => ({ value, label: t(`admin.customers.moveStatus.${value}`) })),
+                },
+              ]}
+              resetKeys={['reason', 'commune', 'status', 'customer']}
+            />
+            {filters.customer ? (
+              <p className="u-micro text-ink-70">
+                {t('admin.moveProjects.oneCustomer', { id: filters.customer })}{' '}
+                <Link href={listHref({ ...filters, customer: '' })} className={filterLink}>{t('admin.moveProjects.allCustomers')}</Link>
+              </p>
+            ) : null}
+            {listFailed ? <ErrorNote>{t('admin.moveProjects.listError')}</ErrorNote> : null}
+            <TableFrame
+              minWidth="68rem"
+              footer={list ? <Pagination pathname={PATH} params={params} total={list.total} page={page} pageSize={pageSize} /> : null}
+            >
+              <MoveProjectRows rows={list?.rows || []} />
+            </TableFrame>
+          </section>
+
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="u-card overflow-hidden rounded-card bg-surface">
               <h2 className="u-title-card px-4 pt-4 text-ink">{t('admin.moveProjects.byReason')}</h2>
@@ -143,44 +181,6 @@ export default async function AdminMoveProjectsPage({ searchParams }) {
                 </li>
               )) : <li className="u-micro text-ink-45">{t('admin.moveProjects.none')}</li>}
             </ul>
-          </section>
-
-          <section id="projets" className="flex scroll-mt-4 flex-col gap-3">
-            <div>
-              <h2 className="u-title-section text-ink">{t('admin.moveProjects.list')}</h2>
-              <p className="u-micro mt-1 text-ink-45">{t('admin.moveProjects.listHint')}</p>
-            </div>
-            <TableToolbar
-              params={params}
-              filters={[
-                {
-                  type: 'select', param: 'reason', label: t('admin.moveProjects.reason'),
-                  options: withCurrent(stats.reasons.map((row) => row.reason), filters.reason).map((value) => ({ value, label: reasonLabel(value) })),
-                },
-                {
-                  type: 'select', param: 'commune', label: t('admin.moveProjects.commune'),
-                  options: withCurrent(stats.communes.map((row) => row.commune), filters.commune).map((value) => ({ value, label: communeLabel(value) })),
-                },
-                {
-                  type: 'select', param: 'status', label: t('admin.moveProjects.colStatus'),
-                  options: MOVE_STATUSES.map((value) => ({ value, label: t(`admin.customers.moveStatus.${value}`) })),
-                },
-              ]}
-              resetKeys={['reason', 'commune', 'status', 'customer']}
-            />
-            {filters.customer ? (
-              <p className="u-micro text-ink-70">
-                {t('admin.moveProjects.oneCustomer', { id: filters.customer })}{' '}
-                <Link href={listHref({ ...filters, customer: '' })} className={filterLink}>{t('admin.moveProjects.allCustomers')}</Link>
-              </p>
-            ) : null}
-            {listFailed ? <ErrorNote>{t('admin.moveProjects.listError')}</ErrorNote> : null}
-            <TableFrame
-              minWidth="68rem"
-              footer={list ? <Pagination pathname={PATH} params={params} total={list.total} page={page} pageSize={pageSize} /> : null}
-            >
-              <MoveProjectRows rows={list?.rows || []} />
-            </TableFrame>
           </section>
 
           <section className="u-card rounded-card bg-surface p-4">

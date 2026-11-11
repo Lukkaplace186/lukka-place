@@ -95,4 +95,7 @@ test('the page links each count to the filtered list and stays behind customers.
   assert.match(rows, /href=\{`tel:\+\$\{row\.phone\}`\}/);
   assert.match(rows, /\/admin\/customers\/\$\{row\.customer_id\}/);
   assert.match(rows, /admin\.moveProjects\.noName/);
+  assert.match(rows, /<WhatsAppLink phone=\{row\.phone\}/, 'one tap to write to the person');
+  // The people come first: the list sits above the reason and commune tables.
+  assert.ok(page.indexOf('id="projets"') < page.indexOf("t('admin.moveProjects.byReason')"));
 });

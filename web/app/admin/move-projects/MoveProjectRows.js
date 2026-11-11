@@ -1,8 +1,11 @@
 import Link from 'next/link';
+import { Phone } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { communeLabel } from '@/lib/cities';
 import { budgetRangeText } from '@/lib/moveProjectRules';
 import { getT } from '@/lib/i18n/server';
 import { Chip, formatKinshasa } from '../LeadRoutingUI';
+import { WhatsAppLink } from '../ContactCell';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE } from '../table/TableFrame';
 
 const STATUS_TONE = { active: 'blue', paused: 'neutral', found: 'success' };
@@ -11,8 +14,9 @@ const STATUS_TONE = { active: 'blue', paused: 'neutral', found: 'success' };
  * The rows of "Les projets" on /admin/move-projects (lib/moveProjectList.js):
  * who told us the move, and what they told us. The person is the customer
  * account behind the project — its stored name and number, nothing guessed;
- * no name is said as such. A tel: link calls them; nothing here messages
- * anyone.
+ * no name is said as such. The WhatsApp chip opens a chat from the admin's
+ * own WhatsApp (wa.me, like ContactCell) and "Appeler" is a tel: link;
+ * nothing on this page sends a message by itself.
  */
 export default async function MoveProjectRows({ rows }) {
   const t = await getT();
@@ -49,7 +53,13 @@ export default async function MoveProjectRows({ rows }) {
                   {row.full_name || <span className="font-normal italic text-ink-45">{t('admin.moveProjects.noName')}</span>}
                 </Link>
                 {row.phone ? (
-                  <a href={`tel:+${row.phone}`} className="u-tabular block text-blue-deep hover:underline">+{row.phone}</a>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <WhatsAppLink phone={row.phone} label={t('admin.moveProjects.whatsapp')} />
+                    <a href={`tel:+${row.phone}`} className="u-micro-strong inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-ink-70 hover:border-blue hover:text-blue-deep" title={t('admin.moveProjects.call')}>
+                      <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+                      {t('admin.moveProjects.call')}
+                    </a>
+                  </div>
                 ) : <span className="text-ink-45">{t('admin.moveProjects.noPhone')}</span>}
                 <Link href={`/admin/move-projects?customer=${row.customer_id}#projets`} className="text-ink-45 hover:underline">#{row.customer_id}</Link>
               </td>

@@ -8106,7 +8106,9 @@
       "budgetFrom": "From {min}",
       "budgetUpTo": "Up to {max}",
       "oneCustomer": "Projects of customer #{id}.",
-      "allCustomers": "See all customers"
+      "allCustomers": "See all customers",
+      "whatsapp": "Message on WhatsApp",
+      "call": "Call"
     },
     "whatsappHistory": {
       "title": "WhatsApp History",

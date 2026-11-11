@@ -45,7 +45,7 @@
     ["fb-2026-11-09-39", "maison", 550000, null, "Ngaliema", "Macampagne", 13, "243 971422930", "Nsenzedi Ton Sky", null, "sale"],
     ["fb-2026-11-09-40", "immeuble", 400000, null, "Lingwala", null, 0, "0973414682", "Blanchard Kibanda", null, "sale"],
     ["fb-2026-11-09-41", "maison", 250, 2, "Limete", "Résidentiel", 8, "+243 835085369", "Dan Muyabi", null, "rent"],
-    ["fb-2026-11-09-42", "maison", 110000, 5, "N'sele", null, 2, "+243 815320861", "Jeremy Sengamu", null, "sale"],
+    ["fb-2026-11-09-42", "maison", 110000, 5, "Nsele", null, 2, "+243 815320861", "Jeremy Sengamu", null, "sale"],
     ["fb-2026-11-09-43", "immeuble", 420000, null, "Limete", "Funa", 12, "+243 971422930", "Nsenzedi Ton Sky", null, "sale"],
     ["fb-2026-11-09-44", null, 300000, null, "Ngiri-Ngiri", "Birmanie", 13, "+243 971422930", "Happyness Katosia", null, "sale"],
     ["fb-2026-11-09-45", "maison", 400, 2, "Ngaliema", null, 0, "+243 973240331", "Anipha Moussa", null, "rent"],

@@ -1,7 +1,10 @@
 import { cache } from 'react';
 import Link from '@/components/LocaleLink';
 import BlogChart from '@/components/blog/BlogChart';
+import DepositCalculator from '@/components/blog/DepositCalculator';
 import { getPriceGuides } from '@/lib/browseFeatures';
+import { getCdfRate } from '@/lib/currencyRate';
+import { CALCULATOR_LABEL_KEYS } from '@/lib/depositCalc';
 import { communeLabel } from '@/lib/cities';
 import { frNumber } from '@/lib/format';
 
@@ -65,4 +68,21 @@ export async function LivePrices({ block, t, locale }) {
       </Link>
     </div>
   );
+}
+
+/**
+ * `:::calculateur` (type=garantie): the 3 + 1 + 1 calculator. The labels are
+ * resolved here and handed over as templates, and the FC conversion uses the
+ * site's reference rate (lib/currencyRate.js, never throws) with its own date.
+ */
+export async function LiveDepositCalculator({ t, locale }) {
+  const rate = await getCdfRate();
+  const labels = Object.fromEntries(CALCULATOR_LABEL_KEYS.map((key) => [key, t(`guides.calculator.${key}`)]));
+  let dateLabel = rate.updatedAt;
+  try {
+    dateLabel = new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${rate.updatedAt}T12:00:00Z`));
+  } catch {
+    // An unparseable date stays as stored rather than breaking the article.
+  }
+  return <DepositCalculator labels={labels} locale={locale} rate={{ cdfPerUsd: Number(rate.cdfPerUsd), dateLabel }} />;
 }

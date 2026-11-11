@@ -3,7 +3,7 @@ import Link from '@/components/LocaleLink';
 import BlogChart from '@/components/blog/BlogChart';
 import CountUp from '@/components/blog/CountUp';
 import Reveal from '@/components/blog/Reveal';
-import { LivePrices } from '@/components/blog/LiveBlocks';
+import { LiveDepositCalculator, LivePrices } from '@/components/blog/LiveBlocks';
 import { parseFigure, postListingsHref } from '@/lib/blogRules';
 import { getLocale, getT } from '@/lib/i18n/server';
 
@@ -181,6 +181,7 @@ function RichBlock({ block, t, locale, ListingsBlock }) {
   if (block.callout) return <Callout callout={block.callout} t={t} />;
   if (block.quote) return <Quote quote={block.quote} />;
   if (block.prices) return <LivePrices block={block.prices} t={t} locale={locale} />;
+  if (block.calculator) return <LiveDepositCalculator t={t} locale={locale} />;
   if (block.listings) {
     if (ListingsBlock) return <ListingsBlock block={block.listings} t={t} />;
     const href = postListingsHref({ purpose: block.listings.transaction, commune: block.listings.commune, property_type: block.listings.propertyType });

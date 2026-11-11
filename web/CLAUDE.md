@@ -2234,6 +2234,8 @@ anywhere. `tests/unit/seo-pages.test.js`.
   reading a listing, renting without scams, buying from the diaspora. No
   market figures in them (those live on the landing pages); the diaspora one
   says to consult an avocat/notaire. Review the copy before promoting it.
+  (Since 2026-11-11 only the 3+1+1 guide remains — see "The 3 + 1 + 1 guide
+  and `:::calculateur`" under Guides & Actualités.)
 - **Sitemap** now lists landing pages with listings and the guides instead
   of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
   landing pages; Guides joined the Lukka Place column.
@@ -3991,6 +3993,24 @@ Tests: `tests/unit/blog.test.js`.
   as `script:blog-import`. Source files live in `content/blog/`; the writing
   rules are the user-level `lukka-blog` skill.
   `tests/unit/blog-rich-blocks.test.js`.
+- **The 3 + 1 + 1 guide and `:::calculateur` (2026-11-11, owner decision).**
+  `lib/guides.js` now holds ONE code guide, `garantie-3-1-1-kinshasa`,
+  rewritten around Loi n° 15/025 (arts. 3, 5, 10, 17–22, 39, 43, sourced in
+  the text) with an interactive calculator. The three other guides were
+  deleted on the owner's request; `next.config.mjs` 308s their URLs to
+  `/guides` (`REMOVED_GUIDE_SLUGS`), and SeoLandingPage lists the one guide on
+  rental pages only. A code guide may carry an `en` version (title,
+  description, body, optional cta — all or nothing, like a post);
+  `articleFromGuide(guide, locale)` serves it to an English reader.
+  The calculator is a block, `{ calculator: { kind: 'garantie' } }`, also
+  writable in a post as the one-line `:::calculateur` (`CALCULATORS`).
+  Maths in `lib/depositCalc.js` (pure: the three costs stay separate, the
+  first advance month is rent, legal ceiling 3 / first month only / 1);
+  UI `components/blog/DepositCalculator.js` (client, opens on 670 $ 3+1+1);
+  `LiveDepositCalculator` (LiveBlocks.js) resolves `guides.calculator.*` as
+  templates and passes `getCdfRate()` with its own date, so FC amounts are
+  "≈" at the site's reference rate, never an editable or dealing rate.
+  `tests/unit/deposit-guide.test.js`.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
 

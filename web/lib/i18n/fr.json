@@ -7375,7 +7375,7 @@
       "summaryHint": "Une ou deux phrases : affiché dans la liste et dans l’aperçu WhatsApp / Google.",
       "bodyFr": "Article",
       "formatHelpTitle": "Mise en forme",
-      "formatHelp": "Une ligne vide sépare les paragraphes.\n## Titre de section\n- un point de liste\n1. une étape numérotée\n[texte du lien](/location/appartements/gombe) — un lien vers une page du site ou une adresse https.",
+      "formatHelp": "Une ligne vide sépare les paragraphes.\n## Titre de section\n- un point de liste\n1. une étape numérotée\n[texte du lien](/location/appartements/gombe) — un lien vers une page du site ou une adresse https.\n\nDonnées en direct (seules sur leur ligne, recalculées à chaque lecture) :\n{{indice}} — l’Indice Lukka de toutes les communes, dernier mois\n{{indice commune=Gombe mois=6}} — une commune, mois par mois (tableau)\n{{indice commune=Gombe mois=12 affichage=graphique}} — la même chose en courbe\n{{indice commune=Gombe offre=vente}} — les prix de vente demandés\n{{prix commune=Gombe}} — le guide des prix, par nombre de chambres\n{{prix commune=Gombe chambres=2}} — une seule ligne\nUn nom avec une espace se met entre guillemets : commune=\"Mont Ngafula\".",
       "sectionCover": "Image de couverture",
       "cover": "Image",
       "replaceCover": "Remplacer l’image",
@@ -7427,7 +7427,21 @@
         "badType": "Type de bien inconnu.",
         "coverType": "L’image doit être en JPEG, PNG ou WebP.",
         "coverSize": "L’image dépasse {max} Mo.",
-        "gone": "Cet article n’existe plus."
+        "gone": "Cet article n’existe plus.",
+        "badEmbed": "Bloc de données invalide : « {line} ». {reason}"
+      },
+      "embedErrors": {
+        "unknownKind": "Utilisez {{indice …}} ou {{prix …}}.",
+        "badSyntax": "Écrivez les options sous la forme cle=valeur, avec des guillemets si la valeur contient un espace.",
+        "unknownOption": "Option inconnue ou répétée. indice : commune, mois, offre, affichage ; prix : commune, chambres.",
+        "badCommune": "Commune inconnue, ou présente dans plusieurs villes : écrivez son nom complet.",
+        "communeRequired": "Le guide des prix a besoin d’une commune (commune=Gombe).",
+        "badBeds": "chambres doit être un nombre de 1 à 5.",
+        "badMonths": "mois doit être un nombre de {min} à {max}.",
+        "badPurpose": "offre doit être location ou vente.",
+        "badView": "affichage doit être tableau ou graphique.",
+        "saleNeedsCommune": "L’indice des ventes se lit commune par commune : ajoutez commune=…",
+        "chartNeedsCommune": "Le graphique suit une commune dans le temps : ajoutez commune=…"
       }
     },
     "campaign": {
@@ -8049,7 +8063,32 @@
     "empty": "Aucun article dans cette catégorie pour le moment.",
     "seeListings": "Voir les biens en ligne",
     "relatedListings": "Biens en ligne en ce moment",
-    "shareWhatsApp": "Partager sur WhatsApp"
+    "shareWhatsApp": "Partager sur WhatsApp",
+    "data": {
+      "indexTitle": "Indice Lukka — loyer médian demandé à {commune} sur {n} mois",
+      "indexTitleSale": "Indice Lukka — prix de vente médian demandé à {commune} sur {n} mois",
+      "indexAllTitle": "Indice Lukka — loyer médian demandé par commune",
+      "indexAllTitleMonth": "Indice Lukka — loyer médian demandé par commune, {month}",
+      "medianRent": "Loyer médian",
+      "medianSale": "Prix médian",
+      "month": "Mois",
+      "asks": "Annonces",
+      "indexSource": "Chiffres en direct : relevés mensuels des annonces publiées sur Lukka Place, prix demandés. Une médiane n’est publiée qu’à partir de {n} annonces.",
+      "indexLink": "Voir l’Indice Lukka",
+      "indexNoMonths": "Aucun relevé mensuel n’existe encore pour {commune}.",
+      "indexThin": "Pas encore assez d’annonces à {commune} pour publier une médiane (au moins {n} par mois).",
+      "dashNote": "« — » : moins de {n} annonces ce mois-là, aucune médiane n’est publiée.",
+      "gapNote": "Une interruption de la courbe signale un mois avec moins de {n} annonces : aucune médiane n’est publiée.",
+      "pricesTitle": "Loyers demandés à {commune} par nombre de chambres",
+      "pricesSource": "Chiffres en direct : loyers mensuels demandés pour des locations longue durée non meublées, annonces Lukka Place et annonces relevées ailleurs, au moins {n} annonces par ligne.",
+      "pricesLink": "Voir le guide des prix",
+      "pricesNone": "Pas encore assez d’annonces à {commune} pour publier un loyer médian (au moins {n}).",
+      "beds": "Chambres",
+      "bedsCount": "{n} ch.",
+      "range": "Fourchette (25–75 %)",
+      "listings": "Annonces",
+      "unavailable": "Les chiffres ne peuvent pas être affichés pour le moment."
+    }
   },
   "projects": {
     "meta": {

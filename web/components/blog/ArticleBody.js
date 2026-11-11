@@ -1,10 +1,13 @@
 import Link from '@/components/LocaleLink';
+import DataBlock from '@/components/blog/DataBlock';
 
 /**
  * The body of a guide or a post (lib/blogRules.js blocks). Server-rendered,
  * no client JavaScript. Text is rendered as text — there is no HTML path —
  * and a link is either a site path (next/link) or an https URL opened in a
- * new tab with rel="noopener nofollow".
+ * new tab with rel="noopener nofollow". A {data} block (a live table or
+ * chart) is drawn by DataBlock from the figures lib/blogData.js attached;
+ * `preview` shows an unreadable one as a warning instead of nothing.
  */
 function Inline({ value }) {
   if (!Array.isArray(value)) return value;
@@ -25,7 +28,8 @@ function Inline({ value }) {
   });
 }
 
-function Block({ block }) {
+function Block({ block, preview }) {
+  if (block.data) return <DataBlock spec={block.data} preview={preview} />;
   if (block.h2) return <h2 className="u-h2 mt-4 text-ink">{block.h2}</h2>;
   if (block.p) return <p><Inline value={block.p} /></p>;
   if (block.ul) {
@@ -45,6 +49,6 @@ function Block({ block }) {
   return null;
 }
 
-export default function ArticleBody({ blocks }) {
-  return (blocks || []).map((block, i) => <Block key={i} block={block} />);
+export default function ArticleBody({ blocks, preview = false }) {
+  return (blocks || []).map((block, i) => <Block key={i} block={block} preview={preview} />);
 }

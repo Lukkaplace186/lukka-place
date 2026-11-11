@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import { createPost, deletePost, getPostForAdmin, slugTaken, unpublishPost, updatePost } from '@/lib/blog';
-import { validatePostInput } from '@/lib/blogRules';
+import { DATA_MONTHS, validatePostInput } from '@/lib/blogRules';
 import { uploadCmsImage } from '@/lib/listingStorage';
 import { getT } from '@/lib/i18n/server';
 
@@ -70,7 +70,12 @@ export async function savePostAction(_previous, formData) {
     input.cover_url = cover.url;
 
     const check = validatePostInput(input);
-    if (!check.ok) return { ok: false, error: t(`admin.blog.errors.${check.error}`), field: check.field };
+    if (!check.ok) {
+      const params = check.reason
+        ? { line: check.line, reason: t(`admin.blog.embedErrors.${check.reason}`, { min: DATA_MONTHS.min, max: DATA_MONTHS.max }) }
+        : undefined;
+      return { ok: false, error: t(`admin.blog.errors.${check.error}`, params), field: check.field };
+    }
     const values = check.values;
     if (await slugTaken(values.slug, existing?.id ?? null)) return { ok: false, error: t('admin.blog.errors.slugTaken'), field: 'slug' };
 

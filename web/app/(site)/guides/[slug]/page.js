@@ -6,6 +6,7 @@ import PropertyCard from '@/components/PropertyCard';
 import JsonLd from '@/components/seo/JsonLd';
 import ArticleBody from '@/components/blog/ArticleBody';
 import { getPublicArticle, listPublicArticles } from '@/lib/blog';
+import { resolveDataBlocks } from '@/lib/blogData';
 import { postListingsHref, readingMinutes } from '@/lib/blogRules';
 import { getListings } from '@/lib/listings';
 import { cityOfCommune } from '@/lib/cities';
@@ -62,7 +63,7 @@ export default async function GuidePage({ params }) {
   const article = await getPublicArticle(slug, locale);
   if (!article) notFound();
 
-  const [listings, all] = await Promise.all([relatedListings(article), listPublicArticles(locale)]);
+  const [listings, all, blocks] = await Promise.all([relatedListings(article), listPublicArticles(locale), resolveDataBlocks(article.blocks)]);
   const others = all.filter((a) => a.slug !== article.slug).slice(0, 4);
   const base = SITE_URL.replace(/\/+$/, '');
   const url = `${base}/guides/${article.slug}`;
@@ -121,7 +122,7 @@ export default async function GuidePage({ params }) {
             <Image src={article.coverUrl} alt={article.coverAlt} fill priority sizes="(min-width: 768px) 720px, 100vw" className="object-cover" />
           </div>
         ) : null}
-        <ArticleBody blocks={article.blocks} />
+        <ArticleBody blocks={blocks} />
         <div className="mt-4 flex flex-wrap gap-3">
           {cta ? (
             <Link

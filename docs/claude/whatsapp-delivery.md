@@ -544,7 +544,7 @@ app-only for discovery alerts. Only customers with the app are read.
 
 verify-pipeline §104; web `tests/unit/push-notifications.test.js`.
 
-## Templates approved 2026-11-11 — all switched on (except the listing-approved one)
+## Templates approved 2026-11-11 — all switched on
 
 Owner submitted the gap-analysis set (2026-11-09) plus `agent_lead_claim` and
 `point_annonces_agent`; all approved. Each was test-sent to the desk the same
@@ -563,7 +563,7 @@ variables, never throws).
 | `nouveau_message_agent` / `_client` | `CHAT_AGENT_TEMPLATE` / `CHAT_CUSTOMER_TEMPLATE` | 4 · link = thread id | `chatNotify` |
 | `bon_de_visite_client` | `VISIT_RECEIPT_TEMPLATE` | listing, date, agent · none, **no header** | `visitReceipt.sendReceipt` (template first) |
 | `avis_visite_client` | `VISIT_FEEDBACK_TEMPLATE` | first name, listing · Bien passée / Pas convaincu / Agent absent | check-in |
-| ~~`annonce_en_ligne_v2`~~ **OFF** | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
+| `annonce_en_ligne_v2` | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
 | `suivi_demande_client` | `SUIVI_DEMANDE_TEMPLATE` | **first name, request** (was sent with one — fixed) · 3 quick replies | `requestFollowup` |
 | `client_vous_contacte_agent` | `CONTACT_TAP_TEMPLATE` | agent, Appeler/WhatsApp, listing · 2 quick replies | `contactTapAlert` |
 | `contact_client_verif_agent` | `VIEWING_CONTACT_CHECK_TEMPLATE` | agent, client, listing · 3 quick replies | `askAgentContactCheck` |
@@ -584,10 +584,10 @@ variables, never throws).
 The approval should take the agent to **their own listings** (Mes biens,
 `/compte/agent/biens`), not the public listing page. Same day:
 
-- `LISTING_APPROVED_TEMPLATE` is **commented out** in the production engine
-  .env (`annonce_en_ligne_v2`'s button is the DYNAMIC public
-  `/listings/{{1}}`). Outside the 24 h window the agent gets the app push if
-  they have the app, else the session text, which does not arrive.
+- `LISTING_APPROVED_TEMPLATE` was commented out for a few hours, then
+  **switched back on (`annonce_en_ligne_v2`, owner, same day)**: its DYNAMIC
+  button opens the public `/listings/{{1}}` — the page agents share with
+  customers. v3 below is optional, only if the owner later wants Mes biens.
 - The text (team approval and trusted auto-approval, one wording in
   `services/listingApprovedMessage.js`) names the listing number and links to
   Mes biens; a signed-out agent logs in first and lands there. The app push

@@ -170,7 +170,9 @@ holds the rules. §63 of verify-pipeline.
   in= cached= (N%) out= cost=Xc` from the usage the API returned
   (`openai.callCost`, prices in `PRICES_PER_MILLION` — update them when
   OpenAI's change; an unknown model logs `cost=?`). Kinds: intake, buyer,
-  smart-paste, closing-price. `grep "\[ai-cost\]" logs/pm2-out.log` gives
+  smart-paste, closing-price, market-paste, group-prices (posts from groups
+  we do not publish, ~0.4 ¢ instead of the ~2.6 ¢ intake read — see
+  `market-data.md`, 2026-11-11). `grep "\[ai-cost\]" logs/pm2-out.log` gives
   the real cost per listing and the cache hit rate. Embeddings and voice
   notes are not logged (fractions of a cent).
 

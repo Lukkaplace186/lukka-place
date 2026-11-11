@@ -54,7 +54,8 @@ function publishingGroups() {
  * (owner) group posts are kept for the price guide only and never become
  * listings, except: GROUP_CAPTURE_PUBLISH=on publishes every group, and
  * GROUP_CAPTURE_PUBLISH_GROUPS names the groups whose admins agreed to have
- * their listings taken (owner, 2026-11-09: Prince immo tout kin). A relay
+ * their listings taken (owner, 2026-11-09: Prince immo tout kin; 2026-11-11:
+ * JOKER AGENCY). The others get the price-only read (ingestPricesOnly). A relay
  * burst names no group, so it follows GROUP_CAPTURE_PUBLISH alone.
  */
 function capturesPublish(groupJid) {
@@ -254,6 +255,12 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
   const posterPhone = normaliseOpsNumber(post.posterPhone) || phonesIn(text)[0] || null;
   const waId = posterPhone || normaliseOpsNumber(relayFrom) || 'group';
 
+  if (!capturesPublish(groupJid)) {
+    return ingestPricesOnly(post, {
+      text, images, fingerprints, waId, posterPhone, via, relayFrom, groupName, groupJid, label,
+    });
+  }
+
   let parsed;
   try {
     parsed = await parseMessage(text || null, { senderPhone: posterPhone || undefined, images });
@@ -311,14 +318,6 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
   if (raced) return { outcome: 'duplicate', listingId: id };
   recordFingerprints(id, fingerprints);
 
-  if (!capturesPublish(groupJid)) {
-    // Owner, 2026-11-05: group posts feed the market prices only. The row
-    // stays a draft nobody confirms (findLatestPendingListing and
-    // draftAutoSubmit both skip group captures); marketSources/whatsappGroup
-    // reads its price like any capture.
-    console.log(`[group-capture] ${label}: listing #${id} kept for market prices — not published (group not in GROUP_CAPTURE_PUBLISH_GROUPS)`);
-    return { outcome: 'stored', listingId: id, ids: [id], published: false, pricesOnly: true };
-  }
   if (!photos.length && !videos.length) {
     // The photo-or-video rule holds on every publish path: kept as a draft.
     console.log(`[group-capture] ${label}: listing #${id} stored without a photo or video — not sent to moderation`);
@@ -327,6 +326,95 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
   const { ids } = db.expandAndPublishListing(id);
   console.log(`[group-capture] ${label}: listing #${id} sent to moderation (${via}${groupName ? `, ${groupName}` : ''})`);
   return { outcome: 'stored', listingId: id, ids, published: true };
+}
+
+/**
+ * A post from a group we do not publish (owner, 2026-11-05 and 2026-11-11:
+ * only GROUP_CAPTURE_PUBLISH_GROUPS become listings, the rest feed the price
+ * guide). It used to get the full ~13k-token listing read (~2.6 ¢, 85% of the
+ * OpenAI bill on 2026-11-11) for a row whose price was all anyone read. Now a
+ * short price-only read (marketPaste.parseGroupPostPrices, no photos): one
+ * draft row per priced advert in the post, with only the facts
+ * marketSources/whatsappGroup reads. The rows stay drafts nobody confirms
+ * (findLatestPendingListing and draftAutoSubmit skip group captures).
+ */
+async function ingestPricesOnly(post, {
+  text, images, fingerprints, waId, posterPhone, via, relayFrom, groupName, groupJid, label,
+}) {
+  // eslint-disable-next-line global-require
+  const { parseGroupPostPrices } = require('./marketPaste');
+  if (!text) {
+    console.log(`[group-capture] ${label}: photos without text — no price to read, not stored`);
+    return { outcome: 'not-a-listing', reason: 'no-text' };
+  }
+  let adverts;
+  try {
+    ({ adverts } = await parseGroupPostPrices(text));
+  } catch (err) {
+    console.error(`[group-capture] ${label}: price read failed: ${err.message}`);
+    return { outcome: 'failed', reason: 'extraction' };
+  }
+  const priced = adverts.filter((advert) => advert.price !== null);
+  if (!priced.length) {
+    console.log(`[group-capture] ${label}: no price in the post (${adverts.length} advert(s) read) — not stored`);
+    return { outcome: 'not-a-listing', reason: adverts.length ? 'no-price' : 'other' };
+  }
+
+  const primary = (post.wamids || [])[0] || `grp_${fingerprints.textHash || crypto.randomUUID()}`;
+  const ids = [];
+  for (const [i, advert] of priced.entries()) {
+    const row = priceOnlyListing(advert, {
+      via, relayFrom, groupName, groupJid, posterPhone, posterName: post.posterName,
+    });
+    const { id, duplicate } = db.insertListing(row, waId, {
+      wamid: i === 0 ? primary : `${primary}#${i + 1}`,
+      groupWamids: i === 0 ? post.wamids || [] : [],
+      agentName: post.posterName || groupName || null,
+      rawText: text,
+      // Photos the reader already wrote to disk stay on the first row; fresh
+      // relay photos are not stored for a row nobody will publish.
+      photos: i === 0 ? images.filter((image) => image.path).map((image) => image.path) : [],
+      videos: [],
+    });
+    if (duplicate) {
+      if (i === 0) return { outcome: 'duplicate', listingId: id };
+      continue;
+    }
+    ids.push(id);
+  }
+  recordFingerprints(ids[0], fingerprints);
+  console.log(`[group-capture] ${label}: ${ids.map((id) => `#${id}`).join(', ')} kept for market prices — price-only read, not published (group not in GROUP_CAPTURE_PUBLISH_GROUPS)`);
+  return { outcome: 'stored', listingId: ids[0], ids, published: false, pricesOnly: true };
+}
+
+/** One price-only advert → the listing fields marketSources/whatsappGroup reads. Never a guess. */
+function priceOnlyListing(advert, {
+  via, relayFrom, groupName, groupJid, posterPhone, posterName,
+}) {
+  return {
+    intent: 'listing',
+    is_listing: true,
+    is_correction: false,
+    is_confirmed: false,
+    price_only: true,
+    transaction_type: advert.purpose === 'rent' ? 'location' : advert.purpose === 'sale' ? 'vente' : null,
+    property_type: advert.property_kind,
+    commune: advert.commune,
+    quartier: advert.quartier,
+    city: advert.commune ? 'Kinshasa' : null,
+    price: advert.price,
+    currency: advert.currency,
+    price_period: advert.price_period,
+    bedrooms: advert.beds,
+    furnished: advert.furnished,
+    source: SOURCE,
+    source_via: via,
+    group_name: groupName || null,
+    group_jid: groupJid || null,
+    poster_phone: posterPhone,
+    poster_name: posterName || null,
+    relay_from: via === 'relay' ? normaliseOpsNumber(relayFrom) : null,
+  };
 }
 
 /**

@@ -161,23 +161,22 @@ function cleanAdvert(advert, text) {
   };
 }
 
-async function parseMarketPaste(rawText, { client = null } = {}) {
-  const text = String(rawText || '').trim();
-  if (!text) throw new Error('text is required');
-  if (text.length > MAX_TEXT) throw new Error(`text is too long (max ${MAX_TEXT})`);
-
+/** One reader call; returns the model's adverts as written (not cleaned). */
+async function readAdverts(text, { client, model, kind, cacheKey, frame }) {
   const completion = await (client || openai.getClient()).chat.completions.create({
-    model: MODEL,
+    model,
     temperature: 0,
     max_completion_tokens: 9000,
-    prompt_cache_key: 'lukka-market-paste',
+    prompt_cache_key: cacheKey,
     response_format: RESPONSE_FORMAT,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `--- TEXTE COLLÉ ---\n${text}\n--- FIN ---` },
+      { role: 'user', content: `--- ${frame} ---
+${text}
+--- FIN ---` },
     ],
   });
-  openai.logCallCost('market-paste', completion, MODEL);
+  openai.logCallCost(kind, completion, model);
 
   const choice = completion.choices?.[0];
   if (choice?.finish_reason === 'length') throw new Error('Model output was truncated');
@@ -187,12 +186,49 @@ async function parseMarketPaste(rawText, { client = null } = {}) {
   } catch {
     throw new Error('Model returned non-JSON output');
   }
-  const adverts = (Array.isArray(parsed.adverts) ? parsed.adverts : []).slice(0, MAX_ADVERTS).map((a) => cleanAdvert(a, text));
+  return (Array.isArray(parsed.adverts) ? parsed.adverts : []).slice(0, MAX_ADVERTS);
+}
+
+async function parseMarketPaste(rawText, { client = null } = {}) {
+  const text = String(rawText || '').trim();
+  if (!text) throw new Error('text is required');
+  if (text.length > MAX_TEXT) throw new Error(`text is too long (max ${MAX_TEXT})`);
+
+  const raw = await readAdverts(text, {
+    client, model: MODEL, kind: 'market-paste', cacheKey: 'lukka-market-paste', frame: 'TEXTE COLLÉ',
+  });
+  return { adverts: raw.map((a) => cleanAdvert(a, text)) };
+}
+
+/**
+ * The price-only read of one WhatsApp group post (services/groupRelay.js, a
+ * group whose listings we do not publish — owner, 2026-11-11). The same short
+ * prompt as a paste (~1k tokens) instead of the ~13k-token listing read, no
+ * photos, no reply: ~0.4 ¢ a post instead of ~2.6 ¢. Model:
+ * GROUP_PRICE_MODEL, read at call time (default gpt-4o).
+ *
+ * Unlike a paste, nobody checks these rows before they count, so the period
+ * and currency are kept as written (null when unstated) rather than given the
+ * paste form's defaults; the observation cleaner applies its own.
+ */
+async function parseGroupPostPrices(rawText, { client = null } = {}) {
+  const text = String(rawText || '').trim();
+  if (!text) return { adverts: [] };
+  const model = String(process.env.GROUP_PRICE_MODEL || '').trim() || 'gpt-4o';
+  const raw = await readAdverts(text.slice(0, MAX_TEXT), {
+    client, model, kind: 'group-prices', cacheKey: 'lukka-group-prices', frame: "MESSAGE D'UN GROUPE WHATSAPP",
+  });
+  const adverts = raw.map((a) => ({
+    ...cleanAdvert(a, text),
+    currency: a.currency || null,
+    price_period: a.price_period || null,
+  }));
   return { adverts };
 }
 
 module.exports = {
   parseMarketPaste,
+  parseGroupPostPrices,
   cleanAdvert,
   verifiedPhone,
   verifiedPrice,

@@ -201,8 +201,11 @@ brings them in. `services/groupRelay.js` is the one path for both ways in:
   (2026-11-09, owner): `GROUP_CAPTURE_PUBLISH_GROUPS`** (comma-separated
   JIDs, read at call time) publishes only the groups whose admins agreed to
   have their listings taken — Prince immo tout kin
-  (120363344702370143@g.us) first; the other groups stay prices-only. A
+  (120363344702370143@g.us) first, JOKER AGENCY (120363319857460518@g.us)
+  added 2026-11-11 (owner); the other groups stay prices-only. A
   relay burst names no group and follows `GROUP_CAPTURE_PUBLISH` alone.
+  **A prices-only post never gets the listing read (2026-11-11)**: see
+  `market-data.md`, "Price-only read of group posts".
   With publishing on:
   no photo → kept as a draft (photo rule), named in the receipt.
   Chatter is dropped only when the model says no listing AND the text names

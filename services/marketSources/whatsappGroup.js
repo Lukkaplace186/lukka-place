@@ -43,6 +43,8 @@ function kindOf(row) {
     appartement: 'appartement', studio: 'studio', maison: 'maison', villa: 'villa', duplex: 'duplex',
     penthouse: 'penthouse', chambre: 'chambre', terrain: 'terrain', concession: 'terrain', ferme: 'terrain',
     bureau: 'bureau', boutique: 'commercial', entrepot: 'commercial', immeuble: 'immeuble',
+    // A price-only read (groupRelay.ingestPricesOnly) stores the market kind itself.
+    commercial: 'commercial',
   };
   return map[type] || null;
 }

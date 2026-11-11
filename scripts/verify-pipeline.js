@@ -12485,6 +12485,18 @@ console.log('\n2. services/openai.js');
     process.env.GROUP_CAPTURE_PUBLISH = 'on';
     const sendsTo = (to) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === to);
     const textOf = (call) => call.data?.text?.body || '';
+    // The price-only read's answer (marketPaste.parseGroupPostPrices), §109.
+    const pricesCompletion62 = (adverts) => ({
+      model: 'gpt-4o-2024-08-06',
+      usage: { prompt_tokens: 1100, completion_tokens: 120, total_tokens: 1220 },
+      choices: [{ finish_reason: 'stop', message: { refusal: null, content: JSON.stringify({
+        adverts: adverts.map((a) => ({
+          purpose: null, property_kind: null, beds: null, price: null, price_text: null, currency: null,
+          price_period: null, furnished: null, commune: null, quartier: null, contact_name: null,
+          agency_name: null, contact_phone: null, posted_hint: null, title: 'Annonce', ...a,
+        })),
+      }) } }],
+    });
 
     try {
       check('relay numbers are read in any written form', () => {
@@ -12637,7 +12649,7 @@ console.log('\n2. services/openai.js');
       // The default since 2026-11-05 (owner): group posts feed the prices only.
       delete process.env.GROUP_CAPTURE_PUBLISH;
       httpCalls.length = 0;
-      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Lemba', quartier: null, price: 400, bedrooms: 2 }, '…'));
+      completionQueue.push(pricesCompletion62([{ purpose: 'rent', property_kind: 'appartement', commune: 'Lemba', price: 400, price_text: '400$', beds: 2 }]));
       const pricesOnly62 = await adminRequest('POST', '/internal/group-posts', {
         ...readerBody,
         text: 'Appartement à louer à Lemba, 2 chambres, salon, cuisine, loyer 400$ par mois, garantie 3 mois.',
@@ -12680,7 +12692,7 @@ console.log('\n2. services/openai.js');
           text: 'Appartement à louer à Limete 7e rue, 1 chambre, salon, cuisine, loyer 250$ par mois, garantie 5+1.',
           wamids: ['grpmsg-62-listed'],
         });
-        completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Kalamu', quartier: null, price: 300, bedrooms: 1 }, '…'));
+        completionQueue.push(pricesCompletion62([{ purpose: 'rent', property_kind: 'appartement', commune: 'Kalamu', price: 300, price_text: '300$', beds: 1 }]));
         const unlisted62 = await adminRequest('POST', '/internal/group-posts', {
           ...readerBody,
           groupJid: '120363000000000063@g.us',
@@ -12699,6 +12711,96 @@ console.log('\n2. services/openai.js');
       } finally {
         if (savedGroups62 === undefined) delete process.env.GROUP_CAPTURE_PUBLISH_GROUPS;
         else process.env.GROUP_CAPTURE_PUBLISH_GROUPS = savedGroups62;
+      }
+
+      // §109 Price-only read for groups we do not publish (2026-11-11)
+      // -----------------------------------------------------------------------
+      // Owner: Prince immo and Joker Agency are published; the other groups
+      // are data only. Their posts used to get the ~13k-token listing read
+      // (~2.6 ¢, 85% of the OpenAI bill); now a short price read, no photos.
+      console.log('\n§109 group posts we do not publish get the short price-only read');
+      {
+        const whatsappGroup109 = require('../services/marketSources/whatsappGroup');
+        const OTHER109 = { ...readerBody, groupJid: '120363000000000109@g.us', groupName: 'Groupe données' };
+        fs.writeFileSync(path.join(UPLOADS, 'listings', 'grp_test109-0.jpg'), REAL_JPEG_BYTES);
+        const calls109 = openaiCalls.length;
+        completionQueue.push(pricesCompletion62([
+          { purpose: 'rent', property_kind: 'appartement', commune: 'Lemba', quartier: 'Salongo', price: 350, price_text: '350$', beds: 2 },
+          { purpose: 'rent', property_kind: 'commercial', commune: 'Gombe', price: 1500, price_text: '1.500$' },
+          { purpose: 'rent', property_kind: 'studio', commune: 'Lemba', price: 999, price_text: '999$', beds: 0 },
+        ]));
+        const two109 = await adminRequest('POST', '/internal/group-posts', {
+          ...OTHER109,
+          text: 'Appartement 2 chambres à louer à Lemba Salongo, 350$ le mois. Aussi une boutique à Gombe, 1.500$.',
+          photos: ['/uploads/listings/grp_test109-0.jpg'],
+          wamids: ['grpmsg-109-two'],
+        });
+        const call109 = openaiCalls[calls109];
+        check('one short price-only call: the paste prompt, gpt-4o, no photo, not the listing read', () => {
+          assert.strictEqual(openaiCalls.length - calls109, 1);
+          assert.strictEqual(call109.model, 'gpt-4o');
+          assert.strictEqual(call109.prompt_cache_key, 'lukka-group-prices');
+          assert.match(call109.messages[0].content, /^Tu lis un texte/);
+          assert.ok(call109.messages[0].content.length < 4000, 'a short prompt');
+          assert.strictEqual(typeof call109.messages[1].content, 'string', 'text only — no image parts');
+          assert.match(call109.messages[1].content, /MESSAGE D'UN GROUPE WHATSAPP/);
+        });
+        const rows109 = (two109.body.ids || []).map((id) => dbService.getListing(id));
+        check('each priced advert is its own draft; a price not in the text is never stored', () => {
+          assert.strictEqual(two109.body.outcome, 'stored');
+          assert.strictEqual(two109.body.pricesOnly, true);
+          assert.strictEqual(rows109.length, 2, '999$ is not in the post');
+          assert.deepStrictEqual(rows109.map((r) => r.status), ['pending_confirmation', 'pending_confirmation']);
+          assert.deepStrictEqual(rows109.map((r) => r.price), [350, 1500]);
+          assert.deepStrictEqual(rows109.map((r) => r.commune), ['Lemba', 'Gombe']);
+          assert.strictEqual(rows109[0].transaction_type, 'location');
+          assert.strictEqual(rows109[0].bedrooms, 2);
+          assert.ok(rows109.every((r) => r.parsed_json.price_only === true && r.parsed_json.source === 'whatsapp-group'));
+          assert.ok(rows109.every((r) => r.parsed_json.group_jid === OTHER109.groupJid));
+          assert.deepStrictEqual(rows109[0].photos, ['/uploads/listings/grp_test109-0.jpg']);
+          assert.deepStrictEqual(rows109[1].photos, []);
+        });
+        check('the price collector reads them like any capture (commercial included)', () => {
+          const obs = rows109.map((r) => whatsappGroup109.toObservation({ ...r, furnished: null }));
+          assert.deepStrictEqual(obs.map((o) => [o.purpose, o.property_kind, o.price, o.commune_key]),
+            [['rent', 'appartement', 350, 'Lemba'], ['rent', 'commercial', 1500, 'Gombe']]);
+          assert.strictEqual(whatsappGroup109.kindOf({ property_type: 'commercial' }), 'commercial');
+        });
+        const again109 = await adminRequest('POST', '/internal/group-posts', { ...OTHER109,
+          text: 'Appartement 2 chambres à louer à Lemba Salongo, 350$ le mois. Aussi une boutique à Gombe, 1.500$.',
+          photos: [], wamids: ['grpmsg-109-again'] });
+        check('the same post again is a duplicate with no model call', () => {
+          assert.strictEqual(again109.body.outcome, 'duplicate');
+          assert.strictEqual(openaiCalls.length - calls109, 1);
+        });
+
+        const rowsBefore109 = dbService.countListings();
+        completionQueue.push(pricesCompletion62([]));
+        const chatter109 = await adminRequest('POST', '/internal/group-posts', { ...OTHER109,
+          text: 'Bonjour à tous, bonne journée et merci pour vos partages dans le groupe.', photos: [], wamids: ['grpmsg-109-chat'] });
+        // A photo never seen before (the one above would be a duplicate).
+        fs.writeFileSync(path.join(UPLOADS, 'listings', 'grp_test109-1.jpg'), Buffer.concat([REAL_JPEG_BYTES, Buffer.from('109')]));
+        const photoOnly109 = await adminRequest('POST', '/internal/group-posts', { ...OTHER109,
+          text: '', photos: ['/uploads/listings/grp_test109-1.jpg'], wamids: ['grpmsg-109-photo'] });
+        check('chatter stores nothing; photos without text make no model call', () => {
+          assert.strictEqual(chatter109.body.outcome, 'not-a-listing');
+          assert.strictEqual(photoOnly109.body.outcome, 'not-a-listing');
+          assert.strictEqual(photoOnly109.body.reason, 'no-text');
+          assert.strictEqual(openaiCalls.length - calls109, 2, 'only the chatter was read');
+          assert.strictEqual(dbService.countListings(), rowsBefore109);
+        });
+
+        const savedModel109 = process.env.GROUP_PRICE_MODEL;
+        process.env.GROUP_PRICE_MODEL = 'gpt-4o-mini';
+        try {
+          completionQueue.push(pricesCompletion62([]));
+          await adminRequest('POST', '/internal/group-posts', { ...OTHER109,
+            text: 'Qui a une maison à louer vers Kintambo pour un client sérieux ?', photos: [], wamids: ['grpmsg-109-model'] });
+          check('GROUP_PRICE_MODEL is read at call time', () => assert.strictEqual(openaiCalls.at(-1).model, 'gpt-4o-mini'));
+        } finally {
+          if (savedModel109 === undefined) delete process.env.GROUP_PRICE_MODEL;
+          else process.env.GROUP_PRICE_MODEL = savedModel109;
+        }
       }
       process.env.GROUP_CAPTURE_PUBLISH = 'on';
 

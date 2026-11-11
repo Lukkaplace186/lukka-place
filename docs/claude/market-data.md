@@ -86,6 +86,21 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   the Lukka listing while public, not at all once rejected/deleted; the same
   rounded price in one commune × bedrooms on several sources counts as the
   most any one source shows.
+- **Price-only read of group posts (2026-11-11, owner).** Only the groups in
+  `GROUP_CAPTURE_PUBLISH_GROUPS` (Prince immo tout kin, Joker Agency) become
+  listings; the rest are data only. Their posts used to get the full
+  ~13k-token listing read with photos (~2.6 ¢): 85% of the OpenAI bill in
+  Nov 4–11 (≈685 of 780 intake calls, ≈$18 of $20.60), for rows whose price
+  was all anyone read. Now `groupRelay.ingestPricesOnly` →
+  `marketPaste.parseGroupPostPrices`: the paste prompt (~1k tokens), text
+  only, no reply, ~0.4 ¢ (`[ai-cost] group-prices`). One draft row per advert
+  whose price is literally in the post (`parsed_json.price_only`), with the
+  columns `marketSources/whatsappGroup` reads; `property_type` holds the
+  market kind (`commercial` added to `kindOf`). Period and currency stay as
+  written (NULL when unstated). No priced advert → nothing stored; photos
+  without text → no call. Reader photos already on disk stay on the first
+  row; relay photos are not stored. `GROUP_PRICE_MODEL` (call time, default
+  gpt-4o). §109 of verify-pipeline.
 - **Recent rents weigh double** (2026-11-05, owner): in a guide's median and
   p25–p75, an advert posted in the last 92 days (web `RECENT_DAYS`,
   `RECENT_WEIGHT` = 2; posted_at, else first_seen_at; a Lukka listing's later

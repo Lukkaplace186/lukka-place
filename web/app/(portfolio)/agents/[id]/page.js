@@ -19,6 +19,7 @@ import { chatStartHref } from '@/lib/chatRules';
 import FollowAgentButton from '@/components/FollowAgentButton';
 import { getCurrentCustomerId } from '@/lib/customers';
 import { isFollowing } from '@/lib/customerFollows';
+import { listingPath } from '@/lib/listingSlug';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -132,7 +133,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     const type = typeLabel(listing, t) || listing.title || '';
     return {
       id: listing.id,
-      href: `/listings/${listing.id}`,
+      href: listingPath(listing),
       title: listing.title || type,
       type,
       place: placeLabel(listing) || feedLocationLine(listing),

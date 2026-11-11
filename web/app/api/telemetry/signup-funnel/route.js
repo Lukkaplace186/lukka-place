@@ -1,6 +1,8 @@
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited } from '@/lib/eventIngest';
 import { attributionFromBody, eventSource, viewerKindFor, visitorIdFrom, signedInAgentIdFrom } from '@/lib/trackIngest';
+import { cleanSignupEntry, isClientSignupStep } from '@/lib/signupFunnelRules';
+import { recordCustomerSignupEvent } from '@/lib/signupFunnel';
 
 /**
  * How far a visitor got on a signup form, as one log line per step:
@@ -40,6 +42,24 @@ export function sanitizeSignupStep(body, { source, campaign, device, viewer, vis
   };
 }
 
+/**
+ * The customer account funnel (2026-11-11): a step lib/signupFunnelRules.js
+ * allows a browser to report, with the entry it started from. Unlike the
+ * agent/request lines above it is also STORED (customer_signup_events), since
+ * /admin/croissance shows it; refused / created come from signupAction only.
+ */
+export function sanitizeCustomerSignupEvent(body, { source, device, viewer, visitor }) {
+  if (!body || body.form !== 'customer' || !isClientSignupStep(body.step)) return null;
+  return {
+    step: body.step,
+    entry: cleanSignupEntry(body.entry),
+    source: TAG_RE.test(source || '') ? source : 'direct',
+    device: TAG_RE.test(device || '') ? device : null,
+    viewerKind: viewer,
+    visitorId: visitor || null,
+  };
+}
+
 export async function POST(request) {
   if (rateLimited(`signup-funnel:${clientKey(request)}`)) {
     return new Response(null, { status: 429 });
@@ -54,13 +74,21 @@ export async function POST(request) {
 
   const attribution = attributionFromBody(body);
   const { device, source: headerSource } = analyticsDimensions(request.headers, {});
-  const line = sanitizeSignupStep(body, {
+  const context = {
     source: eventSource(attribution, headerSource),
     campaign: attribution?.campaign ?? null,
     device,
     viewer: viewerKindFor(request, device, { automated: body?.automated === true, agentId: signedInAgentIdFrom(request) }),
     visitor: visitorIdFrom(request, body?.visitorId),
-  });
+  };
+
+  if (body?.form === 'customer') {
+    const event = sanitizeCustomerSignupEvent(body, context);
+    if (event) await recordCustomerSignupEvent(event);
+    return new Response(null, { status: 204 });
+  }
+
+  const line = sanitizeSignupStep(body, context);
   if (line) console.log(`[signup-funnel] ${JSON.stringify(line)}`);
 
   return new Response(null, { status: 204 });

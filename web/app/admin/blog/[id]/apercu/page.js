@@ -55,7 +55,7 @@ export default async function BlogPreviewPage({ params, searchParams }) {
             <Image src={article.coverUrl} alt={article.coverAlt} fill sizes="720px" className="object-cover" />
           </div>
         ) : null}
-        <ArticleBody blocks={article.blocks} />
+        <ArticleBody blocks={article.blocks} preview />
         {listingsHref ? (
           <p className="u-micro rounded-lg bg-canvas-alt px-3.5 py-2.5 text-ink-70">
             {t('admin.blog.previewListings')}{' '}

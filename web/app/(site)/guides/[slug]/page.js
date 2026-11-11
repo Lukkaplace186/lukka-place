@@ -5,6 +5,7 @@ import PageShell from '@/components/PageShell';
 import PropertyCard from '@/components/PropertyCard';
 import JsonLd from '@/components/seo/JsonLd';
 import ArticleBody from '@/components/blog/ArticleBody';
+import LiveListings from '@/components/blog/LiveListings';
 import { getPublicArticle, listPublicArticles } from '@/lib/blog';
 import { postListingsHref, readingMinutes } from '@/lib/blogRules';
 import { getListings } from '@/lib/listings';
@@ -121,7 +122,7 @@ export default async function GuidePage({ params }) {
             <Image src={article.coverUrl} alt={article.coverAlt} fill priority sizes="(min-width: 768px) 720px, 100vw" className="object-cover" />
           </div>
         ) : null}
-        <ArticleBody blocks={article.blocks} />
+        <ArticleBody blocks={article.blocks} listingsBlock={LiveListings} />
         <div className="mt-4 flex flex-wrap gap-3">
           {cta ? (
             <Link

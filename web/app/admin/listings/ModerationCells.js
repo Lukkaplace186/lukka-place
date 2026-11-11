@@ -210,7 +210,9 @@ export function PriceCell({ row, t }) {
 export function ChecksCell({ row, t }) {
   const duplicate = duplicateSummary(row);
   const others = checkFlags(row.flags);
-  if (!duplicate && !others.length) {
+  // "Aucun signal" only when the listing has no flag at all; a flag shown in
+  // another cell (price, place, agent, photo count) leaves this one empty.
+  if (!(row.flags || []).length) {
     return (
       <span className="inline-flex items-center gap-1 font-semibold text-success">
         <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
@@ -218,6 +220,7 @@ export function ChecksCell({ row, t }) {
       </span>
     );
   }
+  if (!duplicate && !others.length) return <span className="text-ink-35">—</span>;
   const ids = duplicate ? duplicate.ids.map((id) => `#${id}`).join(', ') : '';
   return (
     <div className="flex min-w-0 flex-col items-start gap-1">

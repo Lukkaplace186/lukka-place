@@ -6,6 +6,7 @@ import { getCustomerByPhone, setCustomerResetOtp, resetCustomerPassword } from '
 import { getAgentByPhone, setAgentResetOtp, resetAgentPassword } from './agents';
 import { hashPassword as hashCustomerPassword } from './customerAuth';
 import { hashPassword as hashAgentPassword } from './agentAuth';
+import { passwordLongEnough } from './passwordRules';
 
 /**
  * Unified "Mot de passe oublié" for both account types
@@ -55,7 +56,7 @@ const DUMMY_OTP_HASH = hashToStoredForm('lukka-reset-otp-dummy-comparison-value'
  * asserts the shape it was handed (normalizeStoredPhone, lib/phone.js).
  */
 const RESET_OTP_TTL_MS = 10 * 60 * 1000;
-const MIN_PASSWORD_LENGTH = 8; // matches signup's own "no policy engine" posture (see compte/inscription/actions.js)
+// The length rule is per role (lib/passwordRules.js): 6 for a customer, 8 for an agent.
 
 /**
  * Step 1. Never reveals whether `phone` is actually registered under
@@ -124,7 +125,7 @@ export async function requestPasswordReset(phone, role) {
  */
 export async function verifyAndResetPassword(phone, otpCode, newPassword, role) {
   if (!normalizeStoredPhone(phone)) return { ok: false, error: 'phone' };
-  if (!newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
+  if (!newPassword || !passwordLongEnough(newPassword, role)) {
     return { ok: false, error: 'weak_password' };
   }
 

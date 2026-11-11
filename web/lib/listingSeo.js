@@ -4,6 +4,7 @@ import { formatPrice, usablePrice } from './format';
 import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
 import { localizeHref } from './localePaths';
+import { listingPath } from './listingSlug';
 import { DEFAULT_CITY, cityOfCommune, cityOfListing, communeLabel, provinceOfCity } from './cities';
 
 // UN/CEFACT codes for the rent's unit; a short-term rent is per day / week.
@@ -148,7 +149,7 @@ export function communeHref(listing) {
 export function listingJsonLd(listing, t) {
   // English pages point at English URLs (lib/localePaths.js); `t.locale` is the page's language.
   const loc = (path) => localizeHref(path, t?.locale);
-  const url = `${base()}${loc(`/listings/${listing.id}`)}`;
+  const url = `${base()}${loc(listingPath(listing))}`;
   const images = listingImages(listing).map(absolute).filter(Boolean).slice(0, 8);
   const price = usablePrice(listing.price);
   const category = String(listing.parcelle_subtype === 'villa' ? 'villa' : listing.category_name || '').toLowerCase();

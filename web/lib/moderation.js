@@ -41,7 +41,14 @@ export const QUALITY_FLAG_LABEL_KEYS = Object.fromEntries(
 );
 
 /** Flags that should stop a moderator and make them look twice. */
-export const BLOCKING_FLAGS = new Set(['missing_price', 'missing_content', 'extraction_failure', 'same_agent_resend']);
+export const BLOCKING_FLAGS = new Set(['missing_price', 'missing_content', 'extraction_failure', 'same_agent_resend', 'no_photos']);
+
+/**
+ * The standard (owner, 2026-11-10): 3 photos. A video counts as one, as on
+ * WhatsApp (services/listingMedia.js). Fewer is an orange warning in the
+ * queue (few_photos), never a refusal — the owner's choice the same day.
+ */
+export const MIN_LISTING_MEDIA = 3;
 
 export const MODERATION_QUEUE_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
 

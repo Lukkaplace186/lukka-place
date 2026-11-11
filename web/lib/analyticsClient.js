@@ -168,6 +168,17 @@ export function trackSignupStep(form, step) {
   beacon('/api/telemetry/signup-funnel', { form, step });
 }
 
+/**
+ * A step towards a CUSTOMER account, with the entry it started from
+ * (lib/signupFunnelRules.js): stored, and shown on /admin/croissance.
+ *
+ * @param {'prompt_shown'|'prompt_open'|'form_view'|'form_start'|'submit'} step
+ * @param {string} entry
+ */
+export function trackCustomerSignup(step, entry) {
+  beacon('/api/telemetry/signup-funnel', { form: 'customer', step, entry });
+}
+
 const ATTRIBUTION_KEY = 'lp_attr';
 
 /**
@@ -285,11 +296,11 @@ export function trackAgentContact({ leadId, viewingRequestId, channel, source })
   }
 }
 
-/** `/listings/310` (or a full URL to it) -> 310, else null. */
+/** `/listings/310` or `/listings/310-appartement-…` (or a full URL to it) -> 310, else null. */
 export function listingIdFromPath(pathOrUrl) {
   try {
     const path = String(pathOrUrl || '').replace(/^[a-z]+:\/\/[^/]+/i, '').split(/[?#]/)[0];
-    const match = /^\/listings\/(\d{1,18})$/.exec(path);
+    const match = /^\/listings\/(\d{1,18})(?:-[a-z0-9-]*)?$/.exec(path);
     return match ? Number(match[1]) : null;
   } catch {
     return null;

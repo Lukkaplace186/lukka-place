@@ -108,7 +108,7 @@ test('articles: English only when complete, a post replaces the guide with its s
   assert.equal(mergeArticles(GUIDES, [], 'fr').every((a) => a.source === 'code'), true);
   assert.equal(parseCategory('actualite'), 'actualite');
   assert.equal(parseCategory('x'), null);
-  assert.ok(readingMinutes(merged[1].blocks) >= 1);
+  assert.ok(readingMinutes(mergeArticles(GUIDES, [], 'fr')[0].blocks) >= 1);
 });
 
 test('SQL: public reads apply the publication filter; a missing table is no posts', async () => {

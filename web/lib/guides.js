@@ -1,169 +1,214 @@
 /**
- * The /guides articles — evergreen answers to what people in Kinshasa (and in
- * the diaspora) actually search before renting or buying. French only: the
- * searches are French, and a machine-translated English copy would compete
- * with the original for the same page.
+ * The /guides articles kept in code — shown in Guides & Actualités under the
+ * "Guide" category whatever the `publicBlog` switch says (lib/blogRules.js
+ * `articleFromGuide`). A post published with the same slug from /admin/blog
+ * replaces its guide.
  *
- * Content rules, same as everywhere else on the site: no invented figure. A
- * worked example uses round numbers and says it is an example; market prices
- * live on the /location and /vente pages, computed from real listings, and the
- * guides link there instead of quoting a number that would go stale.
+ * One guide since 2026-11-11 (owner decision): the 3 + 1 + 1 article with
+ * its live calculator. The three earlier guides (parcelle vs appartement,
+ * louer sans arnaque, acheter une parcelle depuis la diaspora) were removed
+ * on the owner's request; their URLs redirect to /guides (next.config.mjs).
  *
- * Blocks: { h2 } | { p } | { ul: [...] } | { ol: [...] }. Plain strings — no
- * HTML — so nothing here can inject markup.
+ * French first, with an optional English version (`en`: title, description,
+ * body, all or nothing — the same rule as a post), written by hand, never
+ * machine-translated. An English reader gets it; everyone else the French.
+ *
+ * Content rules, same as everywhere else on the site: no invented figure.
+ * Every number is either a worked example the reader can change, or a
+ * sourced fact named in the text. The law is Loi n° 15/025 du 31 décembre
+ * 2015 relative aux baux à loyer non professionnels.
+ *
+ * Blocks: the lib/blogRules.js block shapes — { h2 } | { p } | { ul } |
+ * { ol } | { stats } | { table } | { callout } | { calculator }. Text is a
+ * plain string or inline segments ({ text, href }); no HTML anywhere.
  */
+
+const LAW_URL = 'https://legalrdc.com/wp-content/uploads/2020/04/Loi_baux_non_professionnels.pdf';
+const ACP_FEB_2026 = 'https://acp.cd/business/hausse-des-prix-de-maisons-en-location-observee-dans-des-communes-de-kinshasa-2/';
+const ACP_APR_2026 = 'https://acp.cd/economie/flambee-de-prix-des-loyers-necessite-de-publication-dune-mercuriale/';
+const GOV_DEC_2024 = 'https://7sur7.cd/2024/12/19/rdc-le-gouvernement-rappelle-que-la-garantie-locative-est-de-3-mois-pour-le-bail';
 
 export const GUIDES = [
   {
     slug: 'garantie-3-1-1-kinshasa',
-    title: 'Garantie « 3 + 1 + 1 » : ce que vous payez vraiment en entrant dans un logement à Kinshasa',
+    title: 'La garantie « 3 + 1 + 1 » : ce que demandent les bailleurs, ce que la loi permet',
     description:
-      'Garantie, avance, commission : les trois montants cachés derrière « 3 + 1 + 1 », un exemple chiffré et ce qu’il faut exiger avant de payer.',
-    published: '2026-09-23',
-    updated: '2026-09-23',
-    cta: { href: '/location', label: 'Voir les logements à louer à Kinshasa' },
+      'Garantie, avance, commission : calculez ce que vous payez à l’entrée, comparez au plafond de la loi de 2015 et apprenez à négocier.',
+    published: '2026-11-11',
+    updated: '2026-11-11',
+    cta: { href: '/location', label: 'Voir les logements à louer' },
     body: [
-      { p: 'Sur une annonce de location à Kinshasa, la ligne « Garantie : 3 + 1 + 1 » décide souvent plus du budget que le loyer lui-même. Elle ne désigne pas un seul montant mais trois, qui n’ont pas la même nature.' },
-      { h2: 'Les trois montants, dans l’ordre' },
+      { p: 'Avant même la première nuit, un locataire à Kinshasa verse souvent cinq mois de loyer, parfois treize. La ligne « Garantie : 3 + 1 + 1 » d’une annonce décide souvent plus du budget que le loyer lui-même. Entrez votre loyer dans le calculateur ci-dessous pour voir le montant exact, poste par poste, et le comparer au plafond fixé par la loi de 2015 sur les baux.' },
+      { stats: {
+        items: [
+          { value: '3 + 1 + 1', label: 'la formule la plus courante sur les annonces' },
+          { value: '8 à 12 mois', label: 'de garantie demandés dans les communes du centre' },
+          { value: '3 mois', label: 'de garantie au plus selon la loi (art. 18)' },
+        ],
+        source: 'ACP, 26 février 2026 ; loi n° 15/025 du 31 décembre 2015',
+      } },
+      { h2: 'Trois montants différents' },
       { ol: [
-        'La garantie (ou caution) : plusieurs mois de loyer versés au bailleur, en principe restitués en fin de bail, déduction faite des loyers impayés ou des dégâts constatés. Dans « 3 + 1 + 1 », c’est le 3.',
-        'L’avance : du loyer payé à l’avance, qui couvre vos premiers mois d’occupation. Elle n’est pas restituée : vous l’« habitez ». C’est le premier 1.',
+        'La garantie (ou caution) : plusieurs mois de loyer versés au bailleur, restitués en fin de bail, déduction faite des sommes que vous lui devez. Dans « 3 + 1 + 1 », c’est le 3.',
+        'L’avance : du loyer payé à l’entrée. Le premier mois est le loyer du mois où vous emménagez ; tout mois en plus est du loyer payé d’avance. Elle n’est pas restituée. C’est le premier 1.',
         'La commission : la rémunération de l’agent ou du commissionnaire qui vous a trouvé le logement. Elle n’est pas restituée. C’est le second 1.',
       ] },
-      { h2: 'Un exemple chiffré' },
-      { p: 'Pour un loyer de 500 $ par mois, avec « 3 + 1 + 1 » :' },
-      { ul: [
-        'Garantie : 3 × 500 $ = 1 500 $ (récupérable en fin de bail)',
-        'Avance : 1 × 500 $ = 500 $ (votre premier mois)',
-        'Commission : 1 × 500 $ = 500 $ (pour l’agent)',
-        'Total à l’entrée : 2 500 $, soit cinq mois de loyer — dont 1 500 $ que vous devez pouvoir récupérer.',
+      { p: '« 3 + 1 + 1 » n’est donc pas « 5 mois de garantie ». Additionner les trois donne ce que vous déboursez le jour de l’entrée, pas ce que le bailleur vous rendra à la sortie : seule la garantie vous revient.' },
+      { calculator: { kind: 'garantie' } },
+      { h2: 'Ce que les bailleurs demandent vraiment' },
+      { p: 'Sur un loyer de 670 $, « 3 + 1 + 1 » fait 3 350 $ à verser avant d’entrer, dont 2 010 $ que vous devez récupérer à la sortie.' },
+      { p: [
+        { text: 'Dans les communes du centre, la formule est souvent plus lourde. Une ' },
+        { text: 'enquête de l’Agence congolaise de presse publiée en février 2026', href: ACP_FEB_2026 },
+        { text: ' relève des garanties de 8 à 12 mois à la Gombe, Lemba, Bandalungwa, Limete, Kintambo et Ngaliema. ' },
+        { text: 'À Ngaliema', href: ACP_APR_2026 },
+        { text: ', un responsable de l’habitat a cité « cinq, six, sept, huit, neuf, parfois dix mois », parfois exigés en devises. Avec 10 mois de garantie, 2 mois d’avance et la commission, un loyer de 1 450 $ demande 18 850 $ le premier jour. Essayez la formule « 10+2+1 » dans le calculateur.' },
       ] },
-      { p: 'Retenez surtout ceci : « 3 + 1 + 1 » n’est pas « 5 mois de garantie ». Additionner les trois donne ce que vous déboursez le jour de l’entrée, pas ce que le bailleur vous doit à la sortie.' },
+      { h2: 'Ce que dit la loi de 2015' },
+      { p: [
+        { text: 'Les locations d’habitation sont régies par la ' },
+        { text: 'loi n° 15/025 du 31 décembre 2015 relative aux baux à loyer non professionnels', href: LAW_URL },
+        { text: '. Elle est courte et précise sur l’argent versé à l’entrée.' },
+      ] },
+      { table: {
+        title: 'Loi n° 15/025 : l’argent versé à l’entrée',
+        head: ['Article', 'Ce que dit la loi'],
+        rows: [
+          ['Art. 18', 'Garantie de 3 mois de loyer au plus pour un bail résidentiel (6 mois pour un bail socioculturel). Elle ne peut pas être augmentée pendant le bail, ne produit pas d’intérêts et ne peut pas servir à payer le loyer.'],
+          ['Art. 22', '« Il est interdit au bailleur d’exiger le paiement anticipatif du loyer. »'],
+          ['Art. 10', 'La commission de l’agence est d’un mois de loyer, payée par celui qui a fait appel à elle. Si le bailleur et le locataire passent par la même agence, elle est partagée à parts égales.'],
+          ['Art. 19', 'La garantie est rendue à la fin du bail, déduction faite des sommes dues au bailleur. La loi ne fixe pas de délai.'],
+          ['Art. 3 et 5', 'Le bail est un acte écrit, enregistré dans les 30 jours. Il indique le montant de la garantie locative.'],
+          ['Art. 17', 'Un état des lieux contradictoire est dressé au début et à la fin du bail.'],
+        ],
+        source: 'Loi n° 15/025 du 31 décembre 2015, texte publié par legalrdc.com',
+      } },
+      { p: [
+        { text: 'La loi prévoit aussi des sanctions. Le bailleur qui perçoit une garantie supérieure à trois mois encourt un à trois mois de servitude pénale et une amende de trois à six mois de loyer, ou l’une de ces peines (art. 39). Un bail contraire aux articles 18 ou 22 expose les parties à un à trois mois de servitude pénale et à une amende d’un mois de loyer (art. 43). Le gouvernement a ' },
+        { text: 'rappelé le plafond de trois mois en décembre 2024', href: GOV_DEC_2024 },
+        { text: '.' },
+      ] },
+      { callout: {
+        tone: 'info',
+        title: 'Ce que la loi change en pratique',
+        blocks: [
+          { p: 'La loi est peu appliquée et le marché va plus vite que les tribunaux. La connaître ne garantit pas d’obtenir 3 mois, mais elle vous donne un argument écrit et vous dit ce que vous pouvez exiger sur papier.' },
+        ],
+      } },
+      { p: 'Une dernière précision : l’article 21 prévoit que le loyer se paie dans la monnaie ayant cours légal, le franc congolais, alors que presque tous les loyers de Kinshasa sont fixés en dollars. Le bouton USD / CDF du calculateur montre ce que votre entrée représente en francs.' },
+      { h2: 'Comment négocier' },
+      { ol: [
+        'Arrivez avec le chiffre légal. Calculez avant la visite ce que coûte votre entrée selon la loi (3 mois de garantie, le premier loyer, la commission) et proposez ce montant calmement, en citant l’article 18.',
+        'Offrez quelque chose en échange. Un bail plus long (deux ou trois ans), un paiement par virement, une attestation de l’employeur ou un garant rassurent un bailleur plus que deux mois de garantie supplémentaires.',
+        'Refusez les mois d’avance en trop. Le premier loyer se paie à l’entrée. Au-delà, l’article 22 interdit d’exiger du loyer d’avance. Si le bailleur insiste, faites au moins écrire que cette avance couvre les mois suivants.',
+        'Ne payez pas plus d’un mois de commission. La commission de l’agent correspond en général à un mois de loyer, et c’est aussi ce que fixe la loi (art. 10). Tout montant au-delà ne doit pas être accepté. La loi précise qu’elle est payée par celui qui a fait appel à l’agence. Si le bailleur et vous passez par la même agence, elle est partagée à parts égales. Sans agent, il n’y a pas de commission à payer.',
+        'Faites tout écrire. Un bail signé par le bailleur avec le montant de la garantie, un reçu séparé pour chaque somme (garantie, loyer, commission) et un état des lieux avec photos datées.',
+        'Ne payez rien avant d’avoir visité le logement et vérifié que la personne en face est bien le bailleur ou son mandataire.',
+      ] },
       { h2: 'Les variantes à savoir lire' },
       { ul: [
-        '« 4 + 1 » : en général quatre mois de garantie et un mois d’avance. La commission n’est pas mentionnée — demandez-la avant la visite.',
+        '« 4 + 1 » : en général quatre mois de garantie et un mois d’avance. La commission n’est pas mentionnée : demandez-la avant la visite.',
         '« Garantie : 3 mois » seule : l’annonce ne dit rien de l’avance ni de la commission. Cela ne veut pas dire qu’il n’y en a pas.',
         '« Sans commission » : la commission est de zéro, ce qui arrive quand vous traitez directement avec le propriétaire.',
       ] },
-      { h2: 'Ce qu’il faut exiger avant de payer' },
-      { ul: [
-        'Un contrat de bail écrit, signé par le bailleur, qui indique le montant de la garantie et les conditions de sa restitution.',
-        'Un reçu pour chaque montant versé, qui distingue garantie, avance et commission.',
-        'Un état des lieux d’entrée, avec des photos datées : c’est lui qui protège votre garantie à la sortie.',
-        'Ne versez rien avant d’avoir visité le logement et vérifié qui vous le loue (voir notre guide pour louer sans se faire arnaquer).',
-      ] },
       { h2: 'Sur Lukka Place' },
-      { p: 'Quand l’agent les indique, nos annonces affichent la garantie, l’avance et la commission séparément, avec le total à prévoir à l’entrée. Le filtre « Max Garantie » de la recherche permet d’écarter les logements qui demandent plus que votre budget d’entrée.' },
+      { p: 'Quand l’agent les indique, nos annonces affichent la garantie, l’avance et la commission séparément, avec le total à prévoir à l’entrée. Le filtre « Max Garantie » de la recherche écarte les logements qui demandent plus que ce que vous pouvez avancer.' },
+      { p: 'Ce guide explique la loi ; il ne remplace pas l’avis d’un juriste pour un litige.' },
     ],
-  },
-  {
-    slug: 'parcelle-maison-appartement-kinshasa',
-    title: 'Parcelle, maison, appartement, terrain : bien lire une annonce immobilière à Kinshasa',
-    description:
-      'Parcelle, « type locataire », portes, villa, terrain nu, référence : le vocabulaire des annonces immobilières de Kinshasa expliqué simplement.',
-    published: '2026-09-23',
-    updated: '2026-09-23',
-    cta: { href: '/location', label: 'Voir les annonces à Kinshasa' },
-    body: [
-      { p: 'Les annonces immobilières de Kinshasa ont leur propre vocabulaire. Deux biens décrits avec les mêmes mots peuvent être très différents — et un mot mal compris peut vous faire visiter pour rien.' },
-      { h2: 'Appartement' },
-      { p: 'Un logement situé dans un immeuble à plusieurs niveaux : on parle d’étage, de niveau, d’immeuble. Un logement dans une cour, au rez-de-chaussée d’une parcelle, n’est pas un appartement même si l’annonce le dit parfois.' },
-      { h2: 'Parcelle' },
-      { p: 'Une parcelle est un terrain délimité — souvent clôturé — avec ce qui est construit dessus. C’est la forme de propriété la plus courante à Kinshasa. On en distingue trois grands cas :' },
-      { ul: [
-        'Maison « type locataire » : plusieurs logements indépendants dans une même parcelle, chacun loué séparément, avec une cour partagée.',
-        'Villa : une maison seule sur sa parcelle, en général clôturée.',
-        'Terrain nu : une parcelle sans construction, vendue pour bâtir.',
-      ] },
-      { h2: '« X portes »' },
-      { p: 'Le nombre de portes est le nombre de logements indépendants dans une parcelle « type locataire ». « Parcelle de 6 portes » signifie six logements à louer ou déjà loués — une information clé pour un investisseur, qui peut estimer le revenu locatif.' },
-      { h2: 'Dimensions : « 20 × 30 »' },
-      { p: 'Deux nombres séparés par un « x » donnent les dimensions du terrain en mètres. 20 × 30 correspond à 600 m². Pour un terrain nu, c’est souvent l’information la plus importante de l’annonce, avec la situation.' },
-      { h2: 'La « référence »' },
-      { p: 'Beaucoup de rues de Kinshasa n’ont pas de nom ou de numéro utilisé au quotidien. Les adresses se donnent donc par une référence : un repère connu de tous — un arrêt, une église, une école, un marché. « Réf. arrêt Kintambo magasin » situe le bien mieux qu’un nom de rue.' },
-      { h2: 'Les mots du confort' },
-      { ul: [
-        'SNEL : le fournisseur d’électricité. « Ligne dédiée » ou « cabine » signale une alimentation plus stable.',
-        'REGIDESO : le fournisseur d’eau. « Forage » désigne un puits propre à la parcelle, « citerne » une réserve d’eau.',
-        'Groupe électrogène, panneaux solaires, inverseur : les solutions de secours en cas de coupure.',
-        'Gardiennage, clôture, portail : la sécurité de la parcelle.',
-        'Route asphaltée : un accès praticable en saison des pluies, un vrai critère à Kinshasa.',
-      ] },
-      { h2: 'Sur Lukka Place' },
-      { p: 'Nos annonces classent chaque bien selon ces catégories — appartement, parcelle et ses sous-types — et affichent le nombre de portes quand il est donné. La recherche permet de filtrer par groupe électrogène, forage, ligne dédiée, route asphaltée ou gardiennage.' },
-    ],
-  },
-  {
-    slug: 'louer-sans-arnaque-kinshasa',
-    title: 'Louer à Kinshasa sans se faire arnaquer : 8 réflexes',
-    description:
-      'Visite avant paiement, vérification du bailleur, reçus, contrat, factures SNEL et REGIDESO : les réflexes qui protègent votre garantie.',
-    published: '2026-09-23',
-    updated: '2026-09-23',
-    cta: { href: '/location', label: 'Voir les logements à louer' },
-    body: [
-      { p: 'La plupart des mauvaises surprises à la location suivent le même schéma : de l’argent versé trop tôt, à la mauvaise personne, sans trace écrite. Ces huit réflexes ferment la porte à l’essentiel d’entre elles.' },
-      { ol: [
-        'Visitez avant de payer quoi que ce soit. Aucune garantie, aucune avance, aucune « réservation » avant d’avoir vu le logement de vos yeux.',
-        'Vérifiez qui vous loue. Demandez à rencontrer le propriétaire, ou un document écrit qui prouve que l’agent est mandaté par lui. Une personne qui a les clés n’est pas forcément celle qui a le droit de louer.',
-        'Méfiez-vous d’un prix trop bas. Comparez avec les prix des annonces de la même commune : un loyer très en dessous du marché sert souvent d’appât.',
-        'N’emménagez pas sans contrat signé par le bailleur. Le même logement peut être promis à plusieurs personnes qui ont chacune versé une garantie ; le contrat et les clés remis par le bailleur tranchent.',
-        'Exigez un reçu pour chaque paiement, qui distingue garantie, avance et commission.',
-        'Sachez ce que vous payez avant la visite. Si des frais de visite sont demandés, faites-vous préciser le montant à l’avance et demandez un reçu.',
-        'Demandez les dernières factures SNEL et REGIDESO. Des arriérés au nom du logement peuvent vous retomber dessus, et les factures montrent si l’eau et l’électricité arrivent vraiment.',
-        'Faites un état des lieux avec photos datées à l’entrée. C’est ce document qui vous permettra de récupérer votre garantie à la sortie.',
-      ] },
-      { h2: 'Ce que fait Lukka Place' },
-      { ul: [
-        'Chaque annonce est relue par notre équipe avant d’être publiée.',
-        'Le numéro d’un agent n’est affiché que lorsque cet agent a prouvé qu’il détient ce numéro ; sinon, c’est le numéro de Lukka Place.',
-        'Le badge « Annonce vérifiée » n’apparaît que sur les biens que notre équipe a elle-même confirmés.',
-        'Le bouton « Demander une visite » transmet votre demande à l’agent et à notre équipe, qui suit la réponse.',
-      ] },
-      { p: 'Ces garanties réduisent le risque, elles ne le suppriment pas : les huit réflexes restent valables pour toute location, sur Lukka Place comme ailleurs.' },
-    ],
-  },
-  {
-    slug: 'acheter-parcelle-kinshasa-diaspora',
-    title: 'Acheter une parcelle à Kinshasa depuis l’étranger : les étapes et les vérifications',
-    description:
-      'Certificat d’enregistrement, vérifications à la Conservation des titres immobiliers, procuration, paiement par étapes : acheter à Kinshasa depuis la diaspora.',
-    published: '2026-09-23',
-    updated: '2026-09-23',
-    cta: { href: '/vente', label: 'Voir les biens à vendre à Kinshasa' },
-    body: [
-      { p: 'Acheter une parcelle à Kinshasa quand on vit à Bruxelles, Paris, Londres ou Montréal est un projet courant — et celui où une erreur coûte le plus cher, parce qu’on ne peut pas tout vérifier soi-même sur place. Ce guide présente les étapes essentielles. Il ne remplace pas l’avis d’un avocat ou d’un notaire en RDC, que nous vous recommandons fortement de consulter.' },
-      { h2: '1. Le document qui compte : le certificat d’enregistrement' },
-      { p: 'En RDC, le titre qui établit les droits sur une parcelle est le certificat d’enregistrement, délivré par le Conservateur des titres immobiliers. D’autres documents circulent — fiche parcellaire, attestation, contrat de location — mais ce sont des étapes vers le titre, pas le titre lui-même. Demandez dès le départ une copie du certificat d’enregistrement.' },
-      { h2: '2. Vérifier le titre à la Conservation des titres immobiliers' },
-      { p: 'Une copie ne suffit pas : faites vérifier, auprès de la Conservation des titres immobiliers dont dépend la parcelle, que :' },
-      { ul: [
-        'le certificat existe bien et correspond à la parcelle vendue (numéro, superficie, situation) ;',
-        'le vendeur est bien le titulaire inscrit, ou dispose d’un mandat valable ;',
-        'la parcelle n’est grevée d’aucune hypothèque ni d’un litige en cours.',
-      ] },
-      { h2: '3. Vérifier le terrain lui-même' },
-      { ul: [
-        'Que les limites sur le terrain correspondent au plan cadastral — un mesurage par un géomètre évite les mauvaises surprises.',
-        'Que personne d’autre n’occupe ou ne revendique la parcelle : parlez aux voisins et au chef de quartier.',
-        'Que le site n’est pas exposé à l’érosion ou aux inondations, et qu’il est accessible toute l’année.',
-      ] },
-      { h2: '4. Se faire représenter' },
-      { p: 'Depuis l’étranger, désignez une personne de confiance par une procuration en bonne et due forme, et faites-vous accompagner par un avocat ou un notaire. La personne qui vous représente ne devrait pas être celle qui vous propose le bien.' },
-      { h2: '5. Payer par étapes, jamais sans acte' },
-      { ul: [
-        'Ne payez jamais la totalité avant la signature de l’acte de vente.',
-        'Liez chaque paiement à une étape vérifiée : vérification du titre, signature de l’acte, mutation.',
-        'Privilégiez des paiements traçables (virement) et exigez un reçu signé pour chacun.',
-      ] },
-      { h2: '6. Faire établir le titre à votre nom' },
-      { p: 'L’achat n’est complet que lorsque la mutation est enregistrée et qu’un certificat d’enregistrement est établi à votre nom. Renseignez-vous à l’avance sur les frais et les délais de cette étape auprès de votre avocat ou notaire.' },
-      { h2: 'Sur Lukka Place' },
-      { p: 'Les annonces de vente sont relues par notre équipe avant publication, et le badge « Annonce vérifiée » signale les biens que nous avons nous-mêmes confirmés. Ces contrôles ne remplacent pas les vérifications juridiques ci-dessus, qui restent indispensables pour tout achat.' },
-    ],
+    en: {
+      title: 'The “3 + 1 + 1” Deposit: What Landlords Ask and What the Law Allows',
+      description:
+        'Deposit, advance, commission: work out what you pay on entry, compare it with the 2015 lease law’s ceiling, and learn how to negotiate.',
+      cta: { href: '/location', label: 'See homes for rent' },
+      body: [
+        { p: 'Before the first night in a new home, a Kinshasa tenant often pays five months of rent up front, sometimes thirteen. The “Garantie: 3 + 1 + 1” line on a listing often weighs more on the budget than the rent itself. Enter your rent in the calculator below to see the exact amount, item by item, next to the ceiling set by the 2015 lease law.' },
+        { stats: {
+          items: [
+            { value: '3 + 1 + 1', label: 'the most common formula on listings' },
+            { value: '8 to 12 months', label: 'of deposit asked in the central communes' },
+            { value: '3 months', label: 'of deposit at most under the law (art. 18)' },
+          ],
+          source: 'ACP, 26 February 2026; Law no. 15/025 of 31 December 2015',
+        } },
+        { h2: 'Three Different Payments' },
+        { ol: [
+          'The deposit (garantie or caution): several months of rent paid to the landlord and returned when the lease ends, minus anything you owe them. In “3 + 1 + 1”, that is the 3.',
+          'The advance (avance): rent paid on entry. The first month is the rent for the month you move in; any month beyond it is rent paid in advance. It does not come back. That is the first 1.',
+          'The commission: the fee of the agent or commissionnaire who found you the home. It does not come back. That is the second 1.',
+        ] },
+        { p: '“3 + 1 + 1” is therefore not “5 months of deposit”. Adding the three gives what you pay on the day you move in, not what the landlord will return when you leave: only the deposit comes back to you.' },
+        { calculator: { kind: 'garantie' } },
+        { h2: 'What Landlords Actually Ask' },
+        { p: 'On a $670 rent, “3 + 1 + 1” comes to $3,350 to pay before moving in, of which $2,010 should come back to you when you leave.' },
+        { p: [
+          { text: 'In the central communes the formula is often heavier. A ' },
+          { text: 'February 2026 survey by the Congolese Press Agency (ACP)', href: ACP_FEB_2026 },
+          { text: ' found deposits of 8 to 12 months in Gombe, Lemba, Bandalungwa, Limete, Kintambo and Ngaliema. ' },
+          { text: 'In Ngaliema', href: ACP_APR_2026 },
+          { text: ', a housing official listed “five, six, seven, eight, nine, sometimes ten months”, sometimes demanded in foreign currency. With a 10-month deposit, 2 months of advance and the commission, a $1,450 rent needs $18,850 on day one. Try the “10+2+1” formula in the calculator.' },
+        ] },
+        { h2: 'What the 2015 Law Says' },
+        { p: [
+          { text: 'Residential lettings are governed by ' },
+          { text: 'Law no. 15/025 of 31 December 2015 on non-professional leases', href: LAW_URL },
+          { text: '. It is short and precise about the money paid on entry.' },
+        ] },
+        { table: {
+          title: 'Law no. 15/025: money paid on entry',
+          head: ['Article', 'What the law says'],
+          rows: [
+            ['Art. 18', 'A deposit of 3 months’ rent at most for a residential lease (6 months for a socio-cultural one). It cannot be raised during the lease, earns no interest and cannot be used to pay rent.'],
+            ['Art. 22', '“The landlord is prohibited from demanding advance payment of rent.”'],
+            ['Art. 10', 'The agency fee is one month’s rent, paid by whoever hired the agency. If the landlord and the tenant use the same agency, it is split equally.'],
+            ['Art. 19', 'The deposit is returned at the end of the lease, minus any sums owed to the landlord. The law sets no deadline.'],
+            ['Art. 3 and 5', 'The lease is a written deed, registered within 30 days. It states the amount of the deposit.'],
+            ['Art. 17', 'A joint inventory of condition (état des lieux) is drawn up at the start and at the end of the lease.'],
+          ],
+          source: 'Law no. 15/025 of 31 December 2015, text published by legalrdc.com',
+        } },
+        { p: [
+          { text: 'The law also sets penalties. A landlord who collects a deposit above three months faces one to three months of penal servitude and a fine of three to six months’ rent, or either penalty (art. 39). A lease that breaches articles 18 or 22 exposes the parties to one to three months of penal servitude and a fine of one month’s rent (art. 43). The government ' },
+          { text: 'restated the three-month cap in December 2024', href: GOV_DEC_2024 },
+          { text: '.' },
+        ] },
+        { callout: {
+          tone: 'info',
+          title: 'What the Law Changes in Practice',
+          blocks: [
+            { p: 'The law is rarely enforced and the market moves faster than the courts. Knowing it will not guarantee you a 3-month deposit, but it gives you a written argument and tells you what you can insist on having on paper.' },
+          ],
+        } },
+        { p: 'One more detail: article 21 says rent is paid in legal tender, the Congolese franc, while almost every Kinshasa rent is set in dollars. The USD / CDF switch in the calculator shows what your move-in cost means in francs.' },
+        { h2: 'How to Negotiate' },
+        { ol: [
+          'Arrive with the legal figure. Before the viewing, work out your move-in cost under the law (3 months of deposit, the first month’s rent, the commission) and propose that amount calmly, citing article 18.',
+          'Offer something in return. A longer lease (two or three years), payment by bank transfer, an employer’s letter or a guarantor reassure a landlord more than two extra months of deposit.',
+          'Push back on extra advance months. The first month’s rent is paid on entry. Beyond that, article 22 forbids demanding rent in advance. If the landlord insists, at least have it written that the advance covers the following months.',
+          'Pay no more than one month of commission. The agent’s commission is usually one month’s rent, which is also what the law sets (art. 10). Do not accept anything above that. The law says it is paid by whoever hired the agency. If you and the landlord use the same agency, it is split equally. With no agent involved, there is no commission to pay.',
+          'Get everything in writing. A lease signed by the landlord stating the deposit, a separate receipt for each sum (deposit, rent, commission) and an inventory of condition with dated photos.',
+          'Pay nothing before you have visited the home and checked that the person in front of you is the landlord or their authorised agent.',
+        ] },
+        { h2: 'Variants to Know How to Read' },
+        { ul: [
+          '“4 + 1”: usually four months of deposit and one month of advance. The commission is not mentioned: ask about it before the viewing.',
+          '“Garantie: 3 mois” alone: the listing says nothing about the advance or the commission. That does not mean there are none.',
+          '“Sans commission”: the commission is zero, which happens when you deal directly with the owner.',
+        ] },
+        { h2: 'On Lukka Place' },
+        { p: 'When the agent provides them, our listings show the deposit, advance and commission separately, with the total to budget on entry. The “Max Garantie” search filter hides homes that ask for more than you can put down.' },
+        { p: 'This guide explains the law; it does not replace a lawyer’s advice in a dispute.' },
+      ],
+    },
   },
 ];
 
 export function getGuide(slug) {
   return GUIDES.find((g) => g.slug === slug) || null;
 }
+
+/** Guides removed on 2026-11-11; next.config.mjs sends their URLs to /guides. */
+export const REMOVED_GUIDE_SLUGS = Object.freeze([
+  'parcelle-maison-appartement-kinshasa',
+  'louer-sans-arnaque-kinshasa',
+  'acheter-parcelle-kinshasa-diaspora',
+]);

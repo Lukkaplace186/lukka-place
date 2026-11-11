@@ -70,7 +70,11 @@ export async function savePostAction(_previous, formData) {
     input.cover_url = cover.url;
 
     const check = validatePostInput(input);
-    if (!check.ok) return { ok: false, error: t(`admin.blog.errors.${check.error}`), field: check.field };
+    if (!check.ok) {
+      const message = t(`admin.blog.errors.${check.error}`);
+      // A rich block names what is wrong with it (French, the console's language).
+      return { ok: false, error: check.detail ? `${message} : ${check.detail}` : message, field: check.field };
+    }
     const values = check.values;
     if (await slugTaken(values.slug, existing?.id ?? null)) return { ok: false, error: t('admin.blog.errors.slugTaken'), field: 'slug' };
 

@@ -10,8 +10,12 @@ const NOW = Date.parse('2026-11-10T12:00:00Z');
 test('each fact appears once: flags another cell shows leave the checks column', () => {
   assert.deepEqual(
     checkFlags(['few_photos', 'duplicate_photo', 'duplicate_listing', 'price_outlier', 'missing_content', 'availability_unanswered']),
-    ['missing_content', 'availability_unanswered'],
+    ['few_photos', 'missing_content', 'availability_unanswered'],
   );
+  // No photo and no video is spelled out in the checks column, not only as the
+  // red 0 on the thumbnail (2026-11-10: such a row read "Aucun signal").
+  assert.deepEqual(checkFlags(['no_photos']), ['no_photos']);
+  assert.ok(!SHOWN_ELSEWHERE.has('no_photos'));
   // Every flag the queue computes is either shown in the checks column or somewhere else.
   for (const flag of SHOWN_ELSEWHERE) assert.ok(QUALITY_FLAGS.includes(flag), flag);
   for (const flag of DUPLICATE_FLAGS) assert.ok(SHOWN_ELSEWHERE.has(flag), flag);
@@ -69,7 +73,7 @@ test('name, agency and initials never print phone digits or repeat themselves', 
   assert.equal(initials('Élodie « Kin » Mbala'), 'ÉM');
 });
 
-test('the photo badge turns amber for 1–2 photos and red for none', () => {
+test('the photo badge: red with none, orange under the 3-photo standard', () => {
   assert.equal(photoTone({ flags: ['no_photos'] }), 'danger');
   assert.equal(photoTone({ flags: ['few_photos'] }), 'warning');
   assert.equal(photoTone({ flags: [] }), 'plain');
@@ -107,11 +111,37 @@ test('a name that reads like a message is pointed out; real names and agencies a
   }
 });
 
-test('the grey line is what the agent typed first, else what we read, else the description', async () => {
+test('the grey line is the text we read, else the first real message, else the description', async () => {
   const { agentTextLine } = await import('@/lib/moderationRow');
-  const source = { messages: [{ kind: 'media', body: null }, { kind: 'text', body: 'Bonjour, je vous contacte\nvia Lukka Place' }], rawText: 'lu' };
-  assert.equal(agentTextLine(source, {}), 'Bonjour, je vous contacte via Lukka Place');
+  // #814: "Bien reçu" a minute before the listing text.
+  const source814 = {
+    rawText: 'Limeté 3eme rue industrielle référence colonel\nAppartement',
+    messages: [{ kind: 'text', body: 'Bien reçu' }, { kind: 'text', body: 'Limeté 3eme rue industrielle référence colonel\nAppartement' }, { kind: 'media', body: null }],
+  };
+  assert.equal(agentTextLine(source814, {}), 'Limeté 3eme rue industrielle référence colonel Appartement');
+  // Read from a photo (no text read): the first message long enough to describe something.
+  const source806 = { rawText: null, messages: [{ kind: 'text', body: 'Ok' }, { kind: 'media', body: null }, { kind: 'text', body: 'Bonjour, je vous contacte\nvia Lukka Place au sujet de ce bien' }] };
+  assert.equal(agentTextLine(source806, {}), 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien');
+  assert.equal(agentTextLine({ rawText: null, messages: [{ kind: 'text', body: 'Ok' }] }, {}), 'Ok');
   assert.equal(agentTextLine({ messages: [], rawText: 'Appartement 2 chambres' }, {}), 'Appartement 2 chambres');
   assert.equal(agentTextLine({ channel: 'web', messages: [] }, { descriptionSnippet: 'Belle villa' }), 'Belle villa');
   assert.equal(agentTextLine(null, {}), null);
+});
+
+test('the 3-photo standard: an orange warning, never a refusal; a video counts as one', async () => {
+  const { MIN_LISTING_MEDIA, BLOCKING_FLAGS } = await import('@/lib/moderation');
+  const { checkFlags, photoTone, readiness } = await import('@/lib/moderationRow');
+  assert.equal(MIN_LISTING_MEDIA, 3);
+  // Orange (not a blocking flag) and listed in the checks column; no photo at all stays red.
+  assert.ok(!BLOCKING_FLAGS.has('few_photos') && BLOCKING_FLAGS.has('no_photos'));
+  assert.deepEqual(checkFlags(['few_photos']), ['few_photos']);
+  assert.equal(photoTone({ flags: ['few_photos'] }), 'warning');
+  // Approval never counts photos (owner, 2026-11-10: a warning, not a refusal).
+  const fs = await import('node:fs');
+  const actions = fs.readFileSync(new URL('../../app/admin/listings/actions.js', import.meta.url), 'utf8');
+  const check = actions.slice(actions.indexOf('async function publishProblem'), actions.indexOf('async function writeDecision'));
+  assert.ok(check.length > 100 && !/photo|slider|video/i.test(check));
+  const ok = { agentId: 1, agentVerified: true, agentCreatedAt: '2026-10-01T00:00:00Z', flags: [], photoCount: 2, videoCount: 1 };
+  assert.equal(readiness(ok, NOW), 'ready');
+  assert.equal(readiness({ ...ok, videoCount: 0 }, NOW), 'check');
 });

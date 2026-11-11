@@ -35,6 +35,7 @@ import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
 import { similarAlertQuery, transactionTypeOfPurpose } from '@/lib/similarSearch';
 import SimilarAlertButton from '@/components/SimilarAlertButton';
+import { listingPath } from '@/lib/listingSlug';
 import { communeHref, listingJsonLd, listingKindLabel, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
 
 // generateMetadata and the page both read the listing; per-request dedupe so
@@ -73,7 +74,9 @@ export async function generateMetadata({ params }) {
     description,
     // Shared links carry ?utm_source= (lib/listingShareCopy.js SHARE_SOURCES);
     // every tagged variant is the same page.
-    alternates: await localizedAlternates(`/listings/${listing.id}`),
+    // The keyword URL is canonical (lib/listingSlug.js): /listings/509 and any
+    // older slug open the same page and point Google at this one address.
+    alternates: await localizedAlternates(listingPath(listing)),
     openGraph: {
       title: ogTitle,
       description,

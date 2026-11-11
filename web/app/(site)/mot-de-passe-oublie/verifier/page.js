@@ -5,6 +5,7 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { getT } from '@/lib/i18n/server';
 import PasswordInput from '@/components/PasswordInput';
+import { passwordMinFor } from '@/lib/passwordRules';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -44,6 +45,9 @@ export default async function ResetVerifyPage({ searchParams }) {
   const sent = params.sent === '1';
   // An agent who joined on WhatsApp and has no password yet (lib/agentPasswordSetup.js).
   const firstPassword = params.nouveau === '1';
+  // 6 for a customer, 8 for an agent (lib/passwordRules.js, 2026-11-11).
+  const passwordMin = passwordMinFor(attempt.role);
+  const errorKeys = { ...ERROR_MESSAGE_KEYS, weak_password: passwordMin === 6 ? 'auth.errors.passwordMin6' : 'auth.errors.passwordMin8' };
 
   const whatsappHref = getCentralWhatsAppHref(
     t('auth.forgot.whatsappCodeHelp'),
@@ -85,20 +89,20 @@ export default async function ResetVerifyPage({ searchParams }) {
             <label htmlFor="newPassword" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
               {t('agent.settings.newPassword')}
             </label>
-            <PasswordInput id="newPassword" name="newPassword" autoComplete="new-password" minLength={8} required />
-            <p className="mt-1 text-xs text-ink-45">{t('auth.minEightChars')}</p>
+            <PasswordInput id="newPassword" name="newPassword" autoComplete="new-password" minLength={passwordMin} required />
+            <p className="mt-1 text-xs text-ink-45">{t(passwordMin === 6 ? 'auth.minSixChars' : 'auth.minEightChars')}</p>
           </div>
 
           <div>
             <label htmlFor="confirmPassword" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
               {t('auth.confirmPassword')}
             </label>
-            <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" minLength={8} required />
+            <PasswordInput id="confirmPassword" name="confirmPassword" autoComplete="new-password" minLength={passwordMin} required />
           </div>
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || t('common.shared.somethingWentWrong')}
+              {(errorKeys[error] ? t(errorKeys[error]) : null) || t('common.shared.somethingWentWrong')}
             </p>
           )}
 

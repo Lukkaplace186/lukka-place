@@ -7,13 +7,15 @@ import PhoneField from '@/components/PhoneField';
 import PasswordInput from '@/components/PasswordInput';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { useLocale, useT } from '@/lib/i18n/client';
+import { trackCustomerSignup } from '@/lib/analyticsClient';
+import { CUSTOMER_PASSWORD_MIN } from '@/lib/passwordRules';
 
 // Keys, not text: a module-level constant is evaluated once at import,
 // where `t` does not exist — see components/navItems.js.
 const ERROR_MESSAGE_KEYS = {
   name: 'auth.errors.fullNameRequired',
   phone: 'auth.errors.phoneInvalid',
-  password: 'auth.errors.passwordMin8',
+  password: 'auth.errors.passwordMin6',
   exists: 'auth.errors.accountExists',
   expired_attempt: 'auth.errors.expiredAttempt',
   ref: 'auth.errors.partnerCodeUnknown',
@@ -95,6 +97,8 @@ export default function SignupForm({
   // Whether the move cards before this one were answered (they ride along
   // as `children`, MoveOnboarding's hidden `moveProject` field).
   hasAnswers = false,
+  // Where this sign-up started (lib/signupFunnelRules.js), sent with the form.
+  entry = 'direct',
   children = null,
 }) {
   const t = useT();
@@ -108,8 +112,18 @@ export default function SignupForm({
   const [knownAccount, setKnownAccount] = useState(false);
   const [, startCheck] = useTransition();
   const lastChecked = useRef('');
+  const started = useRef(false);
+
+  // The funnel's form_start: the first character typed, once per mount
+  // (not focus: the name field is autoFocused, so focus says nothing).
+  function handleFirstInput() {
+    if (started.current) return;
+    started.current = true;
+    trackCustomerSignup('form_start', entry);
+  }
 
   function handleSubmit() {
+    trackCustomerSignup('submit', entry);
     const form = formRef.current;
     if (!form) return;
     form.favoriteIds.value = getFavoriteIds().join(',');
@@ -157,8 +171,9 @@ export default function SignupForm({
   const showExists = knownAccount || (!state && initialError === 'exists');
 
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3">
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} onInput={handleFirstInput} className="mt-6 flex flex-col gap-3">
       <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="entry" value={entry} />
       <input type="hidden" name="favoriteIds" />
       <input type="hidden" name="savedSearches" />
       {children}
@@ -205,12 +220,12 @@ export default function SignupForm({
           id="password"
           name="password"
           autoComplete="new-password"
-          minLength={8}
+          minLength={CUSTOMER_PASSWORD_MIN}
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-        <p className="mt-1 text-xs text-ink-45">{t('auth.minEightChars')}</p>
+        <p className="mt-1 text-xs text-ink-45">{t('auth.minSixChars')}</p>
       </div>
 
       <div>

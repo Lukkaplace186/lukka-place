@@ -16459,8 +16459,10 @@ console.log('\n2. services/openai.js');
     log96.run('in', '243800000096', 'text', 'Je contacte parce que j’ai vu cette annonce', null, '2026-11-10T10:07:34.268Z');
     log96.run('in', '243800000096', 'text', 'Un message de la veille', null, '2026-11-09T09:00:00.000Z');
     log96.run('in', '243899999999', 'text', 'Quelqu’un d’autre', null, '2026-11-10T10:05:00.000Z');
+    // A tap on one of our alert buttons is not the listing (#813: "❌ Aucun appel").
+    log96.run('in', '243800000096', 'button', '❌ Aucun appel', null, '2026-11-10T10:00:00.000Z');
 
-    check('only the sender\'s inbound messages around the draft, oldest first; replies and other days left out', () => {
+    check('only the sender\'s inbound messages around the draft, oldest first; our replies, button taps and other days left out', () => {
       const out = source96.getListingSources([806], mem96);
       assert.strictEqual(out[806].channel, 'whatsapp');
       assert.deepStrictEqual(out[806].messages.map((m) => [m.kind, m.body, m.mediaCount]), [
@@ -17881,6 +17883,25 @@ console.log('\n2. services/openai.js');
       assert.match(fs.readFileSync(path.join(__dirname, '..', 'migrations/20261110_push_notifications.sql'), 'utf8'), /CREATE TABLE IF NOT EXISTS customer_follows/);
     });
   }
+
+  // §105 Customer sign-up funnel table (2026-11-11)
+  // ---------------------------------------------------------------------------
+  // Web-only writer (lib/signupFunnel.js); the engine never touches it. Pinned
+  // here because it is a schema change: idempotent, closed to the public API,
+  // and the step list matches the one web's rules allow.
+  console.log('\n§105 Customer sign-up funnel — customer_signup_events migration');
+  check('the sign-up funnel migration is idempotent, RLS on, and its steps match web lib/signupFunnelRules.js', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261111_customer_signup_funnel.sql'), 'utf8');
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS customer_signup_events/);
+    assert.match(sql, /CREATE INDEX IF NOT EXISTS customer_signup_events_created_idx/);
+    assert.match(sql, /ALTER TABLE customer_signup_events ENABLE ROW LEVEL SECURITY/);
+    assert.match(sql, /REVOKE ALL ON customer_signup_events FROM anon, authenticated/);
+    const rules = fs.readFileSync(path.join(__dirname, '..', 'web/lib/signupFunnelRules.js'), 'utf8');
+    for (const step of ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit', 'refused', 'created']) {
+      assert.ok(sql.includes(`'${step}'`) && rules.includes(`'${step}'`), step);
+    }
+    for (const reason of ['name', 'phone', 'password', 'exists', 'ref']) assert.ok(sql.includes(`'${reason}'`), reason);
+  });
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

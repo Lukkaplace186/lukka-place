@@ -180,6 +180,7 @@
   },
   "home": {
     "hero": {
+      "kicker": "Houses and Apartments for Rent and Sale in Kinshasa and the DRC",
       "title": "Apartments. Villas. Plots. Agencies.",
       "subtitle": "Across the DRC: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and more. Reviewed listings, stated prices and direct contact on WhatsApp.",
       "photoCredit": "Photo by kaysha on Unsplash",
@@ -411,6 +412,8 @@
         "other": "A free WhatsApp alert as soon as a {count}-bedroom in {commune} is listed at this price or less."
       }
     },
+    "seoTitle": "Houses and Apartments for Rent and Sale in Kinshasa | Lukka Place",
+    "seoDescription": "Houses, apartments, plots and land for rent or sale in Kinshasa and across the DRC. Reviewed listings, prices shown, contact on WhatsApp.",
     "app": {
       "greeting": "Hello",
       "greetingNamed": "Hello, {name}",
@@ -4866,7 +4869,7 @@
       },
       "flag": {
         "no_photos": "No photos",
-        "few_photos": "1–2 photos",
+        "few_photos": "Fewer than 3 photos",
         "missing_commune": "No commune",
         "missing_price": "No price",
         "missing_content": "Missing title or description",
@@ -7712,7 +7715,7 @@
       "perDay": "Customer Accounts per Day",
       "byChannel": "By Channel",
       "channel": "Channel",
-      "costPerAccount": "Cost per verified account",
+      "costPerAccount": "Cost per account",
       "noSpend": "No spend entered",
       "channelsHint": "Channel = a partner's code, else the last source (ad, social, search…), else the first.",
       "channels": {
@@ -7743,7 +7746,59 @@
       "dailyAuto": "(automatic draw)",
       "dailyNone": "No listing meets the conditions today.",
       "dailyHint": "A live listing with at least 3 photos, the same all day. Type a listing number to pick today's; the 4:5 card is made from the listing's page.",
-      "dailyPick": "Pick"
+      "dailyPick": "Pick",
+      "signup": {
+        "goalTitle": "Goal: {goal} Customer Accounts",
+        "total": "Customer accounts",
+        "today": "Today",
+        "week": "This week",
+        "pace": "Pace",
+        "perDay": "{n} / day",
+        "paceHint": "average of the last 14 days",
+        "remaining": "Remaining",
+        "eta": "At this pace, goal reached in ~{days} days (estimate)",
+        "etaNone": "No account in the last 14 days: no pace measured",
+        "reached": "Goal reached",
+        "bannerCount": "{total} / {goal} customer accounts",
+        "bannerLine": "Today {today} · this week {week}",
+        "funnelTitle": "Sign-Ups by Starting Point",
+        "funnelLead": "Where each sign-up started (the ♥, an alert, the \"Create an account\" card…), and how many people reach each step. Shown and Clicked exist only for prompts; links start at \"Page opened\". Distinct people per step, accounts and refusals as counts. Team excluded.",
+        "notMeasured": "Sign-up tracking starts once the 20261111_customer_signup_funnel.sql migration has run.",
+        "noEvents": "No step recorded in this period.",
+        "unmeasured": "{n} account(s) created in this period with no recorded starting point (before tracking, or through WhatsApp).",
+        "refusalsTitle": "What Sends People Back to the Form",
+        "noRefusals": "No refusal in this period.",
+        "columns": {
+          "entry": "Starting point",
+          "shown": "Shown",
+          "opened": "Clicked",
+          "formView": "Page opened",
+          "formStart": "Form started",
+          "submit": "Sent",
+          "refused": "Refused",
+          "created": "Accounts",
+          "conversion": "Conversion"
+        },
+        "entries": {
+          "favorite": "♥ Favourite",
+          "save_search": "Save search",
+          "alert": "Create alert",
+          "nudge": "\"Create an account\" card",
+          "messages": "Messages page",
+          "updates": "Updates page",
+          "login_page": "Link under login",
+          "partner_invite": "Partner invitation",
+          "price_guide": "Price guide",
+          "direct": "Direct / other link"
+        },
+        "refusals": {
+          "name": "Missing name",
+          "phone": "Invalid number",
+          "password": "Password too short",
+          "exists": "Number already registered",
+          "ref": "Unknown referral code"
+        }
+      }
     },
     "blog": {
       "title": "Guides & News",
@@ -7786,7 +7841,7 @@
       "summaryHint": "One or two sentences: shown in the list and in WhatsApp / Google previews.",
       "bodyFr": "Article",
       "formatHelpTitle": "Formatting",
-      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.",
+      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.\n\nRich blocks (see the preview):\n| Commune | Rent | — a table (a |---| line under the header)\n:::chiffres source=\"…\" then “value | label” lines, then :::\n:::graphique type=barres titre=\"…\" unite=\"$\" source=\"…\" then “label | number” lines, then :::\n:::astuce titre=\"…\" (or attention, info), text, then :::\n:::citation auteur=\"…\", text, then :::\n:::prix communes=\"Gombe, Limete\" chambres=2 — live prices\n:::annonces commune=Gombe type=appartement transaction=location — live listings\n:::calculateur — the interactive deposit calculator (3 + 1 + 1)",
       "sectionCover": "Cover Image",
       "cover": "Image",
       "replaceCover": "Replace the Image",
@@ -7825,6 +7880,7 @@
         "summaryTooLong": "The summary is over 400 characters.",
         "bodyTooLong": "The article is too long.",
         "bodyRequired": "A published article needs a text.",
+        "badBlock": "A block in the text cannot be read",
         "englishTooLong": "The English version is over the allowed length.",
         "englishIncomplete": "The English version needs a title and a text, or must stay empty.",
         "badSlug": "The link may only contain lowercase letters, digits and hyphens.",
@@ -8110,7 +8166,35 @@
       "stories": "Shared Stories",
       "storiesHint": "Only stories the customer agreed to share.",
       "noStories": "No shared story yet.",
-      "customer": "See the customer"
+      "customer": "See the customer",
+      "list": "Projects, Customer by Customer",
+      "listHint": "Who told us each project: the name and number on their customer account, as stored. Newest first.",
+      "colPerson": "Customer",
+      "colProject": "Project",
+      "colCommunes": "Communes",
+      "colBudget": "Budget",
+      "colStatus": "Status",
+      "colRequest": "Request",
+      "colDates": "Dates",
+      "noName": "Name not given",
+      "noPhone": "Number unknown",
+      "notSaid": "Not stated",
+      "stageSet": "Stage set: {stage}",
+      "foundOn": "Found on {date}",
+      "requestN": "Request #{id}",
+      "noRequest": "No request sent",
+      "allRequests": "All their requests",
+      "created": "Created {date}",
+      "updated": "Updated {date}",
+      "empty": "No project matches these filters.",
+      "listError": "The project list could not be loaded.",
+      "budgetBetween": "{min} – {max}",
+      "budgetFrom": "From {min}",
+      "budgetUpTo": "Up to {max}",
+      "oneCustomer": "Projects of customer #{id}.",
+      "allCustomers": "See all customers",
+      "whatsapp": "Message on WhatsApp",
+      "call": "Call"
     },
     "whatsappHistory": {
       "title": "WhatsApp History",
@@ -8228,7 +8312,8 @@
       "agencyNameRequired": "Enter your agency or trading name.",
       "partnerCodeUnknown": "This referral code does not exist. Correct it or leave the field empty.",
       "fullNameRequired": "Enter your first and last name.",
-      "lockedReset": "Reset my password now"
+      "lockedReset": "Reset my password now",
+      "passwordMin6": "The password must be at least 6 characters."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -8369,7 +8454,8 @@
     "agentFirstPassword": "You joined Lukka Place on WhatsApp, so your account has no password yet. Enter the code sent to your WhatsApp and choose one.",
     "agentNoPasswordHint": "Joined on WhatsApp, with no password? Tap “Forgotten your password?”: a WhatsApp code lets you create one.",
     "agentLoginMetaTitle": "Agent Login — Lukka Place",
-    "agentNoAccountYet": "No agent account yet?"
+    "agentNoAccountYet": "No agent account yet?",
+    "minSixChars": "6 characters minimum."
   },
   "updates": {
     "title": "Updates",
@@ -8490,7 +8576,62 @@
     "empty": "No articles in this category yet.",
     "seeListings": "See listings online",
     "relatedListings": "Listings Online Right Now",
-    "shareWhatsApp": "Share on WhatsApp"
+    "shareWhatsApp": "Share on WhatsApp",
+    "blocks": {
+      "source": "Source: {source}",
+      "bedsLabel": "{beds} bed",
+      "pricesByBeds": "Monthly asking rent in {commune}, by bedrooms",
+      "pricesByCommune": "Monthly asking rent, {beds} bedrooms",
+      "priceRange": "Half of the listings between ${low} and ${high} · {n} listings",
+      "pricesCaption": "Median asking rent (long-term, unfurnished) over {n} listings · Lukka Place price guide, {date}",
+      "pricesMissing": "Not enough listings yet to publish a price here: {communes}.",
+      "pricesLink": "See the price guide",
+      "listingsPreview": "Here: three live listings from this search —",
+      "tip": "Tip",
+      "warning": "Watch out",
+      "info": "Good to know",
+      "invalid": "Block :::{name} not shown — {reason}"
+    },
+    "calculator": {
+      "title": "Work Out Your Move-In Cost",
+      "subtitle": "Example loaded: $670 a month on “3 + 1 + 1”. Change the rent and the months you are asked for.",
+      "rentLabel": "Monthly rent",
+      "examples": "Rent examples",
+      "currencyLabel": "Currency",
+      "rateNote": "Approximate Congolese francs, at the reference rate of {date}: $1 ≈ {rate} FC.",
+      "askedLabel": "What the landlord asks",
+      "presets": "Common formulas",
+      "deposit": "Deposit (months)",
+      "advance": "Advance (months, incl. 1st rent)",
+      "commission": "Commission (months)",
+      "less": "One less",
+      "more": "One more",
+      "askedTotal": "You are asked for",
+      "legalTotal": "Legal ceiling",
+      "monthsOfRent": "{months} × monthly rent",
+      "refundable": "of which {amount} refundable",
+      "excess": "You put down {amount} more than the law allows, or {months} × monthly rent.",
+      "withinLaw": "This request is within the ceiling set by law.",
+      "enterRent": "Enter a monthly rent to see the breakdown.",
+      "barAsked": "Asked",
+      "barLaw": "Law no. 15/025",
+      "colItem": "Item",
+      "colAsked": "Asked",
+      "colLaw": "Law",
+      "rowDeposit": "Deposit",
+      "rowDepositSub": "{months} mo. · returned when the lease ends",
+      "rowFirst": "First month’s rent",
+      "rowFirstSub": "the month you move in",
+      "rowExtra": "Extra advance",
+      "rowExtraSub": "{months} more mo. · article 22 forbids it",
+      "rowCommission": "Commission",
+      "rowCommissionSub": "{months} mo. · for the agent",
+      "rowTotal": "Total on entry",
+      "tagRefundable": "Refundable",
+      "tagNotRefundable": "Not refundable",
+      "tagOverLaw": "Beyond the law",
+      "footnote": "The legal ceiling assumes a residential lease: a deposit of 3 months at most (art. 18), the first month’s rent paid on entry and no advance beyond it (art. 22), a commission of one month at most (art. 10). An estimate, not legal advice."
+    }
   },
   "projects": {
     "meta": {

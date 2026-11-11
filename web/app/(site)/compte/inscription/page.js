@@ -8,6 +8,8 @@ import { partnerCodePrefill } from '@/lib/partnerPrefill';
 import { whatsappSignupLink } from '@/lib/whatsappSignup';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import MoveOnboarding from '@/components/MoveOnboarding';
+import CustomerSignupTracker from '@/components/CustomerSignupTracker';
+import { SIGNUP_ENTRY_PARAM, cleanSignupEntry } from '@/lib/signupFunnelRules';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -42,9 +44,15 @@ export default async function CustomerSignupPage({ searchParams }) {
   // the account card; the move questions are offered afterwards, from the
   // account (2026-11-08, owner request).
   const fromSave = params.from === 'save';
+  // Where this sign-up started (lib/signupFunnelRules.js): rides into the
+  // form, so the account's `created` event names its entry.
+  const entry = cleanSignupEntry(params[SIGNUP_ENTRY_PARAM]);
+  const pageViewBeacon = <CustomerSignupTracker entry={entry} />;
 
   if (params.direct !== '1') {
     return (
+      <>
+      {pageViewBeacon}
       <MoveOnboarding
         mode="signup"
         fromSave={fromSave}
@@ -59,6 +67,7 @@ export default async function CustomerSignupPage({ searchParams }) {
           phoneHintKey: 'auth.signup.phoneHint',
           checkPhoneAction: checkSignupPhoneAction,
           signInAction: signInWithNumberAction,
+          entry,
         }}
         accountFooter={
           <>
@@ -82,11 +91,13 @@ export default async function CustomerSignupPage({ searchParams }) {
           </>
         }
       />
+      </>
     );
   }
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
+      {pageViewBeacon}
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('common.actions.signup')}</h1>
         {/* What the account is for — three things it already does: the daily
@@ -130,6 +141,7 @@ export default async function CustomerSignupPage({ searchParams }) {
           phoneHintKey="auth.signup.phoneHint"
           checkPhoneAction={checkSignupPhoneAction}
           signInAction={signInWithNumberAction}
+          entry={entry}
         />
 
         <p className="mt-5 text-center text-sm text-ink-45">

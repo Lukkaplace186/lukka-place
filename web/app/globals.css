@@ -488,6 +488,40 @@
     }
   }
 
+  /* Blog rich blocks (components/blog/Reveal.js): a block below the fold is
+     "armed" by the script, then "shown" as it scrolls in — the block rises,
+     bars grow from the left one after another, lines draw, dots appear.
+     Without the script, or under reduced motion, everything is simply there. */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-reveal='armed'] {
+      opacity: 0;
+      translate: 0 18px;
+    }
+    [data-reveal='shown'] {
+      animation: u-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    [data-reveal] .u-bar {
+      transform-origin: left center;
+      transition: scale 0.9s cubic-bezier(0.16, 1, 0.3, 1) calc(0.15s + var(--i, 0) * 70ms);
+    }
+    [data-reveal='armed'] .u-bar {
+      scale: 0 1;
+    }
+    [data-reveal] .u-line {
+      stroke-dasharray: 1;
+      transition: stroke-dashoffset 1.4s cubic-bezier(0.65, 0, 0.35, 1) 0.2s;
+    }
+    [data-reveal='armed'] .u-line {
+      stroke-dashoffset: 1;
+    }
+    [data-reveal] .u-dot {
+      transition: opacity 0.4s ease 1.2s;
+    }
+    [data-reveal='armed'] .u-dot {
+      opacity: 0;
+    }
+  }
+
   /* The phone footer's link groups (Footer.js) open smoothly where the
      browser can animate a <details> body; everywhere else they simply open.
      interpolate-size is what lets block-size transition to `auto`. */

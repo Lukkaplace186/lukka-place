@@ -69,6 +69,10 @@ function splitHref(href) {
  *   /location/appartements/gombe → /en/rent/apartments/gombe
  *   /listings/428?utm_source=x   → /en/listings/428?utm_source=x
  */
+// A listing segment: "509" or "509-appartement-1-chambre-a-louer-limete"
+// (lib/listingSlug.js holds the same pattern; this module stays import-free).
+const LISTING_SEGMENT = /^\d{1,18}(?:-[a-z0-9-]*)?$/;
+
 export function toEnglishPath(href) {
   const [path, rest] = splitHref(href);
   if (STATIC_PAGES[path]) return `${STATIC_PAGES[path]}${rest}`;
@@ -83,7 +87,7 @@ export function toEnglishPath(href) {
     });
     return `${out.join('/')}${rest}`;
   }
-  if (head === 'listings' && tail.length === 1 && /^\d+$/.test(tail[0])) return `${EN_PREFIX}/listings/${tail[0]}${rest}`;
+  if (head === 'listings' && tail.length === 1 && LISTING_SEGMENT.test(tail[0])) return `${EN_PREFIX}/listings/${tail[0]}${rest}`;
   if (head === 'agents' && tail.length === 1 && /^\d+$/.test(tail[0])) return `${EN_PREFIX}/agents/${tail[0]}${rest}`;
   if (head === 'combien-coute' && tail.length === 1) return `${EN_PREFIX}/rent-prices/${tail[0]}${rest}`;
   return null;
@@ -111,7 +115,7 @@ export function toFrenchPath(href) {
     }
     return `${out.join('/')}${rest}`;
   }
-  if (head === 'listings' && tail.length === 1 && /^\d+$/.test(tail[0])) return `/listings/${tail[0]}${rest}`;
+  if (head === 'listings' && tail.length === 1 && LISTING_SEGMENT.test(tail[0])) return `/listings/${tail[0]}${rest}`;
   if (head === 'agents' && tail.length === 1 && /^\d+$/.test(tail[0])) return `/agents/${tail[0]}${rest}`;
   if (head === 'rent-prices' && tail.length === 1) return `/combien-coute/${tail[0]}${rest}`;
   return null;

@@ -12,6 +12,7 @@ import { useT } from '@/lib/i18n/client';
 import { listingImages } from '@/lib/listingView';
 import { placeLabel } from '@/lib/placeLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { listingPath } from '@/lib/listingSlug';
 
 /**
  * "Récemment consultés" — the listings this browser opened, newest first,
@@ -91,7 +92,7 @@ function RecentStrip({ listings, label, className }) {
             const place = placeLabel(listing);
             return (
               <li key={listing.id} className="shrink-0">
-                <Link href={`/listings/${listing.id}`} className="u-press group flex min-h-14 items-center gap-3 rounded-xl pr-2">
+                <Link href={listingPath(listing)} className="u-press group flex min-h-14 items-center gap-3 rounded-xl pr-2">
                   <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-canvas-deep">
                     {photo ? <SafeImage src={photo} alt="" fill sizes="56px" className="object-cover" /> : null}
                   </span>

@@ -7,7 +7,9 @@ import { CHANNELS, CHANNEL_LABELS_FR, channelOf, dailySummaryText, paidChannelCo
  * Every figure is counted from rows that exist: customer accounts and where
  * they came from (account_acquisitions), agent accounts, visitors
  * (page_views, people only), partner conversions, and the ad spend the team
- * typed in. No target (owner decision 2026-10-27): the page counts.
+ * typed in. "No target" (owner, 2026-10-27) was replaced on 2026-11-11 by
+ * the 1,000-account goal and the sign-up funnel, which live in
+ * lib/signupFunnel.js; this module still only counts.
  *
  * Days are Kinshasa days. Before the attribution migration every account is
  * "inconnu" and partner figures are empty; nothing throws.
@@ -137,8 +139,13 @@ export async function getGrowthDashboard({ days = 30 } = {}) {
   }), { accounts: 0, verified: 0, agents: 0, visitorDays: 0, listingViews: 0 });
   totals.viewsPerVisitor = totals.visitorDays > 0 ? Math.round((totals.listingViews / totals.visitorDays) * 10) / 10 : null;
 
-  const verifiedByChannel = Object.fromEntries(Object.entries(byChannel).map(([channel, v]) => [channel, v.verified]));
-  return { days: list, totals, byChannel, costs: paidChannelCosts(spend, verifiedByChannel), spend };
+  // Cost per ACCOUNT, every account (2026-11-11). It was per verified
+  // account, but customers stopped confirming their number on 2026-11-06, so
+  // new web accounts are never verified and the cost per paid account only
+  // grew, however well the ads did. `verified` stays in the data (referral
+  // credits still use confirmation); the page no longer shows it.
+  const accountsByChannel = Object.fromEntries(Object.entries(byChannel).map(([channel, v]) => [channel, v.accounts]));
+  return { days: list, totals, byChannel, costs: paidChannelCosts(spend, accountsByChannel), spend };
 }
 
 // ---------------------------------------------------------------------------

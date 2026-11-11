@@ -15,6 +15,7 @@ import { distanceKm } from '@/lib/mapViewport';
 import { GUIDES } from '@/lib/guides';
 import { DEFAULT_CITY, provinceOfCity } from '@/lib/cities';
 import { localizeHref } from '@/lib/localePaths';
+import { listingPath } from '@/lib/listingSlug';
 import {
   SEO_PROPERTY_TYPES,
   OVERLAY_PROPERTY_TYPES,
@@ -263,9 +264,8 @@ export default async function SeoLandingPage({ transaction, params }) {
   crumbs[crumbs.length - 1] = { label: crumbs[crumbs.length - 1].label };
 
   const refineHref = listingsHrefFor(filters);
-  const guideOrder = purpose === 'sale'
-    ? ['acheter-parcelle-kinshasa-diaspora', 'parcelle-maison-appartement-kinshasa', 'louer-sans-arnaque-kinshasa']
-    : ['garantie-3-1-1-kinshasa', 'louer-sans-arnaque-kinshasa', 'parcelle-maison-appartement-kinshasa'];
+  // The one guide left (2026-11-11) is about renting.
+  const guideOrder = purpose === 'sale' ? [] : ['garantie-3-1-1-kinshasa'];
   const guides = guideOrder.map((s) => GUIDES.find((g) => g.slug === s)).filter(Boolean);
 
   const jsonLd = {
@@ -290,7 +290,7 @@ export default async function SeoLandingPage({ transaction, params }) {
           ? {
               '@type': 'ItemList',
               numberOfItems: stats.total,
-              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${localizeHref(`/listings/${l.id}`, locale)}` })),
+              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${localizeHref(listingPath(l), locale)}` })),
             }
           : undefined,
       },

@@ -57,13 +57,16 @@ test('the linked ids use the same rules as the flags, only for flagged rows, cap
   assert.match(DUPLICATE_IDS_SQL, /WHEN f\.f_duplicate_listing THEN/);
   assert.match(DUPLICATE_IDS_SQL, /LOWER\(oc\.title\) = LOWER\(f\.title\) AND oc\.property_id <> f\.id/);
   assert.match(DUPLICATE_IDS_SQL, /o\.price = f\.price AND o\.approve_status <> 2/);
-  // Photo reuse by ANOTHER agent, matched on the photo's content fingerprint — as f_duplicate_photo.
-  assert.match(DUPLICATE_IDS_SQL, /WHEN f\.f_duplicate_photo THEN/);
-  assert.match(DUPLICATE_IDS_SQL, /fp_index x JOIN fp_index o ON o\.fp = x\.fp/);
-  assert.match(DUPLICATE_IDS_SQL, /o\.agent_id IS DISTINCT FROM f\.agent_id/);
-  // Same agent's re-send — as f_same_agent_resend.
-  assert.match(DUPLICATE_IDS_SQL, /WHEN f\.f_same_agent_resend THEN/);
-  assert.equal((DUPLICATE_IDS_SQL.match(new RegExp(`LIMIT ${DUPLICATE_LINK_LIMIT}`, 'g')) || []).length, 3);
+  assert.equal((DUPLICATE_IDS_SQL.match(new RegExp(`LIMIT ${DUPLICATE_LINK_LIMIT}`, 'g')) || []).length, 1);
+  // Photo reuse by ANOTHER agent and the same agent's re-send come from one
+  // pass over every pair sharing a photo fingerprint or the same text
+  // (2026-11-10: the per-row EXISTS took 7 s over the live listings).
+  assert.match(DUPLICATE_INDEX_CTES, /dup_pairs AS MATERIALIZED/);
+  assert.match(DUPLICATE_INDEX_CTES, /fp_index x JOIN fp_index o ON o\.fp = x\.fp AND o\.id <> x\.id/);
+  assert.match(DUPLICATE_INDEX_CTES, /desc_index x JOIN desc_index o ON o\.dk = x\.dk AND o\.id <> x\.id/);
+  assert.match(DUPLICATE_INDEX_CTES, /o\.agent_id IS DISTINCT FROM x\.agent_id\) AS other_agent/);
+  assert.match(DUPLICATE_INDEX_CTES, /dup_by_id AS MATERIALIZED/);
+  assert.match(DUPLICATE_INDEX_CTES, /array_agg\(DISTINCT b ORDER BY b DESC\) FILTER \(WHERE resend\) AS resend_ids/);
 });
 
 test('same agent, same property: the rule the owner set (2026-11-10)', () => {

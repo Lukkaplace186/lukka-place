@@ -307,8 +307,10 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
     against the first listing, shows a red banner for the same agent, and on
     an older live copy offers "Retirer (doublon) — garder n° X"
     (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
-    message `withdrawn_duplicate` with `keep_id`). The queue's banner links
-    `?status=approved&flag=same_agent_resend` ("Faire le ménage").
+    message `withdrawn_duplicate` with `keep_id`). The queue's red "N annonces
+    en ligne en double" banner was removed on the owner's request the same
+    day; the list is `?status=approved&flag=same_agent_resend` (the i18n keys
+    `compare.liveResends` / `cleanUp` are kept, unused, for when it returns).
 - **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
   `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
   1–2, red none), place as "quartier, commune" under the title, the median
@@ -2233,6 +2235,8 @@ anywhere. `tests/unit/seo-pages.test.js`.
   reading a listing, renting without scams, buying from the diaspora. No
   market figures in them (those live on the landing pages); the diaspora one
   says to consult an avocat/notaire. Review the copy before promoting it.
+  (Since 2026-11-11 only the 3+1+1 guide remains — see "The 3 + 1 + 1 guide
+  and `:::calculateur`" under Guides & Actualités.)
 - **Sitemap** now lists landing pages with listings and the guides instead
   of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
   landing pages; Guides joined the Lukka Place column.
@@ -3947,8 +3951,9 @@ Tests: `tests/unit/blog.test.js`.
   segment's skeleton; the index lives in `guides/(index)/` with its own.
 - **No HTML anywhere.** The body is a textarea in a small format parsed by
   `parseBody` (`## titre`, `- point`, `1. étape`, blank line = paragraph,
-  `[texte](/chemin)` or https links only) into the same blocks the code guides
-  use, rendered by `components/blog/ArticleBody.js` as text.
+  `[texte](/chemin)` or https links only, plus the rich blocks below) into
+  the same blocks the code guides use, rendered by
+  `components/blog/ArticleBody.js` as text.
 - **Linked to the listings**: a post can name a transaction, a commune and a
   type; the article ends with three live listings (`getListings`, public gate)
   and a button to the matching landing page (`postListingsHref`: `seoPath`,
@@ -3961,6 +3966,52 @@ Tests: `tests/unit/blog.test.js`.
 - Every write is audited (`blog.create|update|unpublish|delete`, body length,
   never the text). Delete is soft and frees the slug. Preview at
   `/admin/blog/[id]/apercu` whatever the state or the switch.
+- **Rich blocks, written with Claude (2026-11-10, owner decision: articles are
+  written in Claude, not in a console editor).** The body format gained pipe
+  tables and `:::` directives — `tableau`, `chiffres` (key figures),
+  `graphique` (bars / line; `source=` required), `astuce|attention|info`,
+  `citation`, and two LIVE blocks: `prix` (the price guide's medians via
+  `getPriceGuides`, a commune short of listings is named, never priced) and
+  `annonces` (three public listings). `parseBody` never throws (an unreadable
+  block is `{invalid}`); `bodyProblems` makes Save and the import refuse it
+  with the block's name (`badBlock` + `detail`). Still no HTML path.
+  Rendering: `components/blog/ArticleBody.js` (async; a plain body stays
+  translator-free), `BlogChart.js` (server HTML bars / SVG line, axis from 0,
+  no chart library), `LiveBlocks.js` (`:::prix`), `LiveListings.js` — passed
+  as `listingsBlock` by the public page ONLY, because PropertyCard's client
+  namespaces are not provided under /admin; the preview names the search.
+  Motion: `Reveal.js` arms a below-the-fold block and plays it on scroll
+  (`[data-reveal]` in globals.css: rise, bars grow, line draws), `CountUp.js`
+  counts the first number of a key figure (writes textContent, no state);
+  SSR output is the final content and reduced motion shows it still.
+- **`npm run blog:import -- content/blog/<slug>.md [--write]`**
+  (`scripts/blog-import.mjs`): header between `---` lines (titre, resume,
+  categorie, slug, commune, type, transaction, couverture, couverture_alt,
+  titre_en, resume_en), French body, optional English after
+  `=== english ===`. Dry run by default; new posts are drafts, a re-import
+  updates the text and KEEPS the state (a published post's new text is live —
+  it warns); a local cover is resized and uploaded like the console's. Audited
+  as `script:blog-import`. Source files live in `content/blog/`; the writing
+  rules are the user-level `lukka-blog` skill.
+  `tests/unit/blog-rich-blocks.test.js`.
+- **The 3 + 1 + 1 guide and `:::calculateur` (2026-11-11, owner decision).**
+  `lib/guides.js` now holds ONE code guide, `garantie-3-1-1-kinshasa`,
+  rewritten around Loi n° 15/025 (arts. 3, 5, 10, 17–22, 39, 43, sourced in
+  the text) with an interactive calculator. The three other guides were
+  deleted on the owner's request; `next.config.mjs` 308s their URLs to
+  `/guides` (`REMOVED_GUIDE_SLUGS`), and SeoLandingPage lists the one guide on
+  rental pages only. A code guide may carry an `en` version (title,
+  description, body, optional cta — all or nothing, like a post);
+  `articleFromGuide(guide, locale)` serves it to an English reader.
+  The calculator is a block, `{ calculator: { kind: 'garantie' } }`, also
+  writable in a post as the one-line `:::calculateur` (`CALCULATORS`).
+  Maths in `lib/depositCalc.js` (pure: the three costs stay separate, the
+  first advance month is rent, legal ceiling 3 / first month only / 1);
+  UI `components/blog/DepositCalculator.js` (client, opens on 670 $ 3+1+1);
+  `LiveDepositCalculator` (LiveBlocks.js) resolves `guides.calculator.*` as
+  templates and passes `getCdfRate()` with its own date, so FC amounts are
+  "≈" at the site's reference rate, never an editable or dealing rate.
+  `tests/unit/deposit-guide.test.js`.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
 
@@ -4332,7 +4383,10 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   node:crypto → access token → searchAnalytics + sitemaps, cached 10 min,
   never throws. Env `GSC_SERVICE_ACCOUNT_JSON` (raw JSON or base64),
   `GSC_PROPERTY` (default `sc-domain:lukkaplace.com`). Setup steps are on the
-  page. **Not connected yet, so that half is unverified against Google.**
+  page. **Connected 2026-11-10** (service account
+  `lukka-seo-reader@project-93c8620f-b903-4735-9e2.iam.gserviceaccount.com`,
+  Restricted user; key base64 in the VPS `.env.local`); checked live:
+  queries, positions and the sitemap come back.
 - **Coverage** per commune (≤5 listings = thin, 0 = noindex page) and
   **listing quality** over every public listing (<3 photos, no commune, no
   quartier, description <120 chars, no price, land with bedrooms and no
@@ -4341,6 +4395,34 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   /admin/settings links over the env ones, no WhatsApp, query strings
   stripped). Before, only `NEXT_PUBLIC_*_URL` was read, so the Instagram and
   TikTok links the footer showed never reached Google's Organization data.
+
+## Keyword listing URLs and the homepage's search words (2026-11-10)
+
+First Search Console week: 174 impressions, average position 16; the
+homepage ranked for "luka place" and little else, "maison à louer à
+kinshasa" sat at 58. mediacongo and expat.com own those searches, with the
+words in every listing URL and title.
+
+- **Listing URLs carry words**: `/listings/509-appartement-1-chambre-a-louer-limete`
+  (`lib/listingSlug.js` `listingPath`; kind → rooms → louer/vendre → commune,
+  quartier or city; French whatever the reader's language; a missing fact is
+  left out). The id is the only part read back (`getListingById` parses the
+  leading integer), so `/listings/509`, an old slug and every WhatsApp link
+  open the same page. **No redirect, by choice**: the page declares the slug
+  URL canonical and the sitemap, JSON-LD and public cards (`PropertyCard`,
+  map previews, `RecentlyViewed`, agent profile, landing-page ItemList) link
+  it — a 308 would cost a Kinshasa phone ~330 ms on every old link.
+  Dashboards, admin and messages still build `/listings/<id>`; that is fine.
+- **Analytics unchanged**: `ListingViewTracker` records `/listings/<id>`
+  whatever the address; `listingIdFromPath` and `lib/localePaths.js`
+  (`/en/listings/…`) accept either form, so a slug page is not counted again
+  as a site page. `tests/unit/listing-slug.test.js`.
+- **Homepage**: its own `<title>` / description (`home.seoTitle`,
+  `home.seoDescription`; a title saved on /admin/cms still wins) and a small
+  first line inside the hero `<h1>` (`home.hero.kicker`, "Maisons et
+  appartements à louer et à vendre à Kinshasa et en RDC") above the stacked
+  nouns. The phone hero grew 19.5 → 22.25rem so the "N nouveaux biens" pill
+  stays clear of the search panel. The site-wide default title is unchanged.
 
 ## English pages for search engines — `/en/…` (2026-11-05)
 
@@ -5018,3 +5100,61 @@ docs/claude/whatsapp-delivery.md, "App alerts"). Web side:
   - **Customer logout and account deletion** revoke this phone.
   - `lib/adminApi.js pushToAccount` is how web-side senders push (phase 1
     wires them).
+
+## Customer sign-up funnel and the 1,000-account goal (2026-11-11)
+
+Owner goal: 1,000 customer accounts; the bottleneck is visitors who never
+create one. `/admin/croissance` counted accounts by channel
+(`account_acquisitions`, "Where visitors and accounts come from" above) but
+nothing said which prompt produced an account or where people gave up.
+This replaces the 2026-10-27 "no target" decision on that page.
+
+- **Entry** = where a sign-up started (`lib/signupFunnelRules.js`
+  `SIGNUP_ENTRIES`): favorite / save_search / alert (AuthPromptModal, by its
+  `trigger`), nudge (SignupNudge), messages, updates, login_page,
+  partner_invite (static links), price_guide (reserved), direct (no or
+  unknown entry). It rides to `/compte/inscription` as `?entree=`, then a
+  hidden `entry` field into `signupAction`. A new sign-up link adds
+  `withSignupEntry(href, entry)`; a new entry is added to the rules list,
+  both dictionaries (`admin.growth.signup.entries.*`) and, if it is a prompt,
+  `PROMPT_ENTRIES`.
+- **Steps**: prompt_shown → prompt_open (prompts only) → form_view (page
+  load, `CustomerSignupTracker`) → form_start (first character typed — the
+  name field is autoFocused, so focus means nothing) → submit → refused (with
+  the reason) | created (with the customer id). Browsers report the first
+  five through `POST /api/telemetry/signup-funnel` (`form: 'customer'`,
+  `sanitizeCustomerSignupEvent`); refused/created come from `signupAction`
+  only (`recordSignupOutcome`), so a browser cannot fake an account.
+- **Table** `customer_signup_events` (engine
+  `migrations/20261111_customer_signup_funnel.sql`, RLS on, verify §105).
+  Recording never throws and is silent before the migration; the funnel
+  section then says tracking has not started. Team browsers (`lp_staff`,
+  impersonation) are stored as `staff` and left out.
+- **Dashboard**: `/admin/croissance` opens on the goal (all customer rows,
+  today, this Kinshasa week, pace over 14 days, an estimate labelled as one,
+  none without a pace) and shows the funnel by entry (distinct visitors per
+  step, accounts and refusals as counts) plus refusals by reason, and the
+  accounts of the window with no recorded entry (before tracking, or by
+  WhatsApp). `/admin/dashboard` carries a one-line goal banner for roles with
+  `partners.view`. `CUSTOMER_SIGNUP_GOAL` (1000) is the one place the target lives.
+- Tests: `tests/unit/customer-signup-funnel.test.js`.
+
+### Sign-up friction fixes (2026-11-11, owner)
+
+- **Customer passwords: 6 characters** (`lib/passwordRules.js`
+  `CUSTOMER_PASSWORD_MIN`) on sign-up, the WhatsApp activation page and the
+  customer password reset (`verifyAndResetPassword` applies the role's own
+  minimum; the reset page reads it from the attempt's role). Agents keep 8:
+  confirming an agent's number claims its listings. Console accounts keep 12.
+- **An unknown "Code de parrainage" no longer refuses a customer sign-up.**
+  The code is dropped (logged as `[customer-auth] unknown partner code … ignored`)
+  and the account is created; the partner link the browser followed
+  (`lp_ref`) still credits. The funnel's `ref` refusal stays in the
+  vocabulary for older rows. Agent sign-up is unchanged.
+- **`/admin/croissance` cost per account counts every account**, not only
+  verified ones, and the page no longer shows "Numéros vérifiés": customers
+  stopped confirming their number on 2026-11-06, so the figure only fell and
+  the cost per paid account only rose. `verified` stays in
+  `getGrowthDashboard`'s data; referral credits (`lib/referralCredits.js`)
+  still require a confirmed number, an owner pricing decision not changed here.
+- Tests: `tests/unit/customer-signup-friction.test.js`.

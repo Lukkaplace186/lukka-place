@@ -9,6 +9,7 @@ import Price from './Price';
 import { SPEC_ICONS } from './SpecIcons';
 import { listingImages, specItems, typeLabel } from '@/lib/listingView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { listingPath } from '@/lib/listingSlug';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -59,7 +60,7 @@ export default function MapListingPreview({ listing, onClose }) {
 
   if (!listing) return null;
 
-  const href = `/listings/${encodeURIComponent(listing.id)}`;
+  const href = listingPath(listing);
   const images = listingImages(listing);
   const type = typeLabel(listing, t);
   const specs = specItems(listing, t);

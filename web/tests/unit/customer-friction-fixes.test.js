@@ -35,7 +35,9 @@ test('a save (♥, alert) opens sign-up on the account card, not the move questi
 test('a refused sign-up returns what was typed (never the password) instead of an empty form', () => {
   const action = read('app/(site)/compte/inscription/actions.js');
   assert.match(action, /export async function signupAction\(_prevState, formData\)/);
-  for (const code of ['name', 'phone', 'password', 'exists', 'ref']) {
+  // 'ref' left the list on 2026-11-11: an unknown referral code no longer
+  // refuses the account (tests/unit/customer-signup-friction.test.js).
+  for (const code of ['name', 'phone', 'password', 'exists']) {
     assert.match(action, new RegExp(`refuse\\('${code}', formData\\)`), code);
   }
   const typed = action.slice(action.indexOf('function typedValues'), action.indexOf('function refuse'));

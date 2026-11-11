@@ -43,7 +43,7 @@ async function UpdatesStub() {
         <p className="text-[0.9375rem] leading-relaxed text-ink-70">
           {t('updates.saveSearchMeanwhile')}
         </p>
-        <PageAction href="/compte/inscription?next=%2Fcompte%2Fclient%3Ftab%3Dalertes">{t('common.actions.signup')}</PageAction>
+        <PageAction href="/compte/inscription?next=%2Fcompte%2Fclient%3Ftab%3Dalertes&entree=updates">{t('common.actions.signup')}</PageAction>
       </div>
     </PageShell>
   );

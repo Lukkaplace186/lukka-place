@@ -1,0 +1,27 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-11",
+  "note": "Third Facebook paste of 2026-11-11, same rules as facebook-2026-11-09.json. Left out: Junior Juliana Nsapu Lindanda's Limete flat (already fb-2026-11-11b-05), Heaven Agence Immo's flat (kept off the list at the owner's request, 2026-11-03). Joel Nzaki's Sans Fil house is now 150$ (160$ in fb-2026-11-09-04): the price differs, so both are kept. The UPN building post has no author line: its number is filed without a name. Sylvia Nsamba's two Beau-Vent flats and Heritier Limbaya's two Ndjili flats are one row each. Beau-Vent, Bon Marche and Ndjili Q1/Q2 are not resolved as quartiers here: commune only.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-11c-01", "maison", 150, 1, "Mont-Ngafula", "Sans Fil", 0, "0808979280", "Joel Nzaki Nzaki", null, "rent"],
+    ["fb-2026-11-11c-02", "studio", 120, null, "Bandalungwa", null, 0, "+243 835085369", "Dan Muyabi", null, "rent"],
+    ["fb-2026-11-11c-03", "appartement", 500, 2, "Mont-Ngafula", null, 10, "+243896967778", null, "Immo Rasold", "rent"],
+    ["fb-2026-11-11c-04", "appartement", 400, 1, "Kinshasa", null, 1, "0812355777", "Christ Dominique", null, "rent"],
+    ["fb-2026-11-11c-05", "immeuble", 135000, null, "Ngaliema", "UPN", 0, "+243985677959", null, null, "sale"],
+    ["fb-2026-11-11c-06", "maison", 350000, null, "Bandalungwa", "Adoula", 0, "+243856405435", "Anicet Mpoyi", null, "sale"],
+    ["fb-2026-11-11c-07", "appartement", 1200, 3, "Limete", "Industriel", 0, "0961499012", "Jose Mambembe Ligza RT", "Chez Papa Social", "rent"],
+    ["fb-2026-11-11c-08", "maison", 35000, 2, "Selembao", null, 11, "0864232289", null, "Agence immobilière LK tout KIN", "sale"],
+    ["fb-2026-11-11c-09", "maison", 25000, null, "Nsele", "Badara", 0, "(+243) 891191405", "Bolamu Zoba", "Bolamu Zoba Immo", "sale"],
+    ["fb-2026-11-11c-10", "appartement", 2000, 2, "Lingwala", null, 5, "+243893160242", "Sylvia Nsamba", null, "rent"],
+    ["fb-2026-11-11c-11", "appartement", 2500, 3, "Lingwala", null, 5, "+243893160242", "Sylvia Nsamba", null, "rent"],
+    ["fb-2026-11-11c-12", "villa", 750000, 3, "Barumbu", null, 0, "0909999627", "Muana Elaka", null, "sale"],
+    ["fb-2026-11-11c-13", "appartement", 450, 2, "Ngaliema", null, 8, "(+243)899161536", "Junior Kabita Munongo", null, "rent"],
+    ["fb-2026-11-11c-14", "appartement", 300, 2, "Ndjili", null, 4, "+243813200339", "Héritier Limbaya", null, "rent"],
+    ["fb-2026-11-11c-15", "appartement", 400, 3, "Ndjili", null, 4, "+243813200339", "Héritier Limbaya", null, "rent"],
+    ["fb-2026-11-11c-16", "appartement", 280, 1, "Limete", "Industriel", 2, "0850606928", null, "Immo Net", "rent"],
+    ["fb-2026-11-11c-17", "appartement", 700, 3, "Limete", "Funa", 8, "+243 971422930", "Nsenzedi Ton Sky", null, "rent"],
+    ["fb-2026-11-11c-18", "maison", 50000, 3, "Mont-Ngafula", null, 0, "0897888211", "Âchoû van Kiangebeni", null, "sale"],
+    ["fb-2026-11-11c-19", "appartement", 500, 1, "Ngaliema", "GB", 0, "0815 095 741", null, "agence immobilière dm", "rent"]
+  ]
+}

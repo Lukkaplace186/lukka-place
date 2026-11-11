@@ -1,6 +1,11 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
+
+// The store app's bottom sheet, in its own chunk with the motion package: the
+// website's results page never downloads it.
+const AppFilterSheet = dynamic(() => import('./app/AppFilterSheet'), { ssr: false });
 import { PillOption } from './FilterPill';
 import AdvancedFilterFields from './AdvancedFilterFields';
 import { useT } from '@/lib/i18n/client';
@@ -73,6 +78,8 @@ export default function FilterModal({
   resultCountLabel,
   resultPending,
   showLeaseTerm = true,
+  // The store app's bottom sheet (see below); the website keeps the full-screen one.
+  app = false,
 }) {
   const t = useT();
   const {
@@ -108,27 +115,10 @@ export default function FilterModal({
     setPlotMax?.('');
   }
 
-  return (
-    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent
-        side="bottom"
-        // The base SheetContent primitive (components/ui/sheet.jsx) ships
-        // `data-[side=bottom]:h-auto` unconditionally. That's an
-        // attribute-selector rule ([data-side=bottom].h-auto), which beats a
-        // plain `h-[100dvh]` utility on CSS specificity regardless of source
-        // order — confirmed live: the sheet rendered at height:1487px with
-        // its top edge at y:-526px, permanently off-screen, which is exactly
-        // the "header and top filters missing" bug. Scoping the override
-        // under the same `data-[side=bottom]:` modifier matches it on
-        // specificity and lets tailwind-merge dedupe the conflicting rule,
-        // so this sheet actually gets the full-height it asks for.
-        className="flex flex-col gap-0 rounded-t-none border-line bg-surface p-0 data-[side=bottom]:h-[100dvh] sm:data-[side=bottom]:h-[92vh] sm:rounded-t-xl lg:hidden"
-      >
-        <SheetHeader className="border-b border-line">
-          <SheetTitle className="font-bold text-xl tracking-[-0.01em]">{t('listings.filters.title')}</SheetTitle>
-        </SheetHeader>
-
-        <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">
+  // The fields, shared by the website's full-screen sheet and the app's
+  // bottom sheet below, so the two can never offer different filters.
+  const fields = (
+        <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">
           {showLeaseTerm ? (
             <Section label={t('listings.leaseTerm.label')}>
               <div className="flex flex-wrap gap-2">
@@ -257,6 +247,48 @@ export default function FilterModal({
             includeBedsBaths={false}
           />
         </div>
+  );
+
+  const applyLabel = resultCountLabel || t('listings.filters.viewResultsGeneric');
+
+  // Inside the store app (lib/appModeRules.js): the app design's "Filters"
+  // sheet (components/app/AppFilterSheet.js), same fields, same count.
+  if (app) {
+    return (
+      <AppFilterSheet
+        open={open}
+        onClose={onClose}
+        onApply={onApply}
+        onReset={reset}
+        applyLabel={applyLabel}
+        resultPending={resultPending}
+      >
+        {fields}
+      </AppFilterSheet>
+    );
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
+      <SheetContent
+        side="bottom"
+        // The base SheetContent primitive (components/ui/sheet.jsx) ships
+        // `data-[side=bottom]:h-auto` unconditionally. That's an
+        // attribute-selector rule ([data-side=bottom].h-auto), which beats a
+        // plain `h-[100dvh]` utility on CSS specificity regardless of source
+        // order — confirmed live: the sheet rendered at height:1487px with
+        // its top edge at y:-526px, permanently off-screen, which is exactly
+        // the "header and top filters missing" bug. Scoping the override
+        // under the same `data-[side=bottom]:` modifier matches it on
+        // specificity and lets tailwind-merge dedupe the conflicting rule,
+        // so this sheet actually gets the full-height it asks for.
+        className="flex flex-col gap-0 rounded-t-none border-line bg-surface p-0 data-[side=bottom]:h-[100dvh] sm:data-[side=bottom]:h-[92vh] sm:rounded-t-xl lg:hidden"
+      >
+        <SheetHeader className="border-b border-line">
+          <SheetTitle className="font-bold text-xl tracking-[-0.01em]">{t('listings.filters.title')}</SheetTitle>
+        </SheetHeader>
+
+        {fields}
 
         <div className="flex shrink-0 items-center gap-3 border-t border-line bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <button
@@ -274,7 +306,7 @@ export default function FilterModal({
             }}
             className={`u-press flex-1 rounded-full bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary ${resultPending ? 'opacity-70' : ''}`}
           >
-            {resultCountLabel || t('listings.filters.viewResultsGeneric')}
+            {applyLabel}
           </button>
         </div>
       </SheetContent>

@@ -9166,6 +9166,9 @@
       "doneTitle": "Visit Requested",
       "myVisits": "See my visits",
       "backToListing": "Back to the listing"
+    },
+    "filters": {
+      "reset": "Reset"
     }
   }
 }

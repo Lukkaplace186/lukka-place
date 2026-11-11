@@ -181,3 +181,24 @@ test('booking in the app: the same calendar and action, answered back on its own
     assert.match(visit.continueWith, /\{slot\}/, lang);
   }
 });
+
+test('filters in the app: the design bottom sheet around the same fields and count', () => {
+  const modal = read('components/FilterModal.js');
+  // One set of fields for both sheets, so the app never offers different filters.
+  assert.match(modal, /const fields = \(/);
+  assert.equal((modal.match(/\{fields\}/g) || []).length, 2, 'both sheets render the shared fields');
+  assert.match(modal, /if \(app\) \{\s*return \(\s*<AppFilterSheet/);
+  // The app sheet (and motion) load only in app mode: the website never downloads them.
+  assert.match(modal, /const AppFilterSheet = dynamic\(\(\) => import\('\.\/app\/AppFilterSheet'\), \{ ssr: false \}\)/);
+  assert.doesNotMatch(modal, /from 'motion\/react'/);
+  // The website keeps its full-height sheet (the h-auto specificity fix).
+  assert.match(modal, /data-\[side=bottom\]:h-\[100dvh\]/);
+  const sheet = read('components/app/AppFilterSheet.js');
+  assert.match(sheet, /dragListener=\{false\}/, 'only the handle starts a drag, the fields scroll');
+  assert.match(sheet, /onPointerDown=\{\(event\) => dragControls\.start\(event\)\}/);
+  assert.match(sheet, /info\.offset\.y > 110 \|\| info\.velocity\.y > 600/);
+  assert.match(sheet, /max-h-\[88dvh\]/);
+  assert.match(read('components/FilterBar.js'), /app=\{appMode\}/);
+  assert.match(read('app/(site)/listings/(search)/(results)/page.js'), /cities=\{publicCities\}\s*appMode=\{app\}/);
+  for (const lang of ['fr', 'en']) assert.equal(typeof JSON.parse(read(`lib/i18n/${lang}.json`)).appShell.filters.reset, 'string');
+});

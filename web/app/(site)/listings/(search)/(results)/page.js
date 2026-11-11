@@ -233,6 +233,7 @@ export default async function ListingsPage({ searchParams }) {
           initialTotal={total}
           priceCeiling={maxPrice}
           cities={publicCities}
+          appMode={app}
           defaults={{
             ville: filters.ville,
             searchCity,

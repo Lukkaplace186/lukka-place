@@ -20,6 +20,13 @@ function clip(text, max) {
 }
 
 /** −17 %, from the two real prices. */
+/** A template variable: one line (Meta refuses a newline), never empty, ≤ 120 chars. */
+function oneLine(text) {
+  const value = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!value) return '—';
+  return value.length > 120 ? `${value.slice(0, 119)}…` : value;
+}
+
 export function dropPercent(from, to) {
   const a = Number(from);
   const b = Number(to);
@@ -83,6 +90,18 @@ export async function runFavoritePriceDropSweep({ siteUrl, deps }) {
         // For the app (cron route: pushed when the customer has it, else WhatsApp).
         customerId: Number(customerId),
         whatsappOptedOut,
+        // For a customer outside their 24 h window (2026-11-11): the approved
+        // baisse_prix_client — first name, the newest cut's listing, old and
+        // new price; link button = that listing. The text covers the rest.
+        template: {
+          bodyParams: [
+            oneLine(String(first.customer_name || '').trim().split(/\s+/)[0] || 'cher client'),
+            oneLine(first.title || `Annonce n° ${first.property_id}`),
+            oneLine(formatPrice(first.price_drop_from, first.purpose, first.price_period)),
+            oneLine(formatPrice(first.price, first.purpose, first.price_period)),
+          ],
+          urlButton: String(first.property_id),
+        },
         push: {
           title: batch.length > 1 ? `${batch.length} biens enregistrés baissent de prix` : 'Un bien enregistré baisse de prix',
           body: `${clip(first.title || `Annonce n° ${first.property_id}`, 90)} : ${formatPrice(first.price_drop_from, first.purpose, first.price_period)} → ${formatPrice(first.price, first.purpose, first.price_period)}`,

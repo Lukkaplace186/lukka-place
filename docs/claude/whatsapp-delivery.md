@@ -543,3 +543,38 @@ app-only for discovery alerts. Only customers with the app are read.
 `alertTarget` allow `/projets`, `/combien-coute` and `/agents`.
 
 verify-pipeline §104; web `tests/unit/push-notifications.test.js`.
+
+## Templates approved 2026-11-11 — all switched on
+
+Owner submitted the gap-analysis set (2026-11-09) plus `agent_lead_claim` and
+`point_annonces_agent`; all approved. Each was test-sent to the desk the same
+day (`template-probe`, accepted by Chakra): **every one carries the picture
+header except `bon_de_visite_client`**, so they are all in
+`TEMPLATES_WITH_IMAGE` (viewing lifecycle ones in `VIEWING_TEMPLATES_WITH_IMAGE`).
+Every sender is "text inside the 24 h window, template outside it" unless noted;
+the shared helper is `services/templateOutsideWindow.js`
+(`sendTemplateOutsideWindow`: env name read at call time, one-line non-empty
+variables, never throws).
+
+| Template | Env (engine unless noted) | Variables · buttons | Sender |
+|---|---|---|---|
+| `demande_visite_agent_v3` | `VIEWING_REQUEST_TEMPLATE` + `VIEWING_TEMPLATES_WITH_BUTTONS` | agent, client, listing, slot · Accepter / Autre créneau / Décliner | viewing alert (template first) |
+| `visite_proposition_client_v2` | `VIEWING_PROPOSAL_TEMPLATE` + `…WITH_BUTTONS` | listing, new slot · Ce créneau me va / Il ne me convient pas | agent's new time |
+| `nouveau_message_agent` / `_client` | `CHAT_AGENT_TEMPLATE` / `CHAT_CUSTOMER_TEMPLATE` | 4 · link = thread id | `chatNotify` |
+| `bon_de_visite_client` | `VISIT_RECEIPT_TEMPLATE` | listing, date, agent · none, **no header** | `visitReceipt.sendReceipt` (template first) |
+| `avis_visite_client` | `VISIT_FEEDBACK_TEMPLATE` | first name, listing · Bien passée / Pas convaincu / Agent absent | check-in |
+| `annonce_en_ligne_v2` | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict |
+| `suivi_demande_client` | `SUIVI_DEMANDE_TEMPLATE` | **first name, request** (was sent with one — fixed) · 3 quick replies | `requestFollowup` |
+| `client_vous_contacte_agent` | `CONTACT_TAP_TEMPLATE` | agent, Appeler/WhatsApp, listing · 2 quick replies | `contactTapAlert` |
+| `contact_client_verif_agent` | `VIEWING_CONTACT_CHECK_TEMPLATE` | agent, client, listing · 3 quick replies | `askAgentContactCheck` |
+| `visite_mise_a_jour_agent` | `VIEWING_AGENT_UPDATE_TEMPLATE` | agent, listing, what happened, slot · static link | `tellAgentVisitUpdate`: customer accepted / refused a time / cancelled, desk confirmed |
+| `visite_effectuee_agent` | `VISIT_DONE_TEMPLATE` | agent, listing, client, when · Oui / Non | `runVisitDoneSweep` |
+| `biens_similaires_client` | `VIEWING_ALTERNATIVES_TEMPLATE` | first name, listing, what happened · link `listings?commune=…` | SLA and decline, only when there ARE alternatives |
+| `baisse_prix_client` | web `PRICE_DROP_TEMPLATE` | first name, listing, old, new · link `/listings/{{1}}` | web cron, via engine `/send-whatsapp-template` `only_outside_window` |
+| `alerte_nouveaux_biens` | web `SEARCH_ALERT_TEMPLATE` | label, count, first, link | web cron (template first) |
+| `agent_lead_claim` | `AGENT_LEAD_CLAIM_TEMPLATE` | 5 · Je m'en occupe / Pas dispo | `leadDispatch` |
+| `point_annonces_agent` | `LISTING_STATUS_TEMPLATE` | name, what · link + Rien n'a changé | `agentStatusCheck` (paused with `AVAILABILITY_CHECK=off`) |
+
+`/admin/send-whatsapp-template` now also takes `url_button` and
+`only_outside_window` (answers `sent: false, reason: 'inside-window'`).
+§106 of verify-pipeline; web `tests/unit/price-drop-template.test.js`.

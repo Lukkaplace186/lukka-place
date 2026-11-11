@@ -469,7 +469,11 @@ export async function sendWhatsAppMessage(phone, message) {
  *   code in their copy-code button as well as the body.
  * @returns {Promise<{success: true}>}
  */
-export async function sendWhatsAppTemplate(phone, { template, languageCode, bodyParams, otpCode } = {}) {
+export async function sendWhatsAppTemplate(phone, {
+  template, languageCode, bodyParams, otpCode, urlButton, onlyOutsideWindow,
+} = {}) {
+  // `onlyOutsideWindow`: the engine sends nothing (sent: false) when the
+  // recipient wrote to us in the last 24 h — the caller then sends its text.
   return engineFetch('/admin/send-whatsapp-template', {
     method: 'POST',
     body: JSON.stringify({
@@ -478,6 +482,8 @@ export async function sendWhatsAppTemplate(phone, { template, languageCode, body
       language_code: languageCode,
       body_params: bodyParams,
       otp_code: otpCode,
+      ...(urlButton != null ? { url_button: String(urlButton) } : {}),
+      ...(onlyOutsideWindow ? { only_outside_window: true } : {}),
     }),
   });
 }

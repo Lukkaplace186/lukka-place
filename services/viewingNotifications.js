@@ -41,6 +41,7 @@ const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
 const propertyMatchingService = require('./propertyMatching');
 const { parseFrenchSlot, formatSlotFr, resolveScheduledAtInput } = require('./visitSchedule');
+const { sendTemplateOutsideWindow, firstName: templateFirstName } = require('./templateOutsideWindow');
 const { utcOffsetForCommune } = require('./cities');
 
 /**
@@ -1372,6 +1373,25 @@ async function sendCustomerVisitFallback(data = {}) {
  * The text fallback asks for the same answer in words, which every handler
  * downstream already accepts — so the loop closes either way.
  */
+/**
+ * A visit update the AGENT must hear (customer accepted / refused / cancelled,
+ * the team confirmed). Outside their 24 h window: VIEWING_AGENT_UPDATE_TEMPLATE
+ * (`visite_mise_a_jour_agent`: agent, listing, what happened, the slot; static
+ * "Mes visites" link). Otherwise, or when it cannot go, the usual text.
+ * Never throws; returns whether something was accepted for sending.
+ */
+async function tellAgentVisitUpdate({ phone, listing, propertyId, update, slot, text, label }) {
+  const to = String(phone || '').replace(/\D/g, '');
+  if (!to) return false;
+  if (await sendTemplateOutsideWindow({
+    to,
+    envName: 'VIEWING_AGENT_UPDATE_TEMPLATE',
+    bodyParams: [templateFirstName(listing?.agent_name, 'cher partenaire'), listingLabel(listing, propertyId), update, slot || 'à convenir'],
+    label,
+  })) return true;
+  return trySend(to, text, label);
+}
+
 async function sendWithButtons(phone, text, buttons, label) {
   if (!phone) return false;
   const to = String(phone).replace(/\D/g, '');
@@ -1641,6 +1661,25 @@ async function handleDecline({ request, listing, propertyId, from }) {
  * WhatsApp assistant uses — same commune, same transaction type, priced around
  * what they were already looking at, and never the listing just declined.
  */
+/**
+ * Similar homes for a customer OUTSIDE their 24 h window, where a list sent as
+ * text never arrives: VIEWING_ALTERNATIVES_TEMPLATE (`biens_similaires_client`:
+ * first name, the listing, what happened; dynamic link to the search in the
+ * same commune). Returns false inside the window or when it cannot go — the
+ * caller then sends its usual list. Only call it when there ARE alternatives:
+ * the template says "nous avons sélectionné pour vous des biens similaires".
+ */
+async function sendSimilarHomesTemplate({ request, listing, propertyId, news, label }) {
+  const commune = listing?.commune ? String(listing.commune) : '';
+  return sendTemplateOutsideWindow({
+    to: request?.lead_wa_id,
+    envName: 'VIEWING_ALTERNATIVES_TEMPLATE',
+    bodyParams: [templateFirstName(request?.lead_name, 'cher client'), listingLabel(listing, propertyId), news],
+    urlButton: commune ? `listings?commune=${encodeURIComponent(commune)}` : 'listings',
+    label,
+  });
+}
+
 async function sendAlternativesToTenant({ request, listing, propertyId }) {
   let alternatives = [];
   try {
@@ -1661,8 +1700,12 @@ async function sendAlternativesToTenant({ request, listing, propertyId }) {
   const alternativesMessage = tenantAlternativesText(alternatives);
   const declineWhatsApp = async () => {
     const viaTemplate = await sendLifecycleTemplate(request.lead_wa_id, declineTemplate, 'decline notice');
+    // The list itself is a session text; outside the customer's window the
+    // similar-homes template (link to the search) is what arrives instead.
     const listed = !viaTemplate || alternatives.length
-      ? await trySend(request.lead_wa_id, alternativesMessage, 'decline alternatives')
+      ? (alternatives.length > 0 && await sendSimilarHomesTemplate({
+        request, listing, propertyId, news: 'ce bien n\'est plus disponible pour une visite', label: `decline alternatives #${request.id}`,
+      })) || await trySend(request.lead_wa_id, alternativesMessage, 'decline alternatives')
       : false;
     return viaTemplate || listed;
   };
@@ -1915,9 +1958,16 @@ async function answerProposalFromCustomer({ viewingRequestId, waId, accept }) {
   let agentNotified = false;
   if (agentPhone) {
     dbService.setPendingAgentAction({ waId: agentPhone, kind: PENDING_KINDS.reschedule, viewingRequestId: request.id });
-    agentNotified = await trySend(
-      agentPhone,
-      [
+    // Outside the window the template says "proposez-en un autre … ou
+    // répondez à ce message": the agent's reply opens the window and the
+    // RESCHEDULE_TIME claim set just above reads it as the new time.
+    agentNotified = await tellAgentVisitUpdate({
+      phone: agentPhone,
+      listing,
+      propertyId,
+      update: 'le client ne peut pas à ce créneau, proposez-en un autre',
+      slot: request.requested_time,
+      text: [
         `${HEADER_BRAND} Le client ne peut pas à ce créneau`,
         `📍 ${listingLabel(listing, propertyId)}`,
         `👤 ${request.lead_name || 'Client'}`,
@@ -1925,8 +1975,8 @@ async function answerProposalFromCustomer({ viewingRequestId, waId, accept }) {
         '',
         "Quel autre créneau proposez-vous ? Répondez avec la date et l'heure (ex. _samedi 14h_) et nous le transmettons au client.",
       ].join('\n'),
-      'proposal refused agent ask',
-    );
+      label: 'proposal refused agent ask',
+    });
   }
   await trySend(
     sender,
@@ -2036,9 +2086,13 @@ async function confirmFromDesk({ viewingRequestId, scheduledAt, now = new Date()
 
   const agentPhone = String(listing?.agent_phone || '').replace(/\D/g, '');
   const agentNotified = agentPhone
-    ? await trySend(
-      agentPhone,
-      [
+    ? await tellAgentVisitUpdate({
+      phone: agentPhone,
+      listing,
+      propertyId,
+      update: "l'équipe Lukka Place a confirmé la visite avec le client",
+      slot: formatSlotFr(agreedAt, visitClock(request, listing)) || agreedAt,
+      text: [
         `${HEADER_BRAND} Visite confirmée par l'équipe ✅`,
         `📍 ${listingLabel(listing, propertyId)}`,
         `👤 ${request.lead_name || 'Client'}`,
@@ -2047,8 +2101,8 @@ async function confirmFromDesk({ viewingRequestId, scheduledAt, now = new Date()
         'Le client vient d\'être prévenu sur WhatsApp.',
         schedulerLink(),
       ].join('\n'),
-      'desk confirmation agent copy',
-    )
+      label: 'desk confirmation agent copy',
+    })
     : false;
 
   console.log(
@@ -2318,7 +2372,15 @@ async function respondFromCustomer({ viewingRequestId, waId, action, via = 'the 
   // getListingContactById only returns a number for a phone-verified agent
   // (see its doc comment), so an unverified claim is never messaged.
   const agentPhone = listing?.phone_verified_at ? listing.agent_phone : null;
-  const agentNotified = await trySend(agentPhone, agentText, `customer ${action.toLowerCase()} agent copy`);
+  const agentNotified = await tellAgentVisitUpdate({
+    phone: agentPhone,
+    listing,
+    propertyId,
+    update: action === 'CANCEL' ? 'le client a annulé la visite' : 'le client accepte votre créneau',
+    slot: request.requested_time,
+    text: agentText,
+    label: `customer ${action.toLowerCase()} agent copy`,
+  });
   await notifyOps(
     opsCustomerAnswerText({ listing, viewingRequest: request, propertyId, action, agentNotified }),
     `customer ${action.toLowerCase()} ops copy`,
@@ -2358,6 +2420,19 @@ async function askAgentContactCheck(viewingRequestId) {
     if (listing.direct_routing_enabled === false) return { sent: false, reason: 'routing-off' };
 
     const to = String(listing.agent_phone).replace(/\D/g, '');
+    // Outside the agent's 24 h window (they got the template alert and never
+    // wrote back): VIEWING_CONTACT_CHECK_TEMPLATE (`contact_client_verif_agent`:
+    // agent, customer, listing; quick replies Oui, sur WhatsApp / Oui, par
+    // appel / Pas encore = contactCheckButtons, same order).
+    if (await sendTemplateOutsideWindow({
+      to,
+      envName: 'VIEWING_CONTACT_CHECK_TEMPLATE',
+      bodyParams: [templateFirstName(listing.agent_name, 'cher partenaire'), request.lead_name || 'Un client', listingLabel(listing, propertyId)],
+      buttons: contactCheckButtons(request.id),
+      label: `contact check #${request.id}`,
+    })) {
+      return { sent: true, channel: 'template' };
+    }
     try {
       await chakra.sendInteractiveButtons(to, contactCheckText({ listing, request, propertyId }), contactCheckButtons(request.id));
       return { sent: true, channel: 'buttons' };
@@ -2826,6 +2901,8 @@ module.exports = {
   sendViewingAlertWhatsApp,
   sendViewingAlertFallback,
   tellCustomer,
+  sendSimilarHomesTemplate,
+  tellAgentVisitUpdate,
   sendCustomerVisitFallback,
   pushBodyFrom,
   notifyViewingRequestInBackground,

@@ -39,6 +39,7 @@ const propertyRepository = require('./propertyRepository');
 const { formatSlotFr } = require('./visitSchedule');
 const { utcOffsetForCommune } = require('./cities');
 const viewing = require('./viewingNotifications');
+const { sendTemplateOutsideWindow, firstName } = require('./templateOutsideWindow');
 
 const DONE_PREFIX = 'visit_done';
 const NOT_DONE_PREFIX = 'visit_notdone';
@@ -294,7 +295,22 @@ async function runVisitDoneSweep(now = new Date()) {
       continue;
     }
     const agentWa = String(listing.agent_phone).replace(/\D/g, '');
-    const ok = await viewing.sendWithButtons(agentWa, askText(listing, request), visitDoneButtons(request.id), 'visit done ask');
+    // Outside the agent's 24 h window: VISIT_DONE_TEMPLATE
+    // (`visite_effectuee_agent`: agent, listing, customer, when; quick replies
+    // « Oui, elle a eu lieu » / « Non, pas eu lieu » = visitDoneButtons, same order).
+    const when = formatSlotFr(request.scheduled_at, { utcOffset: utcOffsetForCommune(request.commune || listing?.commune || null) }) || 'à l\'heure convenue';
+    const ok = (await sendTemplateOutsideWindow({
+      to: agentWa,
+      envName: 'VISIT_DONE_TEMPLATE',
+      bodyParams: [
+        firstName(listing.agent_name, 'cher partenaire'),
+        listingName(listing, request.property_id),
+        request.lead_name || viewing.displayPhone(request.lead_wa_id),
+        when,
+      ],
+      buttons: visitDoneButtons(request.id),
+      label: `visit done ask #${request.id}`,
+    })) || (await viewing.sendWithButtons(agentWa, askText(listing, request), visitDoneButtons(request.id), 'visit done ask'));
     // A typed OUI / NON resolves only when this is the number's one open
     // question; never displace a question the agent still owes.
     if (ok && !dbService.hasOpenAgentQuestion(agentWa)) {

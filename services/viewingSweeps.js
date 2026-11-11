@@ -304,7 +304,15 @@ async function runSlaSweep(now = new Date()) {
         : "L'agent n'a pas encore répondu à votre demande de visite. Notre équipe s'en occupe.",
       expectStatus: 'PENDING',
       fallback: { text: slaText, label: `sla alternatives #${request.id}` },
-      whatsapp: () => trySendCustomer(request.lead_wa_id, slaText, null, `sla alternatives #${request.id}`),
+      // Outside the customer's window the list never arrives as text: the
+      // similar-homes template (when there are any) is what reaches them.
+      whatsapp: async () => (alternatives.length > 0 && await viewingNotifications.sendSimilarHomesTemplate({
+        request,
+        listing,
+        propertyId: request.property_id,
+        news: "l'agent ne l'a pas encore confirmée, nous le relançons",
+        label: `sla alternatives #${request.id}`,
+      })) || trySendCustomer(request.lead_wa_id, slaText, null, `sla alternatives #${request.id}`),
     });
 
     await viewingNotifications.notifyOps(

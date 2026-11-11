@@ -145,7 +145,22 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, now = new 
 
     const chakra = require('./chakra');
     let channel = null;
-    try {
+    // Outside the agent's 24 h window: CONTACT_TAP_TEMPLATE
+    // (`client_vous_contacte_agent`: agent, which button, listing; quick
+    // replies « Oui, on s'est parlé » / « Non, rien reçu » = the same payloads).
+    // eslint-disable-next-line global-require
+    const { sendTemplateOutsideWindow, firstName } = require('./templateOutsideWindow');
+    if (await sendTemplateOutsideWindow({
+      to,
+      envName: 'CONTACT_TAP_TEMPLATE',
+      bodyParams: [firstName(listing.agent_name, 'cher partenaire'), kind === 'call' ? 'Appeler' : 'WhatsApp', listingLabel(listing, id)],
+      buttons: buttons(alertId, kind),
+      label: `contact tap #${alertId}`,
+      now,
+    })) {
+      channel = 'template';
+    }
+    if (!channel) try {
       await chakra.sendInteractiveButtons(to, alertText({ listing, propertyId: id, kind }), buttons(alertId, kind));
       channel = 'buttons';
     } catch (err) {

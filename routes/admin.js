@@ -2306,6 +2306,11 @@ router.post('/send-whatsapp-template', async (req, res) => {
     language_code: languageCode,
     body_params: bodyParams,
     otp_code: otpCode,
+    // 2026-11-11: a dynamic link button's value, and "only when the
+    // recipient is outside their 24 h window" (web's price-drop alert sends
+    // its text inside the window and the template only outside it).
+    url_button: urlButton,
+    only_outside_window: onlyOutsideWindow,
   } = req.body || {};
 
   if (!phone || !/^\d{7,15}$/.test(String(phone))) {
@@ -2317,12 +2322,19 @@ router.post('/send-whatsapp-template', async (req, res) => {
   if (bodyParams !== undefined && !Array.isArray(bodyParams)) {
     return res.status(400).json({ success: false, error: 'body_params must be an array.' });
   }
+  if (onlyOutsideWindow === true) {
+    // eslint-disable-next-line global-require
+    if (require('../services/sessionWindow').insideSessionWindow(String(phone))) {
+      return res.json({ success: true, sent: false, reason: 'inside-window' });
+    }
+  }
 
   try {
     const result = await chakra.sendTemplate(phone, template, {
       languageCode: languageCode || 'fr',
       bodyParams: bodyParams || [],
       otpCode: otpCode || undefined,
+      ...(urlButton != null && urlButton !== '' ? { urlButton: String(urlButton) } : {}),
     });
     console.log(
       `[admin] send-whatsapp-template '${template}' to ${phone} accepted by Meta: ${JSON.stringify({
@@ -2330,7 +2342,7 @@ router.post('/send-whatsapp-template', async (req, res) => {
         messageStatus: result?.messages?.[0]?.message_status ?? null,
       })}`,
     );
-    return res.json({ success: true });
+    return res.json({ success: true, sent: true });
   } catch (err) {
     console.error(`[admin] send-whatsapp-template '${template}' to ${phone} failed: ${err.message}`);
     return res.status(502).json({ success: false, error: `WhatsApp template send failed: ${err.message}` });

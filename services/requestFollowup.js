@@ -136,7 +136,10 @@ async function sendWhatsAppQuestion(lead, now) {
     try {
       await chakra.sendTemplate(to, name, {
         languageCode: String(process.env.SUIVI_DEMANDE_TEMPLATE_LANG || 'fr'),
-        bodyParams: [subjectOf(lead)],
+        // The approved suivi_demande_client has TWO variables (2026-11-11,
+        // checked with a test send): {{1}} first name, {{2}} the request.
+        // One parameter is refused by Meta (#132000).
+        bodyParams: [String(lead.name || '').trim().split(/\s+/)[0] || 'cher client', subjectOf(lead)],
         buttons: ['yes', 'wait', 'stop'].map((code) => ({ id: `suivi:${lead.id}:${code}` })),
       });
       return 'template';

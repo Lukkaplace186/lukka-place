@@ -39,7 +39,7 @@ function cutFavoritesFrom(extraJoins = '') {
  */
 export async function getUnnotifiedFavoritePriceDrops({ limit = 500 } = {}) {
   const { rows } = await getPool().query(
-    `SELECT cf.customer_id, c.phone, p.id AS property_id, pc.title, p.price, p.purpose, p.price_period,
+    `SELECT cf.customer_id, c.phone, c.full_name AS customer_name, p.id AS property_id, pc.title, p.price, p.purpose, p.price_period,
             pd.price_drop_from, pd.price_drop_at,
             -- 2026-11-10: read for the app even when WhatsApp alerts are off; never WhatsApped then.
             (to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at') IS NOT NULL AS whatsapp_opted_out

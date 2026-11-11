@@ -17903,6 +17903,137 @@ console.log('\n2. services/openai.js');
     for (const reason of ['name', 'phone', 'password', 'exists', 'ref']) assert.ok(sql.includes(`'${reason}'`), reason);
   });
 
+  // §106 The templates approved 2026-11-11 reach people outside their 24 h window
+  // ---------------------------------------------------------------------------
+  // Each was test-sent to the desk the same day (all need the picture header
+  // except bon_de_visite_client). Outside the window the template goes; inside
+  // it the usual session message, which says more.
+  console.log('\n§106 outside the 24 h window the approved template goes; inside it the usual message');
+  {
+    const window106 = require('../services/sessionWindow');
+    const { sendTemplateOutsideWindow } = require('../services/templateOutsideWindow');
+    const tap106 = require('../services/contactTapAlert');
+    const receipt106 = require('../services/visitReceipt');
+    const ENV106 = [
+      'CONTACT_TAP_TEMPLATE', 'VIEWING_CONTACT_CHECK_TEMPLATE', 'VIEWING_AGENT_UPDATE_TEMPLATE', 'VISIT_DONE_TEMPLATE',
+      'VIEWING_ALTERNATIVES_TEMPLATE', 'CONTACT_TAP_ALERT', 'OPS_WHATSAPP_NUMBER',
+    ];
+    const saved106 = Object.fromEntries(ENV106.map((k) => [k, process.env[k]]));
+    const repo106 = propertyRepo.getListingContactById;
+    const agentRepo106 = propertyRepo.getAgentContactById;
+    const outside = (wa) => dbService.db.prepare('DELETE FROM whatsapp_last_inbound WHERE wa_id = ?').run(String(wa));
+    const inside = (wa) => window106.recordInbound(String(wa));
+    const templatesTo = (wa, name) => httpCalls.filter((c) => c.data && c.data.type === 'template' && String(c.data.to) === String(wa) && c.data.template?.name === name);
+    try {
+      for (const k of ENV106) delete process.env[k];
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      propertyRepo.getAgentContactById = async () => ({ agent_id: 43, agent_phone: AGENT_WA, phone_verified_at: '2026-09-09', deleted: false, agent_name: 'Kkimmo' });
+
+      httpCalls.length = 0;
+      outside('243990106001');
+      const unset106 = await sendTemplateOutsideWindow({ to: '243990106001', envName: 'VISIT_DONE_TEMPLATE', bodyParams: ['a'], label: 't' });
+      process.env.VISIT_DONE_TEMPLATE = 'visite_effectuee_agent';
+      const out106 = await sendTemplateOutsideWindow({ to: '243990106001', envName: 'VISIT_DONE_TEMPLATE', bodyParams: ['Prince\nImmo', '', 'x'], label: 't' });
+      inside('243990106001');
+      const in106 = await sendTemplateOutsideWindow({ to: '243990106001', envName: 'VISIT_DONE_TEMPLATE', bodyParams: ['a'], label: 't' });
+      check('the helper: nothing when unset or inside the window; outside, one-line non-empty variables', () => {
+        assert.strictEqual(unset106, false);
+        assert.strictEqual(out106, true);
+        assert.strictEqual(in106, false);
+        const sent = templatesTo('243990106001', 'visite_effectuee_agent');
+        assert.strictEqual(sent.length, 1);
+        const params = sent[0].data.template.components.find((c) => c.type === 'body').parameters.map((p) => p.text);
+        assert.deepStrictEqual(params, ['Prince Immo', '—', 'x']);
+      });
+
+      process.env.CONTACT_TAP_TEMPLATE = 'client_vous_contacte_agent';
+      outside(AGENT_WA);
+      httpCalls.length = 0;
+      const tap = await tap106.alertAgentOfTap({ propertyId: 106001, kind: 'call', visitorKey: 'v106' });
+      check('"Un client vous contacte" outside the window: the template, with the answer payloads', () => {
+        assert.strictEqual(tap.channel, 'template');
+        const sent = templatesTo(AGENT_WA, 'client_vous_contacte_agent');
+        assert.strictEqual(sent.length, 1);
+        const json = JSON.stringify(sent[0].data);
+        assert.match(json, /Appeler/);
+        assert.match(json, new RegExp(`contact_tap_replied:${tap.alertId}`));
+      });
+
+      process.env.VIEWING_CONTACT_CHECK_TEMPLATE = 'contact_client_verif_agent';
+      const r106 = freshViewingRequest('jeudi 10h');
+      outside(AGENT_WA);
+      httpCalls.length = 0;
+      const check106 = await viewingNotifications.askAgentContactCheck(r106.id);
+      check('the 2-hour contact check outside the window: the template with the three payloads', () => {
+        assert.strictEqual(check106.channel, 'template');
+        assert.match(JSON.stringify(templatesTo(AGENT_WA, 'contact_client_verif_agent')[0].data), new RegExp(`viewing_contact_wa:${r106.id}`));
+      });
+
+      process.env.VIEWING_AGENT_UPDATE_TEMPLATE = 'visite_mise_a_jour_agent';
+      outside(AGENT_WA);
+      httpCalls.length = 0;
+      await viewingNotifications.tellAgentVisitUpdate({
+        phone: AGENT_WA, listing: ATTRIBUTED_LISTING, propertyId: 303, update: 'le client accepte votre créneau', slot: 'mardi 10h', text: 'TEXTE', label: 't',
+      });
+      const updOut = templatesTo(AGENT_WA, 'visite_mise_a_jour_agent');
+      inside(AGENT_WA);
+      httpCalls.length = 0;
+      await viewingNotifications.tellAgentVisitUpdate({
+        phone: AGENT_WA, listing: ATTRIBUTED_LISTING, propertyId: 303, update: 'x', slot: 'y', text: 'TEXTE', label: 't',
+      });
+      check('a visit update goes as visite_mise_a_jour_agent outside the window, as the text inside it', () => {
+        assert.strictEqual(updOut.length, 1);
+        assert.match(JSON.stringify(updOut[0].data), /le client accepte votre créneau/);
+        assert.strictEqual(templatesTo(AGENT_WA, 'visite_mise_a_jour_agent').length, 0);
+        assert.ok(httpCalls.some((c) => c.data && String(c.data.to) === AGENT_WA && /TEXTE/.test(JSON.stringify(c.data))));
+      });
+
+      process.env.VIEWING_ALTERNATIVES_TEMPLATE = 'biens_similaires_client';
+      outside('243990111222');
+      httpCalls.length = 0;
+      const sim106 = await viewingNotifications.sendSimilarHomesTemplate({
+        request: { lead_wa_id: '243990111222', lead_name: 'Henoc Mimbo' }, listing: ATTRIBUTED_LISTING, propertyId: 303, news: "l'agent ne l'a pas encore confirmée, nous le relançons", label: 't',
+      });
+      check('similar homes outside the window: the template, first name, and a link to the commune\'s search', () => {
+        assert.strictEqual(sim106, true);
+        const json = JSON.stringify(templatesTo('243990111222', 'biens_similaires_client')[0].data);
+        assert.match(json, /Henoc/);
+        assert.match(json, /listings\?commune=Lingwala/);
+      });
+
+      process.env.VISIT_DONE_TEMPLATE = 'visite_effectuee_agent';
+      const d106 = freshViewingRequest('samedi 10h');
+      dbService.updateViewingRequest(d106.id, { status: 'CONFIRMED' });
+      dbService.setViewingScheduledAt(d106.id, new Date(Date.now() - 2 * 3600 * 1000).toISOString());
+      outside(AGENT_WA);
+      dbService.clearPendingAgentAction(AGENT_WA);
+      httpCalls.length = 0;
+      await receipt106.runVisitDoneSweep();
+      check('"la visite a-t-elle eu lieu ?" outside the window: the template with Oui / Non payloads', () => {
+        const json = JSON.stringify(templatesTo(AGENT_WA, 'visite_effectuee_agent').map((c) => c.data));
+        assert.match(json, new RegExp(`visit_done:${d106.id}`));
+      });
+
+      check('the 24 h follow-up sends both variables suivi_demande_client was approved with', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'requestFollowup.js'), 'utf8');
+        assert.match(src, /bodyParams: \[String\(lead\.name \|\| ''\)\.trim\(\)\.split\(\/\\s\+\/\)\[0\] \|\| 'cher client', subjectOf\(lead\)\]/);
+      });
+      check('the template send route takes a link value and "only outside the window" (web price drops)', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(src, /url_button: urlButton/);
+        assert.match(src, /only_outside_window: onlyOutsideWindow/);
+        assert.match(src, /reason: 'inside-window'/);
+      });
+    } finally {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      propertyRepo.getListingContactById = repo106;
+      propertyRepo.getAgentContactById = agentRepo106;
+      for (const k of ENV106) {
+        if (saved106[k] === undefined) delete process.env[k]; else process.env[k] = saved106[k];
+      }
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

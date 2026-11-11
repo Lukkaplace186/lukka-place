@@ -122,3 +122,34 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   more" kept once (a 60,000-character page is mostly that). The box takes
   300,000 raw characters; a row whose price was not read starts unticked for
   the guide.
+
+## Indice Lukka blends market observations (2026-11-11, owner request)
+
+`/indice-lukka` no longer reads `market_snapshots_monthly` (Lukka listings
+only, one month-end reading). It runs web `lib/lukkaIndex.js`: the price
+guide's rules and de-duplication, per commune with the bedroom counts pooled
+(the de-duplication key keeps the bedrooms), recent adverts weighing
+`RECENT_WEIGHT` in the median and p25–p75 but never in the count, minimum
+`MIN_PRICE_SAMPLE` adverts after de-duplication. The snapshots are still
+written by the engine and still read by the admin.
+
+- **One SQL "as of" an instant.** `marketGuide.js`'s observation filter is now
+  `marketRentsSql(asOf)` (`NOW()` for the guide, unchanged text apart from a
+  harmless `posted <= asOf`), so the index and the guide cannot drift. The
+  Lukka side as of D: approved, created and moderated by D, public today or
+  archived / closed after D (a suspended listing with no archive date is left
+  out of past days), priced from `property_price_history` at D, else its
+  current price. Exclusions made later apply to the past.
+- **Month-on-month change** = the same SQL run as of one calendar month
+  earlier, shown only when both days have the minimum sample AND the earlier
+  day is on/after `INDEX_COMPARABLE_FROM` (2026-11-04, when external
+  collection began; before it a past day could only be rebuilt from adverts
+  still online afterwards). So the first change appears on 2026-12-04; until
+  then the page says so.
+- **Public method page** `/indice-lukka/methodologie` (in the sitemap): every
+  number in its copy is interpolated from the rule constants, and its source
+  list is `COLLECTED_SOURCES` / `MANUAL_SOURCES` with today's per-source counts
+  (before de-duplication, never summed). `tests/unit/lukka-index.test.js`.
+- **Not done:** a frozen monthly record of the blended index (a bank quoting
+  "March" needs March to stay put) — that is an engine job + table, like
+  `market-snapshot`.

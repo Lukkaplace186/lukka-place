@@ -60,6 +60,7 @@ export default async function sitemap() {
     ...(priceGuides.length ? ['/combien-coute', ...priceGuides.map((guide) => `/combien-coute/${guide.slug}`)] : []),
     ...collections.map((tile) => `/collections/${tile.slug}`),
     ...(lukkaIndex?.communes?.length ? ['/indice-lukka'] : []),
+    '/indice-lukka/methodologie',
   ];
 
   return withEnglishTwins(base, [

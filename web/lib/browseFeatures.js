@@ -6,6 +6,7 @@ import { VIDEO_COUNT_SQL } from './listingVideos';
 import { communeSlug } from './seoPages';
 import { BLENDED_GUIDES_SQL, queryPriceGuides } from './marketGuide';
 import { ALL_CITIES } from './cities';
+import { getLukkaIndex as queryLukkaIndex } from './lukkaIndex';
 
 /**
  * Things to browse for fun (growth plan items 27–31): the listing of the day,
@@ -226,50 +227,14 @@ export async function getVideoListings({ limit = 30 } = {}) {
 // ---------------------------------------------------------------------------
 
 /**
- * Median asking rent per commune for the latest snapshot month and the one
- * before (market_snapshots_monthly, written once a month by the engine and
- * never rewritten). A commune is listed only when the latest month has
- * MIN_PRICE_SAMPLE asks; a change is only computed when the earlier month had
- * as many too.
+ * The Lukka Index: Lukka Place's listings blended with the asking prices seen
+ * elsewhere, per commune, as of today and one month earlier (lib/lukkaIndex.js
+ * has the rules; the public method is /indice-lukka/methodologie). Replaced
+ * the Lukka-only monthly snapshot reading on 2026-11-11 — the snapshots
+ * (market_snapshots_monthly) are still written and read by the admin.
  */
-export const LUKKA_INDEX_SQL = `
-  WITH months AS (
-    SELECT DISTINCT month FROM market_snapshots_monthly
-     WHERE purpose = 'rent' AND category_id = -1 AND beds_bucket = 'all'
-     ORDER BY month DESC LIMIT 2
-  )
-  SELECT to_char(s.month, 'YYYY-MM-DD') AS month, s.commune, s.median_ask::float AS median, s.ask_sample, s.active_count
-    FROM market_snapshots_monthly s
-    JOIN months m ON m.month = s.month
-   WHERE s.purpose = 'rent' AND s.category_id = -1 AND s.beds_bucket = 'all'
-`;
-
-export async function getLukkaIndex() {
-  try {
-    const { rows } = await getPool().query(LUKKA_INDEX_SQL);
-    const months = [...new Set(rows.map((row) => row.month))].sort().reverse();
-    if (!months.length) return null;
-    const [latest, previous] = months;
-    const before = new Map(rows.filter((row) => row.month === previous).map((row) => [row.commune, row]));
-    const communes = rows
-      .filter((row) => row.month === latest && row.ask_sample >= MIN_PRICE_SAMPLE && row.median != null)
-      .map((row) => {
-        const old = before.get(row.commune);
-        const comparable = old && old.ask_sample >= MIN_PRICE_SAMPLE && old.median > 0;
-        return {
-          commune: row.commune,
-          median: Math.round(row.median),
-          sample: row.ask_sample,
-          previous: comparable ? Math.round(old.median) : null,
-          changePct: comparable ? Math.round(((row.median - old.median) / old.median) * 1000) / 10 : null,
-        };
-      })
-      .sort((a, b) => b.median - a.median);
-    return { month: latest, previousMonth: previous || null, communes };
-  } catch (err) {
-    if (!MISSING.has(err?.code)) console.error(`[lukka-index] ${err.message}`);
-    return null;
-  }
+export function getLukkaIndex(options = {}) {
+  return queryLukkaIndex({ minSample: MIN_PRICE_SAMPLE, ...options });
 }
 
 export { kinshasaDay };

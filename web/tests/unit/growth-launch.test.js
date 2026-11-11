@@ -16,7 +16,7 @@ import { growthSettingsFromStored, parseGrowthForm, DEFAULT_FOUNDER_CUTOFF } fro
 import { whatsappSignupLink, whatsappSignupText } from '@/lib/whatsappSignup';
 import { CREDIT_CANDIDATES_SQL, syncReferralCredits } from '@/lib/referralCredits';
 import {
-  AUTO_PICK_SQL, PRICE_GUIDES_SQL, VIDEO_LISTINGS_SQL, LUKKA_INDEX_SQL, COLLECTIONS, priceGuideSlug,
+  AUTO_PICK_SQL, PRICE_GUIDES_SQL, VIDEO_LISTINGS_SQL, COLLECTIONS, priceGuideSlug,
 } from '@/lib/browseFeatures';
 import {
   announcementText, announcementTemplateParams, shouldAnnounceOnWrite, ANNOUNCE_TARGETS_SQL,
@@ -279,7 +279,7 @@ test('every browse feature reads public listings only', () => {
   assert.match(squash(PRICE_GUIDES_SQL), /HAVING SUM\(n\) >= \$1/);
   assert.match(squash(PRICE_GUIDES_SQL), /NOT IN \('jour', 'semaine'\)/, 'short stays never enter a monthly median');
   assert.match(squash(PRICE_GUIDES_SQL), /p\.price_period = 'an' THEN p\.price \/ 12\.0/);
-  assert.match(squash(LUKKA_INDEX_SQL), /category_id = -1 AND beds_bucket = 'all'/);
+  // The index's own rules are pinned in tests/unit/lukka-index.test.js.
   assert.equal(priceGuideSlug({ beds: 2, commune: 'Gombe' }), '2-chambres-gombe');
   assert.equal(priceGuideSlug({ beds: 1, commune: 'Gombe' }), '1-chambre-gombe');
   assert.deepEqual(COLLECTIONS.map((c) => c.slug), ['villas', 'moins-de-300', 'avec-piscine', 'courte-duree', 'nouveaux']);

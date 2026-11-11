@@ -71,7 +71,9 @@ test('the market section shows nothing it was not given', () => {
 });
 
 test('the homepage wires the decluttered sections in order', () => {
-  const page = read('../../app/(site)/(home)/page.js');
+  // The website's page; the app's own home (AppHomePage, above it) has fewer bands.
+  const source = read('../../app/(site)/(home)/page.js');
+  const page = source.slice(source.indexOf('export default async function HomePage'));
   assert.match(page, /<RecentlyViewed variant="strip" minItems=\{2\} \/>/);
   assert.match(page, /<HomeDiscovery propertyTypes=\{propertyTypes\} \/>/);
   assert.doesNotMatch(page, /<PropertyTypeTiles|import PropertyTypeTiles/);

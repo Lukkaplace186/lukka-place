@@ -2,6 +2,7 @@
   "appId": "com.lukkaplace.app",
   "appName": "Lukka Place",
   "webDir": "www",
+  "appendUserAgent": "LukkaPlaceApp",
   "server": {
     "url": "https://lukkaplace.com/app",
     "cleartext": false,

@@ -5,6 +5,8 @@ import SitePageViewTracker from '@/components/SitePageViewTracker';
 import SignupNudge from '@/components/SignupNudge';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
+import AppTabBar from '@/components/AppTabBar';
+import { isAppRequest } from '@/lib/appMode';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
 import VisitCartMount from '@/components/VisitCartMount';
@@ -63,7 +65,7 @@ const SITE_NAMESPACES = [
 export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();
   const { locale, messages } = await getI18n(SITE_NAMESPACES);
-  const [features, growth] = await Promise.all([getFeatureFlags(), getGrowthSettings()]);
+  const [features, growth, app] = await Promise.all([getFeatureFlags(), getGrowthSettings(), isAppRequest()]);
 
   return (
     <I18nProvider locale={locale} messages={messages}>
@@ -81,7 +83,8 @@ export default async function SiteLayout({ children }) {
               visible sizing here since content already determines this
               column's height. */}
           <main className="min-h-0 flex-1">{children}</main>
-          <Footer />
+          {/* Inside the store app: the tab bar instead of the footer (lib/appModeRules.js). */}
+          {app ? <AppTabBar /> : <Footer />}
         </SiteShell>
         <ImpersonationBanner />
         {/* Meta / TikTok pixels, and the consent banner in Europe (lib/adTrackingRules.js). */}

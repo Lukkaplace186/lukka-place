@@ -9,11 +9,14 @@ const POLL_MS = 30_000;
  * Unread app alerts for the Alertes badge (GET /api/push/unread): every 30 s
  * while visible, on return to the tab, and at once when a push arrives in
  * the foreground (lib/appBridge.js). Same shape as lib/useChatUnread.js.
+ * `loadNow` asks at once (the app's tab bar has no server count to start
+ * from); `enabled` false (signed out) asks nothing and returns 0.
  */
-export function useAlertsUnread({ initial = 0, side = 'agent' } = {}) {
+export function useAlertsUnread({ initial = 0, side = 'agent', loadNow = false, enabled = true } = {}) {
   const [count, setCount] = useState(initial);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let stopped = false;
     let inFlight = false;
     const load = async () => {
@@ -31,6 +34,7 @@ export function useAlertsUnread({ initial = 0, side = 'agent' } = {}) {
         inFlight = false;
       }
     };
+    if (loadNow) load();
     const timer = window.setInterval(load, POLL_MS);
     window.addEventListener(ALERTS_CHANGED_EVENT, load);
     document.addEventListener('visibilitychange', load);
@@ -40,7 +44,7 @@ export function useAlertsUnread({ initial = 0, side = 'agent' } = {}) {
       window.removeEventListener(ALERTS_CHANGED_EVENT, load);
       document.removeEventListener('visibilitychange', load);
     };
-  }, [side]);
+  }, [side, loadNow, enabled]);
 
-  return Number(count) || 0;
+  return enabled ? Number(count) || 0 : 0;
 }

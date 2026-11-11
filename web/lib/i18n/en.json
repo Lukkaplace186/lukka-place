@@ -133,7 +133,14 @@
     "projects": "New Homes",
     "agents": "Agents",
     "blog": "Guides & News",
-    "messages": "Messages"
+    "messages": "Messages",
+    "home": "Home",
+    "notifications": "Notifications",
+    "appTabs": "App navigation",
+    "unreadNotifications": {
+      "one": "{count} unread notification",
+      "other": "{count} unread notifications"
+    }
   },
   "footer": {
     "columns": {
@@ -402,6 +409,18 @@
       "alertHint": {
         "one": "A free WhatsApp alert as soon as a 1-bedroom in {commune} is listed at this price or less.",
         "other": "A free WhatsApp alert as soon as a {count}-bedroom in {commune} is listed at this price or less."
+      }
+    },
+    "app": {
+      "greeting": "Hello",
+      "greetingNamed": "Hello, {name}",
+      "subtitle": "Find your next home in the DRC.",
+      "shortcuts": "Shortcuts",
+      "quick": {
+        "find": "Find It for Me",
+        "prices": "Rent Prices",
+        "projects": "New Projects",
+        "agencies": "Agencies"
       }
     }
   },

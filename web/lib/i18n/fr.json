@@ -133,7 +133,14 @@
     "projects": "Neuf",
     "agents": "Agents",
     "blog": "Guides & Actualités",
-    "messages": "Messages"
+    "messages": "Messages",
+    "home": "Accueil",
+    "notifications": "Notifications",
+    "appTabs": "Navigation de l’application",
+    "unreadNotifications": {
+      "one": "{count} notification non lue",
+      "other": "{count} notifications non lues"
+    }
   },
   "footer": {
     "columns": {
@@ -402,6 +409,18 @@
       "alertHint": {
         "one": "Une alerte WhatsApp gratuite dès qu'un 1 chambre à {commune} est publié à ce prix ou moins.",
         "other": "Une alerte WhatsApp gratuite dès qu'un {count} chambres à {commune} est publié à ce prix ou moins."
+      }
+    },
+    "app": {
+      "greeting": "Bonjour",
+      "greetingNamed": "Bonjour, {name}",
+      "subtitle": "Trouvez votre prochain logement en RDC.",
+      "shortcuts": "Raccourcis",
+      "quick": {
+        "find": "Trouver pour moi",
+        "prices": "Prix des loyers",
+        "projects": "Projets neufs",
+        "agencies": "Agences"
       }
     }
   },

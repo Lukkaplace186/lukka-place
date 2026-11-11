@@ -16,6 +16,10 @@ import { organizationSchema, socialProfiles, websiteSchema } from '@/lib/seoSche
 import { getSocialLinks } from '@/lib/siteSettings';
 import { localizedAlternates } from '@/lib/i18n/server';
 import { mergeSocialLinks } from '@/lib/siteSettingsRules';
+import AppHomeTop from '@/components/AppHomeTop';
+import { isAppRequest } from '@/lib/appMode';
+import { getFeatureFlags } from '@/lib/siteSettings';
+import { getCurrentCustomerId, getCustomerById } from '@/lib/customers';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -126,8 +130,47 @@ export async function generateMetadata() {
   return { alternates: await localizedAlternates('/') };
 }
 
+/** The signed-in customer's first name for the app's greeting, or null. */
+async function customerFirstName() {
+  try {
+    const id = await getCurrentCustomerId();
+    if (!id) return null;
+    const name = String((await getCustomerById(id))?.full_name || '').trim().split(/\s+/)[0];
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Inside the store app (lib/appModeRules.js) the home page is an app screen:
+ * a greeting band, the search card, shortcuts, then the listing shelves.
+ * The website's marketing sections (alert band, "Notre approche") and the
+ * SEO markup are left out; the tab bar replaces the footer.
+ */
+async function AppHomePage({ propertyTypes, communes, total, saved, weeklyNew }) {
+  const [firstName, features] = await Promise.all([customerFirstName(), getFeatureFlags()]);
+  return (
+    <>
+      <AppHomeTop
+        firstName={firstName}
+        propertyTypes={propertyTypes}
+        communes={communes}
+        initialCount={total}
+        weeklyNew={weeklyNew}
+        showProjects={Boolean(features.publicProjects)}
+      />
+      <RecentlyViewed variant="strip" minItems={2} />
+      {saved ? <SavedListings listings={saved.listings} /> : <FeaturedListings />}
+      {features.publicProjects ? <NewProjectsStrip /> : null}
+      <HomeDiscovery propertyTypes={propertyTypes} />
+      <HomeMarketBand />
+    </>
+  );
+}
+
 export default async function HomePage() {
-  const [propertyTypes, communes, { total }, saved, heroImage, weeklyNew] = await Promise.all([
+  const [propertyTypes, communes, { total }, saved, heroImage, weeklyNew, app] = await Promise.all([
     // 60-second copies (lib/listingsCached.js): counts and facets, not results.
     cachedPropertyTypeFacets(),
     cachedPopularCommunes(8),
@@ -136,7 +179,9 @@ export default async function HomePage() {
     getHeroSettings(),
     // "N nouveaux biens cette semaine" on the hero; a failed count shows nothing.
     cachedWeeklyNewCount().catch(() => 0),
+    isAppRequest(),
   ]);
+  if (app) return <AppHomePage propertyTypes={propertyTypes} communes={communes} total={total} saved={saved} weeklyNew={weeklyNew} />;
   // The profiles the footer shows, so Google ties them to the site (sameAs).
   const profiles = mergeSocialLinks(await getSocialLinks(), socialProfiles());
 

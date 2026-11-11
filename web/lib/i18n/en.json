@@ -162,6 +162,7 @@
     "tagline": "Apartments, villas and plots, to rent or to buy, across the DRC.",
     "disclaimer": "Lukka Place is a property listings platform in the DRC. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
     "copyright": "© {year} Lukka Place.",
+    "supportGreeting": "Hello Lukka Place 👋\nI need help with:\n- Finding a property (rent / buy)\n- A listing I saw\n- A viewing\n- Something else\n\nMy request: ",
     "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com.",
     "consent": {
       "title": "Ad Measurement",

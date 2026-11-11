@@ -168,7 +168,7 @@ export default async function Footer() {
   // template they were never meant to see.
   // Customer service number, not the intake number the listing buttons use
   // (owner, 2026-11-11) — see getSupportWhatsAppHref.
-  const whatsappHref = social.whatsapp || getSupportWhatsAppHref(t('footer.whatsappGreeting'));
+  const whatsappHref = social.whatsapp || getSupportWhatsAppHref(t('footer.supportGreeting'));
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt empty:hidden">

@@ -162,6 +162,7 @@
     "tagline": "Appartements, villas et parcelles, à louer ou à vendre, partout en RDC.",
     "disclaimer": "Lukka Place est une plateforme d'annonces immobilières en RDC. Les informations fournies sur les annonces sont établies sous la responsabilité des annonceurs. Lukka Place ne fournit pas de services de courtage financier direct et facilite la mise en relation via référence d'annonce.",
     "copyright": "© {year} Lukka Place.",
+    "supportGreeting": "Bonjour Lukka Place 👋\nJ'ai besoin d'aide pour :\n- Trouver un bien (location / achat)\n- Une annonce que j'ai vue\n- Une visite\n- Autre\n\nMa demande : ",
     "whatsappGreeting": "Bonjour, je vous contacte depuis lukkaplace.com.",
     "consent": {
       "title": "Mesure publicitaire",

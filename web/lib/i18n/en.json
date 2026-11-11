@@ -9150,6 +9150,22 @@
       "searchesHint": "Save a search from the results and we tell you as soon as a home matches.",
       "alerts": "Alerts",
       "signInForAlerts": "Sign in to hear about new homes."
+    },
+    "back": "Back",
+    "visit": {
+      "title": "Request a Visit",
+      "step": "Step {step} of 2",
+      "chooseTitle": "Choose a Day and Time",
+      "confirmNote": "The agent confirms the time on WhatsApp. You follow the visit in My visits.",
+      "continue": "Continue",
+      "continueWith": "Continue · {slot}",
+      "change": "Change",
+      "detailsTitle": "Your Details",
+      "detailsText": "Shared with the agent for this visit only.",
+      "submit": "Request the visit",
+      "doneTitle": "Visit Requested",
+      "myVisits": "See my visits",
+      "backToListing": "Back to the listing"
     }
   }
 }

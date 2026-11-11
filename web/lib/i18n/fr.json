@@ -9150,6 +9150,22 @@
       "searchesHint": "Enregistrez une recherche depuis les résultats : nous vous prévenons dès qu’un bien correspond.",
       "alerts": "Alertes",
       "signInForAlerts": "Connectez-vous pour être prévenu des nouveaux biens."
+    },
+    "back": "Retour",
+    "visit": {
+      "title": "Demander une visite",
+      "step": "Étape {step} sur 2",
+      "chooseTitle": "Choisissez un jour et une heure",
+      "confirmNote": "L’agent confirme l’heure sur WhatsApp. Vous suivez la visite dans Mes visites.",
+      "continue": "Continuer",
+      "continueWith": "Continuer · {slot}",
+      "change": "Modifier",
+      "detailsTitle": "Vos coordonnées",
+      "detailsText": "Transmises à l’agent pour cette visite uniquement.",
+      "submit": "Demander la visite",
+      "doneTitle": "Visite demandée",
+      "myVisits": "Voir mes visites",
+      "backToListing": "Retour à l’annonce"
     }
   }
 }

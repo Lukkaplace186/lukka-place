@@ -1,8 +1,8 @@
 'use client';
 
 import Link from '@/components/IntentLink';
-import { usePathname } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, ChevronLeft } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { frenchPathOf, localizeHref } from '@/lib/localePaths';
@@ -10,6 +10,7 @@ import { useIsLoggedIn } from '@/lib/customerClient';
 import { useAlertsUnread } from '@/lib/useAlertsUnread';
 import UnreadBadge from '@/components/chat/UnreadBadge';
 import { cn } from '@/lib/utils';
+import { hidesAppTabs } from '@/lib/appModeRules';
 
 const INBOX = '/compte/client/notifications';
 
@@ -22,6 +23,9 @@ const INBOX = '/compte/client/notifications';
  * Royal blue on the home screen, where it runs into the search band (the app
  * design's "Search home"); white with a hairline everywhere else. Signed out,
  * the bell opens sign-in and comes back to the inbox.
+ *
+ * Off the tabs (a listing, its booking screen) it leads with a back arrow:
+ * back in history when there is one, else up to the results or the listing.
  */
 export default function AppTopBar() {
   const rawPathname = usePathname() || '/';
@@ -30,7 +34,15 @@ export default function AppTopBar() {
   const loggedIn = useIsLoggedIn();
   const t = useT();
   const unread = useAlertsUnread({ side: 'customer', loadNow: true, enabled: loggedIn });
+  const router = useRouter();
   const onHome = pathname === '/';
+  // A listing and its booking screen have no tab bar: the way out is here.
+  const withBack = hidesAppTabs(pathname);
+  const upHref = pathname.endsWith('/visite') ? pathname.slice(0, -'/visite'.length) : '/listings';
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push(localizeHref(upHref, locale));
+  }
   const bellHref = loggedIn ? INBOX : `/compte/connexion?next=${encodeURIComponent(INBOX)}`;
 
   return (
@@ -40,9 +52,21 @@ export default function AppTopBar() {
         onHome ? 'bg-blue text-white' : 'border-b border-line bg-surface text-blue',
       )}
     >
-      <Link href={localizeHref('/', locale)} className="u-app-serif text-[1.5rem] leading-none" aria-label="Lukka Place">
-        Lukka Place
-      </Link>
+      <div className="flex min-w-0 items-center gap-1">
+        {withBack ? (
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label={t('appShell.back')}
+            className="u-press -ml-2 flex h-11 w-11 items-center justify-center rounded-full text-ink active:bg-canvas-alt"
+          >
+            <ChevronLeft strokeWidth={2} className="h-6 w-6" aria-hidden="true" />
+          </button>
+        ) : null}
+        <Link href={localizeHref('/', locale)} className="u-app-serif text-[1.5rem] leading-none" aria-label="Lukka Place">
+          Lukka Place
+        </Link>
+      </div>
       <Link
         href={localizeHref(bellHref, locale)}
         aria-label={t('appShell.bell')}

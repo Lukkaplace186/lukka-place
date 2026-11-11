@@ -30,7 +30,8 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
  * `return_to=/agents/<id>` (the agent profile's listing sheet) answers on that
  * profile, which shows the same confirmation. Only that exact shape — digits
  * after `/agents/` — is accepted, so it can never point off-site. Any other
- * value is ignored.
+ * value is ignored. `return_to=app` (the app's booking screen,
+ * /listings/<id>/visite) answers there, where the confirmation is drawn.
  */
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
@@ -42,7 +43,9 @@ export async function submitVisitRequestAction(propertyId, formData) {
   const returnTo = String(formData.get('return_to') || '');
   const base = returnTo === 'visites'
     ? '/compte/client/visites'
-    : /^\/agents\/\d{1,12}$/.test(returnTo) ? returnTo : `/listings/${propertyId}`;
+    : returnTo === 'app'
+      ? `/listings/${propertyId}/visite`
+      : /^\/agents\/\d{1,12}$/.test(returnTo) ? returnTo : `/listings/${propertyId}`;
 
   if (!phone) redirect(`${base}?visit_error=phone`);
 

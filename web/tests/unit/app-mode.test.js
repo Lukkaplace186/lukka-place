@@ -149,3 +149,35 @@ test('the app screens share one grey ground and the Saved wording exists in both
     assert.match(saved.gone.other, /\{count\}/, lang);
   }
 });
+
+test('listing in the app: the design bar, with the website\u2019s contact rules and tracking', () => {
+  const page = read('app/(site)/listings/[id]/page.js');
+  assert.match(page, /\{app \? <AppListingBar listing=\{listing\} \/> : <MobileListingBar listing=\{listing\} \/>\}/);
+  const bar = read('components/app/AppListingBar.js');
+  assert.match(bar, /resolveWhatsAppRouting\(listing\)/, 'WhatsApp through lib/leadRouting.js, our number first');
+  assert.match(bar, /listing\.agent_phone \? \(/, 'tel: only for a verified agent number');
+  assert.match(bar, /trackCallClick\(listing\)/);
+  assert.match(bar, /trackLeadClick\(listing, routingType, 'listing_app_bar'\)/);
+  assert.match(bar, /href=\{`\/listings\/\$\{listing\.id\}\/visite`\}/);
+  // The top bar's way back off the tabs.
+  assert.match(read('components/app/AppTopBar.js'), /const withBack = hidesAppTabs\(pathname\)/);
+});
+
+test('booking in the app: the same calendar and action, answered back on its own screen', () => {
+  const action = read('app/(site)/listings/[id]/actions.js');
+  assert.match(action, /returnTo === 'app'\s*\?\s*`\/listings\/\$\{propertyId\}\/visite`/);
+  const booking = read('components/app/AppVisitBooking.js');
+  assert.match(booking, /submitVisitRequestAction\.bind\(null, listing\.id\)/, 'no second way of requesting a visit');
+  assert.match(booking, /<input type="hidden" name="return_to" value="app" \/>/);
+  assert.match(booking, /<VisitSlotPicker propertyId=\{listing\.id\} name="preferred_slot_at"/);
+  assert.match(booking, /hidden=\{step !== 1\}/, 'step 1 stays mounted so the slot is posted');
+  assert.match(booking, /t\(sent === 'team' \? 'enquiry\.sentTeam' : 'enquiry\.sent'\)/, 'never says an agent has it when the desk does');
+  const page = read('app/(site)/listings/[id]/visite/page.js');
+  assert.match(page, /const listing = await getListingById\(id\);\s*if \(!listing\) notFound\(\);/, 'the public gate');
+  assert.match(page, /const SENT = new Set\(\['1', 'team'\]\)/);
+  for (const lang of ['fr', 'en']) {
+    const visit = JSON.parse(read(`lib/i18n/${lang}.json`)).appShell.visit;
+    assert.match(visit.step, /\{step\}/, lang);
+    assert.match(visit.continueWith, /\{slot\}/, lang);
+  }
+});

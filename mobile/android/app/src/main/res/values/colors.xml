@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Lukka Place royal blue, the brand colour (the blue token in web/app/globals.css). -->
+    <color name="lukka_blue">#144FC5</color>
+</resources>

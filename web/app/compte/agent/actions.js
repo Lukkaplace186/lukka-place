@@ -11,7 +11,8 @@ import {
   verifyPasswordAgainstHash,
 } from '@/lib/agentAuth';
 import { bumpAgentTokenVersion, getAgentAuthById, resetAgentPassword } from '@/lib/agents';
-import { clearAgentSession, getCurrentAgentId, establishAgentSession } from '@/lib/agentSession';
+import { clearAgentSession, getCurrentAgentId, establishAgentSession, forgetRememberedAgentPhone } from '@/lib/agentSession';
+import { deleteAgentAccount } from '@/lib/adminAgentDeletion';
 import {
   getAgentProfile,
   getOwnListingsForDashboard,
@@ -127,6 +128,39 @@ export async function agentLogoutAction() {
   if (agentId) await bumpAgentTokenVersion(agentId);
   await clearAgentSession();
   redirect('/compte/agent/connexion');
+}
+
+/** What the agent types to confirm deleting their account (any case). */
+const DELETE_CONFIRM_WORD = 'SUPPRIMER';
+
+/**
+ * "Supprimer mon compte" (Réglages, 2026-11-11). Google Play and the App
+ * Store require an account to be deletable from inside the app. Owner
+ * decision: the same delete as the admin's default — the account goes for
+ * good, every listing is taken off the site and kept archived with no agent
+ * (lib/adminAgentDeletion.js), the app's phones and inbox are removed.
+ * Refused, with a contact message, while a sales commission for this agent
+ * is still open (money owed to a rep is settled in /admin/sales first).
+ * The agent's id comes from their own session, never from the form.
+ */
+export async function deleteOwnAgentAccountAction(formData) {
+  const agentId = await assertAgentSession();
+  const typed = String(formData.get('confirm') || '').trim().toUpperCase();
+  if (typed !== DELETE_CONFIRM_WORD) redirect('/compte/agent/parametres?section=delete-account&error=delete_confirm');
+
+  const result = await deleteAgentAccount(agentId, { listings: 'archive' });
+  if (!result.ok && result.reason === 'commissions') {
+    redirect('/compte/agent/parametres?section=delete-account&error=delete_commissions');
+  }
+  if (result.ok) {
+    const s = result.summary;
+    console.log(`[agent] agent #${agentId} deleted their own account: ${s.archivedListings} listing(s) archived, ${s.documents} document(s)`);
+  }
+  // Deleted, or already gone: either way this browser is signed out.
+  (await cookies()).delete({ name: PUSH_TOKEN_COOKIE, path: '/' });
+  await clearAgentSession();
+  await forgetRememberedAgentPhone();
+  redirect('/compte/agent/connexion?deleted=1');
 }
 
 /**

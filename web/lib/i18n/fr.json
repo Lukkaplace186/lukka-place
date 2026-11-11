@@ -2976,6 +2976,21 @@
       "turnOff": "Désactiver sur ce téléphone",
       "denied": "Les notifications sont bloquées. Autorisez-les pour Lukka Place dans les réglages de votre téléphone.",
       "fallback": "Une demande urgente restée non lue vous est aussi envoyée sur WhatsApp après quelques minutes."
+    },
+    "deleteAccount": {
+      "title": "Supprimer mon compte",
+      "hint": "Votre compte agent est supprimé définitivement. Vos annonces sont retirées du site et ne vous sont plus attribuées.",
+      "button": "Supprimer mon compte",
+      "confirmTitle": "Supprimer votre compte agent ?",
+      "confirmBody": "Votre compte, votre page agent et vos alertes de l’application sont supprimés définitivement. Cette action est irréversible.",
+      "confirmBodyListings": {
+        "one": "Votre compte, votre page agent et vos alertes de l’application sont supprimés définitivement, et votre annonce en ligne est retirée du site. Cette action est irréversible.",
+        "other": "Votre compte, votre page agent et vos alertes de l’application sont supprimés définitivement, et vos {count} annonces en ligne sont retirées du site. Cette action est irréversible."
+      },
+      "typeToConfirm": "Tapez SUPPRIMER pour confirmer",
+      "errorConfirm": "Tapez SUPPRIMER pour confirmer la suppression.",
+      "errorCommissions": "Votre compte ne peut pas être supprimé tout de suite : une commission commerciale est en cours. Écrivez-nous sur WhatsApp, nous le supprimerons pour vous.",
+      "done": "Votre compte agent a été supprimé."
     }
   },
   "status": {

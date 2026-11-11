@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { getPool } from './db';
+import { forgetPushAccount } from './pushNotifications';
 import { keysetClause, pageCursors } from './adminPagination';
 import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './authCrypto';
@@ -137,9 +138,24 @@ export async function updateCustomerName(customerId, fullName) {
   await pool.query(`UPDATE customers SET full_name = $2 WHERE id = $1`, [customerId, fullName || null]);
 }
 
+/**
+ * Favourites, saved searches, follows and saved-listing notices go by FK
+ * cascade; the app's phones, inbox and alert settings have no FK and are
+ * removed in the same transaction (lib/pushNotifications.js).
+ */
 export async function deleteCustomer(customerId) {
-  const pool = getPool();
-  await pool.query(`DELETE FROM customers WHERE id = $1`, [customerId]);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await forgetPushAccount(client, 'customer', Number(customerId));
+    await client.query(`DELETE FROM customers WHERE id = $1`, [customerId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ---------------------------------------------------------------------------

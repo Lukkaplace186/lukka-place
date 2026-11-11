@@ -47,6 +47,23 @@ test('a phone set to plain French or English does not open the number field on F
   assert.equal(countryFromAcceptLanguage('fr-FR,en-GB;q=0.8'), 'GB');
 });
 
+test('the phone field in the browser reads a locale with the same rule as the server (2026-11-11)', async () => {
+  const { regionFromLocaleTag } = await import('../../lib/countries.js');
+  // An Android phone in English or French says nothing about where it is: the
+  // field kept +243 on the first paint and then flipped to +1 in the app.
+  assert.equal(regionFromLocaleTag('en-US'), null);
+  assert.equal(regionFromLocaleTag('fr-FR'), null);
+  assert.equal(regionFromLocaleTag('fr'), null);
+  assert.equal(regionFromLocaleTag('*'), null);
+  assert.equal(regionFromLocaleTag('not a tag!!'), null);
+  assert.equal(regionFromLocaleTag('en-GB'), 'GB');
+  assert.equal(regionFromLocaleTag('fr-CD'), 'CD');
+  const field = read('components/PhoneField.js');
+  const fn = field.slice(field.indexOf('function browserRegion()'), field.indexOf('function browserRegion()') + 700);
+  assert.match(fn, /regionFromLocaleTag\(tag\)/, 'browser check uses the shared rule');
+  assert.doesNotMatch(fn, /new Intl\.Locale\(tag\)\.region/, 'not its own looser rule');
+});
+
 test('the listings search box shows the place that was searched, and reads back to it', () => {
   const cases = [
     [{ commune: 'Bandalungwa' }, 'Bandalungwa'],

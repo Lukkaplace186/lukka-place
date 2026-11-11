@@ -371,6 +371,19 @@ never rewrites `status = 1` on a deleted listing, same guard as closed /
 under_offer. Run the migration before deploying — these queries name the
 column.
 
+### Agents delete their own account (2026-11-11)
+
+Google Play and the App Store require in-app account deletion. Paramètres ›
+"Supprimer mon compte" (web `deleteOwnAgentAccountAction`, typed
+"SUPPRIMER") runs the admin's `deleteAgentAccount` in its default mode (owner
+decision): the agent row is deleted, every listing is archived and detached,
+nothing is deleted from the listings. Refused with a "write to us" message
+while a sales commission is open. Both account deletions (agent, customer)
+now also remove the app's `push_devices`, `notifications` and
+`notification_preferences` rows (`forgetPushAccount`, no FK to either table).
+The engine's SQLite history keeps the old id; a later WhatsApp message from
+the number onboards a new account.
+
 ### Sales-rep referral codes on WhatsApp
 
 `services/salesReferral.js` (web half and the commission rules: web/CLAUDE.md,

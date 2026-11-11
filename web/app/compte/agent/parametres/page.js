@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck, Smartphone } from 'lucide-react';
+import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getLocationHierarchySafe } from '@/lib/locations';
@@ -17,7 +17,10 @@ import {
   updateOwnCommunesAction,
   updateWorkingHoursAction,
   agentLogoutAction,
+  deleteOwnAgentAccountAction,
 } from '../actions';
+import AgentDeleteAccountButton from '@/components/AgentDeleteAccountButton';
+import { getAgentDeletionImpact } from '@/lib/adminAgentDeletion';
 import AgentSettingsIndex from '@/components/AgentSettingsIndex';
 import { agentPublicName } from '@/lib/agencies';
 import { getT } from '@/lib/i18n/server';
@@ -40,6 +43,12 @@ const ERROR_MESSAGE_KEYS = {
   mismatch: 'agent.settings.passwordMismatch',
   wrong_password: 'agent.settings.wrongPassword',
   name_required: 'agent.settings.nameRequired',
+};
+
+// deleteOwnAgentAccountAction's refusals, shown on the delete card only.
+const DELETE_ERROR_KEYS = {
+  delete_confirm: 'agent.deleteAccount.errorConfirm',
+  delete_commissions: 'agent.deleteAccount.errorCommissions',
 };
 
 // lib/agentVerification.js's submitVerificationDocument failure codes; anything
@@ -65,6 +74,7 @@ const SECTIONS = [
   { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound },
   { key: 'public-page', labelKey: 'agent.settings.publicPageTitle', Icon: Globe },
   { key: 'app', labelKey: 'agent.app.title', Icon: Smartphone },
+  { key: 'delete-account', labelKey: 'agent.deleteAccount.title', Icon: Trash2 },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((section) => section.key));
 
@@ -74,6 +84,7 @@ function openSection(params) {
   if (params.saved === 'communes') return 'communes';
   if (params.saved === 'hours') return 'hours';
   if (params.saved === 'verification' || params.verification_error) return 'verification';
+  if (DELETE_ERROR_KEYS[params.error]) return 'delete-account';
   if (params.error || params.success === '1') return 'password';
   return null;
 }
@@ -135,6 +146,10 @@ export default async function AgentSettingsPage({ searchParams }) {
     }),
     countDevices('agent', agentId).catch(() => 0),
   ]);
+  // Only the live-listing count the delete dialog states; a failed read just
+  // drops that sentence.
+  const deletionImpact = await getAgentDeletionImpact(agentId).catch(() => null);
+  const deleteError = error && DELETE_ERROR_KEYS[error] ? error : null;
 
   // The profile checklist ("À compléter") moved here from the overview
   // (2026-09-28): every gap it lists is a field on this page. A failed read
@@ -218,6 +233,7 @@ export default async function AgentSettingsPage({ searchParams }) {
                 { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound, href: sectionHref('password') },
                 { key: 'public-page', labelKey: 'agent.settings.publicPageTitle', Icon: Globe, href: sectionHref('public-page'), sub: `${checklist.percent} %` },
                 { key: 'app', labelKey: 'agent.app.title', Icon: Smartphone, href: sectionHref('app'), sub: t('agent.app.sub') },
+                { key: 'delete-account', labelKey: 'agent.deleteAccount.title', Icon: Trash2, href: sectionHref('delete-account') },
               ],
             },
           ]}
@@ -407,7 +423,7 @@ export default async function AgentSettingsPage({ searchParams }) {
         </div>
         </div>
 
-        <div className={`flex flex-col gap-6 ${column(['verification', 'password', 'public-page', 'app'])}`}>
+        <div className={`flex flex-col gap-6 ${column(['verification', 'password', 'public-page', 'app', 'delete-account'])}`}>
           <div id="app" className={`${shown('app')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
             <div>
               <h2 className="u-title-card text-ink">{t('agent.app.title')}</h2>
@@ -542,7 +558,7 @@ export default async function AgentSettingsPage({ searchParams }) {
                 </div>
               ))}
 
-              {error && error !== 'name_required' && (
+              {error && error !== 'name_required' && !deleteError && (
                 <p className="text-sm font-semibold text-danger" role="alert">
                   {t(ERROR_MESSAGE_KEYS[error] || ERROR_MESSAGE_KEYS.wrong_password)}
                 </p>
@@ -592,6 +608,19 @@ export default async function AgentSettingsPage({ searchParams }) {
               <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             </Link>
             <p className="truncate text-xs text-ink-35">{profileUrl}</p>
+          </div>
+
+          <div id="delete-account" className={`${shown('delete-account')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
+            <div>
+              <h2 className="u-title-card text-ink">{t('agent.deleteAccount.title')}</h2>
+              <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.deleteAccount.hint')}</p>
+            </div>
+            {deleteError && (
+              <p className="text-sm font-semibold text-danger" role="alert">
+                {t(DELETE_ERROR_KEYS[deleteError])}
+              </p>
+            )}
+            <AgentDeleteAccountButton action={deleteOwnAgentAccountAction} liveListings={deletionImpact?.liveListings || 0} />
           </div>
         </div>
       </div>

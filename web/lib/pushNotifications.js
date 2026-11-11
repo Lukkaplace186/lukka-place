@@ -217,3 +217,32 @@ export async function setNotificationPreference(userType, userId, category, enab
     throw err;
   }
 }
+
+// The three tables keyed by (user_type, user_id); none has a foreign key to
+// agents or customers, so an account deletion clears them itself.
+const PUSH_ACCOUNT_TABLES = ['push_devices', 'notifications', 'notification_preferences'];
+
+/**
+ * Inside an account deletion's transaction: remove this account's phones
+ * (their FCM tokens are personal data), its inbox and its alert settings.
+ * Each table runs under its own SAVEPOINT, so a database where the push
+ * migration has not run (42P01) deletes the account all the same.
+ * @param {import('pg').PoolClient} client  a client with an open transaction
+ * @returns {Promise<number>} rows removed
+ */
+export async function forgetPushAccount(client, userType, userId) {
+  assertUserType(userType);
+  let removed = 0;
+  for (const table of PUSH_ACCOUNT_TABLES) {
+    await client.query('SAVEPOINT forget_push');
+    try {
+      const { rowCount } = await client.query(`DELETE FROM ${table} WHERE user_type = $1 AND user_id = $2`, [userType, userId]);
+      removed += rowCount || 0;
+      await client.query('RELEASE SAVEPOINT forget_push');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT forget_push');
+      if (!missingTable(err)) throw err;
+    }
+  }
+  return removed;
+}

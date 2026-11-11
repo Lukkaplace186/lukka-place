@@ -2976,6 +2976,21 @@
       "turnOff": "Turn off on this phone",
       "denied": "Notifications are blocked. Allow them for Lukka Place in your phone settings.",
       "fallback": "An urgent request left unread is also sent to you on WhatsApp after a few minutes."
+    },
+    "deleteAccount": {
+      "title": "Delete My Account",
+      "hint": "Your agent account is deleted for good. Your listings are taken off the site and no longer attributed to you.",
+      "button": "Delete my account",
+      "confirmTitle": "Delete Your Agent Account?",
+      "confirmBody": "Your account, your agent page and your app alerts are deleted for good. This cannot be undone.",
+      "confirmBodyListings": {
+        "one": "Your account, your agent page and your app alerts are deleted for good, and your live listing is taken off the site. This cannot be undone.",
+        "other": "Your account, your agent page and your app alerts are deleted for good, and your {count} live listings are taken off the site. This cannot be undone."
+      },
+      "typeToConfirm": "Type SUPPRIMER to confirm",
+      "errorConfirm": "Type SUPPRIMER to confirm the deletion.",
+      "errorCommissions": "Your account cannot be deleted right away: a sales commission is still open. Message us on WhatsApp and we will delete it for you.",
+      "done": "Your agent account has been deleted."
     }
   },
   "status": {

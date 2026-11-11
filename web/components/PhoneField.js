@@ -9,6 +9,7 @@ import {
   SUGGESTED_COUNTRIES,
   findCountry,
   flagEmoji,
+  regionFromLocaleTag,
   regionName,
   searchKey,
 } from '@/lib/countries';
@@ -87,13 +88,12 @@ function browserRegion() {
     if (Array.isArray(navigator.languages)) tags.push(...navigator.languages);
     if (navigator.language) tags.push(navigator.language);
   }
+  // Same rule as the server's first guess (lib/requestCountry.js): en-US and
+  // fr-FR say nothing about where a phone is, so they no longer turn the
+  // field to +1 / +33 a moment after it rendered +243 (seen in the app).
   for (const tag of tags) {
-    try {
-      const region = new Intl.Locale(tag).region;
-      if (region && findCountry(region)) return region.toUpperCase();
-    } catch {
-      // Malformed tag from an exotic browser — try the next one.
-    }
+    const region = regionFromLocaleTag(tag);
+    if (region) return region;
   }
   return null;
 }

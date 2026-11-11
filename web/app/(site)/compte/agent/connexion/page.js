@@ -23,6 +23,7 @@ export default async function AgentLoginPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
+  const deleted = params.deleted === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/agent';
   // The number that last signed in on this device (lib/agentSession.js).
   const remembered = splitPhone(await getRememberedAgentPhone());
@@ -41,6 +42,12 @@ export default async function AgentLoginPage({ searchParams }) {
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('agent.nav.eyebrow')}</h1>
         <p className="mt-1 text-sm text-ink-45">{t('auth.agentLoginLead')}</p>
+
+        {deleted && (
+          <p className="mt-4 text-sm text-green-deep" role="status">
+            {t('agent.deleteAccount.done')}
+          </p>
+        )}
 
         {reset && (
           <p className="mt-4 text-sm text-green-deep" role="status">

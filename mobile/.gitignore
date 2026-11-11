@@ -8,3 +8,4 @@ ios/App/App/GoogleService-Info.plist
 *.p8
 *.p12
 *.mobileprovision
+android/keystore.properties

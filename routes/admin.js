@@ -54,6 +54,7 @@ const visitReceipt = require('../services/visitReceipt');
 const pushNotify = require('../services/pushNotify');
 const customerAlerts = require('../services/customerAlerts');
 const requestFollowup = require('../services/requestFollowup');
+const { listingApprovedText, approvedTemplateUrlButton } = require('../services/listingApprovedMessage');
 
 const router = express.Router();
 
@@ -1693,8 +1694,8 @@ router.post('/viewing-requests/:id/nudge', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 const MODERATION_MESSAGES = {
-  approved: (propertyId) =>
-    `Bonjour, bonne nouvelle ! Votre annonce est maintenant en ligne : https://lukkaplace.com/listings/${propertyId}`,
+  // Links to the agent's own listings (Mes biens), owner decision 2026-11-11.
+  approved: (propertyId) => listingApprovedText(propertyId),
   rejected: (propertyId, reason) => {
     const why = MODERATION_REJECTION_REASONS[reason?.code];
     const note = typeof reason?.note === 'string' ? reason.note.trim().slice(0, 500) : '';
@@ -1741,7 +1742,9 @@ const MODERATION_REJECTION_REASONS = {
  * by default and read at call time; unset or failing → the session text
  * above. Exact wording to submit: CLAUDE.md, "Listing approved / rejected".
  *   LISTING_APPROVED_TEMPLATE  body {{1}} listing number, {{2}} what + where;
- *                              DYNAMIC URL button …/listings/{{1}}
+ *                              button: v2's DYNAMIC …/listings/{{1}} (needs the id),
+ *                              v3's STATIC "Mes annonces" → /compte/agent/biens
+ *                              (no parameter) — services/listingApprovedMessage.js
  *   LISTING_REJECTED_TEMPLATE  body {{1}} listing number, {{2}} what + where,
  *                              {{3}} reason; no button (the agent replies)
  */
@@ -1797,7 +1800,8 @@ async function sendModerationTemplate(status, to, propertyId, listing, reason) {
     await chakra.sendTemplate(to, name, {
       languageCode: String(process.env.LISTING_MODERATION_TEMPLATE_LANG || 'fr').trim() || 'fr',
       bodyParams,
-      ...(status === 'approved' ? { urlButton: String(propertyId) } : {}),
+      ...(status === 'approved' && approvedTemplateUrlButton(name, propertyId)
+        ? { urlButton: approvedTemplateUrlButton(name, propertyId) } : {}),
     });
     // Accepted by Chakra, not proof of delivery — but without it a working
     // template left no trace at all (only failures were logged).

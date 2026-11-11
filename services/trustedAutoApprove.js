@@ -31,6 +31,7 @@
 const pg = require('./postgres');
 const chakra = require('./chakra');
 const pushNotify = require('./pushNotify');
+const { listingApprovedText } = require('./listingApprovedMessage');
 const { db } = require('./db');
 
 const JOB_NAME = 'trusted-auto-approve';
@@ -42,7 +43,6 @@ const BATCH = 50;
 const EVERY_MS = 5 * 60 * 1000;
 const AUTO_NOTE = 'auto:trusted-agent';
 const EXTRACTION_FAILURE_MARKERS = ['ne contient', 'uniquement une image', 'sans information', 'aucune information'];
-const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
 let lastRunAt = 0;
 
@@ -126,7 +126,7 @@ async function runTrustedAutoApprove({ notify = true } = {}) {
             url: `/compte/agent/biens/${row.id}`,
             sendWhatsApp: () => chakra.sendWhatsAppMessage(
               listing.wa_id,
-              `Bonjour, bonne nouvelle ! Votre annonce est maintenant en ligne : ${SITE_URL}/listings/${row.id}`,
+              listingApprovedText(row.id),
             ),
           })
           .catch((err) => console.warn(`[auto-approve] notify for #${row.id} failed: ${err.message}`));

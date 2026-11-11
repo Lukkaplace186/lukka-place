@@ -11832,7 +11832,7 @@ console.log('\n2. services/openai.js');
         sent54.length = 0;
         assert.strictEqual(await admin54.deliverModerationVerdict('approved', agent, 311, {}, now), 'session', 'wrote 5 h ago');
         assert.deepStrictEqual(sent54.map((m) => m.kind), ['text']);
-        assert.match(sent54[0].text, /https:\/\/lukkaplace\.com\/listings\/311/);
+        assert.match(sent54[0].text, /n° 311 .*https:\/\/lukkaplace\.com\/compte\/agent\/biens/s, 'Mes biens since 2026-11-11 (§107)');
 
         window54.recordInbound(agent.wa_id, new Date('2026-10-26T08:00:00Z'));
         assert.strictEqual(window54.lastInboundAt(agent.wa_id), '2026-10-27T10:00:00.000Z', 'an older delivery never moves the time back');
@@ -11974,7 +11974,7 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(approved57.status, 202);
         assert.strictEqual(sent57.length, 1);
         assert.strictEqual(sent57[0].to, '243810009314');
-        assert.match(sent57[0].text, /listings\/9314/);
+        assert.match(sent57[0].text, /n° 9314 .*\/compte\/agent\/biens/s, 'Mes biens since 2026-11-11 (§107)');
       });
 
       const none57 = await adminRequest('POST', '/admin/properties/9315/notify', { status: 'approved' });
@@ -18031,6 +18031,56 @@ console.log('\n2. services/openai.js');
       for (const k of ENV106) {
         if (saved106[k] === undefined) delete process.env[k]; else process.env[k] = saved106[k];
       }
+    }
+  }
+
+  // §107 The listing-approved message takes the agent to their own listings
+  // ---------------------------------------------------------------------------
+  // Owner decision 2026-11-11: the text, and the v3 template's STATIC button,
+  // open Mes biens (/compte/agent/biens), not the public listing page.
+  // annonce_en_ligne_v2 (dynamic …/listings/{{1}}) still gets the id.
+  console.log('\n§107 listing approved → Mes biens, the button parameter only for the dynamic-link templates');
+  {
+    const approved107 = require('../services/listingApprovedMessage');
+    const admin107 = require('../routes/admin');
+    const saved107 = { template: chakra.sendTemplate, env: process.env.LISTING_APPROVED_TEMPLATE };
+    const sent107 = [];
+    chakra.sendTemplate = async (to, name, opts) => { sent107.push({ to, name, opts }); return { messageId: 'wamid.107' }; };
+    try {
+      check('the approval text names the listing and links to Mes biens, never the public page', () => {
+        const text = admin107.MODERATION_MESSAGES.approved(412);
+        assert.match(text, /annonce n° 412 est maintenant en ligne/);
+        assert.ok(text.includes('https://lukkaplace.com/compte/agent/biens'), text);
+        assert.ok(!text.includes('/listings/'), text);
+      });
+      check('trusted auto-approval sends the same text', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'trustedAutoApprove.js'), 'utf8');
+        assert.match(src, /listingApprovedText\(row\.id\)/);
+        assert.ok(!src.includes('maintenant en ligne :'), 'no second wording');
+      });
+      await checkAsync('annonce_en_ligne_v2 (dynamic …/listings/{{1}}) still gets the listing id', async () => {
+        process.env.LISTING_APPROVED_TEMPLATE = 'annonce_en_ligne_v2';
+        sent107.length = 0;
+        assert.strictEqual(await admin107.sendModerationTemplate('approved', '243810010701', 412, { property_type: 'appartement' }, {}), true);
+        assert.strictEqual(sent107[0].opts.urlButton, '412');
+      });
+      await checkAsync('annonce_en_ligne_v3 (static "Mes annonces" button) gets no button parameter', async () => {
+        process.env.LISTING_APPROVED_TEMPLATE = 'annonce_en_ligne_v3';
+        sent107.length = 0;
+        assert.strictEqual(await admin107.sendModerationTemplate('approved', '243810010701', 412, { property_type: 'appartement' }, {}), true);
+        assert.strictEqual(sent107[0].name, 'annonce_en_ligne_v3');
+        assert.strictEqual(sent107[0].opts.urlButton, undefined);
+        assert.deepStrictEqual(sent107[0].opts.bodyParams, ['412', 'Appartement']);
+      });
+      check('approvedTemplateUrlButton: the id only for the two dynamic-link names', () => {
+        assert.strictEqual(approved107.approvedTemplateUrlButton('annonce_en_ligne', 9), '9');
+        assert.strictEqual(approved107.approvedTemplateUrlButton(' annonce_en_ligne_v2 ', 9), '9');
+        assert.strictEqual(approved107.approvedTemplateUrlButton('annonce_en_ligne_v3', 9), null);
+        assert.strictEqual(approved107.approvedTemplateUrlButton('', 9), null);
+      });
+    } finally {
+      chakra.sendTemplate = saved107.template;
+      if (saved107.env === undefined) delete process.env.LISTING_APPROVED_TEMPLATE; else process.env.LISTING_APPROVED_TEMPLATE = saved107.env;
     }
   }
 

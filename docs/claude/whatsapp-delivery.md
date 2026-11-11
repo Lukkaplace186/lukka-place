@@ -544,7 +544,7 @@ app-only for discovery alerts. Only customers with the app are read.
 
 verify-pipeline §104; web `tests/unit/push-notifications.test.js`.
 
-## Templates approved 2026-11-11 — all switched on
+## Templates approved 2026-11-11 — all switched on (except the listing-approved one)
 
 Owner submitted the gap-analysis set (2026-11-09) plus `agent_lead_claim` and
 `point_annonces_agent`; all approved. Each was test-sent to the desk the same
@@ -563,7 +563,7 @@ variables, never throws).
 | `nouveau_message_agent` / `_client` | `CHAT_AGENT_TEMPLATE` / `CHAT_CUSTOMER_TEMPLATE` | 4 · link = thread id | `chatNotify` |
 | `bon_de_visite_client` | `VISIT_RECEIPT_TEMPLATE` | listing, date, agent · none, **no header** | `visitReceipt.sendReceipt` (template first) |
 | `avis_visite_client` | `VISIT_FEEDBACK_TEMPLATE` | first name, listing · Bien passée / Pas convaincu / Agent absent | check-in |
-| `annonce_en_ligne_v2` | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict |
+| ~~`annonce_en_ligne_v2`~~ **OFF** | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
 | `suivi_demande_client` | `SUIVI_DEMANDE_TEMPLATE` | **first name, request** (was sent with one — fixed) · 3 quick replies | `requestFollowup` |
 | `client_vous_contacte_agent` | `CONTACT_TAP_TEMPLATE` | agent, Appeler/WhatsApp, listing · 2 quick replies | `contactTapAlert` |
 | `contact_client_verif_agent` | `VIEWING_CONTACT_CHECK_TEMPLATE` | agent, client, listing · 3 quick replies | `askAgentContactCheck` |
@@ -578,3 +578,25 @@ variables, never throws).
 `/admin/send-whatsapp-template` now also takes `url_button` and
 `only_outside_window` (answers `sent: false, reason: 'inside-window'`).
 §106 of verify-pipeline; web `tests/unit/price-drop-template.test.js`.
+
+### Listing approved → the agent's own listings (2026-11-11, owner)
+
+The approval should take the agent to **their own listings** (Mes biens,
+`/compte/agent/biens`), not the public listing page. Same day:
+
+- `LISTING_APPROVED_TEMPLATE` is **commented out** in the production engine
+  .env (`annonce_en_ligne_v2`'s button is the DYNAMIC public
+  `/listings/{{1}}`). Outside the 24 h window the agent gets the app push if
+  they have the app, else the session text, which does not arrive.
+- The text (team approval and trusted auto-approval, one wording in
+  `services/listingApprovedMessage.js`) names the listing number and links to
+  Mes biens; a signed-out agent logs in first and lands there. The app push
+  still opens the listing in the dashboard (`/compte/agent/biens/<id>`).
+- **To submit: `annonce_en_ligne_v3`**: Utility, fr, intake account, picture
+  header, body as v2, STATIC "Visit website" button "Mes annonces" →
+  `https://lukkaplace.com/compte/agent/biens`. `approvedTemplateUrlButton`
+  sends the id only to `annonce_en_ligne` / `_v2` (dynamic), nothing to any
+  other name, so v3 needs no code change. Once approved:
+  `LISTING_APPROVED_TEMPLATE=annonce_en_ligne_v3`, add it to
+  `TEMPLATES_WITH_IMAGE`, restart, test-send to the desk and tap the button.
+  verify-pipeline §107.

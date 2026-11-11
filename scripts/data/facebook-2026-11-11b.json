@@ -1,0 +1,15 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-11",
+  "note": "Second Facebook paste of 2026-11-11, same rules as facebook-2026-11-09.json. Left out: Heaven Agence Immo's Champ de tir house (kept off the invite list at the owner's request, 2026-11-03; it is Khalifa Brid's fb-2026-11-11-07 house, and its text shows The DAY Business's fb-2026-11-11-05 is the same house). Dn Mo's Binza Pigeon villa gives +243 085291301, one digit short: price kept without a number (his Gombe post gives the full number). Dn Mo's Gombe price is written '8000.000$' and read as 8,000,000 $ (1,300 m2, 20,000 $ a month in rent).",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-11b-01", "studio", 150, null, "Lemba", "Salongo", 1, "081 341 9889", "Irene Bobila", "Flouve Property Prime", "rent"],
+    ["fb-2026-11-11b-02", "villa", 8000000, null, "Gombe", null, 2, "+243 852913013", "Dn Mo", null, "sale"],
+    ["fb-2026-11-11b-03", "villa", 1700000, null, "Ngaliema", "Binza Pigeon", 6, null, "Dn Mo", null, "sale"],
+    ["fb-2026-11-11b-04", "maison", 150000, null, "Kasa-Vubu", null, 0, "099 699 3345", "Enock Mulamba", null, "sale"],
+    ["fb-2026-11-11b-05", "appartement", 400, 2, "Limete", "Résidentiel", 0, "+243 976593920", "Junior Juliana Nsapu Lindanda", null, "rent"],
+    ["fb-2026-11-11b-06", "maison", 8000, 1, "Nsele", null, 0, "+243 904 159 991", null, "Nevain Immo", "sale"],
+    ["fb-2026-11-11b-07", "appartement", 250, 2, "Limete", "Industriel", 0, "0973185868", "Papy Selemani", "HK Immo Misuni", "rent"]
+  ]
+}

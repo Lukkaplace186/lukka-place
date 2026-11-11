@@ -176,3 +176,7 @@ test('the migration is idempotent and the table is closed to the public API', ()
     assert.ok(sql.includes(`'${step}'`), step);
   }
 });
+
+test('test / demo customers (customers.is_test) are left out of the sign-up progress', () => {
+  assert.match(squash(SIGNUP_PROGRESS_SQL), /WHERE NOT COALESCE\(\(to_jsonb\(c\) ->> 'is_test'\)::boolean, false\)/);
+});

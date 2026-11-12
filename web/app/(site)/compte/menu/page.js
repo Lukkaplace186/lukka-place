@@ -9,6 +9,10 @@ import { getT } from '@/lib/i18n/server';
 import { getPortalCounts, getPortalCustomer } from '@/lib/customerPortal';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { logoutAction } from '../actions';
+import AppAvatar from '@/components/app/AppAvatar';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
+const FAQ = ['visit', 'whatsapp', 'costs', 'alerts'];
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +21,6 @@ export async function generateMetadata() {
   return { title: t('appShell.account.title'), robots: { index: false } };
 }
 
-/** "AO" from "Amara Okafor"; one letter for one word; null for no name. */
-function initialsOf(name) {
-  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return null;
-  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
-}
 
 function Row({ href, icon: Icon, label, meta = null }) {
   return (
@@ -61,7 +59,6 @@ export default async function AccountMenuPage() {
   const counts = portal ? await getPortalCounts(portal.customerId).catch(() => null) : null;
   const name = portal?.customer?.full_name?.trim() || null;
   const phone = portal?.customer?.phone ? formatPhoneDisplay(portal.customer.phone) : null;
-  const initials = initialsOf(name);
 
   return (
     <div className="min-h-full bg-canvas-alt">
@@ -71,10 +68,8 @@ export default async function AccountMenuPage() {
       ) : null}
 
       {portal ? (
-        <div className="flex items-center gap-3.5">
-          <span className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-blue text-[1.125rem] font-bold text-white">
-            {initials || <User strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" aria-hidden="true" />}
-          </span>
+        <div className="flex items-center gap-4">
+          <AppAvatar name={name} size="lg" />
           <div className="min-w-0">
             {name ? <p className="truncate text-[1.0625rem] font-bold text-ink">{name}</p> : null}
             {phone ? <p className="u-tabular text-[0.875rem] text-ink-45">{phone}</p> : null}
@@ -123,6 +118,19 @@ export default async function AccountMenuPage() {
         <Row href="/combien-coute" icon={BarChart3} label={t('appShell.account.prices')} />
         <Row href="/agents" icon={Users} label={t('appShell.account.agencies')} />
       </Group>
+
+      {/* The questions the app is asked most, answered with what it really does. */}
+      <section>
+        <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{t('appShell.faq.title')}</h2>
+        <Accordion type="single" collapsible className="rounded-2xl border border-line bg-surface px-4">
+          {FAQ.map((key) => (
+            <AccordionItem key={key} value={key}>
+              <AccordionTrigger>{t(`appShell.faq.items.${key}.q`)}</AccordionTrigger>
+              <AccordionContent>{t(`appShell.faq.items.${key}.a`)}</AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </section>
 
       <section>
         <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{t('appShell.account.preferences')}</h2>

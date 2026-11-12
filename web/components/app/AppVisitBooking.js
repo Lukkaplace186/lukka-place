@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from '@/components/LocaleLink';
 import { AnimatePresence, m } from 'motion/react';
-import { CalendarClock, Check, ChevronLeft } from 'lucide-react';
+import { CalendarClock, Check, ChevronLeft, CircleAlert } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
 import SafeImage from '@/components/SafeImage';
 import Price from '@/components/Price';
 import VisitSlotPicker from '@/components/VisitSlotPicker';
@@ -25,6 +28,24 @@ const slide = {
   enter: (dir) => ({ x: dir > 0 ? 28 : -28, opacity: 0 }),
   center: { x: 0, opacity: 1, transition: { type: 'spring', stiffness: 380, damping: 36 } },
 };
+
+// The final button: a spinner and no second tap while the request is on its
+// way (on 3G that can take seconds, and a second tap is a second request).
+function SubmitButton({ disabled, label, sendingLabel }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      aria-busy={pending || undefined}
+      className="u-press flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-blue px-4 text-[0.9375rem] font-semibold text-white disabled:opacity-60"
+    >
+      {/* The words say it; the spinner stays silent so it is not read twice. */}
+      {pending ? <Spinner className="size-4 text-white" role="presentation" aria-hidden="true" /> : null}
+      {pending ? sendingLabel : label}
+    </button>
+  );
+}
 
 function ListingSummary({ listing }) {
   const where = feedLocationLine(listing);
@@ -140,9 +161,10 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
         <ListingSummary listing={listing} />
 
         {error ? (
-          <p role="alert" className="mt-4 rounded-xl bg-danger-tint px-3.5 py-3 text-[0.875rem] font-medium text-danger">
-            {t(VISIT_ERROR_KEYS[error] || VISIT_ERROR_KEYS[1])}
-          </p>
+          <Alert variant="destructive" className="mt-4">
+            <CircleAlert />
+            <AlertDescription className="text-ink">{t(VISIT_ERROR_KEYS[error] || VISIT_ERROR_KEYS[1])}</AlertDescription>
+          </Alert>
         ) : null}
 
         {/* Step 1 stays mounted on step 2 (hidden): its inputs carry the slot into the form. */}
@@ -222,9 +244,7 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
               {slot ? t('appShell.visit.continueWith', { slot: formatVisitSlot(slot, locale) }) : t('appShell.visit.continue')}
             </button>
           ) : (
-            <button type="submit" disabled={!slot} className="u-press h-12 flex-1 rounded-xl bg-blue px-4 text-[0.9375rem] font-semibold text-white disabled:opacity-50">
-              {t('appShell.visit.submit')}
-            </button>
+            <SubmitButton disabled={!slot} label={t('appShell.visit.submit')} sendingLabel={t('appShell.visit.sending')} />
           )}
         </div>
       </div>

@@ -9128,7 +9128,9 @@
       "latest": "Recently Added",
       "seeAll": "See all",
       "findTitle": "Not Found It Yet?",
-      "findText": "Describe what you are looking for and agencies send you homes."
+      "findText": "Describe what you are looking for and agencies send you homes.",
+      "whereTitle": "Where to Look",
+      "whereCaption": "Listings online per commune, right now."
     },
     "card": {
       "photos": {
@@ -9192,10 +9194,32 @@
       "submit": "Request the visit",
       "doneTitle": "Visit Requested",
       "myVisits": "See my visits",
-      "backToListing": "Back to the listing"
+      "backToListing": "Back to the listing",
+      "sending": "Sending…"
     },
     "filters": {
       "reset": "Reset"
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "items": {
+        "visit": {
+          "q": "How do I request a visit?",
+          "a": "On the listing, tap “Request a visit”, choose a day and a time, then leave your WhatsApp number. The agent confirms on WhatsApp and the visit appears in My visits."
+        },
+        "whatsapp": {
+          "q": "Why does WhatsApp go through Lukka Place?",
+          "a": "Your message reaches Lukka Place first: the request is recorded, the agent is alerted and you get their number straight away."
+        },
+        "costs": {
+          "q": "What are the deposit, advance and commission?",
+          "a": "They are three separate entry costs. When the agent has given them, the listing shows each one separately, in months of rent."
+        },
+        "alerts": {
+          "q": "How do I hear about new homes?",
+          "a": "Save a search from the results, then turn on “Alerts” in Saved. In the app, the alert arrives as a notification."
+        }
+      }
     }
   }
 }

@@ -1,5160 +1,5160 @@
-# Lukka Place — Web (Next.js storefront)
-
-Public marketplace for [Lukka Place](../CLAUDE.md) (the root repo is the WhatsApp
-intake engine — that CLAUDE.md covers the overall system architecture and data
-flow; this file is scoped to this Next.js app specifically). Live at
-lukkaplace.com.
-
-**Next.js 16 (App Router), Tailwind v4, plain JS (no TypeScript).** See
-`AGENTS.md` before touching anything App-Router-shaped — this version has real
-breaking changes from older training data (async `params`/`searchParams`,
-`fetch` no longer cached by default, etc.).
-
-## Data & security rules
-
-- **Every query against `properties` filters on `status = 1 AND approve_status = 1`, no exceptions.** There is no Row Level Security on this table — the query-time filter in `lib/listings.js` is the only thing keeping pending/unapproved listings private. A detail-page lookup by id repeats this filter too: a guessed/leaked URL to a pending listing must 404, never partially render.
-- **DB credentials are server-only.** `lib/db.js` imports the `server-only` package specifically to make an accidental import from a `'use client'` file a build error, not just a review miss. Never let `DB_*` env vars near a `NEXT_PUBLIC_` name or a client component.
-- **Commune is not a column.** It's tagged via `property_amenities` onto one of amenity ids 21–44 (see the engine's `services/postgres.js`, `COMMUNE_AMENITY_IDS`). Reading it back means joining `property_amenities` → `amenity_contents`, not `SELECT commune`. `quartier`, `parcelle_subtype`, `units_count`, `reference` *are* real columns.
-- **Category names are capitalised in the database** — the live values are `'Appartement'` and `'Maison'`, not lowercase. The property-type filter compared against a hardcoded lowercase `'appartement'` for months and silently matched nothing; it now uses `LOWER(catc.name) = $n`. Don't "simplify" that back to an exact match.
-- **Don't hardcode filter option lists.** `getPropertyTypeFacets()` derives the property types (with real counts) from the database, so an option that would return zero results is never offered. Same principle as `getCommuneShowcase()` / `getPopularCommunes()`.
-- **This app talks to two things**: the Supabase Postgres DB directly (via `pg`, read-only in intent — see the TODO in `.env.local` about a scoped DB role that hasn't been created yet), and the engine's `GET /locations` (via `lib/locations.js`, fetched server-side only — never client-side, which is what avoids needing CORS on the engine).
-  - **The engine being down must not take `/listings` down.** That fetch only feeds the filter bar's commune→quartier hierarchy; the listings themselves come from Postgres. Use `getLocationHierarchySafe()`, which returns empty on failure so the page falls back to DB-derived communes. `/listings` used to 500 outright whenever the engine was unreachable.
-
-## No fabricated data — this one comes up constantly
-
-Never invent a value to fill a UI slot that has no real data behind it. When a
-reference design assumes something we don't have, either map it onto real
-data, source a properly-licensed real asset, or render an honest absence —
-don't guess. Examples already in this codebase:
-
-- A per-listing agent phone is shown only for a **verified, routing-enabled** agent (`lib/listings.js` nulls `agent_phone` in SQL otherwise); every other "Contact" CTA routes through the one real WhatsApp number (`NEXT_PUBLIC_WHATSAPP_NUMBER`) and renders an honest disabled state (not a dead `wa.me` link) when that env var is empty. One rule for all three CTAs: `lib/leadRouting.js` (`WhatsAppCTA.js`, `EnquiryCard.js`, `MobileListingBar.js`), and each tap is logged with its routing through `trackLeadClick`. The reference portals put an agent card in exactly the slot `EnquiryCard` occupies; never fill it with an agent we cannot vouch for.
-- Footer social icons (Facebook / Instagram / TikTok) stay inert `<span>`s, never `<a href="#">`, until a real URL is saved on `/admin/settings` (or set as `NEXT_PUBLIC_*_URL`); a saved WhatsApp Business link replaces the central number on the WhatsApp icon. See "Site settings…" below.
-- `ExploreCommunes.js` shows **a real photo of a real approved listing in that commune**, plus that commune's real listing count (`getCommuneShowcase()`). It used flat gradients before, because a stock photo captioned "Gombe" would have been a fabrication. A commune whose latest listing has no usable photo falls back to the typographic treatment rather than borrowing another commune's image.
-- Card chip badges are limited to what the data can prove: photo count (`gallery.length`), "Location" (`purpose`), door count (`units_count`). No days-on-market shaming, no invented amenity hooks. See `ListingBadges.js`.
-  - **"Prix en baisse −N %" and "Nouveau" are back (2026-10-18, product direction)**, at most one per card (`cardPromoBadge`, lib/listingView.js). A price cut is a row in `property_price_history` (the engine's trigger, every writer): the latest change, within 14 days, after the listing went public, same currency/purpose/period, current price still the reduced one; 1–50 % only (a bigger "cut" is a corrected typo). "Nouveau" = public for under 3 days (7 until 2026-10-28, cut because most launch listings carried it) (later of `created_at` / `moderated_at`). Both are SQL columns (`price_drop_from`, `is_fresh` in `SELECT_FIELDS`) on the database clock, never `Date.now()` in a component (hydration #418). Neither shows on an under-offer or let/sold listing. `tests/unit/card-promo-badges.test.js`.
-  - Saving a listing bursts six dots out of the heart and vibrates 12 ms on Android (`FavoriteButton`, `.u-heart-burst`); none of it under reduced motion, nothing on unsave.
-- The hero background (`public/hero-kinshasa.jpg`) is a real, properly-licensed photo (CC BY-SA 2.0, Wikimedia Commons — MONUSCO/Abel Kavanagh) with the required credit rendered in `Hero.js`. It has been re-encoded to ~330 KB (it shipped at 5.6 MB). Anything that replaces it keeps both properties: real licence, visible credit where the licence asks for one.
-- `PropertyMetrics.js` shows a rental listing's own price as its monthly income and nothing for a sale listing — no market-comparable dataset exists to estimate a yield. `/plan` stays an honest empty page for the same reason: a budget calculator would need financing rates we don't have.
-- **The USD→CDF rate is a real daily feed now** (`lib/exchangeRate.js`), not the
-  manually-maintained constant this bullet used to describe. What did NOT change
-  is the honesty framing, and it still binds: `<Price>` marks converted amounts
-  "≈" with a dated tooltip, `CurrencyBridge.js` states the date in copy, and
-  nothing presents it as a dealing rate — a daily reference figure is not a
-  quote somebody can transact on.
-  - **The displayed date is always the date the displayed number actually came
-    from**, never "today". The feed publishes its own `time_last_update_utc`
-    and that is what we render; when the fetch fails we fall back to
-    `DEFAULT_CDF_PER_USD` carrying `DEFAULT_RATE_UPDATED_AT`, its real check
-    date. Stamping a fallback with today's date would be a stale figure wearing
-    a fresh one, on a number customers budget against — the same class of
-    fabrication as the invented deposit terms two sections down.
-  - **Frankfurter does not carry CDF** — it republishes the ECB majors, and a
-    USD→CDF query returns nothing usable (confirmed against the live API). Any
-    replacement source has to actually quote this exotic; `open.er-api.com` was
-    picked because it does, needs no key, and reports its own publish date.
-  - `lib/currencyRate.js` stays the single entry point every pricing surface
-    reads. An admin's manual entry from `/admin/cms` still wins, but only while
-    it is at least as recent as the feed — a correction, not a permanent pin.
-
-## Design system
-
-Warm luxury palette over a Zillow/Rightmove-style portal information
-architecture: the references supply the skeleton (filter pills, card anatomy,
-map/results split, desktop rail), the palette and type supply the skin.
-
-**Density is deliberate and split by surface**: `/listings` is dense and
-scannable like the references; `/` and `/listings/[id]` are airy and emotive.
-Scan fast to find, linger to decide.
-
-- **Tokens live in `app/globals.css`** (Tailwind v4 — there is no config file). Ground is `canvas` (`#FBF9F6`, warm, deliberately not `#fff`) with white `surface` cards on top; that figure/ground separation is what the previous all-`#ffffff` palette lacked and why cards needed shadows to be visible.
-  - Naming: the ground is `canvas`, **not** `stone` — Tailwind ships a built-in `stone-*` scale and having both `bg-stone-deep` (ours) and `bg-stone-800` (theirs) reads as a typo.
-  - The old `--color-lukka-blue*` tokens are **gone**. They held a dark slate identical to the body text, so nothing could read as a primary action. Don't reintroduce a token whose name doesn't match its value.
-- **Bronze contrast rule — computed, not assumed. Follow it exactly:**
-  - white on `--bronze` (`#A6642A`) = **4.69:1**, passes AA → bronze is a **fill** colour.
-  - `--bronze` as text on `--canvas` = **4.46:1**, **fails AA** → never use it for body-size text.
-  - `--bronze-deep` (`#7E4A1C`) on `--canvas` = **6.93:1**, passes → all bronze text, links and small icons.
-- **Type is sans-led**, and there is now exactly one scale for the whole application — see the **Typography** section below, which supersedes any per-surface heading convention. Plus Jakarta Sans carries all UI, filters, prices, card data and body copy; DM Serif Display is an *accent only*, at regular weight, for page and section titles on every surface including `/admin`. No mono family is loaded: reference codes use `.u-ref`. (This bullet previously named Inter and Fraunces — both were replaced by the "WhiteBlue Royal" pass and the note was stale.)
-- **Utilities that carry the look**: `.u-eyebrow` (uppercase 11px/0.12em — the editorial workhorse), `.u-tabular` (**every price**, or grid columns go ragged), `.u-ref`, `.u-lift` / `.u-lift-lg` (the only real elevations; cards use hairline `border-line` instead of shadows).
-- **Colours that can't reach CSS**: `lib/mapIcons.js` (SVG data URIs) and `lib/mapStyle.js` (Google Maps `styles` array) hardcode their colours because neither can resolve CSS custom properties. The `/listings` pins (`.lkp-pin`) are real DOM and use the tokens.
-- **The map is the one surface that deliberately leaves the site palette** — don't "fix" it back. `lib/mapStyle.js` renders real geography (green parks, blue water, a warm paper canvas, a warm road hierarchy) rather than the monochrome WhiteBlue treatment it used to carry: with no green, no water and no road hierarchy, Kinshasa disappeared and the map became a blank sheet pins floated on. Pin colour is a **data encoding**, not decoration — `lib/mapMarkerKinds.js` maps each real property category to one colour + one lucide glyph (blue appartement/duplex/penthouse, green maison/villa, orange terrain, red bâtiment/boutique/entrepôt, neutral ink for an unrecognised category), resolved `parcelle_subtype` first then `category_name`, the same precedence `typeLabel()` uses. `PropertyMap`'s legend is what gives those colours meaning; a new kind without a legend entry is an unexplained dot. Cluster bubbles carry a ring split into one arc per type present, sized by the real mix underneath. All of it is pinned by `tests/unit/map-markers.test.js` against the pure helpers, since the icon builders themselves need the Maps JS API.
-  - **Stale above, kept for the reasoning:** the colour kinds, the legend and the ringed clusters were removed (dd425f9) in favour of royal-blue price tags — see the header of `lib/mapIcons.js`. Clustering briefly returned with the viewport map and was removed again: every listing renders as its own price tag at every zoom.
-  - **2026-09-23:** resting pins are white speech bubbles, only the active one is blue; on `/listings` they are HTML pills (`lib/mapPinLayer.js`) and every listing always shows its price (`$1.5k` format) — no clusters, no dots. The basemap is vibrant (`lib/mapStyle.js`: green parks, vivid blue water, local street names and land parcels off). Every pill has the same solid edge. Root CLAUDE.md, "Markers".
-- **`/listings`' map is a viewport map, not a view of the page** (`components/ListingsMap.js`, `GET /api/listings/map`, `lib/mapViewport.js`). It shows every listing matching the URL filters inside the visible area and refetches when the map comes to rest; the 12-card list pane beside it stays paginated. On the map, commune/quartier/radius decide where it OPENS and then give way to the viewport, so panning out of Bandal still applies "2 chambres" to what comes into view. Root CLAUDE.md, "Interactive Property Map", has the full model; the detail page's single-listing map is still `PropertyMap`.
-
-## Typography — one scale, four surfaces
-
-**Before this, the app ran four typographic dialects on one font stack**, which
-is why the storefront, the agent portal, the Espace Client and `/admin` read as
-different products: the public site set headings in DM Serif, the agent portal
-used the serif for its page title but ad-hoc `text-[1.125rem] font-bold` sans
-for every card heading, the client portal had a third set of arbitrary sizes,
-and `/admin` used the display face **zero times** — every heading sans-bold at
-`text-xl` / `text-[1.3125rem]` / `text-sm`.
-
-**Two families, one hierarchy, applied identically everywhere** (tokens and
-utilities in `app/globals.css`):
-
-| Utility | Face | Size | Use |
-| --- | --- | --- | --- |
-| `.u-title-hero` | DM Serif | 32→40px | the h1 of an editorial full-page (Espace Client, /compte/alertes, /compte/demandes) |
-| `.u-title-page` | DM Serif | 28→30px | every dashboard page header — agent AND admin |
-| `.u-title-section` | DM Serif | 22px | a band within a page; auth-card titles; empty-state titles |
-| `.u-title-card` | Sans 700 | 17px | the heading inside one card or panel |
-| `.u-title-sub` | Sans 700 | 15px | a group label above a field cluster |
-| `.u-micro` / `.u-micro-strong` | Sans 400/600 | 13px | the dashboard workhorse: table cells, filter controls, form labels |
-| `.u-stat` | Sans 800 tabular | 28px | a headline metric on a stat tile |
-
-**Use these instead of writing a new arbitrary `text-[…]`.** A one-off size is
-exactly how the four dialects happened. `.u-price`, `.u-body`, `.u-meta`,
-`.u-eyebrow`, `.u-ref` and `.u-tabular` are unchanged and still apply.
-
-The serif is what makes an admin console read as part of the same product as
-the storefront — it is why it now appears there at all. It stays regular
-weight only (the face has no bold cut) and never carries UI or data.
-
-## Listing lifecycle — three independent axes
-
-Conflating any two of these is the bug that keeps recurring:
-
-| Column | Meaning | Who owns it |
-| --- | --- | --- |
-| `approve_status` | moderation: 0 pending / 1 approved / 2 rejected | admin only |
-| `listing_status` | market state: `active` / `under_offer` / `closed` | agent (+ admin override) |
-| `status` | visibility: 1 public / 0 hidden | agent ("Archiver") and admin ("Suspendre") |
-
-- **Archiving is `status = 0`** — the existing active/enabled flag the public
-  filter already excludes. No new visibility mechanism was invented; the only
-  new column is `archived_at`, which records *when*, so an agent archive is
-  distinguishable from a listing that was simply never enabled.
-- **Closing a transaction requires a real date; the price is optional since
-  2026-11-09** ("Faites le point" below — a close the agent would not price
-  is kept with `sold_price` NULL rather than lost; only the old paragraph
-  below assumes a price).
-- **(History) Closing a transaction requires a real price AND a real date.**
-  `markListingSoldAction` writes `sold_price` + `sold_at` and sets
-  `status = 0`, so a concluded property leaves public search. `sold_at` exists
-  because days-on-market was previously derived from `updated_at`, which moves
-  every time anything on the row changes — a listing touched three months after
-  closing reported a three-month-longer DOM.
-- **`lib/dataExport.js` filters on `approve_status = 1` ONLY**, and is the one
-  query in this codebase that deliberately does not apply the public
-  `status = 1 AND approve_status = 1` gate. Filtering on `status` there would
-  drop every SOLD listing — the rows carrying `sold_price`, `sold_at` and the
-  achieved-vs-asking delta, i.e. the entire commercial value of the dataset.
-  Consumers who want live supply only filter the new `currently_listed` column.
-  `tests/unit/data-export.test.js` asserts this on the SQL text, not on rows.
-
-## Admin console
-
-- **`lib/adminListings.js` is separate from `lib/agentListings.js` on purpose.**
-  The latter enforces `AND agent_id = $n` on every statement — that scoping is
-  its whole point and must never be weakened. An admin needs to reach any
-  listing, including the ~23 with no agent attached. Two modules with two
-  explicit authority models beats one module with a "skip the ownership check"
-  flag someone eventually passes from the wrong place.
-- **The quartier is picked, not typed** (2026-11-03, `components/QuartierPicker.js`):
-  a select of the chosen commune's quartiers (engine `GET /locations`), reset
-  when the commune changes, plus "Autre…" for a lieu-dit or a commune whose
-  list is partial. A stored value not in the list opens on "Autre…" with that
-  value, so saving the page never loses it. A landmark belongs in Référence —
-  root CLAUDE.md, "The quartier keeps a quartier".
-- **Granular override editing** (`/admin/listings/[id]`) is what the console was
-  missing entirely: it previously offered exactly two verbs, Approuver and
-  Rejeter, so a listing with a transposed price or a missing commune could only
-  be bounced back to its agent over WhatsApp. That is why 6 approved listings
-  still carry no commune tag — nobody had a way to add one.
-- **Suspendre ≠ Rejeter.** Rejection is a moderation verdict that notifies the
-  agent their listing was refused; suspension is operational and reversible in
-  one click, leaving approval intact. `?status=suspended` is a fourth
-  moderation queue reading a *different column* (`status = 0 AND
-  approve_status = 1`) — see `LISTING_MODERATION_STATUSES`.
-- **`/admin/agents/[id]`** owns identity, territory (specialty vs coverage —
-  they score differently in the matcher), the verification badge, session
-  revocation, WhatsApp password-reset links, and portfolio reassignment.
-  `agents.phone` is deliberately **not** editable: it is the primary
-  identifier, and changing it would silently invalidate listing attribution,
-  the verification that granted the badge, and sessions.
-- **Duplicate detection** flags same-normalised-phone and same-email groups
-  only, never name similarity. The phone normaliser folds DRC shorthand onto
-  `243…` and leaves every other country's digits alone — an unconditional
-  `243` prefix turned a real UK number in production into `243447932673460`.
-- **Quotas are per-PACKAGE, not per-agent.** This schema has no per-agent quota
-  column; a UI implying one would promise an override nothing enforces.
-- **`plan_change_requests`** is the queue behind the agent-facing "Demander ce
-  forfait". Approving a request assigns the package and writes the ledger row
-  in one action. FlexPaie online payment is being added beside it (2026-10-18,
-  "FlexPaie" below); the request queue stays.
-
-### Built for 30k agents — every list is one server page
-
-The console used to fetch whole tables and slice nothing: `getAgents()` (every
-agent, two correlated listing counts each) was called by six pages just to fill
-`<select>`s, and `/admin/agents` rendered a 24-commune checkbox form into every
-row. That is fine at 10 agents and a multi-megabyte page at 30,000.
-
-- **URL-driven state, `lib/adminPagination.js`.** Page, page size (25/50/100
-  only — an arbitrary size is an unbounded query) and every filter are query
-  params. The Server Component asks the database for exactly one page
-  (`LIMIT/OFFSET` + a `COUNT`); the browser never holds more than 100 rows, which
-  is why there is no virtualisation layer. `buildHref` drops empty params and
-  resets `page` whenever a filter changes. Shared UI: `app/admin/table/`
-  (`TableToolbar` — debounced search, selects, dates; `Pagination`; `TableFrame`
-  with a sticky header). `TableToolbar` takes current values as props rather
-  than `useSearchParams()` (see Gotchas).
-- **Never load every agent again.** Pick an agent with `app/admin/AgentPicker.js`
-  (server-side type-ahead, ≤20 results, commune specialists first); name the
-  agents a page shows with `getAgentNamesByIds`; list them with
-  `listAgentsForAdmin`. `getAgents()` still exists for the public directory's
-  callers but has no admin caller left — keep it that way.
-- **Admin display names never fall back to `agents.username`** (it is the phone
-  number): `ADMIN_AGENT_NAME` is person → agency → `Agent #id`.
-- **Search escapes `%`/`_`** on both sides (Postgres `ilikeTerm`, engine
-  `likeTerm`); a typed `%` is text.
-- **`app/admin/error.js`** is the console's error boundary (Next 16 passes
-  `retry`, not `reset`). `/admin/matching` 500'd for every admin because
-  `const t = stats.totals` shadowed the translator one line before a `t()` call
-  — `i18n-translator-binding.test.js` cannot see a shadowed `t`, so name data
-  anything but `t`. Pages still load each data source independently
-  (`Promise.allSettled`) and render an `ErrorNote` in place.
-- **Agency search on `/admin/viewings`** is resolved to `agents.id` in Postgres
-  (`searchAgentIds`, capped at 500) and OR'd engine-side with the customer
-  name/number match — agency names do not live in SQLite. "Escalated" is the
-  engine's `view=escalated` slice (PENDING + `sla_alerted_at`), not a status.
-- **Conversations open in a slide-over at `?c=<id>`**, server-rendered like
-  every other view, so a thread is linkable and survives a refresh. Sender,
-  intent and assistant tool chips are written by the engine at record time
-  (`messages.sender/intent/tool_calls`); older rows show "sender not recorded"
-  rather than a guess. Listing-link and `wa.me` chips are pattern matches.
-- **`/admin/market-data` asking-price stats (`lib/marketStats.js`)** use the
-  PUBLIC gate (`status = 1 AND approve_status = 1`) — the opposite choice from
-  `marketBenchmarks.js`, deliberately: a sold listing is not on the market.
-  Yearly rent ÷ 12 exactly as `lib/format.js` renders it; `price <= 0` is "prix
-  sur demande", counted apart and never averaged in as $0.
-- **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
-  Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
-  direct-to-agent tap is invisible to us and is shown beside the rate, never in
-  it. "Delivery health" is API-accepted vs refused plus agents who answered;
-  there is no delivered count because Chakra forwards no receipts.
-
-### Accounts, roles and the audit log
-
-- **Individual team accounts** (`lib/adminUsers.js`, table `console_admin_users`,
-  `migrations/20260914_admin_console_platform.sql` in the engine repo). NOT
-  Laravel's `admins`/`role_permissions` — those belong to the external
-  back-office. Nobody types another person's password: an owner invites by
-  name/email/role on `/admin/team` and gets a single-use activation link (72h,
-  only its SHA-256 stored) to send; the person sets their own password on
-  `/admin/activate` (public in middleware, gated by the token). Lockout: 5 bad
-  passwords lock the account 15 min; 20 failures from one IP in 15 min refuse
-  that IP. The last active owner cannot be demoted or disabled.
-- **Session tokens are `v2.<adminId>.<tokenVersion>.<exp>.<hmac>`**
-  (`lib/adminAuth.js`). middleware.js checks signature + expiry only;
-  `lib/adminSession.js` re-reads the account on every page (layout) and every
-  action (`requireAdmin(permission)`), so disabling someone or resetting their
-  access (both bump `token_version`) ends their sessions at once. The layout
-  learns the path from `x-admin-pathname`, set (and overwritten) by middleware.
-- **The shared password still works, deliberately, as bootstrap owner access**
-  (`adminId 0`). Without it, deploying accounts would have locked the team out
-  until someone created the first owner. Everything it does is audited as
-  `shared-password` and a banner says so. **Turn it off with
-  `ADMIN_SHARED_LOGIN=off` once an owner account is active.** A pre-v2 token is
-  read as that shared session so nobody was signed out by the deploy.
-- **Roles are `lib/adminRoles.js`**: owner / moderator / support / finance /
-  analyst, a fixed permission table, `SECTION_PERMISSIONS` for pages (longest
-  prefix wins). The sidebar hides what a role can't open; the layout and every
-  Server Action enforce it. An unknown permission is refused, never open.
-- **Every mutating action calls `recordAudit`** (`lib/adminAudit.js`,
-  `console_admin_audit_log`, append-only, owner-readable at `/admin/audit`,
-  exportable). Details never contain a password or a customer message body —
-  replies record their length. `verified_by`, `moderated_by` and the exchange
-  rate's `updated_by` now carry the real account (NULL/"shared" under the
-  shared password, honestly).
-
-### Operating the console
-
-- **Approval queue** (`lib/moderationQueue.js`, `/admin/listings`): pending
-  oldest first with waiting time; tabs pending / approved (public only) /
-  rejected / suspended; quality flags computed in SQL (no/few photos, no
-  commune/price/content, extraction-failure text, photo reused on another
-  listing, same title+price, unverified/no agent) plus a price-outlier flag
-  from cached commune medians (≥5 listings, ×3). **Flags are facts, never
-  auto-verdicts.** Bulk approve runs the publishability check per listing and
-  reports skips; reject requires a reason code (`lib/moderation.js`) stored in
-  `properties.moderation_reason_code/_note/moderated_at/moderated_by` and sent
-  to the agent (engine `MODERATION_REJECTION_REASONS`). The listing page has a
-  decision panel and a photo manager that can only reorder/cover/remove photos
-  already on the listing.
-- **Duplicate listings** (2026-11-10, owner decision: same property with
-  another agent is fine, the same agent twice is not). Engine half — the hold
-  at "OK" and AUTRE — in docs/claude/whatsapp-intake-and-agents.md, "Same
-  agent, same listing". Here (`lib/moderationQueue.js`, `lib/moderation.js`):
-  - Photos are matched on the content fingerprint in the stored name
-    (`PHOTO_FINGERPRINT_PATTERN`, `whatsapp_|agent_` + 13 hex), never the URL
-    (it carries the listing id, so the old URL match never caught a re-send).
-    `DUPLICATE_INDEX_CTES` builds the fingerprint and description indexes once
-    per query (MATERIALIZED), live/pending listings only.
-  - `same_agent_resend` (`SAME_AGENT_MATCH`): same agent, the other copy
-    live/pending/not closed, same purpose, bedrooms equal or unstated, ≥1
-    shared photo or identical description (≥40 chars), created more than
-    `SAME_MESSAGE_SECONDS` (30 min) apart — the units of one paste share the
-    building's photos and are not re-sends. It is in `BLOCKING_FLAGS`; bulk
-    approve also asks `findSameAgentResends` and skips with the twins' ids
-    unless approved from the compare page (`confirmResend`).
-  - `duplicate_photo` now means a photo also on ANOTHER agent's listing, and
-    with `duplicate_listing` (title + price) is an `INFO_FLAGS` fact only.
-  - Every duplicate chip is a visible link ("Comparer ↗", "· même agent /
-    autre agent") to `/admin/listings/compare`, which marks same/other agent
-    against the first listing, shows a red banner for the same agent, and on
-    an older live copy offers "Retirer (doublon) — garder n° X"
-    (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
-    message `withdrawn_duplicate` with `keep_id`). The queue's red "N annonces
-    en ligne en double" banner was removed on the owner's request the same
-    day; the list is `?status=approved&flag=same_agent_resend` (the i18n keys
-    `compare.liveResends` / `cleanUp` are kept, unused, for when it returns).
-- **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
-  `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
-  1–2, red none), place as "quartier, commune" under the title, the median
-  ratio under the price, and an agent cell with initials, person (never
-  `vendors.username`), agency when it differs, a `tel:` number and facts —
-  unverified, "Nouveau compte" (< 7 days), "1ʳᵉ annonce" or N listings. The
-  checks column keeps only flags no other cell shows, plus ONE duplicate link
-  for every listing the row matches ("Doublon possible · autre agent", red
-  "Déjà publiée par le même agent"). Table from `md`, one card per listing on
-  a phone; the live tab drops the decision column for "Publié sur", so the
-  table fits a 1440 px screen without scrolling. A new account's first
-  listing is the one to read twice: on 2026-11-10 two customers were onboarded
-  as agents by the WhatsApp intake, their message text became their "name".
-- **Review mode and the queue split** (2026-11-10, same day). Cells shared by
-  the queue and review mode: `app/admin/listings/ModerationCells.js`; rules:
-  `lib/moderationRow.js` (`readiness`, `splitQueue`, `reviewOrder`,
-  `queueSummary`, `nameLooksLikeSentence`, `agentTextLine`).
-  - **Pending tab, unfiltered**: a summary line ("5 en attente · la plus
-    ancienne il y a 3 h · 2 à vérifier", over the whole pending queue up to
-    100; past 100 the "à vérifier" count is left out) with "Commencer la
-    revue", then **À vérifier** ("Revoir ces N" → `?only=check`) and
-    **Prêtes** = verified agent registered more than 7 days ago, no flag at
-    all, ≥3 photos, with "Tout approuver (N)" (the same bulk action, which still
-    re-checks each listing and reports skips). A filter or sort shows one table.
-  - **Each row** has the agent's first words in grey: the first inbound
-    WhatsApp text (engine `GET /admin/properties/sources`,
-    `services/listingSource.js`: inbound messages from 15 min before to 30 min
-    after the draft, `adminApi.getListingSources`), else the text we read,
-    else the description (web-form listing). Engine down = no grey line, never
-    a broken page. The thumbnail opens `PhotoViewer` (all photos, ← → inside it,
-    swipe, approve/reject). Decided tabs show only the date; who, when and the
-    note open in a popover (hover or tap).
-  - **`/admin/listings/review`** (`listings.moderate`): full screen over the
-    console, À vérifier then Prêtes, oldest first. Photo gallery, agent card,
-    checks, "Message de l'agent" (those inbound messages) beside "Ce que nous
-    avons lu" (`getListingFactsForReview`; NULL = "non indiqué", the three
-    entry costs separate). Keys: A approve, R reasons (1–7, Entrée confirms),
-    → skip, ← back, Échap leaves; ignored while typing or with the photo viewer
-    open. Each decision opens the next undecided listing; the end screen counts
-    approved / rejected / skipped and can go back over the skipped ones. Reject
-    reasons are chips everywhere (`RejectReasons.js`, also the queue's dialog).
-    A same-agent re-send is still refused by `moderateListingsAction` and the
-    reason is shown; compare first.
-- **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
-  Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
-  server-side; the browser polls `/admin/api/queue-counts` every 30s while
-  visible (`LiveQueueCounts.js`). Queue pages show a "new items — refresh"
-  pill rather than reshuffling rows under the cursor.
-- **Global search** (Ctrl/⌘K, `lib/adminSearch.js`, `/admin/api/search`):
-  listings, agents, agencies, customers, conversations — only the groups the
-  role may open. Substring search is backed by pg_trgm GIN indexes.
-- **Profiles**: `/admin/agents/[id]` has tabs (profile, listings in every
-  state, requests routed to them, performance from `agent_performance_logs`,
-  notes & history); `/admin/customers/[id]` merges leads, viewings and
-  conversations into one timeline; `/admin/agencies[/id]` manages an agency's
-  whole roster (bulk activate/suspend). Internal notes: `console_admin_notes`.
-- **Every table exports CSV with its current filters** (`/admin/export/[dataset]`,
-  paged through the same list function, capped at 10,000 rows, audited,
-  formula-injection-safe) and supports **saved views** per person
-  (`console_admin_saved_views`; not available under the shared password).
-- **`/admin/billing`** is the renewal desk and ledger over `memberships`:
-  expiring-in-30-days first; revenue is RECORDED revenue (trials excluded) —
-  there is no gateway, so nothing claims reconciliation. The featured-listing
-  picker on Subscriptions is a server-side search (it used to offer only the 50
-  newest listings).
-- **`/admin/health`** reports Postgres/engine latency, last inbound WhatsApp
-  traffic, scheduled-job outcomes, send failures and missing delivery config,
-  from what the platform records. **Alerts** come from the engine's
-  `ops-health-alerts` sweep (root CLAUDE.md, "Admin console at scale"): open
-  incidents show here and as the Health sidebar badge (`openAlerts`), and are
-  WhatsApped to the desk only when `OPS_WHATSAPP_NUMBER` is set.
-- **Keyset pagination** (`lib/adminPagination.js`: `parseCursor`,
-  `keysetClause`, `pageCursors`) on the tables that grow without bound — audit
-  log, customers, agents (newest sort), listing queue (oldest/newest sorts).
-  The pager's arrows carry `?after=`/`?before=` cursors; numbered pages still
-  jump by OFFSET; `buildHref` drops a cursor on any other change. The cursor's
-  sort value is `created_at::text`, **never a JS Date** — Postgres keeps
-  microseconds, a Date keeps milliseconds, and the round-trip would skip rows.
-  CSV export follows the same cursors. Price/name/portfolio sorts stay OFFSET.
-- **Branches** (`agency_branches`, `agency_branch_agents`,
-  `migrations/20260915_agency_branches.sql`, `lib/adminBranches.js`): on
-  `/admin/agencies/[id]` — create/edit/archive (`agents.manage`), filter the
-  roster by branch, move selected agents from the roster's bulk bar. New tables,
-  not an `agents.branch_id`, because `agents`/`vendors` are Laravel's too.
-  Every read joins `b.vendor_id = a.vendor_id`, so an agent moved to another
-  agency silently leaves their old branch. Communes come from the location
-  hierarchy only.
-- **Receipts** (`/admin/billing/[id]`): a printable receipt for a recorded
-  payment, numbered `LP-<Kinshasa year>-<membership id>` (derived, not
-  stored). Not a tax invoice, and says so; a trial or a row with no amount gets
-  no receipt. The console chrome is `print:hidden`.
-- **An agency's name is `vendorNameSql()` (`lib/vendorName.js`), never
-  `vendors.username`.** For agencies created by WhatsApp onboarding or phone
-  signup the username IS the phone digits — the first deploy of the agencies
-  directory, billing ledger and receipts printed "243853580738" as the agency.
-  Order: non-phone username → an agent's `agency_name` → "Agence #id".
-  Covered by `tests/unit/admin-vendor-name.test.js`.
-- **The migration also REVOKEs `anon`/`authenticated` on every `console_*`
-  and branch table.** Supabase's default privileges grant those roles access
-  to new `public` tables over its REST API; nothing here uses that path, and
-  `console_admin_users` holds password hashes. Whether older, Laravel-owned
-  tables carry the same grants has not been checked.
-
-### Sales team and commissions (`/admin/sales`)
-
-`migrations/20260919_sales_and_impersonation.sql`, `lib/sales.js` (SQL),
-`lib/salesRules.js` (pure: periods, amounts, validation — shared with forms).
-
-- **Nothing is typed in as a result.** A rep's figures come from agents assigned
-  to them (`sales_account_assignments`, one active rep per agent, history kept)
-  and what those agents' records say: "onboarded" = `phone_verified_at`;
-  "subscription sold" = a `memberships` row that is a real payment (not a trial,
-  price > 0, status 1) for the agent's vendor. **A vendor is credited only when
-  all its assigned agents share one rep** — ambiguity credits nobody.
-- **`credit_from`** is set when an agent is assigned (default today, never in
-  the future): nothing before it earns anything. Crediting a rep for an agent
-  they signed up last month is an explicit, audited date, not a default.
-- **Commissions are generated, idempotently**, by "Calculer les commissions"
-  (`syncSalesCommissions`, one transaction): subscription % of the payment in
-  its own currency, a fixed onboarding bonus, and a target bonus for CLOSED
-  Kinshasa months only. `UNIQUE (source_type, source_id)` means a membership,
-  an agent or a rep-month is credited once, ever — reassigning an agent never
-  double-pays. The plan's rate is snapshotted on each line, so editing a plan
-  never rewrites earned money. There is no scheduled run: press the button.
-- **Cancellations**: pending/approved subscription lines whose membership is no
-  longer active are voided on the next run; a PAID one is flagged
-  `clawback_due` and settled by a (negative) adjustment — a query never
-  reverses money already handed over.
-- **Lifecycle** pending → approved → paid (via a payout: one currency, rows
-  locked `FOR UPDATE`, total > 0) or void (reason required). Money is never
-  summed across USD/CDF anywhere.
-- **Roles**: `sales.manage` (owner, finance) does every write; a rep never
-  approves or pays their own lines. The new `sales` console role has
-  `sales.view` and is sent to the rep record whose `admin_user_id` is theirs —
-  any other rep id is a 404.
-- The agent profile shows (and, for `sales.manage`, changes) the agent's rep.
-
-#### Launch commission policy (plan kind `launch_milestones`)
-
-`migrations/20260920_sales_launch_policy.sql`, `lib/launchCommission.js`
-(pure: tiers, deltas, quality test, referral codes, fortnights),
-`lib/salesLaunch.js` (SQL), `lib/salesReferral.js` (cookie, links, IP hash).
-A plan is now `kind` subscription (above) or launch_milestones; the
-subscription steps skip launch reps and vice versa.
-
-- **Attribution is permanent and written once**, at account creation, in
-  `sales_agent_attributions` (one row per agent, first valid referral wins):
-  web signup (`/r/<CODE>` sets `lukka_ref` for 30 days without replacing a
-  valid one → `/compte/agent/inscription?ref=` prefills the optional code
-  field) or WhatsApp onboarding (engine, root CLAUDE.md). Never backfilled;
-  existing agents are attributed only by an override with a 20+ character
-  reason (`sales_attribution_changes`). An unknown code on the web form is sent
-  back before the account exists; a failed lookup never blocks signup.
-  Refusals (unknown, inactive, self-referral, existing agent) land in
-  `sales_referral_refusals`. Every rep gets a code (JEAN01, from the first name
-  if left empty); a code that brought an agent in can no longer change.
-- **A confirmed listing is frozen in `sales_listing_credits` the first time the
-  run sees it**: public, price, commune, title + description, ≥3 photos, none of
-  the moderation queue's blocking flags, created after the attribution's
-  `credit_from`. No FK to `properties` (agents hard-delete). It keeps counting
-  while approved and either public or let/sold; rejected, deleted, archived or
-  excluded stops it. Duplicate detection is title+price, so identical units in
-  one building are not credited — deliberate, flagged here.
-- **Qualified** = verified number + a name + ≥3 counting credits + not
-  rejected; **payable** = qualified AND `validation_status = 'validated'`. Tiers
-  are computed from payable counts only.
-- **Ledger lines hold tier DELTAS** (`milestone` acq:<rep>:<n>, `listing_bonus`
-  add:<rep>:<n>, `quality` quality:<rep>), so a rep's lines always sum to the
-  cumulative tier and "pay only the difference" needs no arithmetic. A tier no
-  longer met voids unpaid lines (`auto:below_threshold`, revived if met again;
-  a person's void stands) and flags paid ones (`clawback_flagged_at`) — never a
-  negative line by query. Quality (changed 2026-10-21, owner decision): once,
-  when ≥80% of the agents the rep brought in 30+ days ago (`attributed_at`)
-  are still active — account active and not deleted, not rejected, at least
-  one listing online — with at least 5 such agents. It used to be ≥80% of 15+
-  credited listings valid on day 30; the listing day-30 check still runs and
-  is still shown per credit, it just no longer pays.
-- **The run** is `syncSalesCommissions` (one transaction, `SET LOCAL
-  statement_timeout`), from the button, after every validation / exclusion /
-  override, and daily at 06:00 Kinshasa via the engine's `sales-commissions`
-  job → `POST /api/cron/sales-commissions` (Bearer CRON_SECRET).
-- **Pages**: the rep page gains the referral toolkit (code, link, server-drawn
-  QR SVG via `qrcode`, WhatsApp share, WhatsApp signup link), funnel, tiers,
-  referred agents (validate / reject / move) and credited listings (exclude);
-  the ledger gains a fortnight filter whose "pay" pays exactly that fortnight's
-  approved lines, and payout-method suggestions. `/admin/sales/attribution`
-  (`sales.manage`) lists refusals, overrides and patterns (3+ signups from one
-  hashed connection, listings before the referral, day-30 failures) — facts,
-  never automatic penalties. `/admin/sales/me` sends a rep to their page.
-
-#### What a `sales` console account sees (2026-10-21)
-
-`lib/salesScope.js` (`getSalesScope`, null for every other role) and
-`lib/salesScopeSql.js` (`repAgentCondition`: an active assignment OR the
-launch attribution — the set the team page counts as "brought in"; a sales
-account with no rep linked is repId 0, which matches nobody).
-`tests/unit/sales-rep-scope.test.js`.
-
-- **Agents / Agencies** list only the rep's agents and those agents'
-  agencies, in SQL (`listAgentsForAdmin` / `listAgenciesForAdmin` /
-  `searchAgentsForAdmin` `repId`, also the global search and the agent
-  picker). Any other agent or agency id is a 404. No duplicates panel, no
-  selection, suspend/activate, agency change, reminder or delete
-  (`AgentsTable canManage`); the profile panel is read-only.
-- **Verifications and Market data** are gone for the role
-  (`verifications.view`, `market.view`: every role but sales).
-- **Lead Analytics** shows only taps on listings whose agent is the rep's
-  (`repClickCondition`), and none of the platform-wide engine cards
-  (conversion, delivery, nudges, check-ins).
-- **Agent performance** keeps only the rep's agents, totals recomputed
-  (`lib/agentPerformanceScope.js`, same formulas as the engine); the routing
-  switch is `routing.manage` only, shown as a chip otherwise.
-- The dashboard and Property Approvals are still network-wide for the role.
-
-**Owner-only deletes** (same day): a commission plan (`deleteSalesPlan`; reps
-on it are left with none, earned lines keep their amounts), a rep
-(`removeSalesRep`, `sales.delete`: refused while pending/approved lines
-exist; no history → deleted, otherwise kept for the ledger as inactive,
-unlinked, assignments ended and `removed_at` set, which hides them from the
-team list — engine `migrations/20261021_sales_rep_removal.sql`), and a
-customer account (`customers.delete`, row + favourites + alerts by FK
-cascade; engine leads and visits stay).
-
-### Listing limits, the customer → agent chain, agencies, CMS hero
-
-- **Plan listing limits are enforced** (`lib/listingQuotaRules.js` pure,
-  `lib/listingQuota.js` SQL; engine twin `services/listingQuota.js` — change
-  one, change the other). The cap is `packages.number_of_property` of the
-  agency's active membership (vendor-wide; the most generous active listing
-  plan; a 0/NULL package such as Photography Service sets no cap; no active
-  membership → no cap). A slot is `status = 1 AND approve_status IN (0, 1)` and
-  not closed — pending counts, archived / rejected / let-sold free a slot.
-  Checked in `createListingAction` (after the offline-replay guard),
-  `duplicateListingAction`, single and bulk "put back online", and on WhatsApp
-  "OK" (after the photo gate; the draft stays pending). A refusal returns
-  `{quota}` and `announceListingQuota` opens `components/ListingLimitDialog.js`
-  (mounted in the agent layout) with "Mettre à niveau mon forfait" →
-  `/compte/agent/abonnement`; Mes biens shows the banner and the add button
-  opens the dialog instead of the form at the limit. **Production's Free plan
-  allows 2 listings while the launch policy needs 3 to qualify an agent** —
-  a pricing decision, not changed in code.
-- **Viewings and leads always name an agent when one exists.** A request with
-  no `agent_id` (pre-routing, or central fallback) shows the listing's own agent
-  marked "non alerté" / "non attribué", with WhatsApp links to customer and
-  agent (`app/admin/ContactCell.js`) and one click: "Alerter l'agent"
-  (engine reassign, which notifies them) on viewings, "Attribuer à l'agent de
-  l'annonce" on leads. `getAgentContactsByIds` (lib/agents.js) gives name,
-  agency, digits-only phone and `routable` (verified, routing on, active).
-  `/admin/leads` is now TableToolbar/TableFrame with engine-side search
-  (`q`: name, number, commune, request, assigned agent) and an unassigned filter.
-- **Agencies show a principal contact**: the agency's first agent, named like
-  every console person (never `username`). "Agence #id" stays the honest
-  agency name when none exists, flagged "sans nom d'agence"; search also finds
-  agents' person names and numbers. Stored vendor phones with a leading "+" no
-  longer print "++".
-- **Sales team page** is organised around agents brought in (active
-  assignments, which attributions mirror) and those agents' live listings, with
-  qualified / to-validate counts; every count links to the filtered list on the
-  rep page (`?gfilter=with_listing|qualified|awaiting#referred`), and each row has
-  copy code, copy link, QR download (`/admin/sales/[id]/qr?format=png|svg`, same
-  access as the rep page) and "pay this fortnight" (`?status=approved&fn=…&payout=1`
-  opens the payout dialog). A rep whose code brought nobody in gets a how-to card.
-- **CMS hero image** (`migrations/20260921_cms_settings.sql`, `lib/cmsSettings.js`,
-  `lib/cmsHeroRules.js`, `app/admin/cms/HeroManager.js`): upload (resized to
-  2400 px JPEG via sharp, stored under `cms/hero/` in the listing bucket) or a
-  pasted URL on a next/image-allowed host, alt text, optional credit, live
-  preview, reset. The homepage reads it per request (`getHeroSettings` never
-  throws) and falls back to `Hero/hero-sunlit.jpg`.
-
-### "View as" an agent or a customer (impersonation)
-
-`lib/impersonationToken.js` (pure crypto + the edge decision),
-`lib/impersonation.js` (sessions), `lib/impersonationCookies.js`,
-`app/admin/impersonation/{actions.js,exit/route.js,page.js}`,
-`components/ImpersonationBanner.js`.
-
-- **Read-only, enforced in middleware.js for every path outside /admin**: any
-  non-GET/HEAD/OPTIONS request is a 403 while the `lukka_impersonation` cookie
-  is present. One rule at the edge instead of a check in each action. Reason:
-  confirming a visit from an agent's dashboard WhatsApps a real customer, and a
-  change made "as" someone is indistinguishable afterwards from theirs. The
-  extra matcher entry uses `has: cookie`, so ordinary storefront traffic never
-  reaches the proxy.
-- **Who**: `accounts.impersonate` (owner, support), an individual console
-  account (the shared password is refused), a written reason (10–500 chars).
-- **How**: a real agent/customer session cookie is minted for the target with
-  a 60-minute token, next to a signed `imp1.…` cookie (ADMIN_SESSION_SECRET
-  under an `impersonation:` prefix) carrying session id + nonce + the admin's
-  token_version. One open session per admin; exit, console logout, expiry, or
-  the admin being disabled/reset ends it. The banner is fixed to the BOTTOM of
-  the viewport (the storefront header and its sticky offsets own the top).
-- **Logged** in `console_impersonation_sessions` (`/admin/impersonation`,
-  owner) and as `impersonation.start`/`.end` in the audit log.
-- **Known limit**: agent/customer tokens are stateless, so the minted target
-  cookie stays valid until its own 60 minutes even after the row is ended;
-  exit deletes it from the browser.
-
-### Deliberately not done yet (and why)
-
-- **Engine leads/conversations/viewings are still SQLite.** Moving them to
-  Postgres rewrites every synchronous `services/db.js` call on the live
-  WhatsApp path (better-sqlite3 is synchronous; `pg` is not, so every caller
-  up the chain changes shape). That is a dual-write migration with its own
-  parity checks and cutover, not something to fold into a console deploy.
-- **Agency self-service staff** (an agency managing its own branches and
-  users from `/compte/agent`) needs an agency-level login, which does not
-  exist: agents log in individually and `vendors` has no account of its own.
-  Branches are admin-managed until then.
-- **Card payments** are not offered. Mobile-money payment through FlexPaie
-  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
-  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
-
-## Layout & shell
-
-- **Public pages live in the `app/(site)/` route group**; `app/admin` and `app/api` sit outside it. The shell (`Header` / `Footer`) is in `app/(site)/layout.js`, and the root layout is deliberately bare. Before this, everything nested in one root layout and `/admin` rendered the public header and footer *underneath* its own chrome. Route groups don't change URLs.
-- **Spacing contract, defined once in `app/(site)/layout.js`**: `pt-16` clears the fixed `h-16` Header. Don't re-implement this per page — four pages used to compensate ad hoc with different values.
-- **There is no desktop left icon rail, and no persistent mobile bottom bar.** `SideRail.js` (a fixed 76px `Rechercher`/`Favoris`/`Demandes`/`Compte` column, `hidden lg:flex`) and `BottomNav.js` (the same four destinations, `lg:hidden`, fixed to the viewport bottom) have both been removed entirely — the former because web/Design's screens never carried one, the latter on an explicit instruction to favour a Rightmove-style pattern (no persistent bottom chrome, floating per-page actions instead). All four destinations are still reachable: `Rechercher` via the search icon/FilterBar, `Demandes` as a text link in Header's top-right utility row (desktop) or its hamburger Sheet menu (mobile, signed-in only — the drawer keeps its own per-session link lists since 2026-09-22), `Compte` via the account dropdown or that same Sheet. **`Favoris` is no longer a desktop header link** — it was removed from that row, and now reaches desktop visitors through the account dropdown (signed in), the footer's new Compte column (signed out — the account icon is a bare login link with no dropdown behind it, so the footer is what keeps `/favoris` reachable at all for them), and the Sheet on mobile. Any element that used to clear BottomNav's height (`FloatingControlBar.js`, `MobileListingBar.js`, `ListingsSplitView.js`'s mobile fullscreen map layer) now sits at the true viewport bottom instead — check each if you're touching mobile-bottom-anchored UI, the clearance math changed everywhere it applied.
-- `ListingsSplitView`'s desktop map sticks at `top-16`, `h-[calc(100vh-4rem)]` — flush under the header down to the viewport bottom (2026-09-25). It used to sit at `top-[8.5rem]` to clear FilterBar, but on /listings FilterBar scrolls away, which left a gap. If FilterBar is ever made to stay pinned there, the map's offset must grow with it.
-- **Desktop header utility row, left to right**: search icon (only where nothing else on the page owns search), account, currency, `Demandes`, language, "Publier un bien". `Demandes` sits beside the currency toggle and the FR|EN control sits immediately before the CTA — both placements are deliberate and documented in `Header.js`. The language control is `LanguageToggle.js`, a segmented FR|EN pill rather than a `<select>`, matching `CurrencyToggle` beside it; it writes the `NEXT_LOCALE` cookie *and* the `lukka_locale` localStorage mirror, then `router.refresh()`es so Server Components re-render in the new language (see `lib/i18n/`).
-- **The homepage's second section is personalised when it can be.** `app/(site)/page.js` renders `SavedListings` ("Biens Enregistrés") instead of `FeaturedListings` ("Sélection de la Semaine") for a signed-in visitor with at least one saved property. The choice comes from `lib/savedHome.js`'s `getSavedHomeSection()`, which returns `null` for a signed-out visitor *and* for a signed-in one with an empty shelf — the fallback covers both. Deliberate: an empty personalised shelf would replace a full section of real listings with a prompt. The shelf is a horizontal snap rail at every breakpoint (`SavedListingsRail.js`), unlike `FeaturedListingsCarousel`'s scroll-then-grid, because its length is a fact about the visitor rather than a catalogue that continues.
-- **The header is solid on every route, homepage included.** It used to start transparent over the hero photo and solidify on scroll (`Hero.js` carried `-mt-16` to bleed up under it, cancelling the layout's `pt-16`). The "Landing refondue" screen is explicit that it never goes transparent — the wordmark has to stay legible over whatever photograph the hero carries — so the scroll listener, the `overHero` flag and every `inverted` variant it drove (including `CurrencyToggle`'s) are gone, and the hero band starts below the header.
-- **App mode (2026-11-11): inside the store app the site draws an app layout.** `lib/appModeRules.js` (pure) / `lib/appMode.js` `isAppRequest()`: on when the `lp_app` cookie is set (GET `/app`, where the app starts, sets it; `/app?web=1` clears it) or the user agent carries `LukkaPlaceApp` (`appendUserAgent` in `mobile/capacitor.config.json`). Then `app/(site)/layout.js` draws `components/app/AppTopBar.js` (serif wordmark + notifications bell with the unread count; royal on `/`, white elsewhere; same h-16 as Header) instead of Header, and `AppTabBar` (Rechercher `/`, Enregistrés `/favoris`, Compte `/compte/menu`; hidden on a listing page) instead of the footer. The home page is `AppHomePage` → `components/AppHomeTop.js` (the owner's app design, "Search home": serif title, real live count, the site's SearchBar, the latest saved search, the 6 newest listings as `components/app/AppListingCard.js`). `/compte/menu` is the account screen and the old hamburger menu (public in middleware; private rows only with a session). `/favoris` is `components/app/AppSavedScreen.js` (Biens / Recherches, `AppSegmented`; homes from lib/favorites.js through `/api/listings?ids=`; signed-in searches read server-side with id + `alert_frequency`, the `AppSwitch` writes `updateAlertPreferencesAction` on → weekly / off; a shared `?ids=` link keeps FavorisView). Results keep the website's filters, map and relaxation logic: `ListingsSplitView appMode` draws `AppListingCard`, `FloatingControlBar aboveTabBar` sits over the tabs, and the tab bar hides on `?view=map` (Suspense, useSearchParams). Every app screen sits on `bg-canvas-alt`. Listing page: `components/app/AppListingBar.js` replaces MobileListingBar (call / WhatsApp / chat as icons under the same rules and tracking, "Demander une visite" wide → `/listings/<id>/visite`); off the tabs the top bar shows a back arrow. `/listings/<id>/visite` is `components/app/AppVisitBooking.js`: two steps in ONE form (VisitSlotPicker stays mounted, hidden, on step 2 so the slot posts), the same `submitVisitRequestAction` with `return_to=app` (answers back there with `visit_sent` 1/team or `visit_error`), then "Visite demandée". No video call, no add-to-calendar (the time is a request). Never submit it from a local preview: the local engine URL is production and the agent is WhatsApped. Filters: `FilterModal app` (FilterBar `appMode`) renders `components/app/AppFilterSheet.js` around the SAME `fields` block and FilterBar's live count — rounded bottom sheet ≤ 88dvh, handle-only motion drag to close (offset > 110 or velocity > 600), "Réinitialiser", one "Voir N résultats". Loaded with next/dynamic so the website never ships motion; the website keeps its full-height sheet. Agents in the app: the agent layout asks `isAppRequest()` and `AgentSidebar appMode` shows five tabs (Accueil overview, Biens, Demandes, Visites, Compte) instead of the website's up to seven; Compte is `app/compte/agent/menu` (messages and alerts with counts, Faites le point, overview, projects if on, settings, subscription if on, public page, language, "Chercher un logement" → `/`, sign out). The client book stays hidden (2026-09-22 decision). The design's lister-verification, access-code and add-a-property screens are London-specific and not built: agents are verified by phone + documents, listings arrive on WhatsApp or the existing form. Design reference: the owner's Claude Design export "Lukkaplace App" (30 screens, written for London — keep its layout, use our data and wording). **Motion here is the `motion` package** (owner's choice for the app), unlike the website's CSS-only rule below: `components/app/AppMotion.js` (LazyMotion + `m.*`, reducedMotion user) wraps app mode only, so the website never loads it. Entrances move, never fade (server HTML must show the search card on 3G). The display serif is DM Serif Display (`lib/appFont.js`, not preloaded, `.u-app-serif`), app mode only — the website dropped it 2026-10-24. Preview locally: the `app-preview` launch entry (port 3005, `--webpack`), open `/app` once. `tests/unit/app-mode.test.js`.
-
-## Gotchas that cost real debugging time
-
-- **A Server Action request body is capped at 1 MB unless you configure it, and going over is invisible from the client.** This broke *every* manual listing submission from the agent dashboard while WhatsApp intake kept working, because intake is a plain Express route on the engine and never touches a Server Action. `experimental.serverActions.bodySizeLimit` was unset, so Next.js applied its 1 MB default and aborted the multipart upload with a 413 **before the action ran at all** — before validation, before `assertAgentSession`. A phone photo is 2-5 MB, so essentially nothing got through. Two things follow, and both are now enforced:
-  - **The transport ceiling and the app's own photo budget live in one file** (`lib/uploadLimits.mjs`) and `next.config.mjs` *imports* the number rather than repeating it. Two numbers that were meant to agree and silently didn't is the whole bug. `tests/unit/upload-limits.test.js` pins the relationship. (`.mjs` because `next.config.mjs` is loaded by plain Node ESM — no `@/` alias, no `server-only`, and a `.js` file with `export` in it makes Node warn about a typeless package on every start.)
-  - **Current figures: 10 MB per photo, 20 photos (10 until 2026-10-21), 40 MB per submission, so a 41 MB transport ceiling.** Twenty fit because the browser shrinks each photo to ~300 KB first. Per-photo went 5 MB → 10 MB because 5 MB was below what a current phone camera produces and was rejecting ordinary photos. **Change these in `uploadLimits.mjs` only** — the `bodySizeLimit`, the FR/EN copy (`{max}` is interpolated, never typed) and the browser's pre-flight all follow from them, and the tests derive their fixtures from them too rather than hardcoding a count × size that silently stops testing anything.
-  - **Raising the budget is also a memory decision.** Next.js buffers the entire multipart body in memory and then copies each file again for the Storage upload, so a 40 MB set costs roughly 90 MB on top of the ~70 MB idle baseline. `ecosystem.config.js`'s `max_memory_restart` went 300M → 768M with it: being killed mid-upload is strictly worse than refusing one, because the restart takes every other in-flight request down too. Check that cap whenever the budget moves.
-  - **A 413 reaches the caller as a rejected promise, never as `{ ok: false }`.** Every imperative `await someAction(...)` therefore needs a `try/catch`, or the failure is *completely* silent: no toast, no error, the form still full, the button apparently dead. That is exactly what agents were reporting. `SmartPasteSection` was worse still — `setPending(false)` sat after an unguarded `await`, so a rejection left the button spinning forever. Guard the pending flag with `finally`, not just `catch`. The other imperative action calls in `components/Agent*.js` post small text payloads and cannot 413, but they can still reject on an expired session; they are not yet guarded.
-- **Validate uploads in the browser too, with the same rule the action uses.** Not for security — the action re-checks, and must, since it is a public POST endpoint — but because a size verdict reached *after* the request is a verdict nobody can be told about. `validatePhotoSelection()` is shared by both sides and returns an i18n key + vars rather than a string, so the shared module stays free of the dictionary.
-- **Browser page translation crashes React, and it looks like nothing else.** Edge's translator (also Chrome's and Google Translate) replaces each text node React rendered with `<font><font>…</font></font>`. React's next commit calls `removeChild` on a text node that is no longer there, the browser throws `NotFoundError: The node to be removed is not a child of this node`, and the route falls to Next's default global error, *"This page couldn't load — Reload to try again, or go back."* Reported 2026-09-15 on `/compte/agent/demandes?tab=visites`; any client update on any translated page can trigger it.
-  - **How to recognise it:** that exact wording (no digest) means a *client* exception — a server error reads "A server error occurred". Nothing reaches `pm2-error.log`. Every reproduction without translation works, including curl, a dev server and a clean browser on production data. The tell was in the screenshot: the wordmark read "LukkaPlacer", and strings we hardcode in French appeared in inconsistent English.
-  - **How to reproduce:** on a production build, walk `document.body`'s text nodes, replace each with `<font><font>text</font></font>`, then trigger a client navigation. Same screen, same error.
-  - **The fix is `lib/translationDomGuard.js`**, an inline `beforeInteractive` script in `app/layout.js` that makes `Node.prototype.removeChild`/`insertBefore` tolerate a node something else already moved (the mitigation from facebook/react#11538). Shipped as a string so `tests/unit/translation-dom-guard.test.js` evaluates the exact bytes the browser runs. `insertBefore` appends rather than skipping — the widely copied variant skips, which silently drops the new tab's content.
-  - **It does not need to precede the chunk `<script>` tags, and doesn't.** React DOM calls `parent.removeChild(node)` on the node at call time (no cached `Node.prototype` reference in `react-dom-client.production.js`), so landing before hydration is enough.
-  - **The guard stops the crash; it does not stop stale text — keys do.** Both tabs on `/compte/agent/demandes` open with the same element shape, so unkeyed React reused those elements and patched their text in place — exactly the operation translation breaks. With the guard alone the page survived, but the previous tab's translated subtitle stayed on screen beside the new one. The two tab bodies are now keyed `<Fragment>`s, so a switch is a remount, which only removes and inserts whole elements. **When two conditional branches render look-alike markup, key them.**
-  - **Deliberately not `translate="no"`.** That also prevents the crash, but removes a feature agents use on purpose — much of the EN dashboard is still hardcoded French. Opting out of translation is a product decision; tolerating it is the bug fix.
-  - **Not version skew.** Next 16 already hard-reloads when a stale tab's build id mismatches the server's (`doMpaNavigation` in `fetch-server-response.js`), so a tab left open across a deploy does not produce this screen. No `deploymentId` is configured, and none is needed for that.
-- **Tailwind v4: no `tailwind.config.js`.** Any `--color-*` / `--font-*` in the `@theme` block becomes a utility automatically.
-- **Don't trust an uncommon `grid-cols-N`/`col-span-N` to get generated.** `lg:grid-cols-10` silently never made it into the compiled CSS once. Prefer an arbitrary-value template (`grid-cols-[42%_minmax(0,1fr)]`) for anything beyond 1–6.
-- **`@tailwindcss/postcss` and `tailwindcss` are devDependencies the *production build* still needs.** `npm install --omit=dev` breaks `next build`. Full `npm install` before building, even in production.
-- **`useSearchParams()` forces a Suspense boundary around its caller.** `/favoris` called it at the top level, which put the *entire page* inside `<Suspense fallback={null}>` — verified in a browser, `<main>` rendered completely empty and the boundary never resolved. If a page needs one query param for one section, read `window.location.search` in an effect there instead of gating the whole page. If you do use the hook, scope it to the smallest component and never give it a `null` fallback.
-- **Radix exit animations don't complete in a non-compositing tab.** With `document.hidden`, CSS animations sit at `currentTime: 0`, `animationend` never fires, and Radix `Presence` never unmounts — so a closed Dialog lingers in the DOM with `data-state="closed"` and keeps `body { overflow: hidden }`. This is an artifact of headless/hidden browser panes, **not** a code bug; it resolves the moment the page actually composites. Don't "fix" it.
-- **`cn()` (tailwind-merge), not string concatenation, whenever a component accepts a `className` override.** `FavoriteButton` concatenated, so a caller's `bg-transparent` and the component's `bg-surface/90` both survived and CSS source order decided the winner instead of the caller.
-- **`area` is a TEXT column carrying `'0'`, not NULL, when unknown** — a naive render produces "0 m²". Use `hasArea()` in `lib/listingView.js`.
-- **`agents.username` is the account's own phone digits, not a name.** Every account created through WhatsApp onboarding (`services/agentOnboarding.js`, engine repo) or this app's phone+password signup (`createAgent`) sets `username = phone`; the real name lives in `agent_infos.first_name`/`last_name`, one row per language. `lib/listings.js` selected `a.username AS agency_name` and so printed "33766517388" on every card and on the detail page's `EnquiryCard`, while `/agents/[id]` showed "NSUMBU Marie" all along because it reads through `lib/agents.js`'s `agent_infos` join. Resolve names through `AGENCY_NAME_EXPR` (`lib/listings.js`) or `agentDisplayName` (`lib/agencies.js`), never off `username` — and pass anything user-visible through `displayableAgencyName` (`lib/agentIdentity.js`), which refuses a phone-shaped string. **Join `agent_infos` LATERAL + `LIMIT 1`**: it is per-language and agent #28 really holds two rows, so a plain `LEFT JOIN` duplicates every one of that agent's cards.
-
-## Component conventions
-
-- **`lib/listingView.js` owns values derived from a listing row** — images, spec items, dates, location line, description snippet. The three card designs each re-derived these, which is exactly how the same 14-day recency condition once ended up rendering "Just Added" in one file and "Nouveau" in two others; that specific value (`isNewListing`) has since been removed from this module entirely along with the badge it fed, but the "one source of truth" principle stands for everything still here.
-- **Three listing card designs exist on purpose** — `ListingCard.js` (horizontal, Rightmove-style 1-large-2-small photo collage, used on `/favoris`), `ListingCardVertical.js` (grid card for the `/listings` split view), `FeaturedListingCard.js` (homepage carousel teaser). One visual language, three layouts. Don't collapse them.
-- **`SafeImage.js` for any listing-sourced image, never bare `next/image`** — some stored objects genuinely 400 at source, and a visitor should see the real "no photo" placeholder rather than a broken-image icon. `PhotoGallery`'s thumbnails used bare `next/image` and had no fallback while the main frame did.
-- **UI primitives come from `components/ui/*` (shadcn, Radix).** Installed: `button`, `card`, `dialog`, `dropdown-menu`, `popover`, `sheet`, `tabs`. Add more with `npx shadcn@latest add <name>` — and **diff `app/globals.css` afterwards**, it has silently overwritten the palette before.
-  - **Popover, not DropdownMenu, for filter panels.** DropdownMenu implements roving focus and typeahead over menu *items*, which fights any text or number input inside it. See `FilterPill.js`.
-  - Radix content portals to `document.body`, so it is **outside the `<form>`**. `FilterBar` therefore owns every filter value in React state and renders hidden inputs inside the form; the pill panels and the sheet are pure UI. Don't put a named form field inside a portalled panel and expect it to submit.
-- **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
-- **Motion is CSS, not a library.** `framer-motion`, `lib/motion.js` and `lib/useMotionSafe.js` are gone (see "Mobile performance & resilience" below). The presets live in `app/globals.css`: `.u-pop` (a toggled icon — key the span on a counter and apply the class only when it is > 0, so it never plays on mount), `.u-reveal` (entrance on mount), `.u-rise` (small panel over the map), `.u-reveal-in-view` (scroll-driven, `animation-timeline: view()`, no JS; a browser without it shows the element with no reveal). All are gated on `prefers-reduced-motion` in the CSS itself. Radix `Dialog`/`Sheet` animate via `data-state` + `tw-animate-css`. Don't add a motion library back for decoration: it was ~40 KB gzip on every page for effects most of them never ran on a phone.
-  - **The motion layer (2026-09-23)** adds, same file, same rules: `.u-stagger` (a list's rows enter on mount, 60ms apart, capped at 7) and `.u-stagger-inner` (the same on each row's *content*, for hairline grids where a fading cell flashes `bg-line` — `AgentStatGrid`); `.u-stagger-in-view` / `.u-stagger-in-view-inner` (scroll-driven per child, columns of a grid row cascading via `--u-col`); `.u-rail-reveal` (FeaturedListingsCarousel only: whole strip below `sm`, per card from `sm`); `.u-hero-settle` + `.u-lift-in` (hero photo and headline — transform only, never opacity, because the hero is the LCP); `.u-attention` (three beats on an overdue to-do badge, then still); `.u-header-elevate` (the header's shadow deepens over the first 120px of scroll, via a pseudo-element's opacity on `scroll(root)`). Card photos zoom 1.04 on hover and the card presses to 0.985 unless the press is on one of its buttons.
-  - **Keyframes use `translate`/`scale`, never `transform`.** A `both`-filled entrance holds its last frame forever, and a held `transform: none` silently kills every transform-based hover/press on that element (`.u-press`, `.u-card-interactive`, `.u-btn-primary`). Don't put an entrance on an element that uses Tailwind's `translate-*`/`scale-*` utilities either — that is the property they now share.
-  - To stagger a list that shares its parent with other elements, wrap the `map` in `<div className="u-stagger contents">`: no box, so the parent's gap is untouched, and `nth-child` counts only the rows.
-  - **Don't verify these in a hidden browser pane.** No frames render there, so scroll timelines and `getComputedStyle` read stale values and screenshots come back blank. Read `el.getAnimations()[0].effect.getComputedTiming().progress` after a frame has actually been drawn.
-
-## Mobile performance & resilience
-
-95%+ of visitors are on mid/low-end Android phones on 3G/4G in Kinshasa, paying
-per megabyte. Baseline measured on production at 375px (2026-09-15), before this
-pass: ~257 KB gzip of first-party JS on `/` served gzip-only, card photos at
-q=90, the Maps JS API (~245 KB) loaded on every listing page before anyone
-scrolled to it, invisible-but-tappable photo arrows on every card, and no
-loading or error boundary anywhere outside the client portal and `/admin`.
-
-- **Data budget.**
-  - `images.qualities: [75]` and `minimumCacheTTL` 30 days (`next.config.mjs`).
-    Storage object names are content hashes, so an optimised photo never goes
-    stale. Don't reintroduce `quality={90}`: it doubled grid photo bytes, and a
-    card and the gallery asking for different qualities download the same photo
-    twice.
-  - Maps load on demand. `ResponsiveMapPane` imports every map module through
-    `next/dynamic`. `ListingLocationMap` loads by itself once the frame is
-    within 400px of the viewport, at every width (2026-09-28, product
-    direction: no tap on phones); only Data Saver / 2G still gets the
-    "Afficher la carte" button. The frame keeps its height either way.
-    With stored coordinates it is `ListingPinMap` (its own chunk): only a
-    pale 500 m circle around the jittered point at zoom 14 (wider than the
-    ≤400 m jitter, so the real spot is inside it) and a "Zone approximative"
-    chip top-left (bottom-left is Google's logo). No pin, type symbol or
-    label — owner's choice 2026-10-23, after an irregular zone with a white
-    type badge was tried the same day. No
-    price on the map — the page shows it twice. A price pill was tried first. A comparison with nearby similar listings was tried and reverted
-    the same day (2026-09-28) on product direction. Without coordinates it
-    keeps the geocoding single-pin `PropertyMap` (max zoom 14).
-  - `lib/useSaveData.js` (`saveData` or a 2G `effectiveType`) skips work nobody
-    asked for: auto-loading the map, preloading the neighbouring card photo.
-    It never hides content, and it is false on the server and in
-    Safari/Firefox.
-  - Dialogs that only open on a tap (`AuthPromptModal`,
-    `SearchAlertConfirmModal`) are `next/dynamic`. The DM Serif italic font
-    file is not loaded.
-  - **Compression**: `WEB_COMPRESS=off` turns off Next's own gzip so Traefik's
-    `compress` middleware can serve brotli. Traefik skips a response that
-    already has a Content-Encoding, so the two changes only work together. Set
-    the env without the middleware and every page ships uncompressed.
-- **Touch.**
-  - Controls a thumb uses are ≥44px (`min-h-11`/`h-11`). A control drawn
-    smaller gets `.u-hit`, whose `::after` pads the tap area to 44px. It needs
-    a positioned element.
-  - `CardImageCarousel`'s arrows are `hidden` below `sm` and
-    `pointer-events-none` until hover or keyboard focus. Its dots don't respond
-    to taps on a phone (a swipe is the control there).
-  - Hand-written `:hover` rules in `globals.css` sit inside
-    `@media (hover: hover)`, because Android keeps `:hover` on the last thing
-    tapped. Tailwind's own `hover:` variant is already gated that way.
-  - No `backdrop-filter` on touch devices: `.u-glass-*` switches to an opaque
-    fill under `(hover: none)`, and bottom bars use `lg:backdrop-blur-*`. One
-    blur per card is re-rendered on every scroll frame.
-  - Text floor on phone-facing surfaces is 11px.
-- **Agent photos are shrunk on the phone** (`lib/photoShrink.js`, used by
-  `CreateListingDialog` and `AgentListingEditor`): 1600px long edge, JPEG 0.82,
-  one photo at a time. A 4 MB camera photo becomes ~300 KB, and EXIF
-  (including GPS) is dropped. Anything that can't be decoded, or doesn't come
-  out smaller, is sent as the original. `lib/uploadLimits.mjs` still validates
-  whatever is sent. Before encoding, `lib/photoEnhance.js` applies a capped
-  white-balance / lightness / vibrance correction that can only make a photo
-  lighter, never darker (root CLAUDE.md, "Listing photo auto-correction");
-  the engine carries an identical copy for WhatsApp photos.
-- **Slow and failed requests.**
-  - `loading.js` exists per section of `(site)/` (re-exporting
-    `(site)/_shared/SiteLoading.js` — never one `(site)/loading.js` again, see
-    "Real 404s" below), `(site)/listings/[id]/`, `compte/agent/` and
-    `(portfolio)/`, using `components/RouteSkeletons.js`.
-  - Each sits at a segment root, so a search-param change inside a page
-    (`/listings` filters, `?tab=`) does not flash the skeleton or remount the
-    map.
-  - `error.js` in the same three trees renders `components/RouteError.js`
-    (Next 16 passes `retry`). It shows an offline-specific message when the
-    browser reports no connection. `app/global-error.js` is inline-styled and
-    bilingual because it replaces the root layout.
-  - `OfflineBanner` (root layout) shows a pill while offline.
-    `lib/networkError.js`'s `isNetworkError` separates a dropped connection
-    from a server verdict. `ViewingPanel` and `AgentVisitRequestCard` offer
-    "Réessayer" on the toast for the first; retrying is safe because the
-    engine ignores a repeated status.
-  - `ViewingPanel` acknowledges a tap at once. `sent` is keyed to the
-    `viewing` object it was made against, so the refreshed timeline takes over
-    by itself. It is not `useOptimistic`, which reverts when the action ends,
-    before `router.refresh()` has delivered the new timeline.
-- **PWA.** `app/manifest.js` (icons `public/brand/icon-192.png` / `icon-512.png`,
-  resized from `app/icon.png`) and `public/sw.js`, registered in production only
-  after `load`.
-  - The worker caches `/_next/static` cache-first (200s only).
-  - It serves `/_next/image` stale-while-revalidate (80 entries).
-  - Navigations are network-first with a `/offline.html` fallback.
-  - **It never caches HTML** (sessions, prices, availability). It does not
-    touch `/api`, `/admin`, non-GET requests or other origins.
-  - `/sw.js` is served `no-cache`. The kill switch is in its header comment.
-    Pinned by `tests/unit/mobile-performance.test.js`, which runs the worker in
-    a VM.
-- **Real-user Web Vitals.** `components/WebVitals.js` beacons LCP/INP/CLS/FCP/TTFB
-  (route with ids collapsed, connection class, Data Saver) to
-  `POST /api/telemetry/vitals`. That route validates the payload and writes one
-  `[vitals] {json}` line per metric to the web process log, with no table and
-  no migration. Read with
-  `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[vitals\]'`.
-- **Open: React hydration error #418 on lukkaplace.com.** It predates this
-  pass: the pre-deploy build, run on the VPS and reached through an SSH tunnel,
-  throws it too. One cause is found and fixed. Listing dates were formatted in
-  the runtime timezone, so the UTC server and a UTC+2 phone printed different
-  days. Every listing date is now pinned to `LISTING_TIME_ZONE` in
-  `lib/listingView.js`, and after that fix the live process reached directly
-  on :3002 hydrates cleanly.
-  - **Not the cause:** it still happens (3 errors per page) through
-    `https://lukkaplace.com`, and none of these change that: brotli vs Next's
-    own gzip, a service worker vs none, cleared storage and cookies.
-  - **Already ruled out:** server HTML through Traefik has the same visible
-    text as the direct HTML, and with vs without cookies.
-  - **Next step:** a build with `reactProductionProfiling` or a non-minified
-    React so the message names the mismatched node, loaded on the real
-    hostname. A mismatch makes React re-render the page on the client, which
-    is costly on low-end Android.
-- **Deliberately not done here:**
-  - **Cacheable HTML.** The locale cookie makes every route dynamic (see
-    "Bilingual FR/EN"). The fix is the `app/[locale]/` migration, a URL change
-    that is a product decision in its own right.
-  - **Direct-to-Storage per-photo uploads with progress.** That needs
-    signed upload URLs, ownership checks on the returned paths, and a new
-    offline-replay contract. Shrinking already removes most of the upload time.
-  - **`PropertyCard` as a Server Component.** It renders inside client parents
-    (`ListingsSplitView`, both rails), so it stays a client component until
-    those are restructured.
-
-## Phone numbers are international now — the country is data, not a guess
-
-The platform opened to diaspora customers (buying in Kinshasa from London,
-Brussels, Toronto) and to agents listing property outside the DRC, so a phone
-number can no longer be assumed Congolese.
-
-- **`components/PhoneField.js` is the only phone input in the product.** It
-  posts two fields: the typed number as `name`, and the picked ISO 3166-1
-  country as `<name>Country`. Every Server Action reads both through
-  `phoneFromForm(formData)` (`lib/phone.js`). A new form that renders a bare
-  `<input type="tel">` reintroduces exactly the bug this replaced.
-- **The bug it replaced was silent and damaging.** `normalizePhone`'s
-  country-less branch recognises DRC shorthand, so a London number typed as
-  `07932673460` was stored as `243793267346` — a real Kinshasa number
-  belonging to somebody else. No error, no rejection: a working-looking
-  account whose OTP, alerts and viewing confirmations all went to a stranger.
-- **Three normalizers, three jobs, don't mix them up:**
-  - `normalizePhone(input, country)` — raw text from a form. With a country
-    it is exact; without one it still accepts DRC shorthand and refuses to
-    guess at anything else.
-  - `normalizeStoredPhone(value)` — a value that is ALREADY E.164 (a `wa_id`
-    from the WhatsApp pipeline, a number off a row, the number in a signed
-    cookie). Re-running `normalizePhone` on one of these rejects every
-    non-DRC number, which is what turned international agents' activation
-    links into "Lien expiré".
-  - `splitPhone(e164)` — the inverse, for re-opening a stored number into
-    the picker.
-- **`lib/countries.js` holds E.164 dial codes only; country NAMES come from
-  `Intl.DisplayNames`** in the reader's own locale. 230-odd hand-typed French
-  strings plus 230 English ones is a FR/EN parity problem nobody on this team
-  would maintain. `tests/unit/phone-countries.test.js` asserts every ISO code
-  resolves to a real region name, which is what catches a typo'd code.
-- **Trunk prefixes are per-country facts, not a blanket "strip the 0".** `''`
-  for Italy and Côte d'Ivoire (the leading 0 is part of the number there),
-  `'1'` across the NANP, `'0'` elsewhere. Getting this wrong deletes a real
-  digit.
-- **Seven dial codes are shared** (+1 across 24 NANP territories, +44 across
-  the UK and the Crown Dependencies, …). `PRIMARY_FOR_DIAL` says which
-  country a stored number displays as; without it, list order decided, and
-  every British number was labelled "Guernsey".
-- **The starting country is decided server-side** from `Accept-Language`
-  (`lib/requestCountry.js`), so the first paint already shows the right dial
-  code. Without it the field renders +243 and flips to +44 a moment after
-  hydration — real, observed in the preview. A bare `fr` (no region) is
-  ignored rather than maximised into `fr-FR`; that would default a Kinshasa
-  visitor to France. After hydration a previous explicit choice
-  (`localStorage`) and the visitor's own selection both win.
-- **No flag images and no new dependency.** Flags are regional-indicator
-  emoji. Windows ships no flag-emoji font, so they render there as the two
-  ISO letters — which is exactly the code chip the alternative design would
-  have drawn, and why there isn't a second one beside them.
-- **Radix restores focus to the trigger on close, and that is wrong here.**
-  Picking a country with Enter put focus back on the trigger button just in
-  time for that same keystroke's keyup to "click" it and reopen the panel.
-  `onCloseAutoFocus` is prevented, and `choose()` moves focus to the number
-  input synchronously — the panel animates out over ~100ms and keystrokes
-  land in the search box for the whole of it otherwise. Both confirmed in a
-  real browser, not reasoned about.
-
-## TESTING MODE — `AUTH_OTP_BYPASS=1` turns phone verification off
-
-`lib/otpBypass.js`, read by the four auth entry points (customer signup and
-login, agent signup and login). **Currently set on production**, deliberately,
-so the end-to-end flow can be tested at all.
-
-**Why it exists.** The `agent_auth_otp` template is not delivering, and
-`lib/otpDelivery.js`'s session-message fallback only reaches somebody who
-messaged the business number in the last 24 hours — which a first-time
-registrant never has. So no new account could complete signup, and nothing
-downstream of signup (listing attribution, the agent dashboard, demandes)
-could be exercised.
-
-**What it changes: exactly one thing.** Whether a code has to be presented.
-Passwords are still scrypt-hashed through `lib/authCrypto.js`, sessions are
-still the same signed tokens, and the bypassed path calls the same
-`consumeAgentOtp` / `consumeCustomerOtp` the real path does — so the row ends
-up in an identical state, including the retroactive listing claim that makes
-an agent's already-WhatsApped listings appear on their dashboard.
-
-**What it costs.** Phone verification is the only thing proving a registrant
-holds the number they typed. With this on, anyone can register any number and
-be treated as its owner — and since `consumeAgentOtp` claims every listing
-ever sent from that number, an agent signup on somebody else's number hands
-over that agency's portfolio. Acceptable for a closed testing window on known
-numbers; **not** acceptable once real agents are onboarding themselves.
-
-**Turning it off is `unset AUTH_OTP_BYPASS` + `pm2 restart lukka-place-web
---update-env`.** No code change and no revert — that is why it is an env flag
-and not a commented-out block. The flag is read at call time, not module load,
-so the restart is enough.
-
-Not affected, and still OTP-gated: `/mot-de-passe-oublie` (self-service
-password reset). Use the admin reset below instead while the template is down.
-
-**(Superseded the same day: customers get no code at all, see "Phone
-verification". This applies only to the password-reset and leftover verify
-flows.) Customers are sent a code by default since 2026-11-06.** `customerOtpBypassEnabled()`
-is false whenever `AGENT_OTP_TEMPLATE` is set, unless `CUSTOMER_SENT_CODE=off`;
-the verify page leads with the code box even after a failed send (error +
-"Renvoyer le code"), and the WhatsApp proof is only the "Code pas reçu ?"
-fallback underneath, or the whole page when no template is configured. Whether
-the code ARRIVES is still the template's health, unproven since the incident
-below — check one reach a number that never wrote to us after deploying.
-History follows.
-
-**Customers can be sent a code instead (2026-11-04, owner decision) — off
-for now.** `customerOtpBypassEnabled()` is false only when
-`CUSTOMER_SENT_CODE=on` AND `AGENT_OTP_TEMPLATE` is set; then customer signup
-and the login of an unverified customer SEND a 6-digit code and the verify
-page asks for it, the reverse WhatsApp proof appearing only after
-`error=send_failed`. It went live on the template alone on 2026-11-03 and was
-switched back the next morning: three customers were sent `agent_auth_otp`,
-Chakra accepted all three, none arrived (one had written to us a minute
-before), and Chakra forwards no receipt to say why. Check the template in
-WhatsApp Manager (Authentication, fr, Copy-code button, intake account) and
-see one arrive on a number that never wrote to us before setting the flag.
-Agents still follow `AUTH_OTP_BYPASS`. Switched on again the same day at the
-owner's request, safely: the verify page now ALWAYS opens the WhatsApp
-challenge — first when no code was sent or the send failed, otherwise under
-the code box as "Code pas reçu ? Confirmez plutôt votre numéro depuis
-WhatsApp" — so a template that is accepted but never delivered can no longer
-strand a customer. The same day the customer form's name
-became required ("Nom et prénom", refused before the account exists), and
-"Membre fondateur" moved to the agent overview (`getAgentFounderInfo`, rank
-among live non-test agent accounts) — customers no longer see it.
-`tests/unit/customer-signup-code.test.js`.
-
-## Admin password reset — `lib/adminPasswordReset.js`
-
-An admin can set any agent's or customer's password directly, from
-`/admin/agents/[id]` (in the "Accès et sécurité" card, beside the WhatsApp
-link) and from the new `/admin/customers` list.
-
-- **It reuses `resetAgentPassword` / `resetCustomerPassword`**, not its own
-  UPDATE. Those already carry the semantics a password change must have here:
-  replace the hash, clear any in-flight reset code, bump `token_version` so
-  every outstanding session dies, clear the login lockout. An admin-set
-  password that skipped the `token_version` bump would leave whoever was
-  already signed in on the old password still signed in — usually the exact
-  situation the reset is being used to end.
-- **The two realms keep their own hashers.** `agentAuth` and `customerAuth`
-  are separate auth realms with separate session secrets
-  (`tests/unit/auth-realms.test.js` pins that). They compute the same scrypt
-  form today; that is not a guarantee to build on.
-- **The typed password is shown in clear in the form.** Deliberate: the admin
-  is about to read it out over WhatsApp, and a masked field they cannot check
-  is how an account gets locked harder than it started. It is never logged,
-  never returned by the action, and never sent anywhere — the admin relays it.
-- **Why `/admin/customers` is a list with an inline reset, not a detail page.**
-  Password reset is the only customer-account operation this console has any
-  business performing; everything else a customer owns already shows on
-  `/admin/leads` and `/admin/conversations`, keyed by phone. Agents keep their
-  detail page because they have identity, territory and a portfolio to manage.
-- This is also the only reset path customers have ever had — the activation-link
-  mechanism is an `agents` table feature.
-
-## Heading capitalization — Title Case in EN, sentence case in FR
-
-Enforced by `tests/unit/heading-capitalization.test.js`, applied by
-`node scripts/apply-title-case.mjs`, with the rule itself in
-`lib/titleCase.js` and "which keys are headings" in
-`scripts/heading-keys.mjs` — the transform and the test share both, so they
-cannot drift.
-
-**Two conventions, because the two languages have two:**
-
-| | Rule | Example |
-| --- | --- | --- |
-| English | Title Case | "Create an Agent Account" |
-| French | sentence case | "Créer un compte agent" |
-
-Forcing English Title Case onto French would produce "Créer Un Compte
-Agent", which reads to a French speaker the way "create an agent account"
-reads to an English one. `apply-title-case.mjs` only ever opens `en.json`;
-there is no code path that could Title-Case the French dictionary.
-
-- **`subtitle` ends in `title`** and was swept into the first run of the
-  transform, which turned a banner's body copy into "List Your Properties and
-  Receive Customer Enquiries on WhatsApp." Subtitles are excluded explicitly
-  in `heading-keys.mjs`. Watch for this whenever the suffix match is widened.
-- **Not `text-transform: capitalize`.** That utility uppercases *every* word,
-  giving "Are You **An** Estate Agent **Or** Agency?" — it has no concept of
-  articles, conjunctions or prepositions, cannot leave an acronym alone, and
-  would leave the underlying strings wrong anyway. The strings are
-  transformed at source so the rendered text is the text in the dictionary.
-- **Words with deliberate casing are never re-cased** — `WhatsApp`, `USD`,
-  `CDF`. A naive capitalizer turns "WhatsApp" into "Whatsapp".
-- **Interpolations are never touched** (`{count}`, `{name}`), and a template
-  that OPENS with one is exempt from the capital check, since the capital
-  comes from the value. `listings.results.heading` is `"{subject}
-  {transaction} in {place}"` — the test asserts the strings that can fill
-  `{subject}` instead of exempting that `<h1>` silently.
-- **Checking a template's ingredients is not the same as checking the
-  heading.** The `{subject}` fillers were asserted; `{transaction}` never
-  was. It comes from `search.label.toRent` / `toBuy` / `available` — three
-  keys that exist for this one `<h1>` and nothing else, and which read "to
-  rent" / "for sale" / "available". So `/listings` shipped "Apartments to
-  rent in Gombe": the very string this file used as its Title Case example,
-  in sentence case. They are now "to Rent" / "for Sale" / "Available" (odd
-  alone, correct in the only place they appear), and the test assembles the
-  real heading — every subject × every transaction — rather than inspecting
-  the parts. Change those three keys only together with that test.
-- **There is deliberately no test asserting French is *not* Title Case.** The
-  obvious version fires on every proper-noun meta title ("Contact — Lukka
-  Place") and would need a hand-maintained exception list. See the comment in
-  the test file.
-- **The nine hardcoded French JSX headings are gone.** They rendered French —
-  and therefore sentence case — to an English reader, because a heading
-  written straight into JSX never meets the dictionary. All nine now go
-  through `t()` (`account.requests.submitted`,
-  `admin.agentPanel.subscriptionHistory`, `admin.moderation.content`,
-  `admin.matching.title`, `admin.subscriptions.paymentsAndSubscriptions`,
-  `admin.subscriptions.featuredListings`, `agent.editor.descriptionSection`,
-  `agent.editor.photos`, and the already-existing `agent.subscription.title`),
-  so the rule reaches them. `grep -rEn "<h[1-6][^>]*>[^<{]*[A-Za-zÀ-ÿ]" app
-  components` is how you find a new one; it should stay empty.
-
-### A heading is not always next to an `<h2>`
-
-`heading-keys.mjs` unions **three** sources, not two. The third exists
-because `<Panel title={t('admin.dashboard.trafficSource')}>` renders a real
-`<h2>` — inside `Panel` — with no heading element anywhere near the call
-site. Twenty-one headings (`Panel`, `Step`, `SectionHeading`, `PageShell`,
-`AgentPageHeader`, `PortalEmpty`, `SectionTitle`, plus Radix's
-`DialogTitle`/`SheetTitle`) sat outside this rule until the prop scan was
-added, so "Sort by", "More filters" and "Traffic source" were shipping in
-sentence case under an English Title Case convention.
-
-- **Which props are heading props is derived, never listed.** A component is
-  read for `<h2>{title}</h2>`, and `title` becomes a heading prop of that
-  component. A hand-kept list is precisely what goes stale when someone adds
-  a dashboard panel.
-- **Radix's `DialogTitle`/`SheetTitle` are named explicitly**, since they are
-  the one case that never appears as `<hN>` in our source — Radix renders the
-  `<h2>` and wires `aria-labelledby` to it.
-- **The prop scan is scoped to the opening tag, and children are scanned from
-  after it.** `<SectionTitle action={<button>{t('…linkCopied')}</button>}>`
-  puts a button's label *inside the opening tag*; scanning from the tag's
-  start Title-Cased "Link copied" — a transient toast label — as though it
-  were a section heading. Both halves of that (the heading it must catch, the
-  label it must not) are pinned in the test file.
-- **A key used as both a dialog title and the button that opens it gets Title
-  Case in both places**, which is right here: this app's buttons already read
-  "Log In" and "Create an Account".
-- **A heading entry is not always a string.** `agent.listings.deleteBulkTitle`
-  and `account.favorites.compareTitle` are `{ one, other }` plural objects,
-  and both forms render into the same heading. A plain `typeof value ===
-  'string'` check skipped them entirely — they were the last two English
-  headings still in sentence case, and the naming convention had been
-  matching them the whole time. `headingStrings()` in `heading-keys.mjs` is
-  the one place that resolves an entry to the strings it can render; use it
-  rather than `lookup()` when checking or rewriting heading copy.
-- **A heading key that doesn't exist fails a test now.**
-  `lib/i18n/translate.js` falls back silently in production, so a typo'd
-  `t('admin.matching.titel')` ships an empty `<h1>` rather than an error, and
-  `allHeadingKeys` drops unknown keys so the transform never trips over one —
-  which is the same thing that would hide the typo. Both dictionaries are
-  asserted to hold every key the JSX renders in a heading.
-
-## Phone verification — WhatsApp OTP, both account types
-
-**Superseded for customers on 2026-11-06 (owner decision): a customer
-account is a phone number and a password, nothing else.** 13 of the 30 web
-customer accounts had never confirmed their number and were held at the code
-step on every login. Now:
-
-- **Signup** creates the account, signs in and redirects to `next`; no code is
-  sent and the verify page is not shown (`CompleteRegistration` is recorded at
-  signup). **Login** signs in on the right password.
-- **No feature waits for a confirmed number**: requests and visits found by
-  phone, request/visit actions, saved-search alerts, price-drop messages, chat
-  and its WhatsApp alerts (engine `services/chatNotify.js`) all serve every
-  customer. **Risk the owner accepted:** a mistyped number or someone else's
-  sees that number's requests and visits and sends our alerts to it (each
-  message carries the stop link). The real owner reclaims the number through
-  "Mot de passe oublié", whose code goes to that WhatsApp.
-- **Still counting only confirmed customers, deliberately not changed:**
-  partner referral credits (`lib/referralCredits.js`, money — confirmation is
-  the anti-fraud check) and the growth/partner "verified" counts. New web
-  customers will no longer reach them; that is a pricing decision for the owner.
-- **Forgotten password:** `/mot-de-passe-oublie` (a WhatsApp code we send,
-  with a WhatsApp-support button when it cannot be sent) or the team's reset
-  on `/admin/customers`.
-- **Logout ends this device only** (no `token_version` bump; password resets
-  still end every session). **The login form remembers the number**
-  (`lukka_customer_phone`, httpOnly, 1 year, kept on logout, removed with the
-  account).
-- Agents are unchanged: no session before the code, since confirming an
-  agent's number claims that number's listings.
-  `tests/unit/customer-easy-login.test.js`, verify-pipeline §76 chat check.
-
-The paragraphs below describe the earlier rule and are kept for its history.
-
-**Customer signup no longer establishes a session.** It creates the row,
-sends a code, and hands off to `/compte/inscription/verifier`; only a real
-code establishes the session. Agents have worked this way since they were
-built — customers were the side missing it, which meant a mistyped number
-produced an account we could never reach again through the only channel this
-product has.
-
-- **`scripts/migrate-customer-phone-verification.js` must run before this
-  code deploys.** `getCustomerByPhone` selects `otp_code_hash`,
-  `otp_expires_at` and `phone_verified_at`; without the migration every
-  customer login throws. Additive and re-runnable (`IF NOT EXISTS`).
-- **Existing customers are NOT backfilled as verified.** Nobody proved those
-  numbers, and stamping a timestamp would record a verification that never
-  happened. They are asked once, on their next login — the same one-time step
-  an unverified agent already goes through.
-- **`lib/verifyAttempt.js` replaced the `?agent=<id>` / `?customer=<id>` query
-  param.** That param was not a credential (the code is), but it was
-  guessable, and two things followed: the resend button would fire a real
-  WhatsApp message at whatever account id you typed into the URL, and the
-  page could never show the number it had just texted. A signed httpOnly
-  cookie fixes both — the page now confirms the last four digits back, which
-  is how someone catches their own typo instead of waiting ten minutes for a
-  code that was never coming. Same primitive and same reasoning as
-  `lib/resetAttempt.js`.
-- **`/compte/inscription/verifier` is in `middleware.js`'s public list**, for
-  the same reason the agent one is: it is the step *before* a session exists.
-  Gating it on a session bounces every new customer to a login they cannot
-  pass until they enter the very code that page is asking for. Pinned in
-  `tests/unit/middleware.test.js`.
-- **`lib/otpDelivery.js` is the one way a code leaves this app**, and it is
-  template-first with a session-message fallback. Meta only delivers a
-  free-form message to someone who messaged the business in the last 24h, so
-  a first-time registrant never receives one — accepted with a real message
-  id, silently never delivered. The fallback exists because the template
-  lives in Meta's WhatsApp Manager and may be missing or pending approval;
-  when it is, a session message still reaches everyone who has messaged us
-  recently. Both failing is reported as a real failure, never swallowed. The
-  password-reset flow was a bare free-form send until now and went through
-  this too.
-- **OTP primitives live in `lib/authCrypto.js`** (`hashOtp`, `verifyOtp`,
-  `otpExpiresAt`, `OTP_TTL_MS`), re-exported from `agentAuth.js` for the
-  callers that already imported them there. One 10-minute lifetime for every
-  code this product sends; a customer-flavoured copy is how two "10 minutes"
-  quietly become 10 and 15.
-- Signup verification (`otp_code_hash`) and password reset
-  (`reset_otp_code_hash`) are **separate column pairs on both tables**. One
-  flow must never invalidate the other's in-flight code.
-
-## Known gaps (real, documented, not to be papered over)
-
-- **`price_period` / `deposit_months`** — the `ALTER TABLE properties ADD COLUMN price_period text, ADD COLUMN deposit_months integer;` migration this was waiting on has run (2026-08-19, confirmed directly against `information_schema.columns`), and `SELECT_FIELDS` (`lib/listings.js`) now selects both. Before this, `services/postgres.js` (engine repo) was already writing both fields on *every* sync — since `syncListingToPostgres` is fire-and-forget and swallows its own errors, that meant every listing publish was silently failing to reach Postgres at all, with the submitting agent seeing a normal success reply. Existing Postgres rows still have `NULL` for both until their next sync; `DepositBadge` only starts showing real values as listings get republished or freshly submitted.
-- **`advance_months` / `commission_months` now exist on `properties` and are rendered** — this note previously said they did not, and was stale. The `ALTER TABLE` ran (`scripts/migrate-entry-cost-columns.js`), `syncListingToPostgres` writes all three, `SELECT_FIELDS` selects them, `lib/listingView.js`'s `entryTerms()` renders the full "3 + 1 + 1 mois" KeyFacts cell, and `components/EntryCostsBreakdown.js` itemises who receives each poste (avance and garantie to the Bailleur, commission to the Agent/Agence) with a derived total. **The genuine caveat that remains**: legacy rows may carry a SUMMED value in `deposit_months` from before the engine split the fields, and those are indistinguishable from a real long deposit without re-reading the original WhatsApp text. Nothing fills a missing advance or commission with a "standard" figure — there is no standard, and a guess here is a number a customer would budget against.
-- **`parent_building_id` / `building_name` exist and are selected, but no row carries one yet.** Added by `scripts/migrate-building-columns.js` (run against production 2026-09-11, both nullable, partial index on `parent_building_id`). The engine stamps them only on listings published through multi-unit expansion (`services/db.js` `expandAndPublishListing`), which no production listing has used yet — so `lib/buildingGroups.js` is live but every listing currently groups as itself, which renders exactly as it did before. The first multi-unit WhatsApp paste to be confirmed is what will draw the first building pin. Nothing is backfilled: a pre-existing listing has no building to belong to, and inventing a group id would invent a building.
-- **`latitude` / `longitude` are now read, but are populated on only 8 of 31 approved listings.** `SELECT_FIELDS` omitted both columns until 2026-09-04, which meant `lib/geocoding.js`'s `source: 'existing'` branch was dead for *every* listing on the site: each map view re-geocoded client-side against a billable Google API, once per session, while the rows that did carry coordinates went unused — and the km-radius filter in the same module queried those same columns, so there were two sources of truth for one location, disagreeing by construction. The SELECT is fixed and verified live (`listing #256: existing`). Persisting coordinates at publish time still needs an **IP-restricted `GOOGLE_MAPS_SERVER_KEY`**: the browser key is HTTP-referrer-restricted and Google refuses it server-side. Until then the other 23 fall back to commune centroid + deterministic jitter, which `ListingLocationMap` labels honestly.
-  - **Update (2026-09-14):** the engine now geocodes at publish time (`services/geocoding.js`, run from `syncListingToPostgres`) whenever `GOOGLE_MAPS_SERVER_KEY` is in the ENGINE's `.env`, and `scripts/backfill-listing-coordinates.js` (engine repo) fills older rows through the same code. The key already existed in this app's `.env.local` on the VPS; `scripts/geocode-listings.js` here predates the cascade and precision check and should not be used for new backfills. A listing that still has no coordinates is placed at its commune centroid by `/api/listings/map` and counted on the map badge.
-- **Google Maps is currently failing on the live site** with "This page can't load Google Maps correctly" — pins resolve and markers are created, so the pipeline works, but tiles are refused. That signature is billing/quota on the Google Cloud project, not a code fault. `localhost` is also absent from the browser key's referrer allow-list, so the map cannot be exercised in local dev at all (confirmed on both :3001 and :3002).
-- **`NEXT_PUBLIC_WHATSAPP_NUMBER` *is* set** (`.env.local`). A previous version of this note said otherwise and was stale. The real exposure is production: `.env.local` is hand-maintained and untracked, and `ecosystem.config.js` does not set it, so a fresh deploy that loses that file makes `WhatsAppCTA`/`CallCTA` build `wa.me/undefined` — a live link to nowhere — while the ~15 `getCentralWhatsAppHref` call sites render their disabled state.
-- **Commune tags: 6 of 31 approved listings still carry none.** `scripts/backfill-commune-tags.js` recovered 7 from real address text; the rest have no commune in their text, or are ambiguous. Note that **"Kinshasa" is both the city and one of the 24 communes**, and every address here ends with the city — so that name is excluded from automatic matching entirely. A listing genuinely in Kinshasa commune has to be tagged by a human.
-- **`features` (`text[]`) exists on `properties`, is rendered, and is populated on 32 of the 48 approved listings** — the "Caractéristiques principales" list on the detail page (`components/listings/PropertyDescription.js`, `lib/descriptionParser.js`). Column added by the engine's `scripts/migrate-listing-features.js`; filled on every new listing by the extraction itself, and on existing ones by the engine's `scripts/backfill-listing-features.js` (run 2026-09-13), which re-ran that same extraction over each listing's original WhatsApp message — not a regex, and never the public description, which is prose on all 48 rows. Checked after the run: 189 bullets, 5.9 per listing, 0 phone-shaped, and every line in an 8-listing sample traceable to its source message. **The other 16 have no original message on file** (properties 197, 226, 227, 239, 240, 253, 254, 256, 257, 264, 265, 266, 298, 300, 301, 302 — pre-engine, or created through the agent form) and stay NULL by design: they fall back to the AMENITY_KEYWORDS pass, which carries its own weaker caption. Known residue, left deliberately: the extraction sometimes repeats a room count KeyFacts also shows ("2 salles de bain"), and can normalise a bare "Sécurité" to the stock "Sécurité assurée" — redundant or mildly rephrased, never an invented physical fact.
-- **`listing_events` is a new, empty table** (`scripts/setup-listing-events.js`) holding `listing_saved` / `listing_unsaved`, written by `POST /api/track`. Nothing reads it yet — `lib/analytics.js` has no query against it, so the save funnel is recorded but not yet on the dashboard. `whatsapp_clicks.price` was added by the same script and is NULL on every row written before it; those events genuinely predate the measurement and are not backfilled.
-- **No logo file yet.** `components/Brand.js` renders a set-type wordmark; drop the client's SVG at `public/brand/` and flip `LOGO_SRC` / `MARK_SRC`. Nothing else imports a brand mark.
-- **Per-listing agent contact — the schema limitation this used to describe is resolved; a real self-service path now exists.** `properties.agent_id` (FK) is the mechanism, joined to `agents`/`agent_infos`. **Correction, checked directly against live Supabase (this note previously said otherwise and was stale): `agents.phone` is `character varying(32)`, not a 32-bit integer — it holds a real E.164 `wa_id` (e.g. `243997123456`) with no truncation risk.** Phase 2 added the admin-side `assignAgentToListingAction` (`web/app/admin/agents/actions.js`) that populates `agent_id` for real; Phase 4 added genuine agent self-service accounts (`agents.password_hash`, phone-verified via a real WhatsApp OTP — see `lib/agentAuth.js`), independent of Laravel's own unused `agents.password` column. A listing without an attributed agent still correctly falls back to the central `WhatsAppCTA` number, same as before — this is no longer the only path, just the honest fallback when there's genuinely no agent attached yet.
-
-## Bilingual FR/EN — how it works and what will bite you
-
-French is the default and is not a "source language of convenience": listings,
-communes and agents are French-first, and `lib/i18n/config.js`'s
-`DEFAULT_LOCALE` encodes that. English exists for the diaspora audience — the
-same audience the USD/FC toggle was built for.
-
-**Locale is a cookie (`NEXT_LOCALE`), not a `/fr` `/en` route segment.** That
-was a deliberate trade-off, recorded in `lib/i18n/config.js`: no restructuring
-of ~100 route files into `app/[locale]/`, no rewrite of every internal
-`<Link href>`, and one canonical URL per page so existing shares keep working.
-The cost is that reading the cookie opts a route into dynamic rendering — the
-seven public routes that used to prerender (`/`, `/a-propos`, `/contact`,
-`/favoris`, `/agents`, `/messages`, `/plan`) are now `ƒ`. Everything else was
-already dynamic. If per-locale static prerendering ever matters more, the
-migration is to `app/[locale]/`, not to reading the cookie in fewer places.
-
-- **Dictionaries** — `lib/i18n/fr.json` / `en.json`, ~1,185 keys each, grouped
-  into 18 top-level namespaces. `tests/unit/i18n.test.js` asserts they stay
-  key-for-key identical, that no value is blank, and that `{placeholder}` sets
-  match between the two — a "{count} biens" translated without its count is
-  silent data loss.
-- **Reading a string** — `await getT()` in a Server Component or Server Action
-  (`lib/i18n/server.js`), `useT()` in a client one (`lib/i18n/client.js`).
-  Never import `lib/i18n/server.js` from anything reachable by a `'use client'`
-  file: it pulls in `server-only` and `next/headers`, and the build fails.
-- **Namespaces are shipped per surface.** Each layout passes only what its own
-  subtree renders, so `/admin`'s copy never reaches a public visitor (~6KB
-  gzip saved per public page). `tests/unit/i18n-namespaces.test.js` walks the
-  real import graph and fails if a client component resolves a namespace its
-  layout doesn't provide — that gap is otherwise silent in production, warned
-  about only in dev.
-
-### The three mistakes that actually happened here, repeatedly
-
-1. **`t` in a module-level constant.** `const LABELS = { a: t('x') }` at the top
-   of a file is a `ReferenceError` at import — `t` only exists inside a
-   component or action. Constants hold `labelKey` strings and the consumer
-   resolves them at render. Every label map in this codebase follows that shape
-   (`components/navItems.js` is the reference).
-2. **`t` in a default parameter.** `function X({ label = t('y') })` has the same
-   problem: parameter defaults are evaluated where `t` is not in scope. The
-   default moves into the body (`CopyLinkButton`, `ShareOnWhatsAppButton`,
-   `LocationAutocomplete` all do this, with a comment).
-3. **A function that calls `t()` without binding one.** This is the dangerous
-   one: **the build passes and the page 500s at render.** It shipped several
-   times during the migration and was caught in a browser, not by `npm run
-   build`. `tests/unit/i18n-translator-binding.test.js` now checks every
-   top-level declaration. Two cases are worth remembering — `Wordmark`
-   (`components/Brand.js`) is a NAMED export, so an earlier check that only
-   looked at default exports saw nothing while every page rendering the header
-   crashed; and an earlier version of that test missed `FavoritesSection`
-   because an apostrophe in French JSX text was read as the start of a string
-   literal and threw off its brace counting.
-
-### What is deliberately NOT translated
-
-- **Real data**: listing titles, descriptions, commune and quartier names,
-  agency names, `category_name` out of `property_category_contents`. Only
-  labels around them are keys. `typeLabel()` translates the parcelle sub-type
-  and passes `category_name` through untouched.
-- **`AMENITY_KEYWORDS` (`lib/constants.js`)** and
-  **`EXTRACTION_FAILURE_MARKERS` (`app/admin/listings/actions.js`)** — French
-  keyword lists matched against listing text that is itself French.
-  Translating either would break the matcher, not localise it.
-- **The `flexibility` option VALUES** in the customer request form: the chosen
-  option is stored as free text and appended to what partner agencies read, so
-  translating the value would change what lands in the database depending on
-  the customer's display language. Only its visible label follows the toggle.
-- **The agent password-reset WhatsApp message (`lib/agents.js`)** — it is sent
-  to the agent, but triggered by an admin. Translating it would render it in
-  the *admin's* language, not the recipient's.
-
-### Verifying a change
-
-Static scanning is not sufficient and repeatedly under-reported here: strings
-hide in ternary branches, template literals, default parameters and multi-line
-JSX that a line-based scan does not see. The check that actually settles it is
-fetching each route twice with `cookie: NEXT_LOCALE=fr` and `=en` and looking
-for French in the English render — that works on output, so the source shape
-cannot fool it. `npm run build` catches neither an unbound `t` nor a missing
-namespace; the two i18n tests above exist because of that.
-
-## Testing
-
-- **`npm test`** runs the unit tier: Node's built-in `node --test`, no test framework dependency, matching the engine's own hand-rolled `scripts/verify-pipeline.js` precedent. 102 tests, three of which (`i18n.test.js`, `i18n-namespaces.test.js`, `i18n-translator-binding.test.js`) guard the bilingual layer — see the FR/EN section above for why the build alone does not.
-- Two flags carry the whole thing and are not optional: **`--conditions=react-server`** makes `import 'server-only'` a genuine no-op (that package exports a zero-byte file under that condition), which is what lets ~30 `lib/` modules be imported at all; and `tests/support/hooks.mjs` uses **`module.registerHooks`** to resolve the `@/` alias and retry extensionless specifiers with `.js` — Next resolves both implicitly, plain Node ESM resolves neither.
-- The unit tier substitutes `lib/db.js` with a recording fake pool (`tests/support/fakePool.js`), which buys the assertion class that matters most here: **SQL text invariants**. `properties` has no row-level security, so the `status = 1 AND approve_status = 1` filter is the only thing keeping unapproved listings private — and a test comparing returned rows would pass just as happily with that filter deleted, as long as the fixture held no pending rows. `tests/unit/listings-sql.test.js` asserts on the emitted SQL instead, which cannot be fooled that way.
-- **`npm run test:http` and `npm run test:chain` talk to live production data** and are gated behind an explicit `QA_ALLOW_PROD=1`. They are deliberately excluded from CI.
-- CI (`.github/workflows/ci.yml`) runs both suites on push. Node 22 is in the engine matrix as **non-blocking**: the production VPS runs 22, and 8 photo webhook tests fail there while passing on 24, with byte-identical code and dependencies (verified by checksum against the deployed server). Production photo handling works on 22, so this is a harness discrepancy — tracked rather than hidden. eslint is non-blocking too, over 3 pre-existing `react-hooks/set-state-in-effect` errors in deliberate hydration-safety code.
-
-## Agent growth toolkit (branch `feat/agent-growth-toolkit`)
-
-- **Dashboard context is memoised per request.** `getAgentDashboardContext`
-  is wrapped in React `cache()`; the layout and every page call it, and before
-  the wrap each request did the work twice (four engine round trips).
-- **Analytics read the rollup when it is fresh.** `lib/analytics.js`'s
-  `isRollupFresh()` (≤30 min, `listing_stats_daily`, written by the engine's
-  `listing-stats-rollup` job) routes per-listing totals, the trend chart and
-  month deltas to the rollup, and falls back to raw events otherwise —
-  including before `migrations/20260917_agent_dashboard_scale.sql` runs. UTC
-  days, same as every other bucket here. The rolling "30 derniers jours" card
-  stays on raw (indexed) events: a rolling window is not day-aligned.
-- **"Visuel & partage"** (actions menu on Mes biens): `lib/listingShareCopy.js`
-  (French caption — always French, it is read by the agent's customers),
-  `lib/listingFlyer.js` + `app/compte/agent/biens/[id]/visuel/route.js`
-  (**route retired 2026-10-06** — see "Listing card share" at the end of
-  this file; the rest of this bullet is history) (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts,
-  Plus Jakarta Sans fetched from Google Fonts once per process with a
-  default-face fallback). Images go through `sharp` (already a Next
-  dependency): WebP → PNG/JPEG, since satori decodes neither WebP nor AVIF,
-  EXIF rotation, since satori ignores orientation and a phone photo otherwise
-  renders on its side, and a resize so three 8 MB photos aren't a 30 MB
-  payload. sharp missing is survivable — a JPEG/PNG still renders, anything
-  else is skipped.
-  **The card is royal blue (`--blue`) and the QR code is gone**, both on an
-  explicit product decision (2026-09-16): the caption under the image already
-  carries the link, so the QR was a worse second route to the same page, and
-  the space now holds the AGENT's own logo, name and phone (`loadAgentBrand`)
-  so every share doubles as their marketing. No logo means their initials on a
-  white card; no name and no logo means no brand block at all, never a Lukka
-  Place mark passed off as the agent's. The phone appears only under the
-  public listing page's own rule (verified AND direct routing not switched
-  off). **Most agents have no image yet** — 7 of 10 in production — so the
-  initials fallback is the common case until they upload one in Paramètres.
-  - **The gold badge is earned, not decoration** (2026-09-16). It renders only
-    for `agents.verification_level` of 'verified' / 'agency_partner' — the tier
-    a team member sets from `/admin/verifications` after reviewing documents —
-    and a 'standard' agent gets nothing rather than an unbacked trust mark.
-    **Every production agent is 'standard' today, so no flyer shows it yet**;
-    that is what makes it worth something to the agents who earn it. Gold is
-    `#f59e0b` with INK text and check, not white: white on that gold is 2.1:1,
-    under even the 3:1 bar for a graphic.
-  - The photo seams are 6px of the white ground showing through (`GAP`; 2px
-    read as a hairline at Status size). Under the price are two lines,
-    "Appartement • 24 Novembre, Lingwala" then "2 chambres • 2 salles de bain"
-    (`roomSpecs`, full words — the abbreviated one-line `compactSpecs` and the
-    0.6-opacity photo watermark were both removed 2026-09-16 on product
-    direction). The Lukka Place mark is the white roofline
-    (`public/brand/icon-dark.png`, `loadPlatformMark`) set above the
-    "Lukka Place lukkaplace.com" text — roof over name is the real lockup, and
-    the full wordmark PNG would print the name twice. The WhatsApp glyph beside the phone is the same hand-rolled
-    path `WhatsAppCTA.js` carries (lucide ships no brand marks), drawn as an
-    `<img>` data URI because a missing glyph in the loaded face would render
-    as a blank box.
-  - **The caption is WhatsApp-formatted**: `*…*` bold on the purpose, place
-    and price, and a `📞 *Contact agent*` line carrying the number — gated by
-    `agentContactPhone`, the same verified/routing rule the listing page uses,
-    so the caption can never publish a number the site itself refuses to show.
-    The asterisks show literally outside WhatsApp; accepted, since that is
-    where this text is posted.
-  Ownership is `p.agent_id = $3` in SQL; `shareBlocker()` refuses pending,
-  rejected, archived, under-offer and closed listings because the link points
-  at a public page that would 404 or mislead. There is no web link that
-  posts to a WhatsApp Status: the Web Share sheet with the image attached is
-  the one-tap path, and the caption is copied first because WhatsApp drops
-  text shared with an image to Status.
-- **Marketing toolkit: graphics drawn in the browser** (2026-09-16). The share
-  kit (`AgentListingShareKit`, tabs Visuel / Texte / Propriétaire) no longer
-  asks the server for its image.
-  - `getSharePackAction` sends a **share pack**
-    (`lib/marketing/sharePackData.js`): the text already formatted, and
-    same-origin `/_next/image?…&w=1080&q=75` photo URLs. Going through the
-    optimiser means the canvas is never tainted and a phone decodes 1080px,
-    not a 4000px original. Only hosts `remotePatterns` covers are sent.
-  - `lib/marketing/layout.js` turns a pack into draw operations — pure, no
-    DOM, unit-tested position by position.
-  - `components/marketing/CanvasRenderer.js` paints them with Canvas 2D (not
-    html2canvas, which cannot do `object-fit: cover`) and exports JPEG.
-    Square 1080², Story 1080×1920, Landscape 1200×675 — native sizes, not 2×.
-  - **The square reproduces the server flyer**: baselines use satori's
-    half-leading model with Plus Jakarta Sans's own metrics (ascent 1.038,
-    descent 0.222). Checked against the production PNG in the browser:
-    vertical offset 0px on every text block, mean pixel difference 2.8/255.
-    The one visible difference is the narrow space in "1 000 $", which the
-    canvas draws and satori dropped.
-  - **Export uses `toDataURL`, not `toBlob`.** In the app's browser pane
-    every `toBlob` took ~1,050 ms at any size (540px, 2160px, even PNG) —
-    Chromium defers it as an idle task — while `toDataURL` encoded the same
-    JPEG in 32 ms. Measured warm, desktop: square 39 ms / 125 KB, story
-    102 ms / 133 KB, landscape 33 ms / 90 KB, all under the 150 KB budget.
-    No CPU throttling was available to test a phone profile.
-  - **Offline**: `lib/sharePack.js` keeps the pack and the image Blobs in
-    IndexedDB (`lukka-share-packs`, separate from the drafts database). With
-    the server unreachable, the dialog draws from that copy and shows
-    "Hors ligne — données du …", with a warning past 24 h, because an offline
-    graphic can show an old price. A server answer of "not yours / gone" is
-    never replaced by a stored copy. Verified with the dev server stopped:
-    story drawn from IndexedDB in 175 ms. The dashboard page itself is not
-    cached by the service worker, so this works in a dashboard that is
-    already open, not from a cold start offline.
-  - ~~The server route `/compte/agent/biens/:id/visuel` stays as the square
-    fallback~~ — retired 2026-10-06 with the card redesign (see "Listing card
-    share"). The browser is the only renderer.
-  - **Tagged links**: captions carry `?utm_source=` per way out
-    (`SHARE_SOURCES`: wa_status / wa_message / partage_agent;
-    rapport_proprietaire for the report). `lib/analyticsClient.js` now
-    forwards the landing URL's `utm_source` — both endpoints accepted it but
-    nothing sent it, so every tagged visit was stored as 'direct'. Listing
-    pages declare their canonical URL so tagged variants are one page.
-  - **Landlord report** (`getMandateReportAction`,
-    `lib/marketing/mandateReport.js` + `mandateReportCopy.js`): views,
-    WhatsApp taps, saves and visit requests for the last 7 whole UTC days
-    against the 7 before, read the way the dashboard reads them
-    (`listing_stats_daily` while fresh, raw events otherwise). Visit requests
-    come from the engine; when it cannot answer they are `null` and print
-    "non disponible", never 0. The card and the caption both say what the
-    counts cover (page openings including the agent's own, taps, saves,
-    requests via Lukka Place) and what they do not (calls and messages sent
-    straight to the agent, people who saw a Status without opening the
-    link). Live only — no offline report, since an old one shows the wrong
-    week.
-- **The agent dashboard on a phone** (reported from real 375px screens,
-  2026-09-16). `.u-title-page` and `.u-stat` are 22px below 640px (they were
-  28px, which alone pushed the header past the screen); agent pages are
-  `px-3 py-4` and cards `p-4` until `sm`. Three layouts were structurally
-  wrong rather than merely large, and each is fixed at its source:
-  - `AgentPageHeader` is ONE row on a phone since 2026-09-23 (title, search
-    icon, bell, icon-only "+"); see "Agent portal, streamlined for phones".
-  - `AgentPortfolioBanner`'s two buttons stack full-width; they were a
-    `flex-none` row wider than the screen, so "Voir ma page" was cut off.
-  - **`.agent-listing-row` (app/globals.css) is the Mes biens row**: named
-    grid areas on a phone, the seven-column table row at `lg`, with
-    `.alr-main` / `.alr-stats` on `display: contents` so ONE markup serves
-    both. It was a single `flex-wrap` line, which squeezed the title to
-    nothing and left the price against the photo. GRID_COLS in
-    `AgentListingsTable.js` must stay identical to the `lg` columns there.
-  - The row menu takes `collisionPadding` with a 88px bottom so Radix keeps it
-    clear of the fixed bottom nav, and the bulk bar sits at `bottom-20`.
-  - The share dialog is `max-h-[88dvh]` with all four actions above the
-    caption: at `92vh` on iOS Safari the last button sat under the browser
-    toolbar and could not be reached.
-- **Offline drafts** (`lib/offlineDrafts.js`, `CreateListingDialog`): fields
-  AND photos in IndexedDB per agent key; a publish while offline (or one that
-  dies on the network) is queued and re-sent when Mes biens is open and
-  online, once across tabs (Web Locks), flagged `offline_replay` so
-  `createListingAction` returns the existing listing
-  (`findRecentOwnDuplicate`, same agent + title + price within 24h) instead of
-  creating a second copy when only the response was lost. No service worker:
-  a page closed offline sends on its next online visit. A server verdict is not
-  a network failure — the draft is un-queued and the dialog reopens.
-- **Verification tiers** (`lib/verificationLevels.js`, `lib/agentVerification.js`,
-  `/admin/verifications`, settings card on `/compte/agent/parametres`):
-  `agents.verification_level` standard / verified / agency_partner, derived
-  `is_verified`, documents in a PRIVATE bucket opened only through an audited
-  5-minute signed-URL route (`agents.manage`). Raising a level requires the
-  approved documents it stands for; rejecting evidence lowers the level in the
-  same transaction. **The green public check now means this tier, not
-  `phone_verified_at`**, on `/agents`, `/agents/[id]`, `EnquiryCard` and
-  `PropertyCard`; the profile meta line no longer prints "Agence partenaire ·
-  Vérifiée" for every agent. Public reads use `to_jsonb(a) ->>
-  'verification_level'` so they keep working before
-  `migrations/20260917_agent_verification.sql` runs (a plain column reference
-  500'd the homepage in local QA); swap to the column once it is applied
-  everywhere. Setup: run that migration, then
-  `node web/scripts/setup-verification-bucket.js --write`.
-- **Known, not fixed here:** the agent dashboard layout still fails when the
-  engine is unreachable (`listLeads` throws; confirmed locally), Mes biens filters an
-  unbounded listing array in memory, and `createListingAction` takes its
-  commune/category allow-lists as arguments from the client.
-
-## Admin deletions, market-data export, agency name, photo allowances (2026-09-21)
-
-Migration `migrations/20260921_admin_deletions_and_photo_allowances.sql`
-(applied to production 2026-09-21).
-
-- **Ids come from the identity sequences.** `agents.id` and `packages.id` are
-  `GENERATED BY DEFAULT AS IDENTITY`. The engine's WhatsApp onboarding and
-  web's `createPackage` used to insert `MAX(id) + 1`, which never advanced
-  the sequence: production had `agents_id_seq` at 42 with agent #43 present, so
-  the next web signup would have hit a duplicate key. Both now omit the id,
-  and the migration realigned both sequences. This is also what makes deletion
-  safe: a deleted id is never handed out again, so engine rows that still carry
-  it cannot attach to a new person.
-- **Deleting an agent** (`lib/adminAgentDeletion.js`, `/admin/agents` menu →
-  Supprimer, **owner only**, `agents.delete`). The dialog shows the impact and
-  requires the agent's id to be typed.
-  - Listings are either archived and detached (default: `status = 0`,
-    `archived_at`, `agent_id = NULL`) or deleted with their child rows.
-    **Closed transactions are always archived, never deleted**, because
-    asking-vs-achieved exists nowhere else.
-  - Refused while the agent has a pending, approved or paid sales commission.
-  - The FK-cascade tables go with the agent. `agent_infos`,
-    `plan_change_requests` and `property_contacts` are deleted.
-    `projects.agent_id` and `whatsapp_clicks.agent_id` are nulled. The sales
-    audit tables are kept. ID documents are removed from the private bucket
-    after the commit. The agency and its memberships are untouched.
-  - `deleteAgentAccount(id, { dryRun: true })` runs every statement and rolls
-    back. It was run against production for agents 33 and 37 in both modes with
-    no constraint errors.
-- **Deleting a package** (`deletePackage`, `/admin/subscriptions`, trash icon,
-  `billing.manage`).
-  - Agencies on an ACTIVE membership of that plan are moved to the Free plan:
-    their membership ends now and a NEW Free row starts. The paid row is never
-    rewritten, because memberships is the payment ledger.
-  - Pending plan requests for it are declined.
-  - A package any membership or request ever referenced is soft-deleted
-    (`packages.deleted_at`, status 0), which hides it from every list and
-    picker while billing history keeps its name. One nobody ever held is
-    deleted outright.
-  - Free itself cannot be deleted.
-- **Photography per plan**: `packages.photo_sessions_per_month` and
-  `photo_discount_pct` (0–100, CHECKed, default 0).
-  - Edited in the Forfaits table's "Services photo" column.
-  - Shown on `/compte/agent/abonnement` (current plan card and plan picker)
-    through `lib/photoAllowance.js`. A perk at 0 prints no line.
-- **Market-data export**: the "Exporter les données" CSV / Excel buttons on
-  `/admin/market-data` (`data.export` roles) use the existing audited
-  `/admin/export/listings.csv`.
-  - Three columns are APPENDED to `LISTING_EXPORT_COLUMNS`: `views_total` and
-    `whatsapp_clicks_total` (read the way the dashboard reads them) and
-    `visit_requests_total` (the engine's new
-    `GET /admin/viewing-requests/counts-by-property`). That last one is empty,
-    not 0, when the engine does not answer.
-  - `?format=excel` is the same file with semicolons, for French-locale
-    Excel. It is not an .xlsx.
-- **Agency name vs agent name.** Signup asks for "Nom de l'agence / nom
-  commercial" (`agents.agency_name` — the column the WhatsApp onboarding already
-  fills) and "Nom de l'agent / contact principal" (`agent_infos` first/last
-  name). Paramètres edits both.
-  - The public name (`AGENCY_NAME_EXPR`, engine `propertyRepository`,
-    `agentPublicName` on the profile) now reads the agency first, with
-    "Contact : …" under the profile heading. `agency_name` was empty on all 10
-    accounts, so nothing public changed on deploy.
-  - `agentDisplayName` is deliberately still the person: it is the
-    `assigned_agent` key leads are matched on. Admin labels stay person-first.
-
-## Espace Client at scale (`/compte/client/*`)
-
-Built toward 100k customer accounts. Engine half: root CLAUDE.md, "Customer
-side of requests and visits".
-
-**Deploy order: run `migrations/20260918_customer_alert_preferences.sql`
-(engine repo) before this web deploy.** It adds `alert_frequency`,
-`last_alerted_at`, `customers.whatsapp_alerts_opted_out_at` and
-`customer_favorites.note`. Every read goes through `to_jsonb(row) ->> '…'`, so
-no page 500s without it, but saving a frequency, an opt-out or a note fails
-(and says so) until it has run, and "weekly" alerts can arrive on consecutive
-days.
-
-- **Sessions are revocable.** `getCurrentCustomerId` →
-  `resolveCustomerSession` compares the token's version with
-  `customers.token_version`. Nothing compared it before, so logout-everywhere
-  and both password resets ended no other session. A 401 from `/api/account/*`
-  also clears the `lukka_logged_in` flag (`lib/customerApiResponse.js`).
-- **Per-request memoisation** (React `cache()`): `getCurrentCustomerId`,
-  `getCustomerById`, `listFavoriteIds`, `listSavedSearches`,
-  `getPortalCustomer`, `getCustomerInquiries`. The tab badges use the
-  engine's `GET /admin/leads/counts`, not the inquiry history.
-- **Every tab has a `loading.js`** (`components/PortalSkeleton.js`); Favoris &
-  Alertes streams its sub-tab under a keyed Suspense.
-- **Instant removes with undo.** Favourites and alerts hide on tap; the toast
-  (`components/Toast.js` now takes an `action`) offers "Annuler" through
-  `restoreFavoriteAction` / `restoreSavedSearchAction`.
-- **Ceilings** (`lib/accountLimits.js`): 200 favourites, 20 saved searches,
-  enforced by a COUNT guard in the INSERT (soft by design). A 409 raises
-  `ACCOUNT_LIMIT_EVENT` and `AccountLimitNotice` (site layout) says why.
-  Alertes re-runs saved searches four at a time (`mapWithConcurrency`).
-- **Multi-commune requests**: the form and edit dialog take up to
-  `MAX_REQUEST_COMMUNES` (5, same as the engine); `parseLeadCommunes` reads
-  them back.
-- **The visit form prefills the account's number** via `GET /api/account/me`.
-  Requests are found in the account by phone, so a differently typed number
-  used to create a visit the account never showed.
-- **Visits** (`messages/ViewingPanel.js`, `lib/viewingTimeline.js`): the real
-  timeline from the engine's viewing row, computed server-side with the
-  server clock. Cancel, accept a proposed slot, post-visit 👍/👎/agent absent
-  and the reason all go through the engine. The WhatsApp "reschedule/cancel"
-  links that changed nothing are gone.
-- **Alerts** (`lib/searchAlertSweep.js`): chunked, only new approved listings,
-  never a widened `getListings` result, verified and not-opted-out numbers
-  only, a session message when `SEARCH_ALERT_TEMPLATE` is unset (it no longer
-  defaults to an unapproved name). Every message ends with the link to stop it.
-  Per-alert frequency and rename on the Alertes tab; the account-wide switch on
-  Mon profil.
-- **Favourites**: shown in saved order, private notes, "Partager ma sélection"
-  (the same `/favoris?ids=` link), and a count of saved listings no longer
-  online instead of a silently shorter list.
-- **"Trouver pour moi" prefills from the latest saved search**
-  (`lib/requestPrefill.js`) and says so; nothing outside the query is guessed.
-- **English**: the portal's hardcoded French (dates included) goes through the
-  dictionary now; `customer-portal-polish.test.js` lists the phrases that must
-  not come back.
-- **`/compte/alertes` and `/compte/demandes` are redirects** into the portal;
-  they were drifting copies. "Mot de passe oublié" goes to `/mot-de-passe-oublie`.
-- **Still open:** alert messages are session messages until a template is
-  approved (the 24h window applies); there is no STOP keyword handling — the
-  engine does not own `customers`, so opting out is the link in each message;
-  customer inquiry history is still capped at the latest 100 leads.
-
-## Deployment
-
-- PM2 process name `lukka-place-web`, port `3002` (the engine owns `3000` on the same VPS). Config: `ecosystem.config.js`.
-- **The resized-photo cache is permanent, not part of the build** (2026-09-30). `.next/cache/images` in BOTH `/var/www/lukka-place-web` and `/var/www/lukka-place-web-build` is a symlink to `/var/data/next-image-cache`; the deploy's `cp -a` of the build dir's `.next` carries the link across. Before this, every deploy swapped in a `.next` with an empty image cache, so after five deploys most photo flips paid a ~600 ms first resize instead of ~100 ms (reported as "sluggish" photos). **Never replace that link with a real directory**, and check `ls -la .next/cache/` after a deploy. After a bulk change of photo URLs, run the engine's `node scripts/warm-image-cache.js` on the VPS (every listing photo × every next/image width, ~1 min).
-- **Production data lives outside the repo directory**: the engine reads `DB_PATH=/var/data/lukka_place.db` and `UPLOADS_DIR=/var/data/uploads` from its `.env`. The `lukka_place.db` sitting in the engine's own directory on the VPS is a stale, empty leftover — do not read it and conclude the pipeline is broken.
-- **`next build` takes ~2 minutes on this VPS**, measured 2026-09-12 (`✓ Compiled successfully in 110s`, Next 16.3.1 with Turbopack). This note used to say ~23 minutes and was stale — that figure predates the Turbopack build. Still run it detached (`nohup`, writing to a log with a sentinel line) and poll rather than holding an SSH session open, and still only `pm2 restart` *after* the build reports success, so a failed build never takes the site down.
-- Traefik routing lives outside this repo, on the VPS at `/docker/n8n/dynamic/lukkaplace.yml` (file-provider dynamic config, same pattern as `engine.lukkaplace.com`'s router — `host.docker.internal:3002`).
-- Deploy = tar (excluding `node_modules`, `.next`, `.env.local`) → scp → extract over the existing `/var/www/lukka-place-web` → full `npm install` → `npm run build` → `pm2 restart lukka-place-web --update-env`.
-- `.env.local` on the VPS is hand-maintained, not part of the deploy archive — don't overwrite it by including it in the tarball.
-
-## "Faites le point" — one page for every listing (2026-11-09)
-
-The agent's answer to the engine's one-per-agent WhatsApp request (root
-docs/claude/whatsapp-intake-and-agents.md, "Faites le point"), replacing the
-per-listing question. `lib/statusCheck.js` (SQL + rules),
-`lib/statusCheckItems.js` (labels), `components/statusCheck/StatusCheckBoard.js`,
-`app/(site)/point/[token]/page.js` (from the link, no login),
-`app/compte/agent/point/page.js` (signed in; the to-do row "listings to
-confirm" now opens it), `app/(site)/point/actions.js`. French only, like the
-landlord report. `tests/unit/status-check.test.js`.
-
-- **The link**: 32 base64url characters; `agent_status_requests` holds only
-  its SHA-256. Valid 7 days, the agent active and not deleted; an expired one
-  says so and points to the dashboard, an unknown one is a 404. It can only
-  answer this page's questions about that agent's own listings — every write
-  has `AND p.agent_id = $2` and the state the answer applies to. Never
-  indexed, `force-dynamic`. The `/point` path is outside middleware.
-- **Per listing, one tap**: Disponible (stamps; on an under-offer listing it
-  means "back on the market"), Sous offre (stays public with its badge,
-  stamped), Loué / Vendu, Retiré (archive, never a transaction), and
-  "Le prix a changé ?" (engine price path, then stamped). Under-offer rows
-  get "Toujours sous offre / Loué / De nouveau dispo / Retiré". The sticky
-  bottom button confirms everything not yet answered.
-- **Loué / Vendu asks the price as one tap** ("au prix affiché ?" Oui / Non,
-  à un autre prix), then the date (default today, not future, not before
-  publication) and an optional "via Lukka Place ?". **The price is optional**
-  (owner decision 2026-11-09: a forced price makes agents tap "Retiré" and
-  the deal is lost). A close without one is `listing_status = 'closed'`,
-  `sold_at` set, `sold_price` and `price_source` NULL — this changes the old
-  rule that `closed` always carries a price; `lib/dataExport.js` leaves the
-  delta empty and `lib/marketBenchmarks.js` already excludes it. A figure
-  more than 50 % from the asking price is read back before saving. A priced
-  close is `price_source = 'DIRECT_INPUT'`.
-- **Freed slot**: after Loué / Retiré on a capped plan the row says
-  "1 place libérée sur votre forfait (N disponibles sur M)".
-- **Auto-paused listings** (engine, OFF until `LISTING_AUTO_PAUSE=on`):
-  `status = 0` + `auto_paused_at`, not archived; listed first with
-  "Réactiver" (subject to the plan's listing limit), Loué / Vendu, Retiré.
-  Read through `to_jsonb(p)` so the page works before the migration.
-- Every answer is also a `listing_availability_checks` row (`LINK` from the
-  link with `request_id`, `DASHBOARD` signed in), never blocking the answer.
-- **"Disponibilité confirmée" is never shown on an under-offer listing**
-  (`AvailabilityConfirmedBadge` takes `listingStatus`): "Toujours sous offre"
-  stamps the same column.
-
-## "Toujours disponible ?" — weekly availability check (2026-09-22)
-
-**Updated 2026-09-29**: the threshold is 14 days, shared with the engine's
-WhatsApp check (root CLAUDE.md, "Toujours disponible ? on WhatsApp") and the
-digest; each dashboard answer (confirm, price changed, marked let/sold) is
-also recorded in `listing_availability_checks` with `channel = 'DASHBOARD'`
-(`recordDashboardAvailabilityAnswer`, never blocks the answer, silent before the
-migration). The "no history table" note below is superseded.
-
-`migrations/20260922_listing_availability.sql` (`properties.availability_confirmed_at
-timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
-`app/compte/agent/availabilityActions.js`, `components/AgentAvailabilityPrompt.js`,
-`components/listings/AvailabilityConfirmedBadge.js`.
-
-- **No backfill, no history table.** Nobody had confirmed anything, so every
-  row starts NULL. A `listing_availability_checks` table was considered and
-  left out: nothing reads it — the badge and the to-do list need only the last
-  stamp, "Loué / vendu" is already `listing_status`/`sold_at`/`sold_price`, and
-  "Prix modifié" writes the price to the row. Add it when a report needs counts.
-- **"Due" = live AND stale.** Live is the public gate plus
-  `COALESCE(listing_status, 'active') = 'active'` — an under-offer listing is
-  not asked "still available?". Stale = older than `CONFIRM_AFTER_DAYS` (7)
-  measured from the last confirmation, or, never confirmed, from
-  `GREATEST(created_at, updated_at)`.
-- **`getListingsNeedingConfirmation(agentId, { limit })` is a contract** for the
-  dashboard to-do list: exactly `{ id, title, lastConfirmedAt, daysSince }`.
-  `lastConfirmedAt` is null when never confirmed (never the edit date);
-  `daysSince` counts from whichever baseline applied. The prompt card uses the
-  richer `getAvailabilityPrompts` (purpose, authored price + currency).
-- **The three answers reuse existing paths**: "Toujours disponible" stamps NOW
-  (ownership + liveness in the UPDATE's WHERE; `updated_at` deliberately not
-  touched); "Loué / vendu" opens `MarkListingSoldDialog` (new `renderTrigger`
-  prop) → `markListingSoldAction`, still the only way to `closed`; "Prix
-  modifié" calls `updateListingPriceAction` and stamps only once the price is
-  written. A saved price whose stamp fails reports `confirmed: false`, not a failure.
-- **Public badge** on `/listings/[id]` only (not cards, so the feed queries do
-  not pay for it): shown for a stamp ≤ `BADGE_MAX_AGE_DAYS` (30), Kinshasa day,
-  short month ("21 sept."); nothing otherwise — never "non confirmé". Worded as
-  the agent's confirmation, not "Vérifié" (that is `verified_at`). Read through
-  `to_jsonb(p) ->> 'availability_confirmed_at'` so the page cannot 42703 before
-  the migration; the agent-side reads catch 42703 and show no prompts.
-- **Revalidation**: confirm actions revalidate `/listings/:id`, Mes biens, the
-  overview and the editor (the detail page is dynamic, so this is the router cache).
-- Engine untouched: `syncListingToPostgres` never names the column (pinned in
-  verify-pipeline). WhatsApp replies are out of scope.
-- i18n keys: `agent.availability.*`, `listings.availability.confirmedOn`.
-
-@AGENTS.md
-
-## "À faire aujourd'hui" and the visit agenda (2026-09-22)
-
-- **One ranked list on the overview** (`lib/agentTodo.js` pure,
-  `lib/agentTodoLoader.js` reads, `components/AgentTodayPanel.js` +
-  `AgentTodayList.js`). Order is the product decision: overdue visits (the
-  slot passed with no agreement) → PENDING/RESCHEDULED by request age → NEW
-  leads by age → listings to confirm (longest first) → incomplete listings
-  (most gaps first). Four visible, "voir …" links per hidden kind (six until
-  2026-09-23; see "Agent portal, streamlined for phones"). Each row has
-  one primary action; visit answers go through the existing
-  `updateViewingRequestAction`, never a new write path. The two listing
-  sources are `getListingsNeedingConfirmation` and `getIncompleteListings`
-  (both degrade to `[]`); a confirm row opens the listing's editor (where the
-  availability prompt is), an incomplete row goes to the field behind its
-  first gap (`listingGapHref`).
-- **"Overdue" needs a real instant.** For PENDING it is the engine's
-  `requested_slot_at` (new field on `GET /admin/viewing-requests`,
-  `visitSchedule.requestedSlotAt`): the customer's phrase parsed against the
-  request's own `created_at`, so "demain 14h" can actually go by. For
-  RESCHEDULED it is `scheduled_at` only — the phrase is the agent's later
-  proposal and `created_at` is the wrong anchor. An unparseable phrase is
-  never overdue and never prefilled.
-- **A dashboard confirmation must carry the agreed instant.** Confirm opens
-  date + time (`components/VisitSlotForm.js`, Kinshasa time whatever the
-  phone's timezone), prefilled only with a slot still ahead. It is sent as
-  `scheduled_at` (ISO, `+01:00`); `lib/visitAgenda.js`'s `validateAgreedSlot`
-  runs in the form and the action, and the engine's `respondFromDashboard`
-  re-checks it (day without hour or past instant → nothing written, nothing
-  sent), stores UTC `Z`, and tells the customer that time rather than their
-  own phrase. A to-do row whose slot is known and ahead confirms in one tap
-  with the slot printed on the button. An overdue row proposes a new slot as
-  French text in the engine's own `formatSlotFr` shape (`slotPhraseFr`) — the
-  weekday is computed, because the engine's parser trusts a weekday over a
-  date number.
-- **`/compte/agent/visites` is the agenda now**, not a redirect: CONFIRMED
-  visits by Kinshasa day, a 7-day strip with real counts, directions, a
-  customer WhatsApp link (French, the customer reads it) and "Ajouter à mon
-  agenda". Requests and their answer buttons stay on Demandes › Visites; the
-  pages link to each other. A confirmed visit without `scheduled_at` is listed
-  as "heure à fixer", never placed on the day its phrase names.
-- **.ics** (`visites/[id]/agenda.ics/route.js`): CONFIRMED + real
-  `scheduled_at` only (409 otherwise), same 404 for "not yours" and "missing",
-  `private, no-store` (it carries a customer's phone). No DTEND — nobody
-  agreed a duration. Ownership is `lib/agentViewingOwnership.js`, now also
-  what `updateViewingRequestAction` uses, so answers and exports cannot
-  disagree.
-- **Directions** (`directionsUrl`): stored coordinates when numeric and
-  non-zero, else address + quartier + commune + "Kinshasa" as a text search,
-  else no link. `lib/agentAgenda.js` reads places for the agent's OWN listings
-  (`p.agent_id = $1`) — a visit reached through a name-assigned lead gets no
-  place rather than someone else's.
-- **Morning reminder**: today's confirmed visits not finished more than an
-  hour ago, as a banner above the list; nothing renders on a day with none.
-- Known limit: the engine's owner list caps at 100 rows per status, and the
-  ownership lookup still asks for 200 (pre-existing); an agent past 100
-  confirmed visits would lose the oldest from the agenda and the .ics.
-
-## Completeness checklist and quick replies (2026-09-22)
-
-Migration `migrations/20260922_agent_quick_replies.sql` (new table only).
-
-- **Completeness is gap CODES, not a percentage** (`lib/completenessRules.js`
-  pure, `lib/completeness.js` SQL). Separate from `agentProfileCompletion`
-  (the sidebar's public-page percentage), which is unchanged.
-  `getIncompleteListings(agentId, { limit })` → `[{ id, title, gaps }]` is a
-  contract another surface consumes; it never throws (logs, returns `[]`).
-- **A gap is only listed when the agent can close it from the dashboard**,
-  and each links to the exact field (`profileGapHref` / `listingGapHref`;
-  anchors are ids on Paramètres and in `AgentListingEditor`, pinned by the
-  test). Consequences:
-  - `no_map_pin` fires only when coordinates are missing AND quartier is
-    blank. Nothing on the web write path geocodes (only the engine's publish
-    sync and its backfill script), so a pin nag with a quartier already set
-    would be unfixable.
-  - `missing_deposit` is rental-only and means `deposit_months IS NULL`
-    (0 is a stated value).
-  - `no_communes` needs BOTH primary and serviced empty — the matcher scores
-    either.
-  - `no_agency_name` accepts the vendor's name, but not a phone-shaped string
-    or `vendorNameSql`'s "Agence #N" placeholder.
-  - Thresholds reuse existing ones: 3 photos (the editor's hint), 15
-    description characters (the save path's floor).
-  - Closed and archived listings are skipped.
-- **Mes biens shows gaps on each card, not in a panel** (2026-09-22). The
-  "N annonces à compléter" panel above the list is gone: it pushed the first
-  card below the fold on a phone and never said which listing a chip meant.
-  `AgentListingsTable` renders one "À compléter : …" link per incomplete card
-  (`getAgentListingGaps`, photos as "(2/3)"), anchored on the first gap's
-  field. The availability prompt left Mes biens too; it is on the overview's
-  to-do list and in the editor.
-- **Photography offer**: no longer rendered (it lived in the removed panel);
-  `getPhotographyOffer` is kept. It was shown on Mes biens only when a listing had
-  `thin_photos`. The package is found live (`LOWER(title) LIKE '%photo%'`,
-  active, not deleted). Title and price come from the row, and the link goes
-  to its card on Abonnement (`#plan-<id>`, added to `AgentPlanPicker`). No
-  package means no offer.
-- **Quick replies** (`lib/quickReplyRules.js` pure, `lib/quickReplies.js`
-  SQL, `components/AgentQuickReplies.js`, `AgentQuickRepliesManager.js`).
-  - **Defaults live in code.** Five French templates. A read never inserts
-    anything.
-  - **The first write copies them in.** Any edit, add or delete copies the
-    defaults into the agent's rows, in the same transaction (`WHERE NOT
-    EXISTS` + the partial unique `(agent_id, default_key)` for racing tabs).
-  - **Deletion is soft** (`archived_at`). An agent who removes everything
-    gets an empty list, not the defaults back. Max 20 per agent.
-  - **Messages are French whatever the UI language.** Customers read them,
-    the same reason as `listingShareCopy`.
-- **Placeholders are filled line by line.** A line whose value is missing, or
-  whose placeholder is unknown, is dropped whole, and the sheet names what was
-  dropped. Where the values come from:
-  - `{price}` is null when there is no usable price. "Prix sur demande" is a
-    label, not a price to quote.
-  - `{deposit}` is `entryTerms`' "3 + 1 + 1 mois", rentals only.
-  - `{link}` is only filled for a public listing.
-  - `{client_name}` is never phone digits.
-  - Defaults put each fact on its own line, so one missing fact costs one
-    line, not the whole message.
-- **The sheet opens `wa.me/<client wa_id>` from the AGENT's own WhatsApp.**
-  It is not the engine send that "Répondre" uses, so nothing is recorded:
-  it is a direct chat, which we cannot see.
-  - Templates and the agent's listings are loaded once per page and passed
-    through `QuickRepliesProvider` (Demandes). Each shared card gained one
-    `<AgentQuickReplies>` element, which renders nothing without a provider.
-  - The sheet has a listing picker, defaulting to the lead's or visit's own
-    property, so a general enquiry can still quote a listing.
-- **Degrades before the migration**: 42P01/42703 → defaults shown,
-  `editable: false` (the settings card says so; the sheet still works).
-
-## Statut du jour, share tracking and print pages (2026-09-22)
-
-Migration `migrations/20260922_listing_shares.sql` (new table only; code works
-before it runs).
-
-- **`listing_shares` records what the agent did, not what anyone saw.** One
-  row per listing each time the agent completes a share sheet with a graphic,
-  downloads one, opens or copies the caption, or presses our "Imprimer / PDF"
-  button (Ctrl+P is not counted). A cancelled share sheet records nothing. The
-  landlord report itself is never a share. Channels/formats are an allow-list
-  in `lib/listingShareRules.js` mirrored by the migration's CHECKs (a test
-  compares the two).
-- **Recording is fire-and-forget and server-validated.** The browser calls
-  `recordListingSharesAction` after the share, never awaited. The agent id comes
-  from the session; ownership AND `status = 1 AND approve_status = 1` are in the
-  INSERT, so a crafted id or a non-public listing writes nothing. One tap = one
-  record: an identical listing × channel × format row inside 30 s is skipped
-  (a genuinely simultaneous duplicate can slip through; accepted rather than a
-  lock per share), and an agent is capped at 60 rows a minute. Impersonation
-  blocks it at the edge like every POST.
-- **Missing table (42P01/42703)**: writes record nothing, the report count is
-  `null` (prints nothing), and Statut du jour falls back to the newest live
-  listings with `tracked: false` and says history is not available.
-- **Statut du jour** (`components/AgentStatusOfTheDay.js`, overview):
-  `getStatusSuggestions` — own live listings (shareBlocker's rule, in SQL) not
-  shared in `STATUS_RECENT_DAYS` (3), never-shared first, then least recently
-  shared, newest first, max 5. Images are drawn only on tap, via ONE
-  `getStatusPacksAction` round trip and the share kit's own pack + renderer
-  (9:16). Share all via `canShare({files})`, else sequential downloads (350 ms
-  apart, or browsers drop them). The empty states separate "nothing live" from
-  "all shared recently".
-- **"Partagée N fois"** on the landlord report counts `listing_shares` in the
-  report's own 7-day window, only when N > 0 (0 usually means shared by other
-  means, not a failure; null is unknown). The card puts it right-aligned on the
-  status row; the caption adds `SHARE_COUNT_DEFINITION` ("… pas une preuve que
-  quelqu'un l'a vu"). Kept out of `getMandateCounts` so its shape is unchanged.
-- **Print pages** `/compte/agent/biens/[id]/affiche` (A4 poster) and `/fiche`
-  (2-page technical sheet), linked from the share kit's Visuel tab (live kits
-  only) and the row menu (approved listings). Ownership is getFlyerListing's
-  SQL (404 otherwise); a blocked listing gets the share kit's blocker message
-  and no sheet, since its QR would lead to a 404.
-  - Content is **French always** (read by the market), only the toolbar is
-    translated. Only real fields; empty sections are not printed. Entry costs
-    are three separate lines (with per-line amounts only for a monthly rent),
-    never a sum. The landmark label is "Référence". Map link only for a parsed,
-    in-range, non-zero stored coordinate, labelled "position indicative".
-  - The phone is `agentContactPhone` (verified AND routing on). When a stored
-    number is withheld, the screen toolbar tells the agent why; the paper just
-    omits it (no central-number substitution).
-  - QR: the existing `qrcode` dependency, SVG generated server-side
-    (`lib/marketing/printSheetData.js`), URL
-    `?utm_source=print&utm_medium=poster|fiche`. `analyticsClient` forwards only
-    `utm_source`, so the medium is visible in the URL but not stored.
-  - Layout: `components/print/PrintStyles.js` ships its own CSS (not
-    globals.css). Each sheet is a size container `min(210mm, 100%)` wide with
-    A4's ratio and every length in `cqw`, so a phone shows a true miniature with
-    no sideways scroll and print is exactly A4. Print hides `aside`/`nav`/the
-    toolbar under `body:has(.lp-print)`.
-  - `lib/marketing/printSheetLoader.js` (imports listingFlyer, whose JSON import
-    the unit tier cannot load) is split from `printSheetData.js` so the SQL is
-    testable.
-- **Not verified in a browser here** (needs an agent session on real data; the
-  print button would write a real row): check the poster/sheet print preview,
-  Web Share with multiple files on Android, and the report card line.
-
-## Add-listing from Vue, and the reference field (2026-09-22)
-
-- **Vue's "+ Ajouter un bien" opens `CreateListingDialog` in place** (`primary`
-  prop for the header styling). It linked to Mes biens, where the agent had to
-  press the same button again. There is still no `/biens/nouveau` route.
-- **Both agent forms now write `properties.reference`** — the column the
-  WhatsApp intake already fills, not a new `internal_code`. Agents and
-  customers name a place by it (a repère like "Mimosas, Camp Docteur", or an
-  agency code like "REF-101"), so the label is just "Référence" with both
-  examples. Create, edit, smart paste and offline drafts carry it; Mes biens
-  shows "Réf. …" on the card and its search matches it. The editor's quartier
-  field is labelled "Quartier" now, since "Quartier ou référence" no longer
-  fits. Public page, WhatsApp "Réf." line and geocoding already read the
-  column. Editing it does not clear coordinates (the web path never did for
-  quartier either). The write-path-parity check for `reference` had only
-  been passing on a code comment; `tests/unit/agent-listing-reference.test.js`
-  pins the real writes.
-
-## Demandes lead card, simplified (2026-09-22)
-
-- **One full-width action: "Répondre sur WhatsApp"**, a `wa.me` link from the
-  agent's own WhatsApp (`lib/leadContact.js` `leadWhatsAppLink`, French, names
-  and links the enquired listing only when it is theirs and live). No 24h
-  window, and nothing recorded — like every direct chat. "Proposer des
-  alternatives" sits under it; quick replies, the Lukka Place composer,
-  "marquer comme traitée" and the status select are behind "Plus d'options".
-- **"Proposer un bien" is gone from the card**, and with it the only thing
-  that consumed the monthly lead quota (`packages.monthly_pitch_limit`), which
-  blocked agents on a 0-limit plan ("Vous avez traité vos 0 demandes du
-  mois"). The quota meter is off the overview and Abonnement.
-  `proposeListingAction` and `lib/leadQuota.js` still exist, unused by the UI.
-- **Alternatives were always empty — fixed.** `getListings` /
-  `getListingsByIds` gate on `status = 1 AND approve_status = 1` but do not
-  SELECT those columns, and `rankAlternatives` runs `shareBlocker`, which read
-  every row as pending. `lib/agentAlternatives.js` stamps rows from those reads
-  (`asPublicRows`). It also never dead-ends now: no purpose match → all of the
-  agent's live listings (flagged `ownWidened`); nothing of theirs → other
-  agencies' listings at once. "Ouvrir dans mon WhatsApp" is the primary
-  button, the Lukka Place send secondary. `tests/unit/agent-demandes-simplify.test.js`.
-
-## Agent client book and "Proposer des alternatives" (2026-09-22)
-
-**Hidden from agents since 2026-09-22** (product decision: Biens / Demandes /
-Abonnement / Réglages only). No nav entry, `/compte/agent/clients` redirects to
-Demandes, and the "clients cherchent" chips on Mes biens, the overview and the
-editor are gone. The tables, `lib/agentClients.js` and the components below are
-kept, so restoring it is a nav entry plus the page. "Proposer des alternatives"
-does not depend on the book and is unchanged.
-
-`migrations/20260922_agent_clients.sql` (`agent_clients`, `agent_client_contacts`),
-`lib/clientMatching.js` (pure), `lib/agentClients.js`, `lib/listingAlternatives.js`
-(pure), `lib/agentAlternatives.js`,
-`app/compte/agent/{clients/page.js,clientActions.js,alternativesActions.js}`,
-`components/AgentClient*.js`, `components/AgentAlternativesDialog.js`. Tests:
-`tests/unit/agent-clients.test.js`.
-
-- **The client book is private to one agent, end to end.** Every statement in
-  `lib/agentClients.js` carries `agent_id = $1` with the session's id; a client
-  or listing id from a form is only used together with it (the contact
-  marker's INSERT selects the agent's own client JOINed to the agent's own
-  listing, so a forged pair inserts nothing). Only `app/compte/agent/**`
-  imports it — a test enforces that; lead dispatch and `/admin` never read it.
-  Under "view as" (impersonation cookie present) the book renders as hidden.
-  PostgREST roles are revoked in the migration, as for `cms_settings`.
-- **Matching is computed at read time, never stored.** Listings are written by
-  the engine and by web, so a stored match would need triggers on both and go
-  stale on every price edit. Rules (`clientMismatchReason`): purpose exact;
-  listing commune in the client's communes (empty = anywhere; compared through
-  `communeKey`, which ignores accents, case and separators); price within budget
-  **±10 %** (`BUDGET_TOLERANCE`, stated in the form and on the page), USD
-  against `properties.price`; `beds >= bedrooms`. When the client set a
-  constraint and the listing doesn't state that fact (no price, beds or
-  commune tag), it is NOT a match. Only listings that `shareBlocker` passes
-  are matched, because the link has to open.
-- **Communes are picked from `getLocationHierarchyWithFallback()`, never
-  typed.** `saveAgentClientAction` fetches that allow-list itself rather than
-  taking it from the form (the gap still open on `createListingAction`). The
-  phone goes through `PhoneField` + `phoneFromForm`. There is one row per
-  number per agent: a unique index answers "déjà dans votre carnet".
-- **"WhatsApp ouvert le …", not "contacté".** The marker is stamped when the
-  agent taps the pre-filled `wa.me` link. Whether they then press send happens
-  on their phone, where we can't see it. `ON CONFLICT … DO UPDATE` keeps the
-  latest tap.
-- **Alternatives: purpose is a hard filter, everything else only ranks.** Same
-  commune first (the preference `propertyMatching` expresses by searching the
-  commune before widening), then `agentMatching.matchPercent`, then freshness.
-  The lead's own request wins. A visit request carries no budget or commune,
-  so the declined listing stands in for them. It is read in any state, own
-  listings only, and its price becomes a ranking ceiling that is never shown as
-  the customer's budget. The declined listing itself is never offered. Own live
-  listings are pre-selected. "Inclure les biens d'autres agences" adds public
-  listings, widened city-wide (and flagged) when the requested communes have
-  none.
-- **The server rebuilds the message** from listings re-read under the public
-  filter (`loadChosenAlternatives`) and sends it to the number on the stored
-  row. The browser preview calls the same `buildAlternativesMessage`. There are
-  two ways to send: through the engine (the Lukka Place number, subject to the
-  24h window) and through the agent's own WhatsApp (`wa.me`, same text).
-  Ownership uses the dashboard's full `leadScope`, including `matchedAgentId`.
-  **Not fixed here:** `actions.js`'s `assertOwnedLead` leaves out
-  `matchedAgentId`, so replying to a lead the dispatcher pushed, or changing
-  its status, fails with "Not your lead".
-- **Tracked links**: `?utm_source=whatsapp&utm_medium=agent&utm_campaign=alternatives`
-  (and `…=client_book`), through `listingPublicUrl`'s new optional
-  `medium`/`campaign`. Only `utm_source` is recorded (`analyticsClient.js`), so
-  both features show as source `whatsapp` in `/admin` until the campaign is
-  stored too.
-- **Degrades before the migration runs**: 42P01/42703 give an empty book with
-  `available: false` (the page says so), and writes answer "pas encore
-  disponible". The chips on Mes biens, the overview and the edit page simply
-  don't render.
-- The phone tab bar's columns now follow `NAV.length` (inline style), so a new
-  sidebar entry needs no second edit.
-
-## Agent portal, streamlined for phones (2026-09-23)
-
-From real 375px screenshots. Desktop (`lg`) layouts are unchanged throughout.
-
-- **Header is one row.** `AgentHeaderSearch` is an icon on a phone that opens
-  over the row; it filters as you type (350ms, `router.replace`, no scroll)
-  when it searches its own page, and waits for Enter when it searches another
-  (the overview's box searches Mes biens). Still a GET form underneath. It
-  does not resync from the URL while focused, or a slow answer would eat
-  letters. `CreateListingDialog primary` is icon-only below `sm`.
-- **Filters are chips, never select + "Filtrer".** Mes biens: counted chips
-  (Tous / En ligne / À compléter / Sous compromis / Loués / Archivés; a zero
-  chip is not drawn unless selected); `incomplete` is a new `?status=` value
-  read from `gapsByListing`. Demandes: one chip row per tab; the unread and
-  pending counts moved into the tab labels.
-- **"À faire"** (`lib/agentTodo.js`): one row per REQUEST — a NEW lead is
-  folded into the open visit carrying its `lead_id` (or same number + same
-  listing), since a web visit request writes both rows; a phone-only row
-  borrows a name held elsewhere for that number (`customerName`). A visit
-  overdue by more than 48h, or asked for with no time more than 7 days ago, is
-  `stale`: ranked after new leads, not counted "en retard", badge "Relancer ou
-  clore", with "Clore" linking to the Visites tab. Rows are compact and leave
-  the list the moment they are answered (restored on failure).
-- **The overview streams.** It awaits only the to-do list; header action,
-  stats, completeness, statut du jour, chart, recent leads and subscription are
-  async components behind `<Suspense>`. On a phone everything below the stats
-  sits behind "Voir plus" (`AgentMoreOnPhone`, CSS-decided default, no
-  hydration difference).
-- **Mes biens rows on a phone**: status is a tag beside the price and changes
-  from the row menu (`AgentListingActionsMenu` `onStatusChange`); checkboxes
-  exist only in selection mode ("Sélectionner" or a 500ms long press,
-  `.agent-listing-row.is-selecting`). The table now renders its own card
-  header (`title`, `action`, `emptyMessage`).
-- **Lead card**: "Répondre sur WhatsApp" + one "…" holding alternatives, quick
-  replies, the Lukka Place composer and status. Status changes are
-  `useOptimistic`; `AgentVisitRequestCard` shows its answer at once (keyed to
-  the row object, ViewingPanel's pattern).
-- **Réglages** is an index of sections on a phone (`?section=`); a form's
-  redirect reopens its section; `profileGapHref` includes `?section=`.
-  Desktop shows every card as before (`max-lg:hidden`, never `hidden lg:flex`,
-  which fights a card's own `flex`).
-- **`experimental.staleTimes.dynamic: 30`** (next.config.mjs): a page seen in
-  the last 30s is reused by the client router, so tab-bar switching does not
-  re-render on the server. Server actions and `router.refresh()` invalidate it.
-  Site-wide, browser memory only.
-
-## Storefront, streamlined for phones (2026-09-23)
-
-From a 375px walk of home → /listings → a listing on production. Desktop
-(`lg`) is unchanged throughout; every change below is phone-only.
-
-- **/listings has one set of controls: FloatingControlBar's Carte | Trier |
-  Alerte pill.** Each used to exist twice — FilterBar's Carte/alert row under
-  the search box and ResultsHeader's sort dropdown duplicated the pill — which
-  cost two rows above the first card (first card top 302px → 201px). Both
-  in-page copies are gone below `lg` (FilterBar's row deleted, SortDropdown
-  `hidden lg:inline-flex`). The pill also renders on an empty search, showing
-  only Alerte: that is the phone's only way to set an alert. SaveSearchButton's
-  `variant="pill"` resumes as `'alert'` after signup; the old `alert` variant
-  had no caller left and was removed. The page has `pb-28` below `lg` so the
-  pill never covers the last card or the pagination.
-- **Card specs are one line on a phone** ("Appartement · 🛏 2 ch · 🛁 2 sdb",
-  `SpecItem` inline); the labelled Rightmove rail is `lg` only.
-- **Listing page: the photo is the first thing under the header.** No
-  breadcrumb row and no Partager/Enregistrer row below `sm`; the gallery is
-  edge to edge (`-mx-4`) and Partager + the heart sit on the photo
-  (`PhotoGallery mobileActions`, `ShareButton variant="overlay"`). The title
-  moved up ~160px and the page is ~350px shorter. The phone EnquiryCard drops
-  its own save/share pair (`saveShare={false}`) — the photo and
-  MobileListingBar already carry them.
-- **KeyFacts on a phone put the icon beside the label** (one line, cells
-  ~95px → ~71px). `lib/keyFactsGrid.js`'s `GROUP_FROM_SM` is now a real flex
-  row at every width, since every cell is grouped below `md` — the "one
-  grouped cell among stacked ones" problem its old `contents` solved no longer
-  exists. `tests/unit/key-facts.test.js` pins the new class.
-- **The unloaded map is a 128px strip below `lg`**, not a 22rem empty box. It
-  grows when tapped; a layout change right after the visitor's own input is
-  not layout shift. Desktop keeps the full-height frame, since it autoloads.
-
-## Launch-readiness pass (2026-09-23)
-
-- **The list follows the map** (`?sw_lat&sw_lng&ne_lat&ne_lng`). Once the
-  visitor has moved the /listings map (not our own positioning — the first
-  settled view is the baseline), `ListingsMap` reports the visible area. Desktop:
-  `router.replace` and the list pane re-renders on that area. Phone:
-  `history.replaceState` only (no server round trip per pan); the "Voir N
-  biens" button carries it. `getListings` resolves an area through
-  `getMapMarkers` and lists those ids, so the list always equals the pin count
-  (`mapArea` in the result). Location filters give way to the area, as on the
-  map; FilterBar keeps the area across non-location changes and drops it for a
-  new place; "Zone de la carte ×" / "Effacer la zone" remove it and the map
-  returns to the searched place. An empty area keeps the split view (the map
-  is the way out). tests/unit/map-area-list.test.js.
-- **"Annonce vérifiée" on the gallery renders only on `verified_at`.** It was
-  unconditional, so every live listing claimed a check none had. Homepage /
-  about copy that said "vérifié" for moderation now says "relue par notre
-  équipe"; "Une seule ligne WhatsApp" (false since direct agent contact) is gone.
-- **Default sort is `complete`** ("Annonces complètes d'abord"): real photo
-  first, then photo count (≤3), commune tag, price, entry costs, newest within
-  a tier. A stated rule, not a recommendation engine; `newest` is still offered.
-- **`/robots.txt` and `/sitemap.xml`** (app/robots.js, app/sitemap.js,
-  `getSitemapListings` — public gate, hourly). Both were 404.
-- **"Vérifier via WhatsApp"** (`lib/whatsappVerify.js`,
-  `app/(site)/compte/whatsappVerifyActions.js`, `components/WhatsAppVerifyPanel.js`,
-  engine `services/phoneChallenges.js`). Both verify pages lead with it: the
-  person sends a shown code from their own WhatsApp; the page polls and then
-  runs the same consumeAgentOtp / consumeCustomerOtp a typed code uses. With
-  `AUTH_OTP_BYPASS=1` no code is sent and this is the only way in — the four
-  sign-in paths no longer stamp a number verified on their own
-  (tests/unit/whatsapp-verify.test.js). Needs the engine migration
-  `20260923_phone_verification_challenges.sql`.
-- **Visit request confirmation** links to /compte/client/visites instead of
-  promising a WhatsApp reply the 24h window may never deliver.
-- **Admin**: the sidebar is five groups (Opérations, Réseau & ventes, Revenus,
-  Analyses, Système); `/admin` opens each role's own queue (`ROLE_HOME`,
-  lib/adminRoles.js — a sales rep used to land on a page they may not open).
-  The rep page opens on a field view (`getRepFieldView`): signups today / 7
-  days and agents quiet for 7 days with a wa.me nudge from the rep's phone.
-
-## Pre-launch UX pass (2026-09-23)
-
-- **Logo no longer reads "LukkaPlacer".** The roof's right-hand vertical
-  stroke sat directly after the "e" and read as an "r" at header size. It was
-  erased from `public/brand/logo-light.png` and `logo-dark.png` (pixels right
-  of x≈2160 below the eave, via sharp); the roof and eave are otherwise the
-  supplied art. `public/og-image.png` was regenerated from the new dark logo
-  (505px wide on #1d5bd8, 1200×630). Every reference carries `?v=2` so phones
-  and WhatsApp's link-preview cache fetch the new files — bump it if the art
-  changes again.
-- **Listing page kicker** above the price: "APPARTEMENT À LOUER · 2 CH · 2 SDB"
-  (`typeLabel` + `listings.transaction.*` + `specItems`). The h1 stays the
-  place; this line says what the property is on a phone's first screen.
-- **"Visiter" in `MobileListingBar`**, beside WhatsApp; the heart moved out
-  (it is on the photo already). It dispatches `OPEN_VISIT_EVENT`
-  (`components/EnquiryCard.js`) and the `VisitRequestDialog` whose trigger is
-  actually displayed opens — the page mounts two EnquiryCards (phone column +
-  desktop rail), so without the `offsetParent` check both dialogs would open.
-- **"Récemment consultés"** (`components/RecentlyViewed.js`,
-  `lib/recentlyViewed.js`): ids in localStorage, recorded by
-  `ListingViewTracker`'s `listingId`, turned into listings through
-  `/api/listings?ids=` (public gate applies). On the homepage under the hero
-  and at the foot of each listing (self excluded). Renders nothing on the
-  server or on a first visit. `tests/unit/recently-viewed.test.js`.
-- **404s**: `app/(site)/listings/[id]/not-found.js` ("Cette annonce n'est
-  plus en ligne" + three live listings — the dead link people actually hit is
-  a listing shared weeks ago), `app/(site)/not-found.js`, and `app/not-found.js`
-  for unmatched URLs (outside the site header, so it carries the wordmark).
-  Before, all three were Next's default English page. Since 2026-10-24 all of
-  them answer a real 404 (see "Real 404s" below).
-- **Empty search state**: "Retirer la limite de prix" chip, and the last
-  hardcoded French string there moved to `listings.empty.allIn`.
-- **Hydration #418 does not reproduce** on the live home, listings or listing
-  pages (2026-09-23). Testing note: the in-app test browser does not paint
-  frames until a screenshot or input, and React 19's Suspense reveal waits for
-  one, so page content looks un-hydrated (no `__reactFiber` on `h1`,
-  "Chargement…" still in the DOM) until the first screenshot or click. Take a
-  screenshot before asserting on client behaviour.
-
-## Search that understands Kinshasa (2026-09-23)
-
-The hero box and the /listings box both go through `lib/searchParser.js` →
-URL params → `getListings`. Same look; what changed is what they understand
-and what happens on zero results. `tests/unit/search-parser.test.js` holds
-the real phrases, `search-relaxation.test.js` the SQL.
-
-- **Parser** reads bare prices ("500$", "800 usd", "1.5k", "budget 800"),
-  ranges ("entre 500 et 1000", "500-800"), number words and Lingala
-  ("deux chambres", "basuku mibale"), "3 pièces" (= 2 ch), "chambre salon"
-  (= 1 ch — it used to resolve to the quartier Salongo), "appart"/"apt"/typos,
-  "centre-ville"/"Kin centre" (= Gombe), and "Kinshasa" as the city unless
-  "commune de Kinshasa". Up to five places, all searched, in typed order.
-- **`?communes=Gombe,Ngaliema`** carries the extra places; `commune` stays the
-  first, so every single-commune reader is unchanged. FilterBar, chips, saved
-  search labels and the count endpoint carry it.
-- **Gazetteer**: hyphens/apostrophes read as spaces ("cite verte" =
-  Cité-Verte); `FUZZY_STOPWORDS` stops everyday words being guessed into
-  places; an ambiguous prefix inside one commune ("binza") is that commune; a
-  quartier name in several communes (Salongo) searches all of them.
-- **Leftover words** (`lib/searchKeywords.js`, shared client/server): filler is
-  dropped, each remaining word is matched on its own, accent-folded in SQL
-  (`translate()`, not `unaccent`), with a leading word boundary. It used to be
-  one ILIKE phrase, so "pas cher" or "near UPN" emptied the page.
-- **Zero results → `relaxSearch`**, only when the caller passes `allowRelax`
-  (the /listings page and `/api/listings/count`; never saved-search alerts):
-  drop unmatched words → quartier to commune → nearest listings by distance
-  from the commune centroid (≤15 km, ≤48, nearest first, via the map's own
-  marker read so untagged listings with coordinates count) → budget +15 % →
-  one bedroom fewer. Purpose and type are never relaxed. Every step taken is
-  in `relaxation` and printed by ResultsHeader; the heading says "près de".
-  The count endpoint returns `{ total: 0, suggested: N }` and the hero button
-  shows "N suggestions".
-- **Empty state** chips are the nearest communes with listings, with km.
-- **`KINSHASA_COMMUNE_CENTROIDS` was re-verified** — Masina, Ndjili, Maluku,
-  Kasa-Vubu and Mont-Ngafula were wrong; see the comment in `lib/geocoding.js`.
-  This also moves commune-fallback map pins and km-radius searches for those
-  communes to the right place.
-- **Search log**: one `[search] {…}` line per page-1 search in the web process
-  log (filters, total, whether exact, which relax steps). No visitor id.
-  `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[search\]'`.
-- The test hooks now load `.json` imports (`tests/support/hooks.mjs`), so
-  `lib/gazetteer.js` is testable.
-
-## Speed and agent reliability pass (2026-09-23)
-
-- **Measured first**: on the VPS every public page renders in 50-95 ms; the
-  ~650 ms visitors see is network (TLS, distance), and HTTP/2 + brotli are
-  already on. So caching here is about database load, not page speed.
-  - `lib/memo.js` — in-process, 60 s, shared in-flight promise, failures not
-    kept (one PM2 fork, so process memory is the whole cache; not
-    `unstable_cache`, which JSON-serialises Dates). `lib/listingsCached.js`
-    wraps facets, commune counts, showcase, price ceiling, the hero count and
-    the featured cards. Search results are never cached.
-  - The listing page reads its listing through React `cache()` so metadata
-    and page share one query per request.
-  - Not done, and the real lever for phones in Kinshasa: HTTP/3 on Traefik
-    (UDP 443 published, shared with n8n) or a CDN edge nearer Central Africa.
-- **"Aussi à proximité de {commune}"** under a place search with 1–2 exact
-  results (`getNearbyExtras`, `THIN_RESULTS_MAX`): up to 6 nearest others by
-  the same distance rule as the zero-result fallback, below the exact list,
-  never counted in it. Page 1 only, never on a map area or a relaxed result.
-- **Silent buttons**: every imperative Server Action call in the agent
-  dashboard is now in a try/catch; a rejection shows `actionFailureToast`
-  (`lib/actionFailure.js`) — "Connexion perdue … Réessayer" for a network
-  drop, "session peut-être expirée, rechargez" otherwise. It replaced
-  `err.message`, which production turns into React's generic English text.
-  Duplicate is never auto-retried (it could create two copies).
-- **Engine down ≠ dashboard down**: `getAgentDashboardContext` uses
-  `allSettled` (badges 0, `leadsUnavailable`), Demandes shows a
-  "momentanément indisponibles" banner instead of an empty inbox, the
-  overview's request stat shows "—" and its recent-leads card says so.
-- **Mes biens pages at 20** (`?page=`, filters and search kept; chips count
-  across all listings). The inventory read is still whole — it is light and
-  the shared context needs every id for lead ownership — only the cards
-  shipped to the phone are paged.
-- Old-site `/shopdetail/:id` requests (~1,500 in a week, all flagged as bots)
-  were NOT redirected: no archived page, table or log shows they were ever
-  property pages, so any target would be a guess.
-
-## Search engine visibility (2026-09-23)
-
-Goal: rank for "appartement à louer Gombe"-style searches. Before this,
-`/listings?commune=Gombe` shared the homepage's title and had no canonical,
-so to Google it was a copy of the homepage; there was no structured data
-anywhere. `tests/unit/seo-pages.test.js`.
-
-- **Landing pages** — `/location` and `/vente`, each `[[...slug]]`:
-  `/{tx}`, `/{tx}/{commune}`, `/{tx}/{type}`, `/{tx}/{type}/{commune}`
-  (`lib/seoPages.js`: plural type slugs, commune slugs from the 24 centroid
-  names; the commune named Kinshasa is `commune-de-kinshasa` so it cannot read
-  as the city). One component, `components/seo/SeoLandingPage.js`: heading,
-  up to 24 cards (`getListings`, same gate), "Le marché en chiffres"
-  (`getListingStats` — the page's own listings only; a median needs a type and
-  ≥5 priced listings; yearly rents are left out of monthly figures, never
-  divided), quartiers, a FAQ whose answers are either those figures or a true
-  description of the product, and links to other communes / types / the other
-  transaction built from `getSeoFacets` counts — never to an empty page. An
-  empty page is `noindex, follow` and lists the nearest communes that have
-  listings. Unknown segments 404.
-- **`/listings` canonical**: a filter set that equals a landing page
-  (`seoPathForParams` — transaction + optional commune/type, ignoring
-  sort/view/utm) names it as canonical; bare `/listings` is indexable;
-  anything narrower is `noindex, follow`.
-- **Structured data** (`components/seo/JsonLd.js`, `<` escaped):
-  RealEstateAgent + WebSite search box on `/` (`lib/seoSchema.js`),
-  RealEstateListing + BreadcrumbList on each listing (`lib/listingSeo.js` — no
-  coordinates, no agent phone), BreadcrumbList/CollectionPage/FAQPage on
-  landing pages, Article on guides, RealEstateAgent on `/agents/[id]` (only
-  when the agent has a real name).
-- **Listing `<title>`/description** come from structured facts ("Appartement
-  2 chambres à louer à Limete — 1 100 $ / mois"), not the agent's free-text
-  title; OG/Twitter cards unchanged. The commune crumb goes to its landing
-  page.
-- **`/guides`** (`lib/guides.js`): four French articles — garantie 3+1+1,
-  reading a listing, renting without scams, buying from the diaspora. No
-  market figures in them (those live on the landing pages); the diaspora one
-  says to consult an avocat/notaire. Review the copy before promoting it.
-  (Since 2026-11-11 only the 3+1+1 guide remains — see "The 3 + 1 + 1 guide
-  and `:::calculateur`" under Guides & Actualités.)
-- **Sitemap** now lists landing pages with listings and the guides instead
-  of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
-  landing pages; Guides joined the Lukka Place column.
-- **Environment switches, no code change needed**:
-  `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION` (token only) emit the
-  Search Console / Bing meta tags; `NEXT_PUBLIC_FACEBOOK_URL`,
-  `_INSTAGRAM_URL`, `_TIKTOK_URL`, `_LINKEDIN_URL` (https only) become the
-  footer icons' links and the Organization `sameAs`. `NEXT_PUBLIC_*` are
-  inlined at build time — rebuild after setting them.
-- Not done, deliberately: English URLs (locale is a cookie, so Google only
-  sees French — plan in `docs/seo-english-pages-plan.md`), and keeping
-  sold listings indexable (would need a read outside `APPROVED_FILTER`; the
-  listing 404 page already offers live alternatives).
-
-## Projets neufs & terrains — `/projets` (2026-09-24)
-
-Developers' buildings (off-plan or completed) sold/let by UNIT TYPE, and land
-sold in lots or portions. Engine migration `migrations/20260924_developments.sql`
-(`developments`, `development_unit_types`, `development_updates`,
-`development_lots`); reads degrade to "no projects" on 42P01.
-
-- **Separate entity, separate map.** Not `properties` rows: a 40-unit tower is
-  marketed by type, has a stage and a delivery date, and a lot plan has no
-  listing equivalent. `/projets` has its own list + map (`ProjectsMap`, ink
-  pills via `.lkp-projects`), so projects never crowd the `/listings` map. The
-  existing `parent_building_id` grouping for multi-unit WhatsApp pastes is
-  unchanged.
-- **Public gate** `d.status = 1 AND d.approve_status = 1` on every public read
-  (`lib/developments.js`, pinned by `tests/unit/developments.test.js`). Created
-  as drafts from `/admin/projets` (`projects.manage`: owner, moderator);
-  publish is refused until there is media, a commune and a unit type / lot
-  (`publishBlockers`).
-- **Honesty rules**: renders always labelled "Image d'illustration" and kept
-  apart from `photos`; `verified_at` set only by a person with a written note
-  (published); unstated availability is shown as nothing, not 0; a payment plan
-  that does not sum to 100 % is not shown; an off-plan timeline older than 90
-  days says so; a project without coordinates sits at its commune centroid and
-  the map says "position indicative".
-- **Land**: portions (`share_percent`) → `PortionSelector` (bar fill, price/m²,
-  saving vs the smallest portion, from the seller's own prices); traced lots
-  (`polygon`, 0..1000 box over the plan image) → `LotPlan`, traced in admin by
-  clicking corners (`LotPlanEditor`).
-- **Enquiries**: the form → engine `POST /admin/project-enquiries`
-  (`services/projectEnquiry.js`): lead `source: 'project-enquiry'`,
-  `development_id`, `agent_id` = the developer (their Demandes), WhatsApp to a
-  verified developer + ops. No commune → never dispatched to ranked agencies.
-  Direct WhatsApp/call buttons only for a verified, routing-enabled developer;
-  deliberately no central-number fallback (the engine would give its generic
-  model reply to a pre-typed project message).
-- **Developers**: `/promoteurs` (pitch, public demand by commune — only
-  communes with ≥3 distinct customers, 90 days — and an application saved as a
-  `developer-application` lead). Their projects show on `/agents/[id]`; an
-  overview card + `/compte/agent/projets` let them set units left and lot
-  status (scoped by `d.agent_id` in the UPDATE). No new sidebar entry.
-- **`/admin/demande`**: engine `GET /admin/demand-report` (distinct customers
-  per commune × rent/buy × bedrooms × budget band) against live supply
-  (`lib/demandRules.js`), printable — the report to take to a developer.
-
-## Developers publish their own projects (2026-09-25)
-
-Engine migration `migrations/20260925_developer_self_serve.sql` (run it BEFORE
-this web deploy: the map markers, the listing quota and the moderation queue
-read `properties.development_id`). Tests: `tests/unit/project-self-serve.test.js`.
-
-- **The wizard** — `/compte/agent/projets/nouveau` (type: immeuble / terrain en
-  portions / lotissement, and a name), then `/compte/agent/projets/[id]/modifier?step=`
-  etat → lieu → medias → offre → paiement → apercu. Each step saves to the row
-  (`saveProjectStepAction` re-validates the WHOLE project with the admin's
-  `validateDevelopmentInput`, then writes only that step's columns). Ticks come
-  from the row (`wizardProgress`), never from clicks. A verified phone is
-  needed to start. Photos are shrunk on the phone (`ImageUploader`).
-- **Authority** — every developer write goes through `lib/developments.js` with
-  `scope = { agentId }`, which puts `agent_id = $n` (or `EXISTS … d.agent_id =
-  $n` for child rows) into the statement. `agent_id` is never writable from a
-  form. The team's writes pass `scope = null`.
-- **Nothing a developer does publishes.** Submit sets `submitted_at` and pings
-  the desk (engine `POST /admin/ops-notify`). The team reviews on
-  `/admin/projets` (queue first, sidebar badge `projectsToReview`): Publier, or
-  "Demander des corrections" with a note (shown in the wizard, WhatsApped to a
-  verified developer). An edit to a live project stays live and sets
-  `changes_pending` ("J'ai vu les modifications" clears it).
-  `projectReviewState` names the five states.
-- **Units that are ready now are real listings.** A unit type ticked
-  `ready_now` gets individual units (generator: floors × per floor, `1A…` or
-  `101…`; or pasted), each created by `lib/projectUnits.js` through
-  `createListing` with `development_id`, `development_unit_type_id`,
-  `unit_label`, `unit_floor`, `parent_building_id = developments.building_uuid`,
-  `building_name`, the project's coordinates, and the project's REAL photos
-  only (no real photo → refused; a render must never sit in a listing
-  gallery). They are `approve_status = 0` and are approved WITH the project
-  (`setProjectPublished` / `acknowledgeProjectChanges`, one transaction); they
-  are therefore kept out of `/admin/listings`' pending queue, the work-queue
-  count and the engine's trusted auto-approval. Taking a project down puts its
-  approved units back to pending, except let/sold ones (the market record).
-- **Availability is counted, not typed**, for a ready type with public units
-  (`withLiveUnitCounts`): marking a unit let/sold in Mes biens is what lowers
-  "N disponibles". `units_available` is only typed for off-plan types.
-- **On the main map** those units are ONE building pin (the existing
-  `groupListingsByBuilding`) at the building's exact point — `exact: true`
-  skips the privacy jitter in `placeResolvedListings`. The drawer links to the
-  project. Off-plan projects and land never become `/listings` pins: the map
-  shows a "N projets neufs ici" chip (`GET /api/projects/count`) that opens
-  `/projets`. A unit's listing page shows "Fait partie de …"
-  (`ProjectUnitStrip`).
-- **Plan limits**: a listing with `development_id` takes no slot during the
-  launch (`QUOTA_COUNTED_SQL`, engine twin identical).
-- **Land**: portions are shares of ONE parcel — `portionBlockedIds` derives
-  (never stores) which available portions can no longer be sold once others
-  are sold/reserved; the public bar is labelled "Schéma indicatif". Lots:
-  generator, paste, optional plan tracing (shared `components/projects/LotPlanEditor.js`,
-  words passed in `labels`) or "Lukka Place trace le plan pour moi"
-  (`trace_by_team`, shown to the team).
-- **"Coller depuis Excel"** (`lib/projectPaste.js`): tab/semicolon/comma
-  rows, French numbers ("1 200,50", "1.200.000", "85 000 $"); every row goes
-  through the same validator as the form; bad rows are shown with their reason
-  and skipped, never guessed. The server re-parses; the preview is not trusted.
-- **Preview**: `/projets/apercu/[id]` renders `ProjectDetailView` (the public
-  page body, now shared) for the owner only, no enquiry form, pending units hidden.
-- **Also**: sales progress ("68 % vendu", real totals only), `/projets` hub
-  counts, a homepage "Nouveaux projets" strip (renders nothing when empty), a
-  Monday digest line for a public off-plan project with no construction photo
-  for 60 days, construction updates from the developer's phone.
-- **Not built yet**: WhatsApp commands ("Lot 7 vendu"), brochure-to-draft over
-  WhatsApp, launch alerts to matching saved searches, the project share card.
-
-## Agent listing actions, photo order, settings return (2026-09-28)
-
-- **Mes biens card**: ONE status badge (`listingState` in
-  `AgentListingsTable.js`: closed → archived → rejected → pending → under offer
-  → live), not the moderation + market + visibility chips side by side. The
-  title opens the public page in a new tab when there is one (live or under
-  offer), else the editor; the photo always opens the editor. "Sous compromis"
-  is a button that puts the listing back on the market, with "Annuler" on the
-  toast. The card's WhatsApp and ✓ icons moved into the "…" menu.
-- **Row menu** (`AgentListingActionsMenu`): one item list, rendered as a
-  bottom sheet below `lg` and a dropdown above. Voir l'annonce, Modifier;
-  Marquer comme disponible ↔ sous compromis, Marquer loué / vendu (opens
-  `MarkListingSoldDialog`, now controllable via `open`/`onOpenChange`);
-  Partager sur WhatsApp (`AgentListingWhatsAppButton` as a row), Marketing &
-  documents; Dupliquer, Archiver; Supprimer.
-- **Photo order** (`components/AgentPhotoSorter.js`, `@dnd-kit/core` +
-  `sortable`, editor route only): the HTML5 drag grid never fired from a finger.
-  Hold ~180ms to drag on touch, 6px on a mouse, keyboard too; every tile shows
-  its position; a tap opens "Couverture" / "Supprimer". Items are tracked by a
-  stable `id` (`saved:<i>:<url>` / `new:<objectURL>`).
-- **Réglages save** (`components/SettingsSaveButton.js`): "Enregistrement…"
-  while the action runs; the `?saved=` / `?success=1` redirect renders
-  "✓ Enregistré", and 700ms later `router.replace('/compte/agent/parametres')`
-  — on a phone that is the section list. Errors stay on the section.
-
-## Engagement tracking — every step of the listing funnel (2026-09-29)
-
-Migration `migrations/20260929_engagement_tracking.sql` (engine repo; additive,
-and the code writes correctly before and after it runs). Write side is
-`lib/trackIngest.js`; the client beacon is `lib/analyticsClient.js`.
-
-- **New `listing_events` types**: `call_click` (with `routing_type` DIRECT |
-  CENTRAL — `CallCTA`, `EnquiryCard`'s tel link, and a new call icon in
-  `MobileListingBar`), `gallery_open` / `gallery_complete` (`PhotoGallery`'s
-  `eventListing` prop; rules in `lib/galleryEngagement.js`: opening the viewer
-  or swiping past photo 1 opens, 80% of the photos seen — never fewer than 2 —
-  completes; the desktop mosaic's static tiles do not count as seen) and
-  `share_click` (`ShareButton`, only a completed share of a `/listings/<id>`
-  URL). None of them go near `whatsapp_clicks`, so the WhatsApp conversion rate
-  is unchanged.
-- **Every public page is a `page_views` row since 2026-10-29**
-  (`components/SitePageViewTracker.js`, mounted in the `(site)` and
-  `(portfolio)` layouts). Before, only `/listings/<id>` was ever recorded, so
-  the home page, search, map and agent pages had no visitors and nothing
-  upstream of a listing could be measured (found in the week-1 funnel review:
-  133 listing viewers, no idea how many people reached the site).
-  `sitePageViewPath` skips a listing page (ListingViewTracker sends that row,
-  with its commune) and drops the query string: one row per pathname, so a
-  filter change is not a page. Readers that need LISTING views already filter
-  on `path LIKE '/listings/%'` / `listing_id`; `getConversionByDevice` was the
-  one that divided taps by every view and now filters too. Totals, devices,
-  sources and visitor counts are site-wide from that date, and
-  `getAgentProfileViews` (`/agents/<id>`) counts for the first time.
-  `tests/unit/site-page-views.test.js`.
-- **`search_events`**: one row per distinct committed /listings search per tab
-  session (`components/SearchTracker.js`, page 1, not on a map area), with the
-  EXACT match count — 0 when the page had to relax the search. This is the
-  demand side of the market data; the `[search]` log line is still written.
-- **`lp_vid`**: a random first-party visitor id (cookie + localStorage copy,
-  1 year, not httpOnly — the browser creates it and nothing about it is
-  secret). Lets a report count different people. The server prefers the
-  cookie over the body's copy and stores anything malformed as NULL.
-- **Everybody is written, labelled** (product decision, 2026-09-29 — it
-  replaced a first version that dropped bots, prefetches and the owner's own
-  views). Each row of `page_views` / `whatsapp_clicks` / `listing_events` /
-  `search_events` carries `viewer_kind` (`lib/trackIngest.js` `viewerKindFor`):
-  `staff` (the `lp_staff=1` marker cookie, path `/`, that middleware.js sets on
-  every authenticated /admin request — the admin session cookie itself never
-  reaches /api/track — or a "view as" session), `bot` (`device = 'bot'`, which
-  also catches the WhatsApp / Facebook link-preview fetchers, anchored
-  `^whatsapp/`; or `automated: true` from a `navigator.webdriver` browser),
-  `prefetch`, `owner` (a signed-in agent on their OWN listing, decided in the
-  INSERT against `properties.agent_id`), `agent`, `visitor`. Every count
-  (dashboard, rollup, landlord report) includes all of them; filter on
-  `viewer_kind` to see people only. NULL on rows written before the migration.
-  The client still defers events on a page the browser is only prerendering
-  until it is shown (a never-opened prerender was on nobody's screen). Most
-  crawlers run no JavaScript, so they still produce no beacon at all.
-- **Before the migration**: a 42703 retries the INSERT without the new columns
-  (a view is never lost), a search on a missing table (42P01) is skipped.
-- **Mobile bar**: with the call icon, the price is one size down and its
-  period sits under it (`Price`'s `periodClassName`), so "1 300 $ / mois" never
-  splits after the slash and a sale price up to ~450 000 $ fits at 375px.
-- **Testing without polluting production**: the local dev server writes to the
-  production database. To exercise beacons locally, open a page with no
-  tracker (`/a-propos`), take a screenshot (the pane hydrates only then),
-  replace `window.fetch` for `/api/track` + `/api/telemetry/lead-click` with a
-  recorder, then `window.next.router.push('/listings/<id>')` — a hard load of a
-  listing page would send a real page view.
-- Engine half (rollup columns): root CLAUDE.md, "Engagement tracking".
-- Tests: `tests/unit/engagement-tracking.test.js`.
-
-## Listing performance page and the owner's live report (2026-09-29)
-
-- **`/compte/agent/biens/[id]`** — the listing's own page for its agent
-  (404 unless `properties.agent_id` is the session's): status, days on market,
-  the full funnel for `?range=` 7d / 30d / 12m against the previous period of
-  the same length (`lib/listingPerformance.js` + `lib/listingFunnel.js`,
-  drawn by `components/listings/ListingFunnel.js`), the views chart
-  (`getAgentListingViewsSeries([id])`), the price against comparable live
-  listings, the owner's report link, edit / print links. Reached from the Mes
-  biens row menu ("Statistiques & rapport") and by tapping the view count.
-- **Funnel reads**: views / WhatsApp / saves / visit requests through
-  `getMandateCounts` (rollup while fresh); people, photo steps, calls and
-  shares from raw events. A figure whose column does not exist yet is `null` →
-  "non disponible", never 0. Steps measured only from `TRACKING_STARTED_AT`
-  (2026-09-29) carry a `*` and the page says so.
-- **Market position** (`MARKET_POSITION_SQL` / `pickMarketPosition`): public
-  listings, same purpose and commune, the listing itself excluded; the
-  narrowest of same type + bedrooms → same type → commune that reaches
-  `MARKET_MIN_SAMPLE` (5); rent per month. Below 5 at every level: the count,
-  no figure.
-- **Owner's live report** `/rapport/<id>-<signature>` (`app/(site)/rapport/[token]`,
-  `lib/reportLinks.js`, `migrations/20260929_property_report_links.sql`).
-  French always, `noindex`, `force-dynamic`, listing facts and counts only (no
-  customer data), any listing status. The signature is an HMAC of
-  (id, property id, nonce) under `REPORT_LINK_SECRET` (fallback
-  `AGENT_SESSION_SECRET`, prefixed) — the table stores no secret and the agent
-  can always be shown their link again. One active link per listing; "Nouveau
-  lien" revokes the old one. Openings by the listing's own agent are not
-  counted in `view_count`. Missing table → "unavailable" / 404, never a 500.
-  **Set `REPORT_LINK_SECRET` in production** so rotating the agent session
-  secret does not break every link already forwarded.
-- **The WhatsApp button opens the agent's own WhatsApp with no recipient** and
-  a French message; Lukka Place never messages the owner.
-- The report captions say every opening is counted, the agent's own and automated tools included.
-- The Monday digest lists up to 3 listings with their own counts and a link to
-  this page (root CLAUDE.md digest; §41 of verify-pipeline).
-- Tests: `tests/unit/listing-hub-report.test.js`.
-
-## Commune market report, public median line, report link in the share kit (2026-09-29)
-
-- **`/admin/market-data/rapport/[commune]`** (`lib/communeReport.js` reads,
-  `lib/communeReportRules.js` pure + French copy; `analytics.view`, printable).
-  Only the 24 verified commune names are accepted (anything else 404s).
-  Sections: live supply by type × bedrooms (median, quartiles, $/m², median
-  age), the 12-month snapshot series, closes of the last 24 months (achieved
-  median, gap to asking, days to close — sold rows only, never the public
-  gate), and 90 days of demand (distinct searchers, how many found nothing,
-  median budget; the engine's distinct customer count for the commune).
-  Every median is `—` below `MIN_SAMPLE` (5) with its count kept. Content is
-  French whatever the console language. Linked from /admin/market-data once a
-  commune is picked.
-- **`AREA_M2_SQL`** (`lib/marketExclusions.js`): an area counts only when it is
-  a plain number (optionally m / m2 / m²). The price check used to strip
-  letters, reading "12x20" as 1 220 m².
-- **Listing page median line — HIDDEN until the site has 1,000 live listings** (2026-11-03, owner: too few comparables for a trustworthy figure; `MARKET_MEDIAN_MIN_LIVE_LISTINGS`, all cities, `countLiveListings`, memo 60 s; it returns by itself, no deploy). As built: (`components/listings/MarketMedianLine.js`,
-  streamed under Suspense): "Loyer médian demandé à Kintambo (appartement) :
-  750 $ / mois — 7 annonces comparables en ligne", from the agent hub's
-  `getMarketPosition` (listing excluded, test agents excluded). Only the
-  same-type or same-type-and-bedrooms level, never the whole-commune mix, only
-  from 5 comparables, and no percentage against the listing — pricing is the
-  agent's conversation with the landlord. `SELECT_FIELDS` now carries
-  `p.category_id`. Landing pages already show a median once a type is chosen.
-- **Share kit → Propriétaire** starts with `ReportLinkQuick`: copy the live
-  report link (created on first tap, idempotent) or send it from the agent's
-  own WhatsApp; managing / revoking stays on `/compte/agent/biens/[id]`. The
-  owner message is `ownerReportMessage` (lib/marketing/liveReportCopy.js),
-  shared with ReportLinkCard.
-- Tests: `tests/unit/commune-report.test.js`.
-
-## Visit booking, both agendas, bon de visite, "Mes visites" (2026-09-29)
-
-Engine half: root CLAUDE.md, "Visit booking — picked slot, bon de visite,
-multi-visit".
-
-- **The visit form is a picker, not free text** (`components/VisitSlotPicker.js`,
-  rules in `lib/visitSlots.js`): the next 7 Kinshasa days (14, as a calendar
-  grid, since 2026-10-10), 09:00 / 11:00 / 14:00
-  / 16:00. A slot is greyed out only when it starts < 2 h from now or within
-  an hour of the agent's CONFIRMED visits (`GET /api/listings/:id/visit-slots`
-  → engine busy-slots — instants only, fails open to "everything free"). There
-  is no working-hours data, so nothing else is blocked. It posts
-  `preferred_slot_at` (`YYYY-MM-DDTHH:00:00+01:00`); the action re-checks it
-  (`validatePickedSlot`) and derives `requested_time` with `slotPhraseFr`, so
-  every existing agent message and reader is unchanged. A page cached before
-  the picker still posts free text, which is kept. The picker renders only
-  inside a dialog/sheet opened in the browser, which is why it reads the clock
-  in its initial state.
-- **Customer agenda `/compte/client/visites`** (was a redirect;
-  `lib/customerAgenda.js`): Aujourd'hui / Demain / À venir / Heure à préciser /
-  Passées. The time is `scheduled_at` once agreed, the customer's own pick while
-  PENDING (labelled "demandé"), nothing otherwise — a slot the agent proposed in
-  words is never placed on a day. Call / WhatsApp the agent (the listing page's
-  verified-agent rule, else Lukka Place's number, labelled), view the listing,
-  cancel / accept a proposed slot (the Messages tab's own actions, now also
-  revalidating this page), `.ics` for a confirmed visit
-  (`visites/[id]/agenda.ics`, own visits only, commune as location — no
-  directions, the address stays with the agent). Linked from Messages.
-- **Agent agenda** (`/compte/agent/visites`): "À confirmer" on top (PENDING +
-  RESCHEDULED, answered with the Demandes tab's `AgentVisitRequestCard`, whose
-  confirm now prefills the customer's pick via `requested_slot_at`), "Appeler le
-  client" beside WhatsApp, and "Visite effectuée" / "Pas eu lieu"
-  (`components/AgentVisitDoneButtons.js` → `app/compte/agent/visitOutcomeActions.js`
-  → engine `agent-completed`) once a confirmed slot has started
-  (`lib/visitOutcome.js`). DONE sends the customer the bon de visite and offers
-  the same text from the agent's own WhatsApp. Past visits still to declare get
-  their own section.
-- **"Mes visites"** (`lib/visitCart.js`, `lib/useVisitCart.js`,
-  `components/AddToVisitCartButton.js` under "Demander une visite",
-  `components/VisitCartSheet.js` mounted site-wide through `VisitCartMount`
-  (dynamic, no SSR)): up to 4 listings in localStorage, a floating pill while
-  non-empty, one picker per listing, a warning (not a refusal) when two slots are
-  < 1 h apart, then `submitVisitBatchAction` → engine batch. Every listing is
-  re-read under the public gate and every slot re-checked; a listing gone
-  offline is removed from the cart. One batch per number per hour (429).
-- **The storefront has no ToastProvider** — only the portals and /admin do,
-  and `useToast` throws outside one. The cart button crashed every listing page
-  in local QA until it switched to inline feedback; `visit-booking.test.js`
-  guards the storefront visit components.
-- `lib/adminApi.js`'s `engineFetch` errors now carry `.status`.
-- Tests: `tests/unit/visit-booking.test.js`.
-
-## Agent tools: photos with my logo, neutral sheet, WhatsApp commands (2026-09-29)
-
-Migration `migrations/20260929_listing_share_formats.sql` (engine repo)
-replaces both `listing_shares` CHECKs: channel gains `wa_command`, format gains
-`watermarked_photo` and `fiche_neutre`. Until it runs, those records fail the
-CHECK and record nothing; the share itself is unaffected.
-
-- **"Photos avec mon logo"** (share kit row → `components/marketing/WatermarkedPhotos.js`,
-  layout `lib/marketing/watermark.js`, `renderWatermarked` in CanvasRenderer):
-  every photo in the pack's new `gallery` (≤ 10, same-origin /_next/image URLs)
-  drawn in the browser at its own aspect (longest edge ≤ 1080, never cropped or
-  upscaled) with a band over the bottom: the agent's logo or initials, name,
-  and phone only under `agentContactPhone`; "lukkaplace.com" on the right; no
-  brand → only "lukkaplace.com". "Partager les N photos" uses the share sheet
-  with every file, else sequential downloads 350 ms apart; a tap on one
-  downloads it. Recorded `kit_share` / `kit_download` × `watermarked_photo`.
-  Online only (the gallery is not stored with the offline pack).
-- **Fiche neutre** (`/compte/agent/biens/[id]/fiche?variant=neutre`,
-  `sheetVariant`, toolbar toggle Complète | Neutre): the same one-page sheet
-  without the Lukka Place logo, the reference, the agent's name and phone, the
-  QR code, the link and the map pin — anything that leads back to the public
-  page, which names the agent — and a blank "Contact : Nom / Téléphone" block
-  for whoever hands it on. Printing records `print` × `fiche_neutre`. The
-  sheet's columns now key their sections (React warned on every render).
-- **WhatsApp commands** (engine `services/agentCommands.js`): the engine
-  identifies the verified sender and relays to `POST /api/internal/agent-command`
-  (Bearer CRON_SECRET, timing-safe; `lib/agentCommands.js`). `!mesbiens`: up to
-  10 of the agent's public listings (ownership + public gate in SQL) with
-  `?utm_source=wa_command` links. `!share 310`: the share kit's own caption
-  (`buildListingSocialCopy`, `agentContactPhone`), only for the sender's own
-  listing (`getFlyerListing`'s `p.agent_id`) and only when `shareBlocker`
-  passes — otherwise one honest line; recorded as `wa_command` × `text`.
-  `!aide`: the list.
-- Tests: `tests/unit/agent-tools.test.js`, `listing-shares-print.test.js`.
-
-## Kinshasa utility tags and filters (2026-09-29)
-
-Engine migration `migrations/20260929_listing_utilities.sql` (`properties.utilities
-text[]`, CHECK against the ten codes, GIN index). Every read goes through
-`to_jsonb(p) -> 'utilities'`, so nothing 42703s before it runs.
-
-- **Four chips on /listings** (`FilterBar`, above the results, hidden when the
-  bar is condensed): Électricité, Eau, Sécurité, Accès (`lib/utilityTags.js`
-  `UTILITY_FILTERS`). They ride the existing `amenities` URL param, so saved
-  searches, alerts, labels (`searchCriteriaTags`, `ActiveFilterChips`), the map
-  and `search_events` carry them with no new plumbing.
-- **A chip matches the structured codes OR the listing's words** —
-  `utilities ?| codes` OR a word-boundary match of its keywords against title,
-  description **and `features`** (`keywordTextMatch`, also used by the "Plus de
-  filtres" amenity boxes). Checked on production: the words ("groupe
-  électrogène", "courant", "forage") were in `features` on 4–14 live listings
-  and in no description, so the title/description-only match — the amenity
-  boxes' rule until now — found nothing at all.
-- **Listing page**: `components/listings/UtilityBadges.js`, captioned
-  "Déclaré par l'agent", never "vérifié" (`verified_at` owns that word).
-  Nothing renders without codes.
-- **Agent editor**: one-tap chips grouped by chip (`#utilities`), sent only
-  when touched (`utilities_touched`), saved by `setListingUtilities`
-  (ownership in the WHERE, its own statement, `'unavailable'` before the
-  migration — the rest of the edit still saves).
-- Tests: `tests/unit/utility-tags.test.js`.
-
-## Speed pass — hero source, namespace split (2026-09-29)
-
-- **Hero** (`components/Hero.js` `HeroPicture`): a `<picture>` built with
-  `getImageProps`. Below 640px a `<source>` pins the 640w variant: the 26rem
-  band is taller than a phone is wide, so the photo draws ~630 CSS px wide and
-  `sizes="100vw"` had DPR-3 phones fetch 1080/1200w. Wider screens keep the
-  `100vw` set. `fetchPriority="high"` + `loading="eager"` replace `priority`
-  (deprecated in Next 16). The blur placeholder stays as the img background.
-- **`projects` copy ships from `app/(site)/projets/layout.js` only** (~11 KB of
-  French off every other public page). `account` was measured too (17.6 KB)
-  but stays site-wide: `CallCTA`, `AccountLimitNotice`, `/favoris` and the
-  whole Espace Client read it, and the namespace test works per top-level
-  namespace.
-- Tests: `tests/unit/speed-pass.test.js`, `i18n-namespaces.test.js`.
-
-## Agent portal redesign (2026-10-05)
-
-Approved from `web/Design/agent-portal-prototype.html` (gitignored, like the
-rest of `web/Design/`). Mobile-first; the `lg` layouts are unchanged in shape.
-
-- **One state per listing, one file**: `lib/agentListingFilters.js`
-  (`agentListingState`, `isLiveListing`, `matchesListingFilter`,
-  `LISTING_FILTER_PILLS`). The overview's "Biens en ligne", the Mes biens
-  chips and each card's badge all read it — before, the overview counted
-  approved listings (18) while "En ligne" also counted pending ones (20).
-  "En ligne" (`?status=active`) = public, under offer included; "En revue"
-  (`review`) = waiting for moderation. The grey "Brouillon" is only an offline
-  draft not yet sent, never a listing row. French says "sous offre" everywhere
-  (it said "sous compromis").
-- **One 30-day window**: `getAgentWindowStats` (lib/analytics.js) gives views,
-  clicks and new listings for the last 30 whole UTC days and the 30 before;
-  `trendPercent` returns null rather than a change from zero. It replaced
-  `getAgentMonthlyDeltas`, whose month-to-date comparison read "−100 %" early
-  in a month. `VIEW_RANGES['30d']` is 30 daily bars starting on the same day
-  (`windowStartKey`), so the chart adds up to the "Vues" figure. WhatsApp
-  clicks on the overview are now 30-day, not all-time.
-- **One waiting count**: `waitingCount` (new requests + visits to answer) on
-  the dashboard context drives every header bell and the Demandes tab badge.
-- **One profile checklist**: `profileChecklist` (lib/completenessRules.js)
-  merges agentProfileCompletion with the profile gaps; Réglages' ring and the
-  desktop rail's "Profil complété" both use it, so neither says 100 % while the
-  overview banner lists a missing item.
-- **No lead quota in the agent UI** (product decision): the plan cards and the
-  subscription card show only the listings allowance; the bar turns amber from
-  80 % (`quotaTone`, lib/listingQuotaRules.js). `monthly_pitch_limit` stays
-  editable in /admin. Plans come from `packages`; a new plan (Pro) appears when
-  its row exists.
-- **Leads**: "Répondre sur WhatsApp" (green, `--green-ink`) is every enquiry's
-  primary action, with a call link (`leadTelHref`). Visit cards open with the
-  slot: the agreed instant, else the customer's picked `requested_slot_at`,
-  else their own words.
-- **`--warning-ink`** (#7a5619) is the text colour on `--warning-50`; the old
-  amber text measured 3.4:1 (the token comment claimed 4.9). Amber chips use it.
-- Tests: `tests/unit/agent-portal-redesign.test.js`.
-
-## Espace Client redesign (2026-10-05)
-
-Approved from `web/Design/client-portal-prototype.html` (gitignored), same
-language as the agent portal redesign. Mobile-first; desktop keeps the sticky
-strip under the header.
-
-- **Four tabs since 2026-10-10** (Visites and Demandes merged into Activité —
-  see "One booking flow…" at the end of this file). As built on 2026-10-05:
-  five tabs (`ClientPortalTabs.js`, `PORTAL_TABS`): Accueil
-  `/compte/client`, Enregistrés `/compte/client/favoris` (Favoris | Alertes,
-  `?tab=alertes`), Visites, Demandes `/compte/client/messages` (also lit on
-  `/demandes`, the form), Profil. On a phone they are a fixed bottom bar —
-  the one exception to "no persistent bottom bar" (Layout & shell), because it
-  only exists inside the signed-in portal. The compact portal footer
-  (`components/Footer.js`) carries the bar's clearance. Counts are grey totals
-  from `getPortalCounts` (now memoised per request); nothing re-runs a search.
-- **Accueil is an inbox, not a page of numbers** (`lib/clientPortalView.js`,
-  pure, `tests/unit/client-portal-redesign.test.js`): a royal "Réponse
-  attendue" card when an agent proposed another slot (one-tap Accepter), three
-  counters, visits to rate (`needsCheckin`: CONFIRMED, agreed, slot passed,
-  not rated), the next confirmed visit, new listings for the alerts, the
-  customer's own search requests, quick actions. Each engine/search block
-  streams under its own Suspense. **Accueil never stamps saved searches
-  viewed** — only the Alertes tab does — so its "N nouveaux" survive a visit
-  to Accueil. Request rows leave out `NON_SEARCH_LEAD_SOURCES` (developer
-  application, project/listing enquiries, visit requests).
-- **An agent's proposal is read from its own phrase** (`proposedSlotAt`, the
-  engine's formatSlotFr shape only, nearest year). On a RESCHEDULED row
-  `scheduled_at` can still hold the slot the proposal replaced (production:
-  proposal "30 septembre", stored 23 September). A proposal whose time has
-  passed is not offered for acceptance: the card turns grey and offers
-  WhatsApp + cancel. The Messages tab's ViewingPanel still offers Accept on
-  such a row (unchanged).
-- **Visites** (`visites/VisitCard.js`, shared with Accueil): each card opens
-  with a time band — amber proposed, green confirmed, blue asked, grey past —
-  then the listing, then the actions (WhatsApp green-ink, call, .ics, cancel,
-  `VisitCheckin` after the slot). "À répondre" heads the list.
-- **Entry costs are three chips** (`components/EntryCostChips.js`,
-  `entryCostParts`): Garantie / Avance / Commission, each only when stated
-  (0 kept, NULL dropped), never summed, none on a sale. On favourite cards and
-  as three rows in the compare table.
-- **Old links**: `/compte/client?tab=alertes|favoris` answers a real 307 from
-  `next.config.mjs` `redirects()` (the page's own `redirect()` runs inside the
-  stream and would be a client hop) — every WhatsApp alert already sent links
-  there. `/compte/client/alertes`, `/compte/alertes`, `/mises-a-jour`,
-  `AccountLimitNotice` and the alert sweep's `manageLink` point at
-  `/compte/client/favoris?tab=alertes`.
-- **Profil**: grouped inset lists (Compte, Notifications, Application) with a
-  language row (`LanguageToggle`, the cookie — there is still no column).
-
-## Storefront upgrade (2026-10-06)
-
-Approved from `web/Design/storefront-prototype.html` (gitignored), same
-language as the two portal redesigns. An upgrade of what was live, not a new
-structure; desktop layouts are unchanged unless stated.
-
-- **Landing**: the phone hero band is 19.5rem (was 26rem) and the search card
-  overlaps it deeper, so the card starts in the top half of the screen (the
-  button used to sit at the fold). Louer | Acheter is full width on phones.
-  The button reads "Voir 47 biens" (the live count is the label). As the
-  visitor types, the card reads back what `lib/searchParser.js` understood
-  as chips ("Nous avons compris : Kintambo · 2 ch.+ · ≤ 1 500 $",
-  `lib/searchUnderstood.js`) — a read-back only, never a filter of its own.
-  **No "Essayez…" example chips**: removed on product direction until there
-  are enough listings that an example search is never empty.
-  `PropertyTypeTiles` (one tile per type with listings, counts from the same
-  `getPropertyTypeFacets` as the hero dropdown) sits above "Notre approche",
-  which is now three numbered cards (copy unchanged).
-- **Card chips, rolled back the same day** (product direction: "too
-  clustered"): feed cards show amenity matches only, and only when there is
-  one — no entry-terms chip, no "À louer" chip (the card had both before the
-  upgrade too; they were removed, not restored). Map cards are as before the
-  upgrade. A card with no amenity match now has no chip row, so cards in a
-  rail can differ by one row in height; the action bar still aligns
-  (`mt-auto`).
-- **Phone map**: Prix · Chambres · Type chips under the search
-  (`components/MapQuickFilters.js`, `lib/mapQuickFilters.js`) open a small
-  sheet and push the new param, keeping every other filter and the map area;
-  `page` is dropped. Types are the real facets (passed down from
-  /listings/page.js through ListingsSplitView).
-- **Listing page (phone)**: a sticky section strip under the header,
-  Aperçu · Coûts · Caractéristiques · Emplacement
-  (`components/listings/ListingSectionNav.js`, IntersectionObserver
-  scroll-spy), naming only sections that render — "Coûts" only when
-  `entryCostBreakdown` is non-null. Anchors: `#apercu` (the facts card),
-  `#couts` (EntryCostsBreakdown), `#caracteristiques`, `#emplacement`.
-  KeyFacts is the original two-column grid on phones (a compact row of
-  counts was tried and rolled back the same day, on product direction).
-  "Voir les N photos" opens a photo grid
-  (PhotoGallery, phone only) whose tiles open the lightbox.
-- Tests: `tests/unit/storefront-upgrade.test.js`.
-
-## Listing card share — the standard WhatsApp share (2026-10-06)
-
-Product direction: the branded image (photos, price, agent) is what an agent
-sends, not a bare link that WhatsApp unfurls into a small grey preview.
-
-- **Mes biens' "Partager sur WhatsApp"** (the card button and the "…" menu
-  row) opens `components/ListingQuickShare.js`: the square card drawn in the
-  browser (same pack and renderer as the share kit), then ONE button →
-  `navigator.share({ files: [jpg], text: caption })` → WhatsApp → chat, group
-  or Status. The card is drawn BEFORE that tap so iPhone Safari keeps the
-  user gesture. The caption is copied in the same tap (WhatsApp drops text
-  shared with an image to a Status). No file sharing (most desktops) →
-  "Télécharger l'image". "Envoyer le texte seulement" stays a real wa.me
-  `<a>`. In the menu the dialog is a sibling (`quickShareOpen`), never inside
-  an item — Radix unmounts the menu content on close.
-- **Recorded with existing CHECK values**: image `kit_share` / `kit_download`
-  × `square`; text `menu_whatsapp` × `text`. No migration.
-- **The card** (`lib/marketing/layout.js`, square / 9:16 / 16:9): rounded
-  photo tiles on royal blue; purpose + type pills on the cover; "+N photos"
-  veil on the last tile from the pack's `photoTotal` (the listing's real
-  count); price (thousands separator drawn as a plain space —
-  `displayAmount`, U+202F has almost no width in Plus Jakarta Sans); pin +
-  place; chips with lucide line icons (`LINE_ICONS` in
-  `lib/marketing/icons.js`: pin, bed, bath, area, door — stroked by
-  CanvasRenderer); the agent's OWN white card on the blue panel, right of
-  the price (`agentLogoCard`: their logo, or their initials large in royal —
-  product direction "agents have their own space to shine", square and
-  9:16; the 16:9 keeps a small avatar in the bar); a white contact bar:
-  name, gold badge only when earned, WhatsApp number only under
-  `agentContactPhone`, and the Lukka Place lockup on the right (colour
-  roofline `/brand/icon-light.png`, pack field `markLight`). No agent brand → the
-  lockup alone, centred. Packs stored offline before this (no `specs`,
-  `photoTotal`, `markLight`) still draw: icon-less chips, no "+N", white
-  roofline on a blue tile.
-- **Lift** (same day): soft shadows under the logo card, the bar and the
-  purpose pill, a dark-to-clear band across the top of the cover photo behind
-  the pills, and a 144px price on the 9:16. CanvasRenderer takes rect
-  `shadow` / `gradient` and image `alpha`. Green accents ("/ mois", pin, a
-  green rim on the bar) and a 6% roofline watermark were tried and removed
-  the same day on product direction.
-- **The caption** (`buildListingSocialCopy`): `*À LOUER* · Type`, `*amount*
-  / mois`, `📍 place`, then a "▸" list (rooms, `entryCostLine` — "Garantie 3
-  mois · Avance 1 mois · Commission 1 mois", each part named, never summed —
-  and "Réf. …"), `*Agent name* · phone` (only under `agentContactPhone`;
-  "Contact" when there is no displayable name), "Photos et visite ↓" + link.
-  One emoji (📍) instead of one per line.
-- **The server flyer is retired**: `app/compte/agent/biens/[id]/visuel` and
-  the satori/sharp helpers in `lib/listingFlyer.js` are gone, so there is one
-  design and one renderer. A phone that cannot draw gets the caption.
-- Previews: `web/Design/share-card/` (gitignored).
-- Tests: `tests/unit/marketing-toolkit.test.js`, `agent-growth-toolkit.test.js`,
-  `listing-shares-print.test.js`.
-
-## Agent portal speed and cleanup (2026-10-06, later the same day)
-
-Measured first: every agent page renders in 70–160 ms on the VPS; from
-outside, ~0.6 s goes on opening the TLS connection alone. The fixes cut round
-trips and bytes, not server time.
-
-- **Share card is prepared before the tap** (`lib/listingCardCache.js`).
-  `prepareListingCard(listing)` is one shared promise per listing version
-  (id + price + title + cover + updated_at, 5 min TTL, failures never kept).
-  `AgentListingWhatsAppButton` warms it when it scrolls into view
-  (`warmListingCard`: idle time, one at a time, max 6 per page, never on Data
-  Saver / 2G); the row menu warms it on open; `ListingQuickShare` awaits the
-  same promise. Measured before: ~1.9 s, almost all photo downloads.
-  Not pre-rendered on the server at publish time, deliberately: one renderer
-  (the browser canvas), and a stored card of last month's price would lie.
-- **The pack sends exactly the three photos drawn**: cover at 1080 px, side
-  tiles at 640 (`SIDE_PHOTO_WIDTH`) — it used to send five at 1080.
-  `fetchPackImages` asks for `image/avif,image/webp`: fetch()'s default
-  `*/*` made /_next/image answer JPEG (44 KB vs 26 KB WebP on listing 310).
-- **"Marketing & Documents" → "Documents et rapports"**
-  (`AgentListingShareKit`): only the A4 poster, the A4 sheet and the owner
-  report. The listing graphic, "Photos avec mon logo" and the listing text
-  are gone (the WhatsApp share does all three); so are
-  `components/marketing/WatermarkedPhotos.js`, `lib/marketing/watermark.js`,
-  `renderWatermarked` and the pack's `gallery`. The dialog loads no share pack
-  and opens instantly; the menu passes `shareBlocker(listing)` for the print
-  rows. `watermarked_photo` stays in `CHANNEL_FORMATS` for the DB CHECK only.
-- **The owner report is all-time** (`allTimeWindow(listing.created_at)`,
-  `getMandateReportAction`): whole UTC days since the listing went online,
-  no "semaine précédente" (`previousFrom === from`); no creation date →
-  from 2026-01-01, before which nothing was tracked. `reportWindow` (7 days)
-  stays for other readers. `FLYER_SELECT` now carries `p.created_at`.
-- **Demandes is one inbox** (`lib/agentInbox.js`, `app/compte/agent/demandes`):
-  enquiries and visit requests in one list, a web visit request once (its
-  lead folded into the visit — `lead_id`, or same number + listing while
-  NEW / VIEWING_REQUESTED, agentTodo's rule). Pills Toutes · À traiter ·
-  Confirmées · Traitées (`?filtre=`), counted; order: waiting first, confirmed
-  visits soonest first, then handled; newest first inside each. `?lead=` pins
-  the request (or the visit it was folded into); `?tab=visites` / `?status=`
-  still land (`inboxFilterFromParams`). Every in-app link now uses `?filtre=`.
-- **Cards: one primary action + call + "···"** (`AgentVisitRequestCard`,
-  `AgentLeadCard`): name, badge and age on top; slot in bold (or the request)
-  and the listing; then "Confirmer la visite" (to confirm) / "Contacter sur
-  WhatsApp" (confirmed) / "Répondre sur WhatsApp". Déplacer, Refuser /
-  Annuler, quick replies, alternatives, the Lukka Place composer and the
-  status select are behind "···". Every label through `agent.inbox.*`;
-  relative times via `formatRelative(value, locale)` (an EN dashboard printed
-  "il y a 8 jours"). The customer's own words ("Demande de visite — créneau
-  souhaité : …", "mercredi 30 septembre à 09h30") are data and stay as written.
-- **Agent tabs are fully prefetched**: the sidebar and bottom-bar `<Link>`s
-  carry `prefetch`, so a tab's payload arrives while the agent reads the
-  current one; `staleTimes.static: 60` bounds how old a prefetched tab may be
-  (the default is 5 min, too long for an inbox). Actions still invalidate it.
-- Tests: `tests/unit/agent-inbox.test.js`, `marketing-toolkit.test.js`.
-- **Bell and Demandes badge = new since last look** (same evening):
-  `waitingCount` is now the "À traiter" items (counted by `inboxBadgeCounts`,
-  so a web visit request's lead + visit count once — it read 3 where the
-  inbox said 2) that arrived after the agent last opened Demandes. The page
-  stamps `lp_inbox_seen` (server clock, per device — there is no read-state
-  column) through `components/InboxSeenMarker.js`, which refreshes once so
-  the layout's tab badge clears too. `actionableCount` keeps the full
-  "À traiter" number; looking clears the badge, answering clears the row.
-- **Window poster removed** from Documents et rapports and the listing's
-  Statistiques page (product direction). `/compte/agent/biens/[id]/affiche`
-  itself still exists.
-
-## One booking flow, the visit calendar, Activité, About (2026-10-10)
-
-From an owner walkthrough on a phone. Engine migration
-`migrations/20261010_agent_visit_availability.sql` (additive; web degrades to
-"nothing blocked" before it runs). Tests: `tests/unit/visit-booking.test.js`,
-`portal-funnel.test.js`, `client-portal-redesign.test.js`.
-
-- **Every "visit" button opens the same dialog** (`components/VisitRequestDialog.js`,
-  controlled by `open` / `onOpenChange`). The saved-listings card's "Planifier
-  une visite" was a hand-built `wa.me` link to Lukka Place's own number asking
-  "quelles sont vos disponibilités ?" — untracked, and it reached neither the
-  agent nor the customer's agenda. It now opens the calendar with
-  `returnTo="visites"`, so `submitVisitRequestAction` answers on
-  `/compte/client/visites?visit_sent=1` (two fixed destinations; the path is
-  never read from the form). The card's WhatsApp button uses
-  `resolveWhatsAppRouting` like every other CTA (it always went central) and is
-  labelled by where it goes: "Écrire à l'agent" / "Écrire à Lukka Place".
-- **The picker is a calendar grid**: 14 Kinshasa days in Monday-first weeks
-  (`calendarWeeks`), then the day's four slots. `VISIT_DAYS` is 14; the engine's
-  busy-slot window is 15 days.
-- **Agents can block days** (`lib/agentAvailability.js`,
-  `components/AgentVisitAvailability.js` on `/compte/agent/visites`,
-  `saveVisitAvailabilityAction`): weekdays off and single dates. The calendar
-  greys them out (`dayClosed`, reason `closed`), and both visit actions refuse
-  one server-side (`visit_error=closed`). It removes days only — no opening
-  hours, the four slots are the same for everyone, and the agent still
-  confirms each request. The agent id is the session's; reads never throw.
-- **Visites + Demandes = one "Activité" tab** (four tabs, `grid-cols-4`), with
-  a Visites | Recherches switch (`ActivitySubTabs.js`, reusing `SavedSubTabs`).
-  The rule is `isVisitInquiry` (`lib/clientPortalView.js`): a lead with a
-  viewing request behind it is a visit and is listed under Visites only — the
-  Demandes list used to show those leads too, so one booking appeared in two
-  tabs. Both URLs are unchanged, so every link already sent still lands.
-- **About page**: the live-figures band and the "Bukavu" tag are gone (the alt
-  text still says where the photo was taken); copy is "Kinshasa d'abord, toute
-  la RDC ensuite", four reasons and a call-to-action band. The same line is in
-  the hero subtitle, the footer tagline and copyright, and the site meta
-  description. No city is named as a next step — none is decided.
-- **Photos**: correction e4 and a lighter card scrim — root CLAUDE.md,
-  "Listing photo auto-correction".
-- **Later the same day** (owner feedback on the live build):
-  - **Times are a dropdown of quarter-hours, 08:00–20:00** (`VISIT_SLOT_TIMES`,
-    49 of them — 18:00 was the first cut, widened the same day; a native
-    `<select>`, grouped Matin / Après-midi / Soir, a taken or
-    too-soon time shown disabled with its reason). `validatePickedSlot` accepts
-    exactly those. The four fixed slots are gone.
-  - **The confirmation says who has the request**: `visit_sent=1` when the
-    listing has a reachable agent (`agent_phone` non-null, the engine's own
-    condition for alerting them), `visit_sent=team` otherwise
-    (`enquiry.sentTeam`, `account.agenda.sentTeam`). It used to say "sent to
-    the agent" for a listing with no agent at all.
-  - **Serif headings were CAPITALS** until 2026-10-24 (see "Post-launch polish" at the end of this file — they are sentence case again).
-
-## Site settings, bulk delete, sales cleanup, FlexPaie (2026-10-18)
-
-- **Footer copyright** is `© {year} Lukka Place.` in both languages, no tagline
-  (pinned in `tests/unit/admin-settings-delete-payments.test.js`).
-- **`/admin/settings`** (`cms.manage`, owner): two `cms_settings` rows,
-  `site.social_links` and `site.features` (`lib/siteSettings.js`, pure rules in
-  `lib/siteSettingsRules.js`). Each social URL must be https on that network's
-  own host, with a path; a stored value is re-validated on read. Memoised 30 s,
-  dropped on save. Never throws — the footer falls back to the env links.
-- **"Onglets et sections"** on `/admin/settings` hides work in progress
-  (`site.features`, `featuresFromStored`). Three switches plus a list:
-  - `agentSubscriptions` (default OFF): the agent portal's Abonnements tab;
-    `/compte/agent/abonnement` redirects to `/compte/agent`; the limit dialog
-    and Mes biens banner say "Contacter l’équipe" (`/contact`). The engine's
-    WhatsApp limit refusal reads the same key (`services/listingQuota.js`).
-  - `publicProjects` (default on): "Neuf" in the header and drawer, the
-    footer's /projets + /promoteurs links, the home strip, the map's projects
-    pill (`/api/projects/count` → 0), the sitemap, and /projets/* +
-    /promoteurs (layout redirect to /listings plus `noindex` — the redirect
-    runs inside (site)'s loading.js Suspense, so it is a client hop on a 200).
-  - `agentProjects` (default on): the overview's projects card and
-    /compte/agent/projets/* (redirect to /compte/agent).
-  - `hiddenAdminTabs`: console sidebar entries to hide, for the whole team.
-    The tab list lives in `lib/adminNav.js` (plain data, icon names) so the
-    sidebar and the settings form share it; a stored href not in it is
-    dropped, and `/admin/settings` can never be hidden. A hidden tab's page
-    still opens from its URL (the team keeps working on it); its permission
-    is unchanged.
-  - Set on production 2026-10-18 (shared DB, takes effect on deploy):
-    Abonnements and Projets neufs hidden on every surface, `/admin/projets`
-    and `/admin/subscriptions` hidden from the sidebar.
-- **Bulk "Supprimer la sélection"** on `/admin/agents`, `/admin/agencies` (new
-  row selection, `AgencySelection.js`) and `/admin/listings` (every tab):
-  `app/admin/BulkDelete.js` (confirm dialog → toast with "Annuler" for 10 s),
-  `lib/adminSoftDelete.js`, `migrations/20261018_admin_soft_delete.sql`.
-  - A soft delete: `deleted_at` + `status = 0`, previous status kept in
-    `console_soft_deletions`; an agency cascades to its agents, an agent to
-    their listings. Undo restores the previous status; the server accepts it
-    for 60 s (`UNDO_GRACE_MS`), matched in SQL (a JS Date drops microseconds).
-  - Owner only (`agents.delete`, new `listings.delete`). The permanent
-    impact-dialog deletion (`lib/adminAgentDeletion.js`) is unchanged.
-  - Readers that skip deleted rows: admin agents / agencies / moderation
-    lists, counts, global search, `getAgentById` (profile 404, dashboard →
-    login), `getAgents`, agent login, the agent's own listings. Engine:
-    `resolveAgentId`, `identifySender`, and a resync never sets `status = 1`
-    on a deleted listing.
-  - **Run the migration BEFORE deploying** — those queries name `deleted_at`.
-  - No "Corbeille" view yet: after the grace window a delete stands (rows are
-    still in the database; restoring one is a manual SQL job).
-- **Sales (`/admin/sales`)**: the team table is four columns — rep, assigned
-  agencies (from active assignments), live listings, commission status chips
-  (to approve / to pay / paid). The rep page gains "Agences" with "Retirer"
-  per agency (`endRepAssignmentsForVendor`), and agent unassign now asks for
-  confirmation and works on every rep, inactive and launch ones included
-  (adding agents is still active subscription reps only). Unassigning ends
-  assignments only — a launch attribution (`sales_agent_attributions`) is
-  still changed through "Changer de commercial".
-- **FlexPaie** (`lib/flexpaie.js`, `lib/flexpaieRules.js`, `lib/payments.js`,
-  `/api/payments/flexpaie/{initiate,webhook,status}`,
-  `migrations/20261018_flexpaie_payments.sql`: `subscriptions`, `invoices`,
-  `payment_logs`). Env: `FLEXPAIE_BASE_URL` (https), `FLEXPAIE_MERCHANT_ID`,
-  `FLEXPAIE_API_KEY` — server-only; unset = 503 "not_configured".
-  - The callback URL carries a per-invoice token (SHA-256 stored); a callback
-    is logged and then ignored as evidence — only FlexPaie's status check
-    (`GET /check/{orderNumber}`: status "0", amount and currency covering the
-    invoice) marks it paid. A mismatch is never credited nor failed.
-  - Paid = one transaction: ordinary `memberships` row (payment_method
-    'FlexPaie', via `assignPackageToAgent({ client })`), invoice paid,
-    subscription active. A second callback is a no-op.
-  - **The API shape comes from the community SDK's docs, not FlexPaie's own**
-    (none was available): confirm field names and codes with a sandbox
-    payment before setting the key in production. There is no payment UI yet;
-    the Abonnements tab stays hidden until there is.
-
-## Console create / delete for listings and agents (2026-10-20)
-
-`app/admin/listings/createActions.js`, `app/admin/listings/nouveau/`,
-`DeleteListingButton.js`, `app/admin/agents/[id]/AgentDeleteButton.js`.
-Tests: `tests/unit/admin-crud.test.js`.
-
-- **"Créer une annonce"** (`/admin/listings/nouveau`, `listings.edit`): the
-  agent form's write path (`createListing`: city from the commune, commune
-  amenity from `location_communes`, `approve_status` 0) for an agent picked
-  with `AgentPicker` or none (central number). Communes and categories are
-  re-read in the action. Currency / period go through `adminUpdateListing`
-  after the insert. "Publier directement" runs `approveListingAction` (its
-  publish checks, and the agent's "en ligne" message) only for a
-  `listings.moderate` role. No plan quota: the team is not an agent.
-- **"Ajouter des photos"** in the photo panel appends uploads after the
-  gallery already there (cover unchanged); hidden while a reorder is unsaved.
-- **"Supprimer l'annonce"** on each queue row and on the listing page is the
-  bulk bar's soft delete for one id (owner, `listings.delete`, 10 s undo;
-  photos stay in storage so the undo is whole).
-- **"Supprimer l'agent"** on the agent page opens the table's
-  `DeleteAgentDialog` (impact, archive or delete listings, typed id) and goes
-  back to `/admin/agents` (`onDeleted`).
-- Already there and unchanged: every field of a listing in the editor
-  (moderation via Approuver / Rejeter / Suspendre — there is no "draft"
-  state in this schema), agency name, communes and (since today) first /
-  last name on the agent page; the phone stays locked.
-
-## Launch fixes: cities in search, agent assignment, deletes, reminders (2026-10-21)
-
-Tests: `tests/unit/launch-fixes-2026-10-21.test.js`; engine §60.
-
-- **Search knows cities.** `lib/cities.js` `findCityMention` (a whole city
-  name, or a 4+ letter start of one: "lubum") and `findCommuneInCity` run in
-  `parseSearchQuery` BEFORE Kinshasa's gazetteer, because Kinshasa has
-  quartiers named after cities (Lubumbashi in Kasa-Vubu, Goma in Ndjili) and
-  "lubum" searched Kasa-Vubu. A city sets `ville`; inside another city only
-  its communes are matched ("Kampemba" → commune + Lubumbashi), the gazetteer
-  is not consulted. The hero card has a "Ville" select (`?ville=`); text
-  wins over it, and a Kinshasa place typed after clears `ville`.
-- **Surface takes decimals** (`normaliseArea` / `formatArea`, lib/listingView.js):
-  2 decimals, French display ("12,5 m²"). `properties.area` was already TEXT —
-  no migration; only the forms (step 0.01), the actions and the engine's
-  publish rounding changed.
-- **Listing → agent** (`ListingAgentCard`, `adminAssignListingAgentAction`):
-  any agent (not deleted) or none; `vendor_id` follows the agent.
-- **Renommer l'agence** (`/admin/agencies/[id]`, `renameAgencyAction`): writes
-  `agents.agency_name` on every live agent of the vendor (what every card and
-  profile shows). `vendors.username` is never touched (old back-office login);
-  when it is a real word the console keeps showing it, and the toast says so.
-- **Supprimer** on prospects (`/admin/leads`, row + detail) and visits
-  (`/admin/viewings` row): permanent, owner-only (`leads.delete`,
-  `viewings.delete`), engine `DELETE /admin/leads/:id` (lead + visits +
-  matches + proposals + open questions, one SQLite transaction) and
-  `DELETE /admin/viewing-requests/:id` (the visit + its open questions; the
-  lead stays). Audited; nobody is messaged.
-- **Rappeler de vérifier** (agent page + agents table menu, `agents.manage`):
-  `lib/verificationReminder.js`'s text (owner's wording; the bonus and the "5" were
-  dropped 2026-11-03, bonuses no longer run)
-  through the engine's `/admin/send-whatsapp`. A session message: it only
-  reaches an agent who wrote to the business number in the last 24 h, and the
-  toast says "envoyé", never "reçu".
-
-## "Créer un agent" and "Vérifier le numéro" — the team vouches (2026-10-23)
-
-`app/admin/agents/nouveau/`, `app/admin/agents/createAgentActions.js`,
-`app/admin/agents/ActivationLinkPanel.js`, `[id]/AdminVerifyAgentButton.js`,
-`lib/adminAgentCreate.js`. Engine half: CLAUDE.md, "Agents created or verified
-by an admin". Tests: `tests/unit/admin-agent-create.test.js`, engine §66.
-
-- **No code from the phone.** An admin with `agents.manage` creates a verified
-  account (first / last name, agency, `PhoneField` number through lib/phone.js,
-  communes from the list the action re-reads) or verifies an existing one from
-  its page. This skips proof of ownership on purpose: the number goes on the
-  agent's listings and receives their enquiries. Admin console only — the test
-  walks `(site)`, `(portfolio)` and `api` to keep it that way.
-- **The engine writes the row** (WhatsApp onboarding's own upsert,
-  `onboarding_source = 'admin'`) and claims the number's listings, group
-  captures included. No agents INSERT here.
-- **Refused**: a number with any account (soft-deleted included; the error
-  links to it), the two business numbers, a malformed number, no first name;
-  verify also refuses a number already verified on another live account.
-- **Who vouched**: audit `agent.admin_create` / `agent.admin_verify` and a note
-  on the agent's timeline naming the admin (`actorLabel`). Nothing on `agents`
-  names them.
-- **Activation link**: shown once in `ActivationLinkPanel` with Copier and
-  "Envoyer depuis mon WhatsApp" (a wa.me link that opens the admin's own
-  WhatsApp, text typed in). Nothing is sent by Lukka Place. Verify returns no
-  link when the account already has a password.
-- **The profile's "Numéro vérifié" checkbox** grants through the same engine
-  verify (`adminVerifyAgent(id, { issueLink: false })`) before anything on the
-  form is saved: same refusals (our numbers, a number verified on another
-  live account), same listing claim, same audit + note (`via:
-  'profile-checkbox'`). It issues no link — the admin sees none there, and a
-  new token would void an onboarding link the agent has not opened. The
-  profile save itself only ever revokes.
-
-## Agent ratings — "Notez l'agent" (2026-10-18)
-
-Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine
-migration `20261018_agent_reviews.sql` was applied to production 2026-10-18;
-without it nothing renders and the rating card answers "réessayez".
-
-- **Espace Client**: `visites/VisitAgentRating.js` on the visit card (and on
-  Accueil's "to rate" list) once the check-in said 👍/👎 and the agent is not
-  rated (`needsAgentRating`, lib/clientPortalView.js). Five stars, optional
-  comment, `rateAgentAction` → engine. Once rated it shows "Votre note : N/5".
-- **Public**: `/agents/[id]` shows "4,7 ★ · N avis vérifiés" in the hero and
-  an "Avis clients" band with APPROVED comments only, from
-  `MIN_PUBLIC_REVIEWS` (5) ratings (`lib/agentReviews.js`, never throws). Not
-  on listings, and no aggregateRating in JSON-LD (self-served reviews).
-- **Admin**: `/admin/agent-reviews` (agents.view; publish/refuse is
-  listings.moderate, audited without the comment text).
-- Tests: `tests/unit/agent-reviews.test.js`.
-
-
-## Commercial spaces (2026-10-19)
-
-Root CLAUDE.md, "Commercial spaces", has the model. Web half: `lib/commercialSpaces.js`
-(pure, duplicated in the engine), `components/CommercialSpecFields.js` (create dialog
-and editor), `?property_type=commercial`, the "Bureaux & commerces" group in
-SearchBar / FilterBar / FilterModal / the homepage tiles, and the `bureaux` /
-`locaux-commerciaux` landing slugs. A commercial listing shows its specs on
-KeyFacts and "N bureaux" on cards. Run the engine migration
-`20261019_commercial_spaces.sql` before agents can pick "Bureau"; until then reads
-yield nulls and the specs setter answers `unavailable`.
-
-## Cities beyond Kinshasa — web half (2026-10-20)
-
-Root CLAUDE.md, "Cities beyond Kinshasa", has the model (commune keys unique
-nationwide, "Kalamu (Boma)"). Tests: `tests/unit/cities-data.test.js`.
-
-- **`lib/cities.js` + `lib/data/cities.json`** (generated by
-  `scripts/build-cities-data.mjs` from the engine's data and the centroids its
-  `scripts/geocode-communes.js` fetched on the VPS — never edit by hand; the
-  test compares it with the engine's files). `COMMUNE_CENTROIDS`
-  (lib/geocoding.js) = Kinshasa's verified points + each other commune's
-  geocoded point, or its city's centre when Google gave none (13 of 39) —
-  flagged approximate like any centroid pin.
-- **A commune is `location_communes`, not ids 21–44.** Every
-  `amenity_id BETWEEN 21 AND 44` became `IN (SELECT amenity_id FROM
-  location_communes)` (the test fails if one comes back). Run the engine's
-  `scripts/migrate-multi-city.js --write` BEFORE this deploy.
-- **A feed is one city** (`buildFilters`, pushed last): `ville`, else the
-  searched commune's city, else Kinshasa (+ `city_id IS NULL`). Id lists and
-  agent portfolios are never narrowed. `lib/publicCities.js`: a city is public
-  from `MIN_PUBLIC_CITY_LISTINGS` live listings — **0 since 2026-10-20** (owner
-  decision, reversing the 3 set that morning): every city is in the picker,
-  empty ones included. A non-public `?ville=` is dropped on /listings and both
-  listing APIs. `CityPicker` (in FilterBar) renders when two or more cities are
-  public. An empty city shows the plain empty state, without Kinshasa's
-  communes as suggestions.
-- **The map** opens on the city (`defaultViewForCity`), geocodes inside it
-  ("Commune de Kalamu, Boma"), refuses a point outside the city's box, and
-  "Autour de moi" accepts any covered city (`inCoveredArea`).
-- **Writes**: `resolveListingLocation` (lib/agentListings.js) gives city_id +
-  commune amenity from `location_communes` (Kinshasa when unknown); a commune
-  change moves `city_id` too (agent and admin editors). Addresses name the city.
-- **Forms**: agent and admin commune lists load `{ city: 'all' }` (engine
-  `GET /locations?city=all`) and render `<CommuneOptions>` (city optgroups only
-  when more than one city is listed); agent-area checkboxes read
-  "Kampemba · Lubumbashi". The customer request form, SEO landing pages, market
-  reports and projects stay Kinshasa-only for now.
-- **Not done**: city landing pages / SEO per city, the hero search's own city
-  picker, visit-slot picker times in UTC+2 for those cities (it posts
-  `+01:00`; the engine re-reads the agent's answers on the right clock, but a
-  customer's picked slot for a Lubumbashi listing is an hour off until the
-  picker learns the listing's offset).
-
-## Listing videos (2026-10-21)
-
-Engine half and the rules: root CLAUDE.md, "Listing videos and 20 photos".
-Tests: `tests/unit/listing-videos.test.js`.
-
-- **`properties.videos` jsonb `[{url, poster}]`**, written by the engine for
-  WhatsApp listings only. Read through `to_jsonb(p) -> 'videos'`
-  (`lib/listingVideos.js` `VIDEOS_SQL` / `VIDEO_COUNT_SQL`), so nothing 42703s
-  before the engine migration. `listingVideos()` keeps https URLs only.
-- **Listing page**: `components/listings/ListingVideos.js` (plain `<video>`,
-  `preload="none"` when there is a cover — visitors pay per MB) under the
-  facts, plus a "Vidéos" entry in the phone section strip. Not on cards. With
-  no photo, the cover frame is `featured_image`, so cards and the gallery show
-  it as the listing's picture.
-- **Moderation**: the panel plays the videos; the queue's `no_photos` flag
-  needs no photo AND no video; a cover frame (`_poster.jpg`) is never offered
-  as a gallery photo, and `setListingGallery` falls back to it before the
-  "no photo" placeholder when the last photo is removed.
-- **Not built**: uploading a video from the agent dashboard or the admin form
-  (needs direct-to-Storage uploads — a 16 MB clip does not belong in a Server
-  Action body). The web forms keep requiring photos; videos come in through
-  WhatsApp.
-
-## Short-term rentals — the "Durée" filter (2026-10-21)
-
-Model and engine half: root CLAUDE.md, "Short-term vs long-term rentals".
-Tests: `tests/unit/lease-term.test.js`.
-
-- **`?lease_term=short|long`** (`buildFilters`): short = a rent with
-  `price_period` 'jour' / 'semaine'; long = any other rent (no period counts
-  as monthly). Either implies a rental. Carried by saved searches, alerts, the
-  map and the count endpoint through `parseListingsSearchParams`.
-- **Search bar**: "Longue durée" / "Courte durée" chips open the chip row on
-  /listings (hidden on a sale search; tapping the selected one clears it;
-  picking one makes the search a rental), a "Durée de location" section in the
-  phone filter sheet, an active-filter chip, and the search box reads
-  "à la journée", "par nuit", "50$/jour", "courte durée", "longue durée".
-- **Prices** say "/ jour" / "/ semaine" everywhere `formatPrice` / `<Price>`
-  render; map pins say `$40/j`, `$200/sem`; JSON-LD unit is DAY / WEE. Market
-  medians, price checks, outlier flags and demand matching leave short-term
-  rents out (`monthlyEquivalent` → null).
-- **Agent forms** (create + editor): "Durée de location" select (mois / jour /
-  semaine / an), written as `price_period` for a rent only. **Admin editor and
-  admin create** now post the stored vocabulary (`mois`, `an`, `jour`,
-  `semaine`, `total`); they used to post `month` / `year` / `day`, which no
-  reader understood (no production row held one, checked 2026-10-21).
-
-## Property types: Immeuble, Villa, Concession (2026-10-22)
-
-Engine migration and rules: root CLAUDE.md, same heading. Every type picker
-reads the categories table, so the dropdowns change with the migration.
-
-- **Old names keep working** (`CATEGORY_ALIASES`, lib/listings.js):
-  `?property_type=bâtiment` (saved searches, alerts, shared links) matches
-  Immeuble; `villa` matches the Villa category OR a parcelle sub-typed villa.
-  The search box reads "villa" as `property_type=villa` (it was the parcelle
-  sub-type), plus "concession" and "immeuble".
-- **Landing pages**: `/{tx}/immeubles`, `/villas`, `/concessions`;
-  `/{tx}/batiments/*` is a 308 to `/immeubles` (next.config.mjs).
-- Plurals `listings.typePlurals.immeuble/villa/concession`; homepage tiles
-  use Building / Fence icons; the detail map pin draws an Immeuble as a building.
-- Smart paste tries "immeuble" then "batiment" (`matchCategoryId` takes a list).
-
-## Practical listing details and four more types (2026-10-22)
-
-Model and engine half: root CLAUDE.md, same heading. `lib/listingDetails.js`
-(pure: rules, plot parser, SQL), `components/ListingDetailFields.js` (form
-fieldset), `components/listings/PracticalDetails.js` (listing page).
-Tests: `tests/unit/listing-details.test.js`.
-
-- **Reads** go through `DETAILS_SQL` (one `listing_details` jsonb via
-  to_jsonb) in the public and moderation selects and the agent editor's.
-- **Listing page**: "Détails pratiques", captioned "Déclaré par l'agent" —
-  meublé, households, landlord, generator / solar / pool / gym, meter, plot size (m² · ares /
-  ha, plus the agent's own words) with "≈ N $ le m²" on a sale, paiement
-  échelonné + terms. Renders nothing when nothing is stated.
-- **Filters**: a **Meublé** chip in the row under the search bar
-  (`amenities=furnished`, now the `furnished` column OR the words, and a
-  listing the agent marked unfurnished is left out); **Taille du terrain**
-  (`plot_min` / `plot_max`, m²) in both filter sheets, hidden for
-  plotless types — it reads `plot_area_m2`, else the `area` of a listing
-  whose category IS land (`PLOT_M2_SQL`). Chips, saved-search labels, map and
-  count endpoint carry both. The "Plus de filtres" Générateur / Panneaux
-  solaires boxes and the new Confort group (Piscine, Salle de sport) read the
-  `has_*` column OR the words (`AMENITY_DETAIL_COLUMNS`).
-- **Hero search**: on the Rent tab a Durée row (Toutes / Longue durée / Courte
-  durée) sends `lease_term` and feeds the live count.
-- **Search box**: "5 ares", "20x30", "1 ha", "600 m²" → `plot_min` (read
-  before prices, so "600 m²" is never $600); "meublé" → Meublé ("non" /
-  "semi-meublé" do not count); "studio", "annexe", "chambre à louer",
-  "ferme", "terrain agricole" → their types. "2 chambres" stays a
-  bedroom count. `?property_type=studio` also matches Appartement listings
-  whose title says studio (filed before the category existed).
-- **Forms** (agent create, agent editor, admin editor, admin create): the
-  fieldset with "Non précisé" defaults; the plot field shows the computed
-  size live. Sections hide by category + purpose (`detailSections`), and
-  `setListingDetails` / `adminSetListingDetails` re-gate on the row's REAL
-  category and purpose. Smart paste fills it.
-- New types: plurals, landing pages `/studios`, `/chambres`, `/fermes`,
-  tile icons, pin kind (a farm is land).
-- **Filter sheet (phone) type chips** (2026-10-22, owner decision): Tous, Parcelle,
-  Appartement, Maison, Villa, Terrain, in that order, each with its real count
-  (greyed at 0); every other type with listings (Duplex, Studio, Bureau…) is one
-  "Autres types de bien" dropdown. **Villa** = the Villa category OR a villa
-  parcelle OR a Maison / Duplex whose title says villa (the engine filed WhatsApp
-  villas under Maison until 2026-10-22) — `categoryAliasClause`, shared by the
-  filter and the facet count, so "Villa 5" opens five listings. Villa is an
-  overlay facet: it can re-count a Maison.
-
-## Gallery viewer close, faster map cards (2026-10-23)
-
-From two phone reports (iPhone, 4G). Tests: `tests/unit/gallery-close-map-card.test.js`.
-
-- **The gallery viewer (`PhotoGallery`) had no reachable way out of a video.**
-  The stock dialog × was a dark 32px icon on the dark frame, and the site
-  header (`z-[60]`) paints over every `z-50` dialog's top edge — where that
-  × sits. The viewer is now `z-[70]` (overlay too, via `DialogContent`'s new
-  `overlayClassName`), full screen on a phone, with its own top bar: counter
-  left, a white 44px × right, never over the video's native controls. A tap
-  on the bare stage around the video, a swipe down, Escape or × close it,
-  and the video is paused first (Radix keeps it mounted through the exit
-  animation). Sideways swipe pages photos (not on a video: that is scrubbing).
-  Other dialogs are still `z-50` under the header; raise one the same way if
-  its top edge matters.
-- **Map cards waited on every listing in view.** A pin tap fetched the
-  listing, then `MapCardCarousel` fetched all visible ids 20 at a time and
-  drew nothing until the last batch — 3+ round trips at ~330 ms before the
-  photo was asked for. `lib/mapListingCache.js` is now shared: `ListingsMap`
-  remembers the tapped row (or the list page's copy), so its card draws on
-  the first frame; the rest load tapped-card-and-neighbours first and draw
-  after each batch. The active card's cover is `priority` (eager, high
-  fetch priority) and the photo slot shimmers (`.lkp-shimmer`,
-  `CardImageCarousel loadingShimmer`, map only) until it paints. Photos were
-  already next/image with `sizes` and q75; there is no blur placeholder
-  because no row carries a blurDataURL, and inventing one per photo would
-  cost a server pass for a few hundred bytes of saving.
-
-## Post-launch polish (2026-10-24)
-
-From the post-launch design review. Tests: `tests/unit/format.test.js`.
-
-- **Prices group with U+00A0, never U+202F.** Intl's fr-FR separator is the
-  narrow no-break space, which Plus Jakarta Sans draws at almost no width, so
-  cards read "1000000 $". `frNumber` (lib/format.js) is the one formatter;
-  `formatPriceParts`, `formatPriceCdfParts`, `formatCdfCompact` and the public
-  filter / rate labels use it. Use it for any new visible number rather than
-  `toLocaleString('fr-FR')` (admin and portal screens still have ~40 raw calls).
-- **One container width on the storefront: `max-w-[1600px]`** with
-  `px-4 sm:px-6 lg:px-8`, the header's. Hero, search card, type tiles,
-  "Notre approche", CommuneShortcuts and the projects strip were on 1240px /
-  7xl, so the left edge jumped between sections.
-- **WhatsApp is green everywhere a visitor sees it**: EnquiryCard's
-  "Contacter par WhatsApp" and MobileListingBar now match the cards
-  (`bg-green`, hover `green-deep`, the WhatsApp glyph). Known: white on
-  `--green` is 2.87:1, below AA for text — true of every green button.
-- **Serif titles are sentence case** (owner decision, reversing 2026-10-10's
-  capitals): the uppercase rule in globals.css is gone. Storefront section
-  titles use `.u-title-storefront` (24 → 30px): SectionHeading,
-  PropertyTypeTiles, ValueProposition ("Notre approche" was a sans eyebrow,
-  now a title like the others) and NewProjectsStrip. Dashboards keep
-  `.u-title-section` at 22px.
-
-## Budget range, one font, agent sign-in history (2026-10-24, later)
-
-Owner requests from phone screenshots. Tests: `tests/unit/budget-steps.test.js`,
-`tests/unit/agent-login-log.test.js`.
-
-- **Hero budget is Min | Max** (`components/SearchBar.js`, steps and rules in
-  `lib/budgetSteps.js`): rent steps $100 to $1,000 by 100, then 1,250 / 1,500
-  / 2,000 / 2,500 / 3,000 / 4,000, every $1,000 to $10,000, then "10 000 $ +"
-  (as a max it sends NO price_max; as a min it is 10,000). A sale has its own
-  scale (10k → 1M): a $10k ceiling meant nothing for a $380,000 house. A bound
-  disables the contradicting options on the other side; a min above the max
-  drops the max. Same `price_min` / `price_max` params as FilterBar. On a phone
-  "Type de bien" is full width and Min | Max share the next row.
-- **One font family.** Every title on all four surfaces is Plus Jakarta Sans,
-  bold; DM Serif Display is no longer loaded (`app/layout.js`).
-  `--font-display` / `--font-heading` resolve to the sans so old classes keep
-  working; the 26 `font-display` class uses became `font-bold`; `.u-title-*`
-  are sans 700 (hero 28→36px, page 22→28, section 20, storefront 22→26); the
-  print sheets' `.lp-serif` too. Supersedes the "accent serif" notes above.
-- **Agent sign-in attempts** (`agent_login_attempts`, engine
-  `migrations/20261024_agent_login_attempts.sql`; `lib/agentLoginLog.js`
-  reads/writes, `lib/agentLoginRules.js` pure). Recorded from the password
-  login (success / wrong_password / locked / verify_required), the code page
-  (wrong_code / expired_code / code_verified), the reverse WhatsApp check
-  (whatsapp_verified) and activation (activated), with IP and user agent. Only
-  existing accounts; a number with no account is not stored. Never throws into
-  the login; nothing recorded before the migration (42P01).
-  - `/admin/agents` and `/admin/agencies/[id]`: a "Dernière connexion" column
-    (relative time, Kinshasa time on hover, last outcome, failures since the
-    last sign-in). The row menu's "Voir l'historique de connexion" (and a tap
-    on the cell) opens the last 100 attempts with IP and a short device label —
-    `agents.manage` only, since it shows IP addresses.
-- **The hero's Ville dropdown is back** (2026-10-24, owner: picking is easier
-  than typing for most visitors). `#hero-city` starts on Kinshasa and lists,
-  in the owner's order, Kinshasa, "Toutes les villes", Lubumbashi, Goma,
-  Bukavu, Kisangani, Kolwezi, Matadi, Mbuji-Mayi (`HERO_CITY_ORDER`; a city
-  typed in the box that the list leaves out is still shown). **"Toutes les
-  villes" is a real nationwide search**: `ville=toutes` (`ALL_CITIES`,
-  `isAllCities`, lib/cities.js) makes `searchCityOf` return null and
-  `buildFilters` add no city clause — unless a commune is named, which places
-  the search in its city. No `ville` is still Kinshasa, so no existing link
-  changed. `publicVille` passes it through; the results heading reads "Biens
-  à louer en RDC" (`listings.results.headingNational`); /listings'
-  `CityPicker` offers it too; it is never a landing-page canonical (noindex).
-- **`/listings?city=…&location=…` are accepted aliases** (owner, same day:
-  "accept both"), 308-redirected by middleware.js onto the real params
-  (`lib/searchAliases.js`, pure): `city` → `ville` (Kinshasa → none, "toutes"
-  / "Toutes les villes" → `toutes`, unknown → dropped), `location` → read by
-  the search box's own parser (commune / quartier / landmark; words that name
-  no place → `q`), read with the city name inside another city. An explicit
-  `ville` / `commune` wins over its alias. The hero itself still emits
-  `ville` / `commune` — saved searches, alerts and canonicals use them.
-  `tests/unit/hero-city-search.test.js`. The text box below is now "Commune ou
-  quartier". Typed text still wins over the dropdown, and the dropdown follows
-  it (typing "Kampemba" or tapping the Lubumbashi chip selects Lubumbashi);
-  picking another city clears a place of a different city from the box.
-
-## Real 404s, city landing pages, SEO links (2026-10-24)
-
-From an SEO audit: Google had indexed nothing, and the site gave it reasons to
-distrust what it found. Tests: `tests/unit/real-404.test.js`,
-`tests/unit/seo-pages.test.js`.
-
-- **A dead listing or unknown landing path is a real 404.** A `loading.js` is
-  a Suspense boundary; once its skeleton has streamed, the status is 200 and a
-  `notFound()` below it can only add `noindex` — a soft 404. One
-  `(site)/loading.js` sat over every public page, so `/listings/293` (offline),
-  `/listings/99999` and `/location/xyz` all answered 200. Now:
-  - each section of `(site)` has its own `loading.js` re-exporting
-    `(site)/_shared/SiteLoading.js`;
-  - the home page and the `/listings` results moved into route groups
-    (`(home)/page.js`, `listings/(search)/(results)/page.js`, URLs unchanged)
-    so their boundary still sits above the segment whose key changes with
-    search params — filters still do not flash the skeleton;
-  - `listings/[id]/layout.js` (`publicListingExists`: same gate and joins as
-    `getListingById`, no columns — prefetches run it) and
-    `location|vente/[[...slug]]/layout.js` (`parseSeoSegments`, pure) call
-    `notFound()` ABOVE their own `loading.js`.
-  Don't add a `loading.js` above those three again.
-  `guides/[slug]` checks in its own layout too since 2026-10-26 (the index
-  moved to `guides/(index)/`); `projets/[slug]` and `rapport/[token]` still
-  sit under a section skeleton (200 + noindex when missing).
-- **Other cities have landing pages**: `/location/lubumbashi`,
-  `/vente/terrains/goma` (`SEO_CITIES`, `cityFromSlug`; Kinshasa has none of
-  its own — the roots are Kinshasa). `seoPath` takes `city`, a commune winning
-  over it; `/listings?transaction_type=location&ville=Goma` names it as
-  canonical (indexable), a bare `?ville=Goma` stays noindex. Facets are split by city
-  (`facetCity`: the commune's city, else Kinshasa), so Kinshasa's pages no
-  longer count or link other cities' listings. A city-level page lists "Dans
-  d'autres villes". The sitemap adds a city page once it has a listing; a
-  listing in another city's commune crumbs to its city page.
-- **Louer / Acheter go to `/location` and `/vente`** (Header, portfolio
-  header, homepage tiles, listings sidebar), not `/listings?transaction_type=`.
-- **The listing h1 opens with type and transaction**: "Appartement à louer —
-  Yolo Nord I, Kalamu"; the blue kicker above the price keeps the room counts.
-
-## Link preview card and the 4:5 feed card (2026-10-26)
-
-From the "Social & Open Graph Share Cards" design canvas. Tests:
-`tests/unit/social-share-cards.test.js`.
-
-- **og:image is drawn per listing** (`app/(site)/listings/[id]/opengraph-image.js`,
-  `twitter-image.js` re-uses it). Since 2026-11-06 it is the **"Éditorial"
-  card** (design canvas "Aperçu lien prestige"; the owner judged the earlier
-  dark full-photo card with a centred capsule "typical AI template"): three
-  of the listing's photos on the left (one 494×630, two stacked 266×312,
-  6px ivory gaps), an ivory column on the right — "À LOUER · GOMBE" in royal,
-  the price in DM Serif Display (sized by `ogPriceSize` so "Prix sur demande"
-  and "170 000 $" fit), "par mois", a rule, the type and two room counts in
-  words, "Vérifié par Lukka Place" only on `verified_at`, and the one-colour
-  royal logo (`public/brand/logo-royal.png`, made from logo-dark.png's shape)
-  with lukkaplace.com. The large slot is the listing's COVER unless it is
-  darker than `OG_DARK_COVER` (then the brightest); the small slots are the
-  brightest of the rest (`pickOgPhotos`, `loadOgPhotos`: up to 6 fetched,
-  duplicates dropped, one warm grade on all). Brightness alone could not
-  find the best room, so the cover — which the team sets in the admin photo
-  manager — leads. Two photos sit side by side, one fills the block, none
-  draws the royal block with the white logo. The old rule that kept the price
-  in the centre 630×630 is dropped: WhatsApp's square thumbnail is ~100px.
-  **Drawn at 2× since 2026-11-06** (owner: "not HD"): laid out on the
-  1200×630 grid, every length multiplied by the scale (`s(n)` in the route —
-  a CSS `transform: scale` wrapper was tried and satori left the photos and
-  logo unscaled), photos cropped at 2× and saved near-lossless, then ONE
-  JPEG step: `encodeOgCard` tries `OG_ENCODINGS` (2× q88, 2× q80, 1.5× q86
-  4:4:4, 1.5× q80, 1× q90 4:4:4) and keeps the first under `OG_MAX_BYTES`
-  (300 KB, WhatsApp drops heavier preview images). Six live listings: four at
-  2×, two busy outdoor ones at 1.5×, 200–280 KB. `X-Og-Scale` on the response
-  says which won. `size` declares 2400×1260. The 4:5 / square share cards stay
-  at their native 1080 width; only their export got gentler
-  (`EXPORT_JPEG_QUALITY` 0.92, fallback 0.86, budget 400 KB, was 0.82 / 0.70 /
-  150 KB).
-  **Cached and drawn ahead** (same day): at 2× a card took 6–7 s on every
-  request and Facebook's crawler gave up first — a group post showed an empty
-  grey box. The drawing moved to `lib/listingOgRender.js`
-  (`renderListingOgCard`): the finished JPEG is kept in memory per listing
-  VERSION (`ogCacheKey`: price, title, photos, verified_at, updated_at…;
-  120 entries, 6 h), concurrent requests share one drawing, and both share
-  dialogs' "read the link now" actions `await prepareListingOgCard(id)`
-  BEFORE asking Facebook to fetch. Measured locally: first drawing ~4 s,
-  repeats 0.3 s (`X-Og-Scale: … cached`). Per process: a restart empties it.
-  The share dialog's `DialogContent` carries `auto-rows-max` — with the team's
-  "Où le publiez-vous ?" panel the grid squeezed the card's row and the card
-  spilled over the buttons.
-  The earlier design, for the record: full-bleed cover, white logo top-left,
-  a dark capsule with price + type + two counts in the centre, a white box
-  with the page's own h1.
-  What it says is `lib/listingOgCard.js` (pure, French always); photo / logo /
-  fonts / PNG→JPEG are `lib/listingOgImage.js`. Plus Jakarta Sans is fetched as
-  TTF from Google Fonts once per process (satori reads no woff2), and the PNG
-  is re-encoded to a ~60–80 KB JPEG with sharp, since WhatsApp drops heavy
-  preview images. Same public gate as the page (`getListingById`): anything
-  not live answers 404. `generateMetadata` no longer sets `images` — the file
-  wins anyway, and two sources would disagree. The routes build as dynamic
-  (ƒ); the response carries `Cache-Control: public, max-age=600`. WhatsApp
-  keeps its own copy of a preview it already fetched.
-- **4:5 "Carte feed social"** (`FORMATS.feed`, 1080×1350, `feedFlyer` in
-  `lib/marketing/layout.js`): a Carré | 4:5 switch in `ListingQuickShare`
-  (Mes biens' "Partager sur WhatsApp"), drawn from the SAME kit as the square
-  (`listingCardCache` caches the kit per listing version, then each format), so
-  switching is a redraw, not a second download. One cover photo, the royal
-  price badge, the white wordmark (pack field `wordmark`, `/brand/logo-dark.png?v=2`),
-  heading / place / light chips, and a royal band that always leads back to
-  the platform: "Voir ce bien sur Lukka Place" + "lukkaplace.com/listings/387"
-  typed out (Instagram does not open caption links). **No agent number on the
-  4:5 or in its caption**, for agents and team alike (product direction: a
-  social post brings people back to Lukka Place, where the agent's contact and
-  the visit request are). The square sent on WhatsApp keeps the agent's number.
-  The property badge is the pack's `verified` (`properties.verified_at`, now
-  in `FLYER_SELECT`), never the agent's tier. Its caption is `copies.social`
-  (`buildListingSocialCopy` `style: 'social'`: no `*bold*`, no contact line,
-  hashtags from real fields, utm_source `reseaux_sociaux`).
-- **Agents post it from one tap, and it leads to their own page** (2026-10-27):
-  "Publier sur les réseaux sociaux" in the Mes biens row menu opens the
-  dialog on the 4:5 (`initialFormat="feed"`, live listings only). An agent's
-  kit carries `agentPage` (`buildShareKit` `agentId`, `agentPageUrl` /
-  `agentPageLabel`): `/agents/<id>` with their `ref=` code. The dialog shows
-  it as "Ma page Lukka Place" with a copy button for their Instagram / TikTok
-  bio (`utm_source=bio_agent`), and the social caption ends with "Tous mes
-  biens sur Lukka Place :" + the same page (`utm_source=reseaux_sociaux`),
-  after the listing's own link. The card itself still prints the listing's
-  address. The team's kit has no agent page. `tests/unit/agent-social-share.test.js`.
-- **The company posts it too**: "Carte réseaux sociaux" on `/admin/listings/[id]`
-  (`TeamSocialCardButton`, live listings only) opens the same dialog with
-  `audience="team"` — 4:5 only, the kit from `app/admin/listings/shareActions.js`
-  (`requireAdmin('listings.view')`, `getFlyerListingForTeam`: any agent's
-  listing, no ownership clause), caption utm_source `lukka_reseaux`
-  (`TEAM_SOCIAL_SOURCE`), nothing written to `listing_shares` or this phone's
-  offline packs. The kit builder is `lib/marketing/shareKit.js`, shared with
-  the agent action. `/admin` now ships the `agent` dictionary namespace for it.
-- **Recorded** as `kit_share` / `kit_download` × `feed` and `kit_copy` × text.
-  `feed` needs the engine migration `20261026_listing_share_feed_format.sql`;
-  until it runs, a feed share records nothing and the share itself works.
-- **Facebook reads the link before it is posted** (2026-11-05,
-  `lib/facebookPreview.js`). Two of three team link posts showed a bare
-  "LUKKAPLACE.COM / lukkaplace.com" box: Facebook's first read of those URLs
-  failed (the pages, og tags and og:image all answered 200 to its user agent
-  the next day) and it caches that read per URL, query string included, for
-  about a month. Opening the 4:5 dialog (team or agent, never the sold card)
-  now calls `refreshTeamFacebookPreviewAction` / `refreshFacebookPreviewAction`,
-  which rebuild the caption's exact link server-side (`kit.socialUrl`) and
-  POST it to Graph `?scrape=true` — ready only with a real title AND an image,
-  3 tries, a good read cached 6 h in-process. Needs `FACEBOOK_APP_ID` +
-  `FACEBOOK_APP_SECRET` (or `FACEBOOK_APP_TOKEN`), read at call time; unset →
-  nothing is called and the dialog shows "Aperçu Facebook non vérifié" with
-  the Sharing Debugger link ("Récupérer à nouveau" by hand, which also repairs
-  a post already published). `tests/unit/facebook-preview.test.js`.
-- Not built: a visitor-facing "Générer la carte" on the public listing page,
-  and a 9:16 option in the dialog (the layout has one).
-- **Where the team posted it** (2026-11-06, `team_social_posts`,
-  `migrations/20261106_team_social_posts.sql`, `lib/teamSocialTargets.js`
-  pure + client-safe, `lib/teamSocialPosts.js`,
-  `app/admin/listings/TeamSocialShare.js`). Why: the team posts listings by
-  hand into ~25 Kinshasa property groups on Facebook, nothing recorded which
-  listing went where, and the same Gombe listing was nearly posted twice in a
-  group whose admins approve every post.
-  - The team dialog now opens from every row of `/admin/listings`' Approuvées
-    tab (share icon) as well as the listing page. Under the buttons:
-    "Où le publiez-vous ?" (our Facebook page, Instagram, the groups listed in
-    `TEAM_SOCIAL_TARGETS` with a link to each, or "Autre…" typed). Picking a
-    place swaps the caption's link for that place's own link
-    (`utm_medium=groupe|page`, `utm_campaign=<key>`, recorded by
-    lib/attribution.js) and asks Facebook to read THAT link — it caches per
-    URL. The URL is rebuilt server-side from the listing and the resolved
-    target (`teamSocialUrl`), never taken from the browser.
-  - "Marquer comme publié ici" (`recordTeamSocialPostAction`,
-    `listings.view`, audited `listing.social_post`) writes one row: public
-    listings only (gate in the INSERT), the same place within 24 h refused as
-    `duplicate`. A row is what someone SAID they posted, not proof it is up.
-  - The Approuvées tab shows "Publié sur" (places + date, newest first) and
-    two filters: Réseaux sociaux (pas encore / déjà publié) and "Pas encore
-    dans <groupe>" — the list to work through for one group.
-  - Before the migration: `hasTeamSocialPosts()` (to_regclass) gates every
-    read, the column shows "—", filters are ignored, the mark button is off
-    and says the migration is missing. `ListingQuickShare` stays free of admin
-    copy (it also renders for agents): the picker is the `teamSlot` prop.
-    Tests: `tests/unit/team-social-posts.test.js`; engine §78.
-
-## Dashboard: WhatsApp clicks, split (2026-10-26)
-
-`/admin/dashboard` (`ClickBreakdown.js`, `lib/analytics.js` `getWhatsAppClickTotals`
-/ `getWhatsAppClickBreakdown`). Tests: `tests/unit/dashboard-click-breakdown.test.js`.
-
-- **Period chips** `?periode=7|30|90|tout` (default 30) drive the whole Trafic band.
-- **The headline counts people** (`peopleSql`: `viewer_kind` visitor or NULL, device
-  not bot); the hint gives distinct people, the change against the previous
-  window of the same length, and how many taps were left out (team, agents on
-  their own listing, bots). The conversion rate is people over people.
-- **Splits**, all people only except Audience: audience, where the tap went
-  (direct agent / central), which button, source, type + purpose, price band
-  (USD; yearly rent ÷ 12; short-term apart), commune, top listings with
-  clicks ÷ page views (can pass 100 %: a card tap never opens the page), and a
-  12-week trend.
-- `viewer_kind`, `visitor_id`, `routing_type`, `placement` are read through
-  `to_jsonb`, so nothing 42703s before their migrations.
-- **Which button** (`whatsapp_clicks.placement`) needs engine
-  `migrations/20261026_whatsapp_click_placement.sql`; until it runs the INSERT
-  retries without it. Older taps show "Avant le suivi". Values: see
-  "WhatsApp tap placement" below (2026-10-27).
-
-## Investor metrics — `/admin/investisseurs` (2026-10-26)
-
-`lib/investorMetrics.js` (SQL + pure helpers), `app/admin/investisseurs/page.js`,
-monthly CSV `GET /admin/export/investors` (`data.export`, audited). Page is
-`market.view` (every role but sales), "Analyses" group, printable.
-Tests: `tests/unit/investor-metrics.test.js`.
-
-- **Starts at launch.** Production was reset for launch (every listing id ≥ 314,
-  first created 2026-10-20). `launch` = the first non-test listing's
-  `created_at`; monthly tables start in its month and every figure — monthly
-  and rolling (demand, response, acquisition: 90 days, shortened) — is bounded
-  at that instant. Pre-launch traffic was testing on listings that no longer exist.
-- **People only** (`peopleSql`, which now also drops `source = 'localhost'`:
-  the local dev server writes to production — this changed the dashboard too).
-  No test agency (`NOT_TEST_LISTING_SQL`, `agents.is_test`), no deleted row.
-- **Nothing unmeasured is 0**: a median needs `MIN_SAMPLE` (5) values, a
-  month with no rolled-up day has no visit-request count, a missing table
-  (42P01) makes its section "non disponible".
-- Sections: funnel by month (visitors, listing views, searches + no-result,
-  WhatsApp, calls, visit requests, recorded closes), liquidity (share of live
-  listings contacted in 30 days, time to first contact, days on market,
-  achieved vs asking), supply, unmet demand (search_events with 0 exact
-  results), retention (returning visitors, agents publishing again within 30
-  days), agent response (agent_performance_logs), acquisition by source, and
-  when each measurement began.
-- Not built: cost per lead (no ad-spend record), cohort charts.
-
-## Where visitors and accounts come from — attribution and partner codes (2026-10-27)
-
-Growth plan items 1–3 and 8–10. Engine migration
-`migrations/20261027_growth_attribution.sql` (additive; web writes correctly
-before it runs — every INSERT falls back on 42703 / 42P01). Tests:
-`tests/unit/growth-attribution.test.js`, `middleware.test.js`; engine §34, §66.
-
-- **One session, one source** (`lib/attribution.js`, pure, client + server).
-  The beacon used to send only the current page's `utm_source`, and its own
-  Referer is lukkaplace.com, so everything after the landing page — and every
-  visit from Google or Facebook without tags — was stored as `direct`. The
-  browser now keeps the landing attribution in sessionStorage (`lp_attr`):
-  utm source / medium / campaign / content / term, the ad click id
-  (`fbclid` / `ttclid` / `gclid`), the external referrer host and the landing
-  path. Every beacon carries it as `attribution` (plus `utmSource` for old
-  servers); a new tagged link replaces it. `source` on page views, WhatsApp
-  taps, listing events and searches is `sourceOf(attribution)`: utm_source,
-  else the ad platform, else the referrer host, else `direct`. **Expect the
-  dashboard's source split to move**: sessions that were `direct` after their
-  first page now carry their campaign.
-- **`page_views` stores the full campaign** (`utm_medium`, `utm_campaign`,
-  `utm_content`, `utm_term`, `click_id_type`, `referrer_host`, `ref_code`).
-  The other event tables keep only `source`; a campaign for a tap or a search
-  comes from the visitor's touch (below), joined on `visitor_id`.
-- **`visitor_touches`**, one row per `lp_vid`, written on each page view for
-  `visitor` / `agent` viewers only: the FIRST source ever seen (never updated)
-  and the LAST touch — a campaign tag, an ad click or another site; a partner
-  cookie alone is not a touch. Untagged visits only move `last_seen_at`, at
-  most every 30 minutes. The click id is kept here (Meta / TikTok server
-  events will need it).
-- **`account_acquisitions`**, written ONCE when an account is created:
-  `lib/accountAcquisition.js` from both web signup actions (copies the
-  visitor's touch in the INSERT, so a later cookie change never moves it), and
-  the engine's `services/accountAcquisition.js` from `upsertAgentFromWhatsApp`
-  (`channel` whatsapp / admin, the rep's code when one was attributed; no
-  browser, so no campaign). Never throws into a signup.
-- **Partners** (`lib/partnerRules.js` pure, `lib/partners.js` SQL): agents,
-  creators and campaigns, each with a code in the sales-rep shape (MARIE01).
-  **One namespace with `sales_reps.referral_code`**, enforced by triggers on
-  both tables. `partner_clicks` (one per connection per partner per hour),
-  `partner_conversions` (one per account — first valid referral wins).
-  - **`/go/<code>`** (`app/go/[code]/[[...rest]]/route.js`): `/go/NADIA01` →
-    `/`, `/go/NADIA01/387` → `/listings/387`. Counts the click, mints `lp_vid`
-    when the browser has none (so click and visit share it), sets `lp_ref`
-    (30 days, httpOnly, not replaced while it names an active partner), and
-    lands tagged `utm_source=agent|influencer|campagne&utm_medium=partner&utm_content=<code>`
-    — unless the destination already has a utm_source (an agent's shared link
-    keeps `wa_status` etc.). A rep's code → `/r/<code>` as before; unknown →
-    lands untagged.
-  - **`?ref=CODE` on any page** → middleware.js 307s to
-    `/go/CODE?via=param&to=<page without ref>`. Not on
-    `/compte/agent/inscription` (its `?ref=` is a rep code prefilling the
-    form), `/go`, `/r`, `/api`, `/admin`; GET only. A rep code there is
-    ignored, never pulling a customer into agent signup.
-  - **Signup credits the partner** in `lp_ref` (customer and agent web
-    signup); never an agent's own number.
-- **Every agent has a code** (`ensureAgentPartnerCode`, created on first
-  need: first name, else agency name, else `LP` + id in letters), and it rides
-  as `ref=` (last param) on the links they share: the share kit's captions and
-  link (square, 4:5, text), Mes biens' WhatsApp captions, Statut du jour,
-  `!share` / `!mesbiens`, the print QR code (not the neutral sheet, which has
-  no QR) and the owner report caption. **Deliberately NOT on replies to
-  customers Lukka Place brought** — lead replies, alternatives, quick replies:
-  those people were ours, and crediting the agent for them would pay for our
-  own leads. The team's social kit carries no code.
-- Before the migration: no codes (links unchanged), nothing credited, page
-  views fall back to the older INSERTs.
-- **`/admin/partenaires`** (items 17–19, `lib/partnersAdmin.js`,
-  `partners.view` — every role but sales; `partners.manage` — owner — to
-  create a creator/campaign, edit its fee, switch any code off). Tabs
-  Créateurs / Campagnes / Agents, period 7/30/90/tout, one page of partners
-  side by side: clicks → visitors → viewed a listing → listings viewed →
-  WhatsApp taps (all AFTER the visitor's first click, people only) →
-  accounts → verified → cost per verified account (`costPerAccount`: a
-  per-account fee, or a flat fee over every verified account; null, never
-  "0 $"). Visit requests are not in it: they are engine SQLite rows with no
-  visitor id. The period cutoff is SQL (`NOW() - make_interval`), never
-  `Date.now()` in the page. `partners.fee_amount / fee_currency / fee_basis`
-  and the funnel indexes are in the same migration. The partner page has the
-  toolkit (code, bio link `/go/CODE`, invite page `/i/CODE`, a link per
-  listing `/go/CODE/387` — one per video — WhatsApp share, QR PNG/SVG from
-  `./qr/route.js`), clicks per day, and the accounts it brought with a
-  "N accounts from the same connection" chip from 3 (a fact, never a
-  verdict). A code never changes once created.
-- **`/admin/liens`** (item 4, `lib/campaignLinks.js`): a GET form that builds
-  a tagged link + QR for any ad, post, flyer or radio spot. Sources and
-  formats come from fixed lists (`CAMPAIGN_SOURCES` / `CAMPAIGN_MEDIUMS`) so
-  one campaign never splits into "Facebook" / "fb"; campaign and content are
-  folded (`normaliseTag`), campaign defaults to `lancement_dec`; destination
-  is home, a listing number, a path or a lukkaplace.com address — anything
-  else is refused. Optional partner code → `ref=`. Nothing is stored.
-- **`/i/<code>`** (item 11, `app/(site)/i/[code]`): "Créez votre compte
-  gratuit — invité par Marie" with an agent's real name and photo and up to
-  three live listings. `RememberInvite` calls `rememberInviteAction` from the
-  browser — the same `lib/partnerVisit.js` /go uses (cookie, visitor id,
-  click) — because a Server Component cannot set cookies and WhatsApp's
-  link-preview fetcher runs no JavaScript. The CTA goes through
-  `/go/CODE?to=/compte/inscription`. A rep's code → `/r/`; unknown → 404 (no
-  loading.js, so a real one).
-- **Code field at signup** (item 12): customer signup has an optional
-  "Code de parrainage", prefilled from `lp_ref` (`lib/partnerPrefill.js`); an
-  unknown code is sent back (`error=ref`) BEFORE the account exists; a typed
-  code wins over the cookie (`via 'form_code'`). Agent signup's existing
-  field takes a partner code as well as a rep's (one namespace): a live
-  partner's code skips the rep check entirely.
-- **"Mes parrainages"** (item 16, `components/AgentReferralCard.js`, on the
-  agent overview after À faire): the agent's code, invite link `/i/CODE`,
-  copy, WhatsApp share (French text), QR PNG (`/compte/agent/parrainage/qr`,
-  session only), and clicks / customer accounts / verified numbers. Counts
-  only — no amount until the reward rule is decided. The overview banner's
-  shared portfolio link now carries `?ref=` too.
-- Items 5–7, 13–25 and 27–31 are below ("Referral credits, ad tracking and
-  the launch pages"). Item 26 (customers inviting customers) is not built,
-  owner decision.
-
-## Referral credits, ad tracking and the launch pages (2026-10-27)
-
-Engine migration `migrations/20261028_referral_credits_and_growth.sql`, run
-AFTER `20261027_growth_attribution.sql`. Every read before it says "not
-switched on" (42P01) and the pages render. Tests:
-`tests/unit/growth-launch.test.js`; engine §24 (job order), §67.
-
-- **$1 per activated customer, agents only** (`lib/referralRules.js` is THE
-  rule, change it there; `lib/referralCredits.js` is the ledger). Owner
-  decision: a customer counts once their number is verified AND they saved a
-  listing, set an alert or requested a visit within 14 days (visit times come
-  from the engine's `GET /admin/leads/counts`, now with `firstViewingAt`). No
-  daily cap. Each credit waits 7 days (`approvable_at`) before it can be
-  approved. Creators and campaigns are paid by their recorded fee, never here.
-  - **Never earns**, written VOID with the reason: any agent's number
-    (`auto:agent_number`), a number that already earned a credit
-    (`auto:number_already_credited`, a live-credit unique index on the phone
-    hash). The agent's own number and accounts opened from a team browser
-    (`lp_staff` / impersonation) are refused earlier, in
-    `lib/accountAcquisition.js`.
-  - pending → approved (`partners.payout`: owner, finance, bulk) → paid (one
-    `partner_payouts` row per agent and currency, credits locked FOR UPDATE).
-    A deleted account voids an unpaid credit and FLAGS a paid one for
-    clawback; a person can do the same with a reason. No query ever takes
-    money back or deletes a credit.
-  - Flags (`referralFlags`): 3+ accounts from one connection in a day,
-    activation under 30 % once 5+ accounts have had their 14 days. Facts only.
-  - `/admin/partenaires/agents`: who brought whom, credits by state, approve,
-    pay (mobile money / cash / bank + reference), void, CSV export, and
-    "Annoncer le programme aux agents" (owner; `lib/referralAnnouncement.js`,
-    once per verified agent, 100 per press, a SESSION message: accepted is
-    not delivered).
-  - **Beyond the 24 h window (2026-11-03).** `REFERRAL_ANNOUNCEMENT_TEMPLATE`
-    (web env, read at call time, unset by default) makes the button send that
-    approved template (body {{1}} first name or "cher partenaire", {{2}} the
-    code; the link is `https://lukkaplace.com/i/{{2}}`) and re-send ONCE to
-    every agent whose announcement went as a session message; a refused
-    template falls back to the text. Without it, the engine sends the text when
-    a verified agent writes in (`POST /api/internal/referral-announce`, root
-    CLAUDE.md "Growth launch"). `partner_program_announcements.channel`
-    (session / template / on_write, NULL = session) and `resent_at`
-    (`migrations/20261103_referral_announcement_channel.sql`). The page says
-    which of the two the button will do. Payouts every two weeks is stated in
-    the text and on the agent's card.
-  - The run is the console's "Calculer les crédits" and the engine's morning
-    job (below). The agent's card shows waiting / approved / paid in USD and
-    the last customers by first name.
-- **Meta / TikTok pixels and server events** (items 5–6). Pixel ids on
-  `/admin/settings` → "Croissance" (`cms_settings` `site.growth`,
-  `lib/growthSettingsRules.js`), else `META_PIXEL_ID` / `TIKTOK_PIXEL_ID`.
-  Tokens ONLY in the server environment: `META_CAPI_TOKEN`,
-  `TIKTOK_EVENTS_TOKEN` (`lib/adServerEvents.js`, server-only; the console
-  shows only whether each is set). Nothing loads while both ids are empty.
-  - `components/AdTracking.js` (in `app/(site)/layout.js`) loads the pixels
-    (`lib/adPixelLoaders.js`), PageView per route. `lib/adEvents.js`:
-    ViewContent (ListingViewTracker), Search (SearchTracker), Contact
-    (trackLeadClick / trackCallClick), each with a server copy through
-    `POST /api/ad-event` under the SAME event id. CompleteRegistration (a
-    verified customer: both verify paths and `/compte/activer`) and Schedule
-    (a visit request, single and batch) are sent from the server action
-    (`lib/adServerContext.js` `recordAdEventFromAction`) and queued for the
-    browser in `lp_adq` under the same id. Phone and visitor id leave SHA-256;
-    `fbc` is rebuilt from the visitor's last `fbclid` touch, `ttclid` passed.
-  - **TikTok event names** (`TIKTOK_EVENT_NAME`) and the Graph API version
-    (`v21.0`) were written from the platforms' public docs without a live
-    account: check both in Events Manager after the first events.
-- **Consent** (item 7, `lib/adTrackingRules.js`): a browser on a European
-  time zone gets a banner (Accepter / Refuser, `lp_consent` 180 days); every
-  other browser is `na` and measured. No cookie = nothing sent, browser or
-  server. `/confidentialite` describes it (facts about this code only; have
-  it reviewed before treating it as the formal policy); linked from the
-  footer and the banner.
-- **Creators' TikTok figures** (item 20): a weekly form on the creator's page
-  (`partners.stats`: owner, moderator, support, analyst; stored under the
-  week's Monday, `partner_social_stats`) beside that week's clicks and
-  accounts.
-- **`/admin/croissance`** (item 21, `lib/growthDashboard.js`,
-  `lib/growthRules.js` `channelOf`): customer accounts per day and by
-  channel (partner → paid click → source → first source; "inconnu" before
-  tracking), verified, new agents, visitors (per day, added up), listings
-  viewed per visitor, weekly ad spend typed in (`ad_spend_weekly`) and cost
-  per verified account for Meta / TikTok. NO target (owner decision).
-- **Owners' morning WhatsApp** (item 22): engine job `growth-daily`
-  (`services/growthDaily.js`, `GROWTH_DAILY_HOUR` default 7 Kinshasa,
-  `GROWTH_DAILY_SUMMARY=off` keeps only the credit run) calls
-  `POST /api/cron/growth-daily` (credit run + yesterday's text) and sends the
-  text to `ADMIN_ALERT_NUMBERS` (else the desk), through the desk-alert
-  template when set.
-- **Signup on WhatsApp** (item 23): "Créer mon compte via WhatsApp" on
-  `/compte/inscription` and the invite page (`lib/whatsappSignup.js`,
-  "Inscription Lukka Place — Code : X"). The engine
-  (`services/customerOnboarding.js`, routed before the sales referral)
-  creates a VERIFIED customer (`signup_channel 'whatsapp'`, no usable
-  password until set), credits the code's partner, records the acquisition
-  and replies with a 72 h single-use link to `/compte/activer` (public in
-  middleware.js). An existing number gets its login link instead.
-- **Signup prompts** (item 24, `components/SignupNudge.js`,
-  `lib/signupNudgeRules.js`): 2nd saved listing, 3rd listing opened, a search
-  with no exact result. Once per tab session, never when signed in, a card
-  under the header (never at the bottom where the phone bars live), quiet on
-  listing pages, the map and /compte.
-- **Membre fondateur** (item 25, `lib/founder.js`): accounts created before
-  the cutoff (settings, default 2026-12-21, Kinshasa) get the badge on
-  Accueil; every account its member number, counted, never stored.
-- **Browse for fun** (items 27–31, `lib/browseFeatures.js`, homepage
-  `components/HomeDiscovery.js`, 60 s memo): `/bien-du-jour` (the team's
-  pick from `/admin/croissance`, else a daily md5 draw among live listings
-  with 3+ photos; its preview is `./opengraph-image.js`, the listing card),
-  `/combien-coute[/2-chambres-gombe]` (median long-term asking rent, 5+
-  listings, short stays out, yearly ÷ 12), `/collections/<slug>` (villas,
-  moins-de-300, avec-piscine, courte-duree, nouveaux: real searches,
-  nationwide, 3+ listings), `/videos` (3+ listings with a video, one per
-  screen), `/indice-lukka` (monthly snapshots, 5+ asks; the image at the
-  stable `/indice-lukka/image`). **Metadata image routes get hashed paths**
-  (`/listings/[id]/opengraph-image-ixmui2`): never link `…/opengraph-image`
-  directly. No loading.js above any of these pages: one with too little
-  behind it is a real 404. In the sitemap only when they exist.
-- **Deploy** (item 33): run `20261027_growth_attribution.sql` then
-  `20261028_referral_credits_and_growth.sql`; restart the engine (new job,
-  new webhook branch); deploy web. Then set the pixel ids on
-  `/admin/settings`, the two tokens in web's `.env.local` (+ restart), create
-  creators on `/admin/partenaires`, and press "Annoncer le programme" when
-  ready.
-
-## Agent directory — the "Agents" tab (2026-10-26)
-
-`/agents` (`app/(portfolio)/agents/page.js`, SQL `lib/agentDirectory.js`, pure
-`lib/agentDirectoryRules.js`), "Agents" in the header and the phone drawer.
-Tests: `tests/unit/agent-directory.test.js`.
-
-- **Search and filters are URL params on a GET form** (`q`, `nom=1`, `ville`,
-  `communes` (comma list, ≤ 5; the old single `commune` still reads),
-  `pres=1`, `offre` location|vente, `verifies=1`, `tri` listings|rating|recent,
-  `page`): one server render per search, usable before hydration on 3G,
-  shareable. Client code: the two selects that submit on change
-  (`DirectorySelect.js`) and "Autour de moi" (`NearMeButton.js`).
-- **Area is picked by one-tap commune chips** (2026-10-26), busiest first, each
-  with its agent count (`getCommuneCounts`: the other filters applied, the
-  chosen communes not, so a chip's number is what tapping it adds). A commune
-  with no agent is never offered; the chosen ones always show, first. Twelve
-  visible, the rest under "Voir les N autres communes" (`<details>`, no JS).
-  Several communes are an OR. Kinshasa's own commune reads "Commune de
-  Kinshasa" so it is not taken for the city.
-- **The box reads a place** (`resolvePlaceQuery`): a city, any city's commune,
-  or a Kinshasa quartier / alias / landmark from the gazetteer ("Righini" →
-  Lemba, "près de l'UPN" → Ngaliema; Salongo → every commune that has one),
-  but only when nothing else is left in the text ("Agence Matonge" stays a
-  name search). It then replaces the menus' area and is not also a name
-  filter; a note says what was understood and links to `nom=1` to search the
-  text as a name. `agentDirectoryRules.js` imports the gazetteer — keep it out
-  of client components.
-- **"Autour de moi"**: on tap only, `navigator.geolocation` → the nearest
-  commune centres (`lib/nearestCommunes.js`, no imports, runs in the browser;
-  the nearest plus up to two within 1.6× its distance, nothing beyond 15 km)
-  → `?communes=…&pres=1`. Coordinates never leave the phone or reach the URL.
-  Centres are `COMMUNE_CENTROIDS`, passed as props.
-- **One SQL page of 24** with `COUNT(*) OVER ()`; it replaced
-  `getPublicAgents()`, which loaded every agent. Listed: active, not deleted,
-  ≥ 1 live listing. A commune matches the agent's declared communes OR a live
-  listing tagged there; a city, any of its communes. Search is accent-folded
-  (`translate()` in SQL, `foldSearchText` on the term) and `%`/`_`-escaped.
-- **WhatsApp / Appeler only under the listing page's rule** (verified number,
-  direct routing on), selected in SQL as `contact_phone`. Names never use
-  `agents.username` or the "Agence #id" console placeholder.
-- Every filtered or paged copy is `noindex, follow`, canonical `/agents`.
-- "Vérifiés" filters on the document-reviewed tier, which no agent holds yet.
-
-## Guides & Actualités — the blog behind `publicBlog` (2026-10-26)
-
-Posts written at `/admin/blog` (`blog.manage`: owner, moderator), shown on
-`/guides` once `/admin/settings` › "Guides & Actualités (blog)" is on.
-**Off by default.** Engine migration `migrations/20261026_blog_posts.sql`
-(new table, RLS on, anon revoked) — **applied to production 2026-10-26**;
-checked end to end the same day (draft #1 created, previewed, 404 in public,
-deleted — the soft-deleted row is still in the table).
-Tests: `tests/unit/blog.test.js`.
-
-- **Off = exactly the old `/guides`**: the four code guides (`lib/guides.js`),
-  no menu link, no posts in the sitemap, a post's URL is a 404. On: posts join
-  the guides, newest first, with Tout / Guides / Actualités (`?categorie=`,
-  noindex), a "Guides & Actualités" header/drawer link, posts in the sitemap.
-  A post whose slug equals a guide's replaces that guide (`mergeArticles`), so
-  a guide can be edited from the console without a deploy.
-- **Public = `PUBLIC_POST_FILTER`** (`lib/blog.js`): published AND
-  `published_at <= NOW()` AND not deleted. A future date is a scheduled post;
-  no job publishes it. Every public read is `[]`/null on 42P01.
-- **Real 404**: `guides/[slug]/layout.js` checks `getPublicArticle` above the
-  segment's skeleton; the index lives in `guides/(index)/` with its own.
-- **No HTML anywhere.** The body is a textarea in a small format parsed by
-  `parseBody` (`## titre`, `- point`, `1. étape`, blank line = paragraph,
-  `[texte](/chemin)` or https links only, plus the rich blocks below) into
-  the same blocks the code guides use, rendered by
-  `components/blog/ArticleBody.js` as text.
-- **Linked to the listings**: a post can name a transaction, a commune and a
-  type; the article ends with three live listings (`getListings`, public gate)
-  and a button to the matching landing page (`postListingsHref`: `seoPath`,
-  else `/listings?…`). Types are the landing pages' list, communes
-  `lib/cities.js`.
-- **English is optional and all-or-nothing** (title + body); an English reader
-  sees it when present, otherwise the French with the "rédigé en français" note.
-- **Cover**: upload only (a typed URL is never trusted), resized to 1600 px
-  JPEG under `cms/blog/` in the listing bucket; alt text required with it.
-- Every write is audited (`blog.create|update|unpublish|delete`, body length,
-  never the text). Delete is soft and frees the slug. Preview at
-  `/admin/blog/[id]/apercu` whatever the state or the switch.
-- **Rich blocks, written with Claude (2026-11-10, owner decision: articles are
-  written in Claude, not in a console editor).** The body format gained pipe
-  tables and `:::` directives — `tableau`, `chiffres` (key figures),
-  `graphique` (bars / line; `source=` required), `astuce|attention|info`,
-  `citation`, and two LIVE blocks: `prix` (the price guide's medians via
-  `getPriceGuides`, a commune short of listings is named, never priced) and
-  `annonces` (three public listings). `parseBody` never throws (an unreadable
-  block is `{invalid}`); `bodyProblems` makes Save and the import refuse it
-  with the block's name (`badBlock` + `detail`). Still no HTML path.
-  Rendering: `components/blog/ArticleBody.js` (async; a plain body stays
-  translator-free), `BlogChart.js` (server HTML bars / SVG line, axis from 0,
-  no chart library), `LiveBlocks.js` (`:::prix`), `LiveListings.js` — passed
-  as `listingsBlock` by the public page ONLY, because PropertyCard's client
-  namespaces are not provided under /admin; the preview names the search.
-  Motion: `Reveal.js` arms a below-the-fold block and plays it on scroll
-  (`[data-reveal]` in globals.css: rise, bars grow, line draws), `CountUp.js`
-  counts the first number of a key figure (writes textContent, no state);
-  SSR output is the final content and reduced motion shows it still.
-- **`npm run blog:import -- content/blog/<slug>.md [--write]`**
-  (`scripts/blog-import.mjs`): header between `---` lines (titre, resume,
-  categorie, slug, commune, type, transaction, couverture, couverture_alt,
-  titre_en, resume_en), French body, optional English after
-  `=== english ===`. Dry run by default; new posts are drafts, a re-import
-  updates the text and KEEPS the state (a published post's new text is live —
-  it warns); a local cover is resized and uploaded like the console's. Audited
-  as `script:blog-import`. Source files live in `content/blog/`; the writing
-  rules are the user-level `lukka-blog` skill.
-  `tests/unit/blog-rich-blocks.test.js`.
-- **The 3 + 1 + 1 guide and `:::calculateur` (2026-11-11, owner decision).**
-  `lib/guides.js` now holds ONE code guide, `garantie-3-1-1-kinshasa`,
-  rewritten around Loi n° 15/025 (arts. 3, 5, 10, 17–22, 39, 43, sourced in
-  the text) with an interactive calculator. The three other guides were
-  deleted on the owner's request; `next.config.mjs` 308s their URLs to
-  `/guides` (`REMOVED_GUIDE_SLUGS`), and SeoLandingPage lists the one guide on
-  rental pages only. A code guide may carry an `en` version (title,
-  description, body, optional cta — all or nothing, like a post);
-  `articleFromGuide(guide, locale)` serves it to an English reader.
-  The calculator is a block, `{ calculator: { kind: 'garantie' } }`, also
-  writable in a post as the one-line `:::calculateur` (`CALCULATORS`).
-  Maths in `lib/depositCalc.js` (pure: the three costs stay separate, the
-  first advance month is rent, legal ceiling 3 / first month only / 1);
-  UI `components/blog/DepositCalculator.js` (client, opens on 670 $ 3+1+1);
-  `LiveDepositCalculator` (LiveBlocks.js) resolves `guides.calculator.*` as
-  templates and passes `getCdfRate()` with its own date, so FC amounts are
-  "≈" at the site's reference rate, never an editable or dealing rate.
-  `tests/unit/deposit-guide.test.js`.
-- Not built: a WhatsApp share preview image per post (the cover is og:image
-  when set), comments, authors' names on articles.
-
-## WhatsApp tap placement, "Agences" in the menu, /admin/cms and SEO defaults (2026-10-27)
-
-Tests: `tests/unit/dashboard-click-breakdown.test.js`, `agent-directory.test.js`,
-`admin-cms.test.js`.
-
-- **`whatsapp_clicks.placement`** is one of `card` (WhatsAppCTA on a feed /
-  rail / list card), `listing_desktop` (EnquiryCard in the listing page's
-  desktop rail), `listing_mobile_bar` (MobileListingBar) or `map_card`
-  (WhatsAppCTA `placement="map_card"` — no map card renders a WhatsApp button
-  yet, so nothing writes it today). `lib/leadClicks.js` `leadClickPlacement`
-  turns anything else into NULL; the route never rejects a tap for it, and
-  the 42703 fallback is unchanged. **The phone copy of EnquiryCard (in the
-  page body, `lg:hidden`) sends no placement** — none of the four values
-  describes it, and the dashboard's "inconnu" row says "Avant le suivi ou non
-  précisé". `listing_page` (written 2026-10-26 → 27, both EnquiryCard copies)
-  stays valid in the CHECK for rows already stored and is not relabelled.
-  trackLeadClick still fires the ad `Contact` event and the session attribution.
-- **"Agences"** (`nav.agencies`) is the directory link (`/agents`, the real
-  route), last in PRIMARY_LINKS: right after À propos in the bar, and in the
-  drawer the row just above Favoris. It replaced the "Agents" entry, so there
-  is one directory link; the portfolio header says Agences too.
-- **Hero search**: already as specified before this pass (Ville defaults to
-  Kinshasa, lib/budgetSteps.js lists, Louer ↔ Acheter resets the budget).
-  Kept: the sale Max list starts at 25 000 (owner, 2026-10-25), and Courte
-  durée shows no budget — those rents are per day / week, a monthly scale
-  would filter them wrongly.
-- **/admin/cms**: the "Bannières d'accueil (sliders)" section and
-  `getSliders` / `updateSlider` are gone — those Laravel rows were only the old
-  template's taglines ("Search Congo's Largest Choice Homes"…), never rendered
-  by this site. Removing the rows is the engine's
-  `scripts/remove-legacy-slider-copy.js` (dry run by default; `--write` backs
-  them up to JSON, then deletes only the exact known taglines). The ad table
-  labels each row by the FORMAT it stores (`resolution_type` 1/2/3 =
-  300×250 / 300×600 / 728×90, `lib/cmsAdRules.js`) — no column names a page,
-  and no banner is shown on lukkaplace.com, so a page name would be invented.
-  A thumbnail appears only for an https image next/image may load; the
-  current rows hold bare Laravel file names that 404 everywhere, shown as
-  "Fichier … introuvable". URL inputs read `https://…`, buttons Enregistrer,
-  a URL must be http(s) or empty.
-- **"Optimisation SEO & Meta"** (/admin/cms, `cms.manage`): default title and
-  meta description per language, and the default Open Graph image (https or
-  a site path), stored as `cms_settings` `site.seo` through
-  `lib/siteSettings.js` (`getSeoSettings`, memoised 30 s, never throws). Rules
-  in `lib/siteSettingsRules.js` (`validateSeoInput`, `seoFromStored`,
-  `seoMetadata`). `app/layout.js`'s generateMetadata uses them; an empty field
-  keeps `site.metaTitle` / `site.metaDescription` and the built-in
-  og-image.png. Page metadata still wins: the root title is a plain string,
-  so any page title replaces it, and listing pages keep their own
-  opengraph-image. No row exists until someone saves the form.
-
-
-## Engagement moments (2026-11-03)
-
-Six small rewards, each built on a fact we already record. Tests:
-`tests/unit/engagement-moments.test.js`.
-
-- **"92 % correspond à votre recherche"** under a card's price
-  (`components/SavedSearchMatchBadge.js`, rules `lib/savedSearchMatch.js`):
-  signed-in customers with a saved search only, after hydration. Purpose,
-  commune(s) and an exactly comparable type are gates (outside them: no
-  badge, never a low number); the score is `agentMatching.matchPercent`'s
-  budget plus bedrooms as a minimum; best saved search wins; shown from 70 %.
-  Saved queries are read directly (not through `lib/searchQuery.js`, which
-  would pull the map code into every card).
-- **Price drops on saved listings**: `lib/favoritePriceDrops.js` (cut = the
-  card badge's rule, `PRICE_DROP_LATERAL` in lib/listings.js; 1–50 %; made
-  AFTER the save; public, active). WhatsApp from the daily `search-alerts`
-  cron, first chunk only (`lib/favoritePriceDropSweep.js`): one message per
-  customer, ≤5 cuts, verified and not-opted-out numbers, recorded in
-  `customer_price_drop_notifications` (engine
-  `migrations/20261103_favorite_price_drop_notifications.sql`) only after the
-  send was accepted. Session message — the 24 h window applies. The
-  Enregistrés tab shows a green dot while a cut is newer than this device's
-  `lp_fav_seen` cookie (`lib/favoriteSeen.js`), cleared by opening the tab.
-- **"N nouveaux biens depuis votre dernière visite"** on /listings and
-  Accueil (`components/NewSinceLastVisit.js`, `lib/visitStamps.js`): a gap
-  of 30 min starts a new visit; both stamps in localStorage only;
-  `GET /api/listings/new-since?since=` counts through getListings with the
-  alert sweep's "published since", and the link opens exactly those ids.
-- **Confirmed visit card** (`visites/VisitCard.js`): countdown chip
-  (`visitAgenda.visitCountdown`, Kinshasa days), a shine across the green
-  band, the agent's face (`AgentMonogram`: their logo, else initials)
-  and a full-width "Ajouter à mon agenda".
-- **Agent firsts** (`components/AgentMilestoneCelebration.js`,
-  `lib/agentMilestones.js`, `lib/agentMilestoneRules.js`): first visitor
-  view, first WhatsApp tap, first visit request, first deal — confetti card on
-  the overview once per device, only when reached in the last 14 days, the
-  most important one when several are new.
-- **"Loué / Vendu via Lukka Place"** (`lib/marketing/soldShareKit.js`,
-  `components/SoldShareHost.js` in the agent layout): after
-  MarkListingSoldDialog succeeds, "Bravo !" then the listing's own card with
-  "Loué via Lukka Place" WHERE THE PRICE WAS — no price (the asking price
-  would read as the deal price; `sold_price` is the landlord's business) —
-  captions linking to the agent's page (the closed listing's page is gone).
-  Never stored offline, nothing recorded in `listing_shares`.
-
-## The agent announcement campaign — the Campagne tab (2026-11-04)
-
-`/admin/campagne` (`partners.view`; the switch is `partners.manage`, audited):
-the referral programme announcement in one place — its state with
-"Arrêter / Relancer la campagne", how it goes out (the "Annoncer" button on
-/admin/partenaires/agents and the engine's send when an agent writes in),
-whether `REFERRAL_ANNOUNCEMENT_TEMPLATE` is set, the exact text, and how many
-agents it reached / would still reach. One switch, `cms_settings`
-`growth.referral_campaign` (`lib/siteSettings.js` `getReferralCampaign`):
-no row or an unreadable one = **stopped**, and both ways out send and record
-nothing while stopped. Stopped on 2026-11-04 because agents read the message
-as THEM having to sign up; the text (`announcementText`) was rewritten the same
-day to the `parrainage_clients_agent` template's wording ("Lukka Place vous
-paie pour nous amener vos clients… vous n'avez rien à faire pour votre
-compte").
-
-**The same switch turns agents' CODES off** (same day, owner: "shut them
-down" — switching one partner off is not enough, `ensureAgentPartnerCode`
-just mints a new one, JOSUE01 → JOSUE02). `lib/partners.js`
-`AGENT_CODES_LIVE_SQL` is inside `FIND_PARTNER_BY_CODE_SQL`, which every
-code check reads (/go, ?ref=, /i/<code>, both signups' prefill and credit,
-`partnerVisit`); the engine's WhatsApp signup (`services/customerOnboarding.js`)
-carries the same condition. While stopped an agent's link lands untagged,
-/i/<code> is a 404, nothing is credited, and "Mes parrainages"
-(`AgentReferralCard`) is not rendered, and the credit job
-(`CREDIT_CANDIDATES_SQL`) creates no agent credit — sign-ups already linked
-wait and are credited only if the campaign is restarted. On 2026-11-04 the
-only agent credit on record was already void.
-Creators' and campaigns' codes are not affected.
-Tests: `tests/unit/referral-campaign-switch.test.js`.
-
-## Interactions clients → agents (`/admin/interactions`, 2026-11-04)
-
-One number for "how many times did customers reach an agent", and one row per
-agent. `lib/interactionCounts.js` (pure: the channels and what counts),
-`lib/agentInteractions.js` (Postgres taps + the engine's
-`GET /admin/interaction-counts`, read independently so one store being down
-leaves the other's channels on the page with an `ErrorNote`).
-
-- **Counted**: visitors' direct WhatsApp taps and "Appeler l'agent" taps
-  (`viewer_kind = 'visitor'`), messages to our number from a listing, visit
-  requests, profile and project requests, and the desk's "mises en relation".
-  A tap proves the button was pressed, not that a conversation followed; the
-  page says so. Central-number taps are shown beside the total, not in it (a
-  sent message is already counted as an enquiry). An engine row that names only
-  a listing is attributed to that listing's agent; none → "Sans agent attribué".
-- **"Enregistrer une mise en relation"** (`leads.manage`,
-  `app/admin/interactions/actions.js`): the desk records a customer it put in
-  touch with an agent outside the site. Engine side: root CLAUDE.md, same
-  heading. The lead detail page shows how and who recorded it;
-  `NON_SEARCH_LEAD_SOURCES` keeps it off the customer's own searches.
-- `tests/unit/interaction-counts.test.js`.
-
-## Agent signup page, after the October ad (2026-11-04)
-
-The 29–30 October Meta campaign sent 4,215 phone visitors (3,788 feed + 427
-Audience Network, campaign `120253650320780174`) to
-`/compte/agent/inscription`; 2 reached the code step and new agents stayed at
-the usual daily rate. The page was a bare five-field form opening on
-"Nom de l'agence". Now (`app/(site)/compte/agent/inscription/page.js`):
-
-- **Why join, above the form**: "2 mois gratuits" (the engine's SIGNUP_REPLY
-  claim, no new one) and customers write on your WhatsApp. A live-listing
-  count was shown too and removed the same day on the owner's request.
-- **"S'inscrire sur WhatsApp" first** (`agentWhatsappSignupLink`,
-  lib/whatsappSignup.js): opens the intake number with a message the engine
-  answers without a model call — SIGNUP_REPLY ("send your first listing"),
-  or, with an ACTIVE rep's code, salesReferral's welcome (code remembered for
-  the account the first listing creates). Never "Inscription Lukka Place…"
-  (that creates a CUSTOMER); a partner's code is not passed (the engine would
-  say "code inconnu"). `tests/unit/agent-signup-page.test.js` runs the
-  engine's matchers on the exact text.
-- **The person first, the agency optional**: `error=agency` is no longer
-  raised; an empty agency leaves the public name to the person
-  (AGENCY_NAME_EXPR). The referral field folds behind "J'ai un code de
-  parrainage" unless a code is carried or `error=ref`. Inputs are 44px and
-  16px on a phone (no iOS zoom); nothing autofocuses.
-- **Funnel log** (`components/SignupFunnelTracker.js` →
-  `POST /api/telemetry/signup-funnel`, a log line like vitals, no table):
-  `form_start`, `submit`, `whatsapp_tap`, `referral_open`, with source,
-  campaign, device, viewer kind and visitor id. Read with
-  `pm2 logs lukka-place-web --lines 20000 --nostream | grep '\[signup-funnel\]'`
-  and count distinct `visitor`. A WhatsApp signup's account still shows up as
-  `account_acquisitions.channel = 'whatsapp'`.
-- Not done: the password still comes before verification, and the Meta pixel
-  / CAPI token are not set (`/admin/settings` → Croissance), so a campaign
-  cannot optimise for registrations yet.
-
-## Conversion pass: request without an account, viewer count, Meta catalogue (2026-11-04)
-
-Tests: `tests/unit/conversion-features.test.js`.
-
-- **"Trouver pour moi" without an account** (`lib/guestRequestRules.js`,
-  `components/GuestRequestForm.js`, action `app/(site)/trouver-pour-moi/actions.js`).
-  An empty search used to link to /compte/client/demandes, which sends a
-  guest to sign in. It now shows the form at the bottom of
-  `ListingsEmptyState` (a jump link near the top), prefilled from the search,
-  and the same form lives at **/trouver-pour-moi** (prefill with the
-  /listings param names, so an ad can open on "2 chambres à Gombe"). Fields:
-  louer/acheter, commune (server allow-list, Kinshasa), type, chambres,
-  budget, name, WhatsApp number. It creates the lead through the same
-  `createLead` / POST /admin/leads as the signed-in form, `source:
-  'guest-search-request'`, so the engine pushes it to the commune's agencies.
-  - **The number is the visitor's claim, not a proven one** — the summary says
-    "numéro non vérifié". Guards before the lead: a honeypot (`website`),
-    the phone check, validation, 5/hour per connection and 2/day per number
-    (in process, one PM2 fork). Nothing is ever sent to that number by us.
-  - The "sent" copy promises only what is true: the commune's agencies
-    receive it, and one with a match will write.
-  - Outside Kinshasa (no commune list) the old signed-in link stays.
-  - A Meta/TikTok **Lead** event (`AD_EVENTS`, TikTok "SubmitForm") is sent
-    from the action under `lead-g-<id>`; `form: 'request'` funnel steps go to
-    `[signup-funnel]`.
-- **"N personnes ont consulté ce bien ces 7 derniers jours"**
-  (`lib/listingInterest.js`, `components/listings/ListingInterestLine.js`,
-  under the availability badge, in its own Suspense). Distinct `visitor_id`,
-  visitors only (no owner, agents, team, bots, prefetch). Shown as counted
-  from 1 ("1 personne a consulté…", plural object), nothing at 0 — the owner
-  chose real numbers over the first version's 5-person minimum. Never padded.
-- **Meta home listings catalogue** at **/feeds/meta-home-listings.csv**
-  (`lib/metaHomeListingsFeed.js`). Public listings, active, residential, a USD
-  price (monthly for a rent; day / week / year rents left out), ≥1 usable
-  photo, a point rounded to 2 decimals (~1 km; stored point else commune
-  centroid). 232 of 277 live listings on 2026-11-04. A failure is a 503,
-  never an empty feed. Column names follow Meta's public spec, unverified
-  against a live catalogue: check the first upload's diagnostics.
-  Meta pixel/CAPI events with listing ids now say `content_type:
-  'home_listing'` (was 'product') so retargeting matches the catalogue.
-  **Setup** (not done): Commerce Manager → new Home listings catalogue →
-  scheduled feed with that URL → connect the pixel; needs the pixel id on
-  /admin/settings → Croissance first.
-- Not built: alerts without an account (saved searches belong to customer
-  accounts; the request above is the no-account way to be told), and
-  Click-to-WhatsApp ads (an ads setting; the buyer assistant answers
-  `buyer_request` messages but has never handled live traffic).
-
-## Landing pass: folded phone search, alerts from the homepage and the listing (2026-11-04)
-
-From a 375×812 walk of the live site: "Voir N biens" ended at 835px, the first
-listing photo at ~1,066px, and nothing on the homepage said what an account
-is for. Tests: `tests/unit/landing-conversion.test.js`.
-
-- **Phone search card** (`SearchBar.js`): Ville, Type and Budget fold behind
-  "Plus de critères" below `sm` (`max-sm:hidden`), with a count of criteria
-  set in the fold; from `sm` every field shows as before.
-- **"N nouveaux biens en 7 jours"** on the hero (`countListingsPublishedSince`,
-  public gate, published = the "Nouveau" badge's rule; 60 s cache
-  `cachedWeeklyNewCount`). Nationwide, nothing at 0, never rounded up.
-- **HomeAlertBand** after the listings: a WhatsApp alert on Louer/Acheter +
-  a Kinshasa commune (those with listings first, real counts) + an optional
-  maximum budget (`lib/homeAlert.js`), and a link to /trouver-pour-moi.
-- **QueryAlertButton** saves a given /listings query from any page: signed in
-  → SearchAlertConfirmModal then `saveSearch` (href `/listings?query`, the
-  same record as saving from /listings); a guest → AuthPromptModal with
-  `next=/listings?query&lkp_auth_return=alert`, which SaveSearchButton's pill
-  (always mounted on /listings) resumes once the session is real.
-- **"M'alerter des biens similaires"** on the listing page
-  (`SimilarAlertButton`, beside the contact card and under the similar rail):
-  `lib/similarSearch.js` `similarAlertQuery` — same rent/sale, commune, type
-  (lowercased category name), bedrooms as a floor, price 70–130 % (none for a
-  yearly rent; a daily/weekly one is `lease_term=short`). Nothing when the
-  listing states no commune, type, bedrooms or price.
-- **"Biens similaires" fix**: `getSimilarListings` ranked by embedding alone,
-  so an $800/month flat showed a $1,000,000 building for sale (listing 653).
-  It now keeps the purpose, the rent period and the same 70–130 % band; the
-  commune and citywide fallbacks keep the purpose.
-- **Signup page** lists what the account does (alerts, favourites on every
-  device, price drops on saved listings) above "Vos favoris… seront conservés".
-- **SignupNudge on /listings** docks above the phone's Carte | Trier | Alerte
-  pill (lower-right from `lg`): under the header it covered the search box.
-
-## Market observations in the price guide (2026-11-04)
-
-Engine root CLAUDE.md, "Market observations", has the sources and the
-collection. Web half: `lib/marketGuide.js` (SQL), `lib/marketObservationRules.js`
-(pure: sources, kinds, hand-entry validation), `/admin/market-data/marche`.
-`tests/unit/market-observations.test.js`.
-
-- **`/combien-coute` blends two kinds of asking price**: our public listings
-  (the `status = 1 AND approve_status = 1` gate, unchanged) and
-  `market_observations` that are clean, a home (RESIDENTIAL_KINDS), 1–5
-  bedrooms, under 365 days old and seen online in the last 60. Both sides
-  leave furnished homes out (a separate expat market). Before the migration
-  the guide falls back to Lukka listings only (42P01/42703); any other error
-  is not hidden.
-- **De-duplication**: a published group capture is the Lukka listing (skipped
-  while that listing is public; never counted once rejected or deleted); the
-  same rounded price in a commune × bedrooms seen on several sources counts as
-  MAX of the per-source counts, never the sum.
-- **The page says where the numbers come from**: "{n} annonces", "Dont {lukka}
-  sur Lukka Place et {market} relevées ailleurs", the source names (per-source
-  counts are before de-duplication, so they are named, not printed). "Voir les
-  N annonces" counts Lukka listings only — the search never shows an advert
-  seen elsewhere — and is hidden when there are none.
-- **Admin** (`market.view` to read, new `market.manage` — owner, moderator,
-  analyst — to write): source health, Lukka vs market by commune × bedrooms
-  (a median only from 5 listings per side), the Africanvestor page as a
-  published estimate (figures read from the page itself; a search summary had
-  quoted different ones), hand entry for Facebook / Zwandako (paste → the
-  engine's `POST /admin/parse-listing` prefills → a person checks and saves;
-  the pasted text is not kept; a link is required except for Facebook), and
-  the list with exclude (`manual:<code>`) / restore. An automatic exclusion
-  cannot be restored.
-- **"Coller des annonces" + `/admin/market-data/prospects` (2026-11-05).** One
-  paste of many adverts feeds the price guide AND the agents to recruit
-  (engine root CLAUDE.md, same heading, has the reader). `MarketPasteBatch`
-  shows one card per advert with two ticks — "Prix → guide des prix" and
-  "Agent → prospects" — and says when a number is already on the list or is a
-  Lukka Place agent (`knownPhones`). `saveMarketPasteAction` re-checks every
-  row (`validateManualObservation(…, { requireUrl: false })`,
-  `validateProspect`), refuses the whole save naming the first bad row, and
-  writes both tables in one transaction (`lib/marketProspects.js`
-  `saveMarketPasteBatch`). The prospects page (market.view; edits
-  market.manage) has status chips, search, a WhatsApp opener in French that
-  promises nothing (no "gratuit"), quick status buttons that date the first
-  contact, notes, the adverts behind each person and the CSV export
-  (`/admin/export/prospects`). Before the migration both pages say so and
-  nothing 500s. `tests/unit/market-prospects.test.js`.
-
-## Homepage below the search (2026-11-04)
-
-Decluttered from an approved mockup; the hero and search panel are unchanged.
-`tests/unit/home-below-search.test.js`.
-
-- **One section style**: `components/HomeSectionHeader.js` (title + a
-  sentence-case link with an arrow, no eyebrow) and `HOME_SECTION` (width,
-  gutters, `py-10 sm:py-16`) on Sélection / Biens enregistrés, Nouveaux
-  projets, Explorer, the market band and Notre approche. Bands are told apart
-  by their ground (white, royal, chalk), never by a border around them.
-- **Récemment consultés** on the homepage is `RecentlyViewed variant="strip"`
-  with `minItems={2}`: one line of 56px photos, price and place. The listing
-  page keeps the card rail.
-- **The alert band** is one `bg-blue-deep` band, two buttons; "Créer une
-  alerte" unfolds the unchanged `HomeAlertPicker` on a white panel
-  (`HomeAlertReveal`, rendered hidden so its state survives a close).
-- **Explorer** (`HomeDiscovery`) = at most four collection photo tiles + at
-  most six type chips (busiest residential types, then one "Bureaux &
-  commerces") + "Visites en vidéo". `PropertyTypeTiles.js` is deleted.
-- **Le marché locatif en chiffres** (`HomeMarketBand`, `HomeMarketExplorer`,
-  `lib/homeMarket.js`): the published price guides — every commune with a
-  guide for 1–4 bedrooms, busiest first, up to 12 — as tappable bars; the
-  middle half (p25–p75), "dont N sur Lukka Place" and "Voir le détail".
-  No buttons between the figure and the chart: a price alert and a "Voir les
-  annonces à …" button were tried and removed the same day (owner: the alert
-  band already offers the alert). Communes across the top, figure left,
-  chart right on a desktop. The Lukka Index panel beside it was removed the same day
-  (owner: not needed for now); its `home.market.index*` strings are unused.
-  /indice-lukka is unchanged.
-- **Notre approche**: three unboxed points with icons, shorter copy (same
-  claims), header link to /a-propos; the "Voir les annonces" button is gone.
-
-## /admin/seo — SEO & Google (2026-11-05)
-
-`app/admin/seo/page.js` (`market.view`, Analyses group), pure rules in
-`lib/seoAuditRules.js`, reads in `lib/seoAudit.js`, Search Console in
-`lib/searchConsole.js`. `tests/unit/seo-audit.test.js`.
-
-- **Live checks**: the domain's TXT records (Google's
-  `google-site-verification=` — added on Hostinger 2026-11-05 for the
-  `sc-domain:lukkaplace.com` property — and Bing's `MS=`), the sitemap counted
-  by calling `app/sitemap.js` itself, English pages (none: the locale is a
-  cookie, docs/seo-english-pages-plan.md), social profiles, Bing.
-- **Target searches** (FR + EN, `TARGET_SEARCHES`): the landing page meant to
-  answer each and its listing count (`getSeoFacets`, Kinshasa only, overlays
-  only on their own page). With Search Console connected, the position is the
-  impression-weighted average of our queries holding all the target's words
-  (`matchTargetRows`; FR/EN synonyms fold, "apartments for rent" =
-  "appartement à louer"). Without it the column says so — never a guess.
-- **Search Console** is a service account, no dependency: RS256 JWT via
-  node:crypto → access token → searchAnalytics + sitemaps, cached 10 min,
-  never throws. Env `GSC_SERVICE_ACCOUNT_JSON` (raw JSON or base64),
-  `GSC_PROPERTY` (default `sc-domain:lukkaplace.com`). Setup steps are on the
-  page. **Connected 2026-11-10** (service account
-  `lukka-seo-reader@project-93c8620f-b903-4735-9e2.iam.gserviceaccount.com`,
-  Restricted user; key base64 in the VPS `.env.local`); checked live:
-  queries, positions and the sitemap come back.
-- **Coverage** per commune (≤5 listings = thin, 0 = noindex page) and
-  **listing quality** over every public listing (<3 photos, no commune, no
-  quartier, description <120 chars, no price, land with bedrooms and no
-  parcelle sub-type — its title reads "Terrain 3 chambres", e.g. #685).
-- **`sameAs` now carries the console's saved profiles** (`sameAsProfiles`:
-  /admin/settings links over the env ones, no WhatsApp, query strings
-  stripped). Before, only `NEXT_PUBLIC_*_URL` was read, so the Instagram and
-  TikTok links the footer showed never reached Google's Organization data.
-
-## Keyword listing URLs and the homepage's search words (2026-11-10)
-
-First Search Console week: 174 impressions, average position 16; the
-homepage ranked for "luka place" and little else, "maison à louer à
-kinshasa" sat at 58. mediacongo and expat.com own those searches, with the
-words in every listing URL and title.
-
-- **Listing URLs carry words**: `/listings/509-appartement-1-chambre-a-louer-limete`
-  (`lib/listingSlug.js` `listingPath`; kind → rooms → louer/vendre → commune,
-  quartier or city; French whatever the reader's language; a missing fact is
-  left out). The id is the only part read back (`getListingById` parses the
-  leading integer), so `/listings/509`, an old slug and every WhatsApp link
-  open the same page. **No redirect, by choice**: the page declares the slug
-  URL canonical and the sitemap, JSON-LD and public cards (`PropertyCard`,
-  map previews, `RecentlyViewed`, agent profile, landing-page ItemList) link
-  it — a 308 would cost a Kinshasa phone ~330 ms on every old link.
-  Dashboards, admin and messages still build `/listings/<id>`; that is fine.
-- **Analytics unchanged**: `ListingViewTracker` records `/listings/<id>`
-  whatever the address; `listingIdFromPath` and `lib/localePaths.js`
-  (`/en/listings/…`) accept either form, so a slug page is not counted again
-  as a site page. `tests/unit/listing-slug.test.js`.
-- **Homepage**: its own `<title>` / description (`home.seoTitle`,
-  `home.seoDescription`; a title saved on /admin/cms still wins) and a small
-  first line inside the hero `<h1>` (`home.hero.kicker`, "Maisons et
-  appartements à louer et à vendre à Kinshasa et en RDC") above the stacked
-  nouns. The phone hero grew 19.5 → 22.25rem so the "N nouveaux biens" pill
-  stays clear of the search panel. The site-wide default title is unchanged.
-
-## English pages for search engines — `/en/…` (2026-11-05)
-
-Phases 1–2 of docs/seo-english-pages-plan.md. Google sends no cookie, so it
-had only ever seen French. Tests: `tests/unit/locale-paths.test.js`,
-`tests/unit/middleware.test.js`.
-
-- **One table, `lib/localePaths.js`** (pure, import-free): `/`→`/en`,
-  `/a-propos`→`/en/about`, `/contact`, `/agents[/id]`, `/location`→`/en/rent`,
-  `/vente`→`/en/buy`, type slugs translated (`EN_TYPE_SLUGS`: apartments,
-  houses, land, plots, compounds…; a test fails if a new French type has
-  none), commune/city slugs unchanged, `/listings/:id`, `/combien-coute[/slug]`
-  →`/en/rent-prices[/slug]`. Everything else (search, accounts, guides, legal)
-  has no twin. `/en` accepts only English slugs: `/en/rent/appartements` 404s.
-- **No copied routes.** middleware.js rewrites `/en/*` onto the French route
-  and sets `x-lukka-url-locale: en` (`lib/i18n/urlLocale.js`);
-  `lib/i18n/server.js` `getLocale` reads it before the cookie. It also sets
-  `NEXT_LOCALE=en`, so the reader's next search is English. `getUrlLocale()`
-  is the URL's language — canonicals follow it, never the cookie.
-- **hreflang**: `localizedAlternates(frPath)` (server.js) on home, about,
-  contact, agents, agent profiles, listings, landing pages and the price
-  guide — canonical in the URL's language + fr / en / x-default. The sitemap
-  lists both URLs with `alternates.languages` (`withEnglishTwins`).
-- **Links stay English for an English reader**: `components/LocaleLink.js`
-  (next/link + `localizeHref(href, locale)`) replaces next/link in ~50 public
-  components (chrome, cards, home, landing pages, listing and agent pages). It
-  changes nothing for French readers or for a path with no twin, so swapping
-  it in is safe. Landing-page links, crumbs and JSON-LD use `localizeHref`
-  directly.
-- **The FR | EN switch changes URL with a full load** (`window.location`), not
-  `router.push`: `/en/rent/x` and `/location/x` are the same route segments,
-  and the client router reused the page rendered in the old language
-  (measured). Pages without a twin still just refresh.
-- **English listing `<title>`/description/h1** use English type words and
-  prices (`listingSeo.js` `EN_KINDS`, `priceOf`, `listingKindLabel`): "2-bedroom
-  apartment for rent in Limete — $450 / month". The listing's own title and
-  description stay as the agent wrote them.
-- **Known, not done**: cards still print "450 $ / mois" and the French
-  category on English pages (lib/format.js is French-only, site-wide); the
-  404 page on an unknown `/en` path is French; the guides have no English
-  version (phase 3, copy work). The locale header can be sent by any client on
-  a French URL — it only renders that page in English for that client, the
-  same as the cookie; nothing is shared-cached.
-
-## Messagerie — customers and agents chat in the site (phase 1, 2026-11-05)
-
-Design: the "Messagerie Lukka Place" canvas (claude.ai artifact UNbqnT7tocXg57fRWeVGrv).
-Phase 1 (below) is the data and the API; phases 2–4 the customer's screens,
-the agent's screens and the WhatsApp alerts. Tests: `tests/unit/chat.test.js`.
-
-- **Tables (Postgres)**: engine `migrations/20261105_chat.sql` — `chat_threads`
-  (one per customer × agent × listing; `property_id` and `lead_id` are soft
-  references on purpose, a hard-deleted listing keeps its conversation),
-  `chat_messages`, `chat_reports`. RLS on, nothing granted. Every read
-  degrades to empty and every write to 503 `unavailable` before it runs.
-  **Applied to production 2026-11-05** (11 indexes, no anon/authenticated
-  grant); every query in lib/chat.js was then EXPLAINed against it, no
-  writes.
-  Not in the engine's SQLite: both account types are here, and a message
-  must not wait on the engine.
-- **`lib/chatRules.js`** (pure: limits, body normalisation, preview, cursor,
-  in-process rate limiter, poll cadence), **`lib/chat.js`** (every query),
-  **`lib/chatApi.js`** (viewer, JSON-only bodies, status → HTTP).
-- **Access is in the SQL.** A viewer is `{role, id}` from that side's own
-  httpOnly session (`?as=agent` picks the agent's; agent sessions get the
-  token_version + deleted check customers already had). Every query carries
-  `t.customer_id = $viewer` or `t.agent_id = $viewer`; not yours = 404, the
-  same as missing.
-- **Who can start**: a customer with a verified phone, to an agent the
-  listing page would show a number for (`CHAT_REACHABLE_AGENT_FILTER` =
-  the `agent_phone` rule in lib/listings.js; the test compares them). From a
-  listing the agent is read from the listing, never the request, and the
-  listing must be public. Not yourself. 10 new conversations / 24 h per
-  customer, enforced in the INSERT. Agents answer; they do not open threads.
-- **Sending**: 2,000 characters, 30 messages / minute per account (in
-  process — one PM2 fork), `clientId` (UUID) makes a retry return the stored
-  message. A blocked thread takes nothing; only the side that blocked lifts
-  it. Agents may share only their OWN public listings (`kind: 'listing'`).
-  A new message un-archives the thread for both sides.
-- **Read state** is one id per side (`*_last_read_id`), moved only by
-  `POST …/read`, never by a GET — so a poll, or an admin viewing as the
-  account (middleware refuses its POSTs), never marks anything read.
-- **Routes** (`app/api/chat/…`, all `no-store`): `GET|POST threads`,
-  `GET threads/:id`, `GET|POST threads/:id/messages` (`?after=` is the poll,
-  with the other side's read id and the block state), `POST threads/:id/read
-  | archive | block | report`, `GET unread`. Writes read
-  `application/json` only (no cross-site form can post one; cookies are Lax).
-- **Phase 2 — the customer's screens (2026-11-05).** `/messages` (inbox; a
-  guest sees a sign-in card with the WhatsApp fallback the old stub had),
-  `/messages/[id]` (conversation), `/messages/nouveau?listing=ID | ?agent=ID`
-  (first message; signed out → login and back; an existing thread opens
-  instead; an agent who cannot receive messages gets an honest page, never a
-  composer). Components in `components/chat/` (`ChatInbox`, `ChatThread`,
-  `ChatComposer`, `ChatStart`, `ChatParts`) take `side`, so the agent's
-  screens reuse them. Browser helpers `lib/chatClient.js`; times
-  `lib/chatTime.js` — always `Africa/Kinshasa`, so the server render and
-  hydration print the same clock (React #418 otherwise).
-  - **Polling**: a chain of timeouts (4 s, 15 s after a quiet minute, none
-    while hidden, at once on return); the inbox every 30 s. Sends are
-    optimistic with a client id; a failed one stays with "Réessayer"; a poll
-    that returns the message first replaces the pending copy.
-  - **Entry points**: "Envoyer un message" in `EnquiryCard`, an icon in
-    `MobileListingBar` (with it and the call icon, "Visiter" shows its icon
-    only under 400px), and on the agent profile (rail and phone bar) — all
-    through `canMessageListing` / `chatStartHref` (lib/chatRules.js), i.e.
-    the `agent_phone` rule. "Messages" is in the header's account menu and
-    drawer (after Favoris: a test pins Favoris first).
-  - **Footer**: compact on `/messages`, none on a conversation
-    (`FooterByPath`'s `hiddenUnder`, `<footer>` is `empty:hidden`).
-  - i18n namespace `chat` (site layout; the profile gets its labels from the
-    server), plus `nav.messages`.
-- **Phase 3 — the agent's screens (2026-11-05).** `/compte/agent/messages`
-  and `/messages/[id]` under the agent portal: on a computer three columns
-  (conversations 360px | the thread | customer panel 300px from `xl`), on a
-  phone the list, then the thread with its back arrow (`frame.js` sizes the
-  area: full height on a computer, above the tab bar on a phone). Same
-  components with `side="agent"`: `ChatInbox variant="column"` (open thread
-  highlighted, "Sans réponse · 12 min" when the customer spoke last),
-  `ChatThread variant="agent"` (a "{name} attend votre réponse depuis …"
-  banner; the agent's own quick replies as chips that FILL the field, rendered
-  by `renderQuickReply` with this listing and the customer's first name; "Partager
-  un bien" → `ShareListingsDialog`, the agent's own public listings from
-  `listShareableListings`, ≤5 per send, each its own listing card, sent in
-  order), `ChatClientPanel` (first name + initial, client since, number
-  verified, the listing with "Modifier l'annonce", opened on — never the
-  customer's phone). "Messages" sits in the sidebar and the phone tab bar
-  with a blue badge: `countUnreadThreads` in the agent layout. The agent
-  layout ships the `chat` namespace.
-  - The waiting chip says how long, nothing more: no alert reaches anyone
-    about an unanswered chat yet (phase 4), so the copy promises none.
-- **Phase 4 (2026-11-05)**: WhatsApp alerts for unread messages are the
-  engine's `chat-notify` job (root CLAUDE.md, "Messagerie — WhatsApp alerts",
-  with the two templates to submit). `/admin/interactions` counts site
-  conversations as the `siteChat` channel (`lib/agentInteractions.js`
-  `CHATS_BY_AGENT_SQL`; "answered" = the agent replied). No lead is recorded
-  per chat: it would duplicate the conversation in the agent's Demandes.
-- **Unread badges (2026-11-06)**: count unread MESSAGES (not conversations)
-  through `countUnread` / `GET /api/chat/unread` (`{messages, threads}`).
-  `lib/useChatUnread.js` keeps them live (every 30 s while visible, on return
-  to the tab, and at once when ChatThread records a read via
-  `notifyChatUnreadChanged`) and `useUnreadTitle` prefixes the tab title
-  "(3) …". Customer: on the header's account icon and beside "Messages" in
-  the account menu and the phone drawer (`components/chat/UnreadBadge.js`,
-  "99+" past 99), nothing asked when signed out. Agent: the sidebar / tab-bar
-  badge starts from the layout's server count, then follows the hook.
-- **Not done yet**: visit cards inside a conversation; `/admin/messages` and
-  the reports queue; the privacy-policy sentence about reported
-  conversations; photos in a conversation.
-
-## Navigation speed pass (2026-11-06)
-
-Measured from Kinshasa first (owner's own connection, reported 3G, ~450 ms
-RTT, ~0.55 Mbps): every request to the Paris VPS costs 250–600 ms before its
-first byte, a static file included; each listing photo ~365–580 ms; the Maps
-JS for a map ~200 KB in 4–5 dependent round trips plus tiles. The server
-itself renders in 50–150 ms. So the work is fewer round trips on the path a
-tap takes, and fewer bytes. `tests/unit/navigation-speed.test.js` pins it.
-
-- **A card fetches its whole page on hover or touch**:
-  `PropertyCard`'s Link carries `unstable_dynamicOnHover` (off on Data Saver
-  / 2G), which needs `experimental.dynamicOnHover: true` in next.config —
-  without the flag Next silently ignores the prop. In view a card still
-  prefetches only the loading skeleton (the page is dynamic: the locale
-  cookie). Verified on a local production build: hover → one
-  `/listings/734?_rsc=` (60 KB), click → page shown with no request.
-- **The detail page's opening photos are fetched on mouse hover**
-  (`lib/warmListingPhotos.js`, desktop/tablet only, never Data Saver): the
-  mosaic's hero + two side tiles, through `getImageProps` with the gallery's
-  own `sizes` (`lib/detailGallerySizes.js`, shared, so the browser picks the
-  same srcset candidate and the gallery hits the cache).
-- **One cover download, not two**: the phone carousel in `PhotoGallery` is
-  hidden on desktop but its photo is `priority`, so with `sizes="100vw"` it
-  fetched a 1920w copy of the cover beside the hero's 1080w. It now uses
-  `DETAIL_HERO_SIZES` (still full width on a phone). `CardImageCarousel`'s
-  `fullWidth` prop keeps the bigger video badge.
-- **Header and Footer prefetch on intent** (`components/IntentLink.js`, a
-  LocaleLink): on /listings the chrome prefetched ~8 pages in ~16 requests
-  competing with the photos. `prefetch={false}` alone also kills the hover
-  prefetch in Next 16, hence the state. The logo and the drawer's own
-  `router.prefetch` are unchanged.
-- **The similar-listings rail streams** (`RelatedSection` in
-  `listings/[id]/page.js`, Suspense): pgvector + fallback queries no longer
-  hold the gallery and price.
-- **Photos are AVIF first** (`images.formats`): with Next's own AVIF quality
-  mapping, 35–45% smaller than WebP on live photos (640w 48 → 29 KB, 1080w
-  87 → 59 KB), ~0.1–0.2 s more encoding once per variant. After deploying,
-  run `node scripts/warm-image-cache.js` on the VPS (it already asks for
-  image/avif) — every AVIF variant starts cold.
-- **Static map, built, OFF**: `lib/staticMap.js` draws the detail page's
-  zone as one Static Maps image (same styles, zoom 14, the same jittered
-  point and 500 m circle) — one ~50 KB request instead of the Maps JS chain.
-  The URL is built on the server (`listingStaticMapSrc`: the jitter pulls
-  lib/geocoding.js and its quartier data, which must not ship to the
-  browser). A tap, or an image that fails to load, opens the interactive
-  `ListingPinMap`. **To switch on**: enable "Maps Static API" on the browser
-  key's Google Cloud project (it answered 403 "API not activated" on
-  2026-11-06; add it to the key's API restriction list if it has one), then
-  set `NEXT_PUBLIC_STATIC_LISTING_MAP=on` in web/.env.local and restart (read
-  at request time on the server, not inlined).
-- **Not done, and the bigger levers**: a CDN with a Kinshasa edge
-  (Cloudflare) in front of `/_next/static` and `/_next/image`, plus HTTP/3;
-  and making public pages cacheable (locale from the `/en/` URL instead of
-  the cookie, account-dependent bits fetched in the browser) so a listing
-  page could be prefetched in full from the grid.
-
-## Admin dashboard in four tabs (2026-11-06)
-
-`/admin/dashboard` was one scroll of 27 blocks. It is now a KPI row plus four
-tabs (`lib/adminDashboardTabs.js`, pure, `tests/unit/admin-dashboard-tabs.test.js`).
-
-- **URL-driven**: `?tab=apercu|demande|offre|marche`, `?periode=` applies to
-  every tab, `?chambres=` filters the rent index. Only the open tab's queries
-  run (each tab is its own Server Component under `app/admin/dashboard/tabs/`,
-  in a Suspense keyed on tab + period). A tab needs a permission (`marche` is
-  `market.view`, so a sales rep does not see it); with no `?tab=` a moderator
-  opens on Offre, support on Demande, everyone else on Aperçu.
-- **KPI row** (`KpiHeader.js`): live listings (top 3 communes under it),
-  WhatsApp clicks (people) with the change vs the period before, cost per
-  WhatsApp click, and unmet demand = distinct people whose searches found
-  nothing (`investorMetrics.getDemand`, `search_events.result_count = 0`).
-  **CPW is deliberately "—, not tracked"**: no ad spend is recorded anywhere,
-  and the test pins that it is never computed. Add a spend source first.
-- **What each tab holds**: Aperçu — urgent queues, traffic cards, 12-week
-  trend. Demande — visit/conversation queues, zero-result searches,
-  audience/routing/placement/source splits, devices, referrers. Offre —
-  listing/agent queues, the 5 oldest pending listings, top 10 agents by live
-  listings (scoped for a sales rep), most-clicked listings. Marché — median
-  rent index (same blended SQL as the public price guide, `queryPriceGuides`,
-  min 5 rents), interest by commune/type/price band, views by commune.
-- `WorkQueues` takes `only` (the tab's queue keys, `TAB_QUEUES`) and
-  `ClickBreakdown` takes `parts`; each preview links to its full, paginated page.
-
-## "Mon déménagement" — the move project and the card signup (2026-11-07)
-
-Marketing direction (2026-11-06): every move has its own story (a fourth child,
-a new job), and the product only ever asked "3 chambres à Ngaliema". Engine
-half: `docs/claude/leads-and-enquiries.md`, same heading.
-
-- **`/compte/inscription` is now the card flow** (`components/MoveOnboarding.js`):
-  one question per screen, chips, progress bar, swipe or "Suivant", then the
-  unchanged `SignupForm` as the last card (answers in a hidden `moveProject`
-  field). Cards: reasons (multi), transaction, household, bedrooms, the place
-  that matters + its commune, communes (city first, up to 5), priorities
-  (multi), budget (chips per transaction; none for a short stay), timeline,
-  current home. **Every card has "Passer" and "Créer mon compte directement"
-  jumps to the account card**: the owner cut signup to three fields on
-  2026-11-06 because steps lost customers. The old form is `?direct=1`.
-- **Drop-off is measured from day one**: each card reached beacons
-  `/api/telemetry/onboarding`, one `[onboarding] {mode,step,index,total}` log
-  line (no table). `pm2 logs lukka-place-web --lines 20000 --nostream | grep
-  '\[onboarding\]'`, count per step. If one card loses people, cut it.
-- **Answers survive** a reload or an error redirect (`lukka_move_draft_v1` in
-  localStorage, try/catch; cleared on submit). A visitor sent here by the
-  save-search prompt starts from their latest device-saved search
-  (`projectFromSearchQuery`), and the communes/budget cards are skipped when
-  that search already says them.
-- **Rules are `lib/moveProjectRules.js`** (pure, shared with the tests):
-  codes, `parseMoveProject` (unknown values dropped, never an error; NULL / []
-  = not said), `moveSearchQuery`, `moveStoryFr` / `moveCriteriaFr` (French,
-  for agencies), `moveRequestBlocker`. **Nothing is deduced**: household size
-  never becomes a bedroom count, the anchor place never becomes a commune
-  (the communes card only pre-ticks it, visibly). **Priorities are not search
-  filters** — few listings carry the utility tags, so they would hide most
-  real homes; they go to agencies in the story.
-- **Storage**: `customer_move_projects` (engine
-  `migrations/20261107_customer_move_projects.sql`, one row per customer, RLS
-  on, cascade on customer delete), `lib/moveProjects.js`. Before the migration
-  runs, reads are "no project" and writes `saved: false`; signup never fails
-  over it (`saveProjectAndAlert` never throws).
-- **On signup** the project is saved after the account exists, plus a saved
-  search from `moveSearchQuery` (alerts and Accueil's counts run on it), and
-  the customer lands on `/compte/client/projet?nouveau=1` — unless a gate sent
-  them with another `next`.
-- **`/compte/client/projet`**: the story (reasons, "Aujourd'hui", "Vous
-  cherchez", "Quand"), whether the alert is on, up to 8 matching homes
-  (`getListings`, newest, never widened; none → an honest line and a wider
-  /listings link), and **"Envoyer ma demande aux agences" — the only thing
-  that contacts anyone**: a `move-project` lead with the story, once per 20 h
-  (`MOVE_RESEND_AFTER_MS`). `/compte/client/projet/modifier` reopens the cards
-  on the stored answers and saves through `saveMoveProjectAction`.
-- **Accueil** opens with a "Mon déménagement" card (the story in one line, or
-  "Parlez-nous de votre déménagement" for an account without a project).
-  **`/admin/customers/[id]`** shows the project as the French brief.
-- `tests/unit/move-project.test.js`; `customer-easy-login.test.js` now pins the
-  new redirect line.
-- **Five cards, a budget range, close homes (2026-11-07, later, owner: ten
-  cards felt excessive; the budget must be adjustable; show near matches).**
-  Cards are now `reasons · search` (rent/buy + bedrooms + household on one
-  card) `· place` (communes + the place that matters) `· budget · details`
-  (timeline + priorities + current home). The budget is a min–max range
-  (`cleanBudgetRange`: whole USD, capped per transaction, reversed ends
-  swapped) set from preset chips and adjusted in two fields; the search gets
-  `price_min` + `price_max`. **The budget card shows live what the range
-  finds** (`POST /api/move/matches`, public, rate-limited, nothing stored):
-  the exact count and first homes, and when fewer than 4 match,
-  `lib/moveMatches.js` adds close homes apart, never counted with the exact
-  ones: ±25 % around the range at the chosen communes (`MOVE_BUDGET_STRETCH`;
-  owner chose 25 % while listings are few, to narrow as they grow — /listings
-  keeps its own 15 %), then nearby communes
-  (`getNearbyExtras`, real commune centres, same rule as /listings). Each
-  close home carries its reason (`closeMatchTags`): "12 % au-dessus de votre
-  budget" only for a USD, monthly-comparable price; "À Lingwala, ≈ 3 km" only
-  when that distance was measured. A home with no reason it can show is left
-  out. `/compte/client/projet` shows the same two groups.
-  `customer_move_projects.budget_min` comes with
-  `migrations/20261107_move_project_budget_min.sql`; until it runs the
-  project saves without it (42703 retry). Draft key is `lukka_move_draft_v2`
-  (old drafts named the ten old cards).
-- **Up to five projects per account, always editable (2026-11-07, owner).**
-  `migrations/20261107_move_projects_multiple.sql` gives each row its own
-  `id` (identity; the primary key moves off `customer_id`) and an optional
-  `title`. `MAX_MOVE_PROJECTS` (5) is a COUNT guard in the INSERT
-  (`createMoveProject`), like favourites. Every read and write is scoped
-  `customer_id = $1` from the session; another customer's project id is a
-  404. Routes: `/compte/client/projet` the list ("Mes projets", each with its
-  exact-match count, "Voir les biens" and "Modifier", "Nouveau projet" while
-  under five, `?limite=1` explains the ceiling) · `/projet/nouveau` ·
-  `/projet/[id]` (story, matches exact + close, alert, request to agencies,
-  edit, delete with an in-place confirmation; the alert is kept) ·
-  `/projet/[id]/modifier` (the cards plus an optional name; the back arrow on
-  card 1 leaves without saving). `/projet/modifier` (the single-project link)
-  redirects to the first project's edit, or to `nouveau`. **A project is
-  always one tap from being edited**: the portal has a fifth tab, "Projets"
-  (`grid-cols-5`), and Accueil lists every project with a pencil. Signup
-  lands on the new project's own page. Before the migration runs, the code
-  keeps one project per customer, addressed as id 0 (`LEGACY_PROJECT_ID`,
-  the old `ON CONFLICT (customer_id)` upsert on 42703). The admin customer
-  profile lists every project.
-- **The "Où" card: city first, then communes as boxes (2026-11-07, owner).**
-  "Dans quelle ville ?" is a grid of boxes, one per city in lib/cities.js
-  (Kinshasa first); nothing else on the card shows until one is picked. Then
-  "Un lieu compte particulièrement ?" (its commune select lists only that
-  city's communes, and the commune picked is pre-ticked below) and "Dans
-  quelles communes ?": every commune of that city as a box, up to 5, with a
-  "N sur 5 choisies" count; the rest grey out at five. Changing city drops
-  communes (and the anchor's commune) from the old city. A city with no
-  communes on file (Muanda) says so and searches the whole city.
-- **The end of a move, the stages, and the rest of the plan (2026-11-07).**
-  `migrations/20261107_move_project_journey.sql` adds `status`
-  (active/paused/found), `found_at`, `paused_at`, `settled_at`,
-  `settled_answer`, `story_text`, `story_consent_at` — all set only by the
-  customer's taps. On `/projet/[id]`: **"C'est le bon !"** (confirmed in
-  place) → status found, the project's alert removed (kept if another
-  searching project shares the same query), its last lead CONVERTED;
-  **"Mettre en pause"** / **"Reprendre la recherche"** (also "ce n'était pas
-  le bon"), the alert stopped and restored. **"Bien installés ?"** appears 30
-  days after found (`checkinDue`), on the project and as a prompt on Accueil:
-  the answer, the customer's story (optional), and an unticked consent box —
-  without consent the story stays in the account (admin shows "non affichée").
-  A **stage strip** (`moveStagesReached`: projet · recherche · demande ·
-  visites · trouvé · installé) is computed from real events only ("visites"
-  = a viewing request made since the project began). **"Avant de signer"**
-  is a general checklist (no claim about a listing; entry costs stay on each
-  listing page). The request card promises the 24 h desk follow-up (engine
-  `services/moveFollowup.js`). Status chips on the list and Accueil; Profil
-  links to "Mes projets"; "L'église" is a fourth place that matters.
-  **Listing pages** show "Pour votre projet « … »" for a signed-in customer
-  with a searching project (`components/ProjectFitLine.js`, `projectFit`):
-  bedrooms, commune and budget ✓/✗, only fields both sides state, the
-  best-fitting project, nothing for the wrong kind of home. **"Trouver pour
-  moi"** without an account has optional "Votre situation" chips (reasons →
-  the same French brief to agencies). **`/admin/move-projects`**
-  (`customers.view`, `lib/moveProjectStats.js`): north star = moves found
-  (and settled in), projects, searching/paused, median days to found,
-  reasons × found, communes × found, top reason·commune pairs, and stories
-  shared with consent only.
-  **Not done, deliberately:** the WhatsApp assistant's first question (owner
-  moved the questions to the account over the 24 h window); anything needing
-  a new Meta template (story in the agency template, cold-customer
-  check-ins); the agent client book reason (the book is hidden from agents
-  since 2026-09-22) and an agent "Mon parcours" page (the agent space is
-  limited to Biens / Demandes / Abonnement / Réglages by product decision).
-
-## Sign-up under a rush (2026-11-07, before the content campaign)
-
-An audit of the sign-up path found two bugs and three load risks; all five
-are fixed, `tests/unit/signup-rush.test.js`.
-
-- **A refused sign-up lost the move answers.** The draft was cleared on
-  submit, so an error redirect (number already registered, invalid number)
-  came back to an empty project. The draft (`lib/moveDraft.js`) now stays
-  until the account exists and is cleared by `components/ClearMoveDraft.js`
-  in the signed-in client layout. Checked in a browser: the answers survive.
-- **A double tap could crash.** The button now locks while sending
-  ("Création du compte…", `useFormStatus`), and a duplicate phone that
-  slips past the "exists" check (UNIQUE `customers.phone`, 23505) redirects
-  to `error=exists` instead of the error page.
-- **Password hashing blocked the single web process ~51 ms per sign-up or
-  login** (scryptSync, measured on the VPS). Customer sign-up and login use
-  `hashPasswordAsync` / `verifyPasswordAgainstHashAsync` /
-  `burnConstantTimeAsync` (`lib/authCrypto.js` `*Async`, crypto.scrypt on
-  the thread pool, same parameters and output — either form verifies the
-  other). Admin, agent and reset paths still use the sync forms.
-- **Shared mobile IPs.** Kinshasa's operators put many customers behind few
-  IPs (carrier-grade NAT), so the default 60/min per IP would refuse
-  ordinary customers. `/api/move/matches` and `/api/telemetry/onboarding`
-  allow `SHARED_IP_MAX_EVENTS` (600/min); everything else keeps 60. The
-  limiter sweeps at most once a second.
-- **Database load.** `/api/move/matches` answers identical searches (same
-  `moveSearchQuery`) from a 60-second in-memory cache (500 entries; public
-  approved listings only, so shared answers reveal nothing). The pg pool is
-  10 (was 5), `DB_POOL_MAX` overrides; Supabase's transaction pooler on 6543
-  multiplexes them.
-- **Not changed, worth knowing:** new customers' alerts are WhatsApp session
-  messages until `SEARCH_ALERT_TEMPLATE` is approved, so customers who never
-  wrote to us may not receive them; the 24 h move follow-up can send the desk
-  up to 20 alerts per 15 minutes in a rush.
-- **Owner feedback, round 3 (2026-11-07).** Fifteen "why" options (added:
-  fin de bail, quartier plus sûr, inondations/érosion, se rapprocher de la
-  famille, commerce/bureau, plus de confort); "Ce qui compte" in Kinshasa's
-  terms (courant SNEL/groupe/solaire, eau REGIDESO/forage, route praticable
-  en saison des pluies, zone non inondable, taxis/bus, marché, calme…); the
-  place question reads "Près de quoi voulez-vous vivre ?" / "Dans quelle
-  commune se trouve ce lieu ?". **Suivant is pinned** to the bottom of the
-  screen (above the portal tab bar in edit mode; no blur on phones).
-  **"Voir aussi : Prix proches · Communes proches"** asks for close homes even
-  when homes match (`getMoveMatches` `closeMode` 'price'|'place'; API body
-  `closeMode`, cached per mode; project page `?proches=prix|lieu`).
-  **Stages cascade** (`moveStagesReached`): the furthest event — any request
-  of the customer since the project began, any visit, found, settled — ticks
-  every earlier stage. **Pills are tappable**: Recherche / Demande / Visites
-  save `customer_move_projects.manual_stage`
-  (`migrations/20261107_move_project_manual_stage.sql`, forward only);
-  "Trouvé" opens the "C'est le bon !" confirmation (`?confirmer=trouve`),
-  "Installé" the check-in (`?installe=1`).
-- **The stepper is a control (2026-11-07, owner: "they can't go back").**
-  `ProjectStepper.js` (client): tapping Projet / Recherche / Demande envoyée
-  / Visites sets the stage **forward or back** at once, saves it
-  (`setManualStageAction`, now returns `{ok}` instead of redirecting; `'auto'`
-  clears it) and shows "Étape mise à jour : … · Annuler" (the portal Toast).
-  Tapping the current pill does nothing. Once found, the status decides and
-  "Ce n'était pas le bon" is the way back. `moveStageView` replaces the
-  event-forced cascade: the customer's choice wins both ways; `proven`
-  (events) ticks solid, self-reported ticks dotted; `trackerAhead` shows
-  "D'après vos demandes et visites, vous en êtes peut-être à : …" and "Revenir
-  au suivi automatique" hands it back. **`StageCard.js`** under the pills
-  follows the current stage: story → matches → requests and agency
-  proposals → upcoming visits + "Avant de signer" → moving-in checklist
-  (SNEL cash power, REGIDESO, keys and inventory, receipts, address) →
-  welcome. "± 25 %" left the pill: it reads "Prix similaires".
-
-## "Changer de numéro" — a customer moves the account to a new number (2026-11-08)
-
-Owner request: a customer could not change their number at all. Paramètres'
-phone row opens `/compte/client/parametres/numero`: new number (the sign-up
-`PhoneField`) → a 6-digit code by WhatsApp to the **new** number (the same
-`sendOtpViaWhatsApp`, template first) → done; Paramètres then says "Votre
-numéro est maintenant …". `lib/customerPhoneChange.js`,
-`lib/customerPhoneChangeRules.js`, engine `migrations/20261108_customer_phone_change.sql`
-(verify §83), `tests/unit/customer-phone-change.test.js`.
-
-- **Only the new number is asked.** The usual reason is a lost or replaced
-  SIM, so a code to the old number would block exactly those people; the
-  session already says who they are. No password either (owner chose the
-  4-step flow). Someone holding an unlocked, signed-in phone could change the
-  number — accepted.
-- **Refused:** the account's own number ("same"), a number another customer
-  account holds ("taken", never merged; also caught as 23505 at the switch).
-  5 codes per hour per account (counter and pending change in ONE guarded
-  UPDATE), 5 wrong codes per code, 10-minute expiry. Columns
-  `customers.phone_change_*` are separate from signup and reset codes.
-- **On success, one transaction:** old number into `customer_phone_history`,
-  `phone` = new, `phone_verified_at` = now (the code proved it), reset code
-  and lockout cleared, `token_version` + 1 (every other device signed out);
-  the action re-signs this device and updates the remembered-number cookie.
-- **History stays.** Engine leads/visits are keyed by `wa_id`, so
-  `getAccountPhones` (current first, then history) feeds Mes demandes,
-  visits, the tab counts and the request-edit ownership check; visit answers
-  try each number and move on only on the engine's 404. New requests, alerts
-  and agent messages use the new number. **Visits already in progress keep
-  the old number** for agent WhatsApps (engine data agents act on; not moved).
-  `/admin/customers/[id]` lists "Anciens numéros" with links to their leads.
-- **Not built:** a desk-side change for a customer locked out (lost SIM AND
-  signed out) — proposed for `/admin/customers/[id]`.
-
-## Customer friction fixes — sign-up, sign-in, account (2026-11-08)
-
-Owner request after a friction review of the customer side.
-`tests/unit/customer-friction-fixes.test.js`.
-
-- **A save goes straight to the account card.** `AuthPromptModal` (♥, alerts)
-  adds `from=save`; `/compte/inscription` then opens `MoveOnboarding` on the
-  account card with no questionnaire chrome (`saveOnly`) and the lead "Vous
-  pourrez raconter votre déménagement ensuite". Accueil already invites the
-  move afterwards.
-- **Refusals keep the form.** `signupAction` and `loginAction` are
-  `useActionState` actions now: a refusal RETURNS `{ error, values, attempt }`
-  (never the password); success still redirects. The phone field re-mounts
-  (`key={attempt}`) with what was typed; name and password are controlled
-  state. Sign-up's cursor starts on the name.
-- **Existing account said early.** The number is checked on blur
-  (`checkSignupPhoneAction`, 60/min per connection — says no more than the
-  sign-up refusal already did). "Se connecter avec ce numéro"
-  (`signInWithNumberAction`, a `formAction` button) puts the number in the
-  remembered-number cookie, never the URL, and with `?apres=projet` the login
-  form sends this device's move draft so `loginAction` saves it as a project.
-- **Show/hide password** (`components/PasswordInput.js`) on sign-up, sign-in
-  and the reset page.
-- **"Trop de tentatives"** now says the reset unlocks at once and links it.
-- **A customer password reset signs in** (`/compte/client?motdepasse=change`);
-  agents still go to their sign-in page.
-- **Sessions renew while used**: middleware re-issues the customer cookie
-  (same id and token version) once it is a week old
-  (`renewedCustomerSessionToken`); never under an impersonation cookie.
-  Only `/compte/*` requests pass the middleware, so it is visiting the
-  account that renews.
-- **One way to ask agencies.** `/compte/client/demandes` (the "Trouver pour
-  moi" form) forwards to the newest open move project's request section, or
-  to a new project (`lib/moveRequestHref.js`). `RequestForm.js` and
-  `submitPropertyRequestAction` are kept unused.
-- **No running totals on the account tabs** (Enregistrés "7", Activité): a
-  tab shows only the price-drop dot.
-- **Offline saved homes are listed** (`lib/favoriteUnavailable.js`,
-  `favoris/UnavailableFavorites.js`): title, let/sold vs withdrawn, "Biens
-  similaires" (same deal, commune, rooms), remove. Never a price, photo,
-  agent or address of an off-site listing.
-- Wording: the Visites empty page and the favourites button say "Demander une
-  visite" like the listing; Activité's empty page says a direct WhatsApp chat
-  with an agent stays in WhatsApp. Sign-in/sign-up French moved to the
-  dictionary (`auth.haveAccount`, `auth.noAccountYet`,
-  `auth.customerLoginMetaTitle`).
-
-## Agent friction fixes — sign-up, sign-in (2026-11-08)
-
-Owner request after a friction review of the agent side.
-`tests/unit/agent-friction-fixes.test.js`.
-
-- **A number is never blocked for good.** Sign-up on a number that already
-  has an agent:
-  - removed by the team (`deleted_at`) → a new account; the removed one stays
-    removed and `getAgentByPhone` now prefers the live row
-    (`ORDER BY (deleted_at IS NULL) DESC, id DESC`);
-  - verified with no password (joined on WhatsApp) → `startAgentPasswordSetup`
-    (lib/agentPasswordSetup.js): the password-reset WhatsApp code, then
-    "choose your password" (`/mot-de-passe-oublie/verifier?nouveau=1`);
-  - never verified → `reclaimUnverifiedAgent` takes it over (new password,
-    token_version + 1) when it holds no listing — the guard is in the UPDATE —
-    after the referral check; the number still has to be verified;
-  - verified with a password → "Un compte existe déjà" with sign-in and the
-    WhatsApp reset offered.
-  Sign-in sends a no-password agent to the same password setup instead of
-  "incorrect" and a lockout. That attempt is not written to
-  `agent_login_attempts` (its outcome CHECK has no value for it).
-- **A failed code send lands on the verify page** (`&error=send_failed`, with
-  resend and the WhatsApp proof), from sign-up and sign-in; it used to say
-  "réessayez" on sign-up, where only "exists" could follow.
-- **After a reset an agent with a verified number is signed in**
-  (`/compte/agent?motdepasse=change`), like a customer.
-- **Forms keep what was typed**: `agentSignupAction` / `agentLoginAction` are
-  `useActionState` actions (refusal → `{ error, values, attempt }`, never the
-  password); the forms are `AgentSignupForm.js` / `AgentLoginForm.js`. Labels
-  from the `admin` / `agent` namespaces are passed in by the pages (the
-  `(site)` tree does not ship them). Show/hide eye on both; sign-in remembers
-  the number (`lukka_agent_phone`, lib/agentSession.js) and links the reset on
-  "locked".
-- **Agent sessions renew while used**, same rule as customers
-  (`renewedAgentSessionToken`, middleware, never under "view as"). The dashboard's
-  imperative action calls checked on this date all handle a rejection.
-- **Not changed, owner's call:** the web listing form still refuses a price of
-  0 — `missing_price` is a BLOCKING moderation flag, so a "prix sur demande"
-  listing could not be approved; the Free plan's 2-listing cap vs the launch
-  policy's 3 is pricing.
-
-## Incentives for keeping listings up to date (2026-11-09)
-
-Owner decision, alongside the fortnightly "Point sur vos annonces" check that
-replaces the per-listing "Toujours disponible ?": give agents a reason to
-answer it. "Up to date" is one rule everywhere — `UP_TO_DATE_SQL` in
-`lib/listings.js`: `availability_confirmed_at`, else the moment the listing
-went public (the "Nouveau" badge's `GREATEST(created_at, moderated_at)`),
-within `CONFIRM_AFTER_DAYS` (14). A brand-new listing is therefore up to date.
-Both columns are read through `to_jsonb(p)`, so nothing 42703s before a
-migration. The engine copy (`services/agentRanking.js`) must change with it.
-`tests/unit/listing-up-to-date-incentives.test.js`; engine verify §92.
-
-- **Search order.** The default sort (`complete`, i.e. no `sort` or the
-  "complètes d'abord" option) ranks up-to-date listings first, then the
-  completeness order inside each tier (`UP_TO_DATE_TIER_SQL`; no date at all
-  counts as stale). This covers /listings, the homepage rails, collections,
-  guides, SEO landings and the agent storefront, which all read `getListings`'
-  default. "Plus récents" and the price orders are untouched, and so is the
-  map (its set and its order). The sort's label still says "complètes
-  d'abord"; renaming it is a copy decision left to the owner.
-- **Card badge.** `PropertyCard` shows "✓ Confirmée le 9 nov." in the date
-  slot (publication date moves to the tooltip, so every card keeps one row).
-  Decided on the server by `availabilityBadge` (`badgeConfirmationDate`, ≤ 30
-  days, active or NULL `listing_status` only) and formatted there in FR and EN,
-  because the card is a client component and `lib/listingAvailability.js` is
-  server-only; rows from `getListings`, `getListingsByIds` and
-  `getSimilarListings` carry `availability_badge`. `availability_confirmed_at`
-  is now in `SELECT_FIELDS` (the detail page read it separately before).
-- **Agent profile** (`/agents/[id]`, `getAgentTrackRecord` in
-  `lib/agencies.js`, never throws). "N biens loués ou vendus" = the agent's
-  listings with `approve_status = 1 AND listing_status = 'closed'` — not the
-  public gate, since a closed listing has `status = 0`; a count, never a price,
-  shown from 1. "Annonces à jour" chip = at least one public live listing
-  (`status = 1 AND approve_status = 1 AND listing_status IS DISTINCT FROM
-  'closed'`) and every one of them up to date. Neither renders a negative
-  ("pas à jour") state.
-- **Lead routing** (engine): root `docs/claude/leads-and-enquiries.md`,
-  "Automated Agent Matching".
-
-## Request claims, priority level, matching console (2026-11-10)
-
-Engine side: root docs/claude/leads-and-enquiries.md, "Matching in waves".
-
-- **`components/AgentLeadClaimCard.js`** replaces `AgentLeadCard` on Demandes
-  for a request the matching sent this agency and it has not taken
-  (`row.customer_hidden`, set by the engine, which nulls `wa_id` / `name`):
-  the request without the customer, the wave, "commune voisine" when it is a
-  neighbour match, and « Je m'en occupe » / « Pas dispo »
-  (`answerLeadMatchAction` → engine `POST /admin/leads/:id/claim`, the
-  session's agent id only). Once 3 agencies took it, the card says so and
-  offers nothing. Keyed `l-<id>-claim`, so taking it remounts into
-  `AgentLeadCard`, which then shows "Vous vous en occupez (n/3)".
-- **`components/AgentPriorityCard.js`** on the overview: Or / Argent / Bronze
-  from engine `GET /admin/agents/:id/priority`, points per part with what to do
-  next. Agency only, never public. Renders nothing when the engine cannot
-  answer (an unread level is not shown as Bronze).
-- **The team sees every level too** (owner decision, same day): the same card
-  with `audience="admin"` on `/admin/agents/[id]` (overview tab, worded about
-  the agency), and a "Niveau" column (level · points) in `/admin/matching`'s
-  agency table, read live from engine `GET /admin/agents/priority-levels?ids=`
-  — the level the next request will use, not the one stored on old match rows.
-- **`/admin/matching`** counts open requests only (directed ones in the first
-  tile's hint), "Prises par une agence" with the share taken within 1 h, a
-  response rate over claims + passes, wave / level / neighbour on each match
-  row, CLAIMED / DECLINED filters, and the desk alert count in the coverage
-  panel. The lead-matches CSV appends wave, level, matched_commune,
-  neighbour_of, claimed_at, declined_at, answer_channel.
-
-## Lukka Place app — push alerts for agents (2026-11-10)
-
-The store app (`mobile/` at the repo root, Capacitor) loads `/compte/agent`;
-the engine pushes agent alerts first and WhatsApps only as the fallback (root
-docs/claude/whatsapp-delivery.md, "App alerts"). Web side:
-
-- **`lib/appBridge.js`** is inert in a browser; inside the app it uses
-  `window.Capacitor.Plugins.PushNotifications` (no Capacitor code in the
-  bundle): permission once, Android channel `alerts`, FCM token →
-  `POST /api/push/register`. Mounted by `components/AppPushBridge.js` in the
-  agent layout. A tapped notification opens `/compte/agent/alertes/<id>`.
-- **Routes** take the agent from the session (`getCurrentChatAgentId`:
-  token_version + deleted). The register response sets the httpOnly
-  `lukka_push_token` cookie so `agentLogoutAction` revokes this phone.
-  `/compte/agent/alertes/<id>` marks read and redirects with a RELATIVE
-  Location (behind the proxy `request.url` is localhost) to the stored path,
-  only inside `/compte/agent` (`safeAgentPath`).
-- **Alertes** (`/compte/agent/alertes`): the inbox, newest first, id cursor.
-  Desktop rail always; the phone tab bar shows it only inside the app
-  (`mobileAppOnly`, known after hydration), so a phone browser keeps its tabs.
-- **Réglages › Application** (`components/AgentAppCard.js`): in the app, on/off
-  for this phone; in a browser, store links only when
-  `NEXT_PUBLIC_PLAY_STORE_URL` / `NEXT_PUBLIC_APP_STORE_URL` are set.
-- Before `migrations/20261110_push_notifications.sql`: empty inbox, 0 unread,
-  register answers 503. `tests/unit/push-notifications.test.js`.
-- **Customers (2026-11-10, phase 0).**
-  - **One app.** `mobile/` starts at `/app` (`app/app/route.js`: agent session →
-    agent space, else `/`; relative Location).
-  - **Push plumbing is shared by both sides.** `lib/pushNotifications.js` takes
-    `userType` on every function. `lib/pushSession.js` `currentPushAccount(side)`
-    resolves the named side's own session. `/api/push/*` take `as:
-    agent|customer`.
-  - **`AppPushBridge side="customer"`** is mounted in the Espace Client layout.
-  - **Customer inbox** at `/compte/client/notifications` (not "alertes", which
-    is the saved-search tab). `[id]` marks read and redirects within
-    `/compte/client`, `/messages` or `/listings` (`safeCustomerPath`).
-  - **Mon profil › Notifications** gets three things:
-    - the inbox row with its unread count;
-    - the existing WhatsApp switch;
-    - per-kind app switches (`NotificationCategorySwitches`, categories in
-      `lib/pushRules.js CUSTOMER_CATEGORIES`; visits locked on).
-  - **"Application mobile"** is `components/AppAlertsCard.js side="customer"`
-    (the agent card, renamed and shared).
-  - **Customer logout and account deletion** revoke this phone.
-  - `lib/adminApi.js pushToAccount` is how web-side senders push (phase 1
-    wires them).
-
-## Customer sign-up funnel and the 1,000-account goal (2026-11-11)
-
-Owner goal: 1,000 customer accounts; the bottleneck is visitors who never
-create one. `/admin/croissance` counted accounts by channel
-(`account_acquisitions`, "Where visitors and accounts come from" above) but
-nothing said which prompt produced an account or where people gave up.
-This replaces the 2026-10-27 "no target" decision on that page.
-
-- **Entry** = where a sign-up started (`lib/signupFunnelRules.js`
-  `SIGNUP_ENTRIES`): favorite / save_search / alert (AuthPromptModal, by its
-  `trigger`), nudge (SignupNudge), messages, updates, login_page,
-  partner_invite (static links), price_guide (reserved), direct (no or
-  unknown entry). It rides to `/compte/inscription` as `?entree=`, then a
-  hidden `entry` field into `signupAction`. A new sign-up link adds
-  `withSignupEntry(href, entry)`; a new entry is added to the rules list,
-  both dictionaries (`admin.growth.signup.entries.*`) and, if it is a prompt,
-  `PROMPT_ENTRIES`.
-- **Steps**: prompt_shown → prompt_open (prompts only) → form_view (page
-  load, `CustomerSignupTracker`) → form_start (first character typed — the
-  name field is autoFocused, so focus means nothing) → submit → refused (with
-  the reason) | created (with the customer id). Browsers report the first
-  five through `POST /api/telemetry/signup-funnel` (`form: 'customer'`,
-  `sanitizeCustomerSignupEvent`); refused/created come from `signupAction`
-  only (`recordSignupOutcome`), so a browser cannot fake an account.
-- **Table** `customer_signup_events` (engine
-  `migrations/20261111_customer_signup_funnel.sql`, RLS on, verify §105).
-  Recording never throws and is silent before the migration; the funnel
-  section then says tracking has not started. Team browsers (`lp_staff`,
-  impersonation) are stored as `staff` and left out.
-- **Dashboard**: `/admin/croissance` opens on the goal (all customer rows,
-  today, this Kinshasa week, pace over 14 days, an estimate labelled as one,
-  none without a pace) and shows the funnel by entry (distinct visitors per
-  step, accounts and refusals as counts) plus refusals by reason, and the
-  accounts of the window with no recorded entry (before tracking, or by
-  WhatsApp). `/admin/dashboard` carries a one-line goal banner for roles with
-  `partners.view`. `CUSTOMER_SIGNUP_GOAL` (1000) is the one place the target lives.
-- Tests: `tests/unit/customer-signup-funnel.test.js`.
-
-### Sign-up friction fixes (2026-11-11, owner)
-
-- **Customer passwords: 6 characters** (`lib/passwordRules.js`
-  `CUSTOMER_PASSWORD_MIN`) on sign-up, the WhatsApp activation page and the
-  customer password reset (`verifyAndResetPassword` applies the role's own
-  minimum; the reset page reads it from the attempt's role). Agents keep 8:
-  confirming an agent's number claims its listings. Console accounts keep 12.
-- **An unknown "Code de parrainage" no longer refuses a customer sign-up.**
-  The code is dropped (logged as `[customer-auth] unknown partner code … ignored`)
-  and the account is created; the partner link the browser followed
-  (`lp_ref`) still credits. The funnel's `ref` refusal stays in the
-  vocabulary for older rows. Agent sign-up is unchanged.
-- **`/admin/croissance` cost per account counts every account**, not only
-  verified ones, and the page no longer shows "Numéros vérifiés": customers
-  stopped confirming their number on 2026-11-06, so the figure only fell and
-  the cost per paid account only rose. `verified` stays in
-  `getGrowthDashboard`'s data; referral credits (`lib/referralCredits.js`)
-  still require a confirmed number, an owner pricing decision not changed here.
-- Tests: `tests/unit/customer-signup-friction.test.js`.
+# Lukka Place — Web (Next.js storefront)
+
+Public marketplace for [Lukka Place](../CLAUDE.md) (the root repo is the WhatsApp
+intake engine — that CLAUDE.md covers the overall system architecture and data
+flow; this file is scoped to this Next.js app specifically). Live at
+lukkaplace.com.
+
+**Next.js 16 (App Router), Tailwind v4, plain JS (no TypeScript).** See
+`AGENTS.md` before touching anything App-Router-shaped — this version has real
+breaking changes from older training data (async `params`/`searchParams`,
+`fetch` no longer cached by default, etc.).
+
+## Data & security rules
+
+- **Every query against `properties` filters on `status = 1 AND approve_status = 1`, no exceptions.** There is no Row Level Security on this table — the query-time filter in `lib/listings.js` is the only thing keeping pending/unapproved listings private. A detail-page lookup by id repeats this filter too: a guessed/leaked URL to a pending listing must 404, never partially render.
+- **DB credentials are server-only.** `lib/db.js` imports the `server-only` package specifically to make an accidental import from a `'use client'` file a build error, not just a review miss. Never let `DB_*` env vars near a `NEXT_PUBLIC_` name or a client component.
+- **Commune is not a column.** It's tagged via `property_amenities` onto one of amenity ids 21–44 (see the engine's `services/postgres.js`, `COMMUNE_AMENITY_IDS`). Reading it back means joining `property_amenities` → `amenity_contents`, not `SELECT commune`. `quartier`, `parcelle_subtype`, `units_count`, `reference` *are* real columns.
+- **Category names are capitalised in the database** — the live values are `'Appartement'` and `'Maison'`, not lowercase. The property-type filter compared against a hardcoded lowercase `'appartement'` for months and silently matched nothing; it now uses `LOWER(catc.name) = $n`. Don't "simplify" that back to an exact match.
+- **Don't hardcode filter option lists.** `getPropertyTypeFacets()` derives the property types (with real counts) from the database, so an option that would return zero results is never offered. Same principle as `getCommuneShowcase()` / `getPopularCommunes()`.
+- **This app talks to two things**: the Supabase Postgres DB directly (via `pg`, read-only in intent — see the TODO in `.env.local` about a scoped DB role that hasn't been created yet), and the engine's `GET /locations` (via `lib/locations.js`, fetched server-side only — never client-side, which is what avoids needing CORS on the engine).
+  - **The engine being down must not take `/listings` down.** That fetch only feeds the filter bar's commune→quartier hierarchy; the listings themselves come from Postgres. Use `getLocationHierarchySafe()`, which returns empty on failure so the page falls back to DB-derived communes. `/listings` used to 500 outright whenever the engine was unreachable.
+
+## No fabricated data — this one comes up constantly
+
+Never invent a value to fill a UI slot that has no real data behind it. When a
+reference design assumes something we don't have, either map it onto real
+data, source a properly-licensed real asset, or render an honest absence —
+don't guess. Examples already in this codebase:
+
+- A per-listing agent phone is shown only for a **verified, routing-enabled** agent (`lib/listings.js` nulls `agent_phone` in SQL otherwise); every other "Contact" CTA routes through the one real WhatsApp number (`NEXT_PUBLIC_WHATSAPP_NUMBER`) and renders an honest disabled state (not a dead `wa.me` link) when that env var is empty. One rule for all three CTAs: `lib/leadRouting.js` (`WhatsAppCTA.js`, `EnquiryCard.js`, `MobileListingBar.js`), and each tap is logged with its routing through `trackLeadClick`. The reference portals put an agent card in exactly the slot `EnquiryCard` occupies; never fill it with an agent we cannot vouch for.
+- Footer social icons (Facebook / Instagram / TikTok) stay inert `<span>`s, never `<a href="#">`, until a real URL is saved on `/admin/settings` (or set as `NEXT_PUBLIC_*_URL`); a saved WhatsApp Business link replaces the central number on the WhatsApp icon. See "Site settings…" below.
+- `ExploreCommunes.js` shows **a real photo of a real approved listing in that commune**, plus that commune's real listing count (`getCommuneShowcase()`). It used flat gradients before, because a stock photo captioned "Gombe" would have been a fabrication. A commune whose latest listing has no usable photo falls back to the typographic treatment rather than borrowing another commune's image.
+- Card chip badges are limited to what the data can prove: photo count (`gallery.length`), "Location" (`purpose`), door count (`units_count`). No days-on-market shaming, no invented amenity hooks. See `ListingBadges.js`.
+  - **"Prix en baisse −N %" and "Nouveau" are back (2026-10-18, product direction)**, at most one per card (`cardPromoBadge`, lib/listingView.js). A price cut is a row in `property_price_history` (the engine's trigger, every writer): the latest change, within 14 days, after the listing went public, same currency/purpose/period, current price still the reduced one; 1–50 % only (a bigger "cut" is a corrected typo). "Nouveau" = public for under 3 days (7 until 2026-10-28, cut because most launch listings carried it) (later of `created_at` / `moderated_at`). Both are SQL columns (`price_drop_from`, `is_fresh` in `SELECT_FIELDS`) on the database clock, never `Date.now()` in a component (hydration #418). Neither shows on an under-offer or let/sold listing. `tests/unit/card-promo-badges.test.js`.
+  - Saving a listing bursts six dots out of the heart and vibrates 12 ms on Android (`FavoriteButton`, `.u-heart-burst`); none of it under reduced motion, nothing on unsave.
+- The hero background (`public/hero-kinshasa.jpg`) is a real, properly-licensed photo (CC BY-SA 2.0, Wikimedia Commons — MONUSCO/Abel Kavanagh) with the required credit rendered in `Hero.js`. It has been re-encoded to ~330 KB (it shipped at 5.6 MB). Anything that replaces it keeps both properties: real licence, visible credit where the licence asks for one.
+- `PropertyMetrics.js` shows a rental listing's own price as its monthly income and nothing for a sale listing — no market-comparable dataset exists to estimate a yield. `/plan` stays an honest empty page for the same reason: a budget calculator would need financing rates we don't have.
+- **The USD→CDF rate is a real daily feed now** (`lib/exchangeRate.js`), not the
+  manually-maintained constant this bullet used to describe. What did NOT change
+  is the honesty framing, and it still binds: `<Price>` marks converted amounts
+  "≈" with a dated tooltip, `CurrencyBridge.js` states the date in copy, and
+  nothing presents it as a dealing rate — a daily reference figure is not a
+  quote somebody can transact on.
+  - **The displayed date is always the date the displayed number actually came
+    from**, never "today". The feed publishes its own `time_last_update_utc`
+    and that is what we render; when the fetch fails we fall back to
+    `DEFAULT_CDF_PER_USD` carrying `DEFAULT_RATE_UPDATED_AT`, its real check
+    date. Stamping a fallback with today's date would be a stale figure wearing
+    a fresh one, on a number customers budget against — the same class of
+    fabrication as the invented deposit terms two sections down.
+  - **Frankfurter does not carry CDF** — it republishes the ECB majors, and a
+    USD→CDF query returns nothing usable (confirmed against the live API). Any
+    replacement source has to actually quote this exotic; `open.er-api.com` was
+    picked because it does, needs no key, and reports its own publish date.
+  - `lib/currencyRate.js` stays the single entry point every pricing surface
+    reads. An admin's manual entry from `/admin/cms` still wins, but only while
+    it is at least as recent as the feed — a correction, not a permanent pin.
+
+## Design system
+
+Warm luxury palette over a Zillow/Rightmove-style portal information
+architecture: the references supply the skeleton (filter pills, card anatomy,
+map/results split, desktop rail), the palette and type supply the skin.
+
+**Density is deliberate and split by surface**: `/listings` is dense and
+scannable like the references; `/` and `/listings/[id]` are airy and emotive.
+Scan fast to find, linger to decide.
+
+- **Tokens live in `app/globals.css`** (Tailwind v4 — there is no config file). Ground is `canvas` (`#FBF9F6`, warm, deliberately not `#fff`) with white `surface` cards on top; that figure/ground separation is what the previous all-`#ffffff` palette lacked and why cards needed shadows to be visible.
+  - Naming: the ground is `canvas`, **not** `stone` — Tailwind ships a built-in `stone-*` scale and having both `bg-stone-deep` (ours) and `bg-stone-800` (theirs) reads as a typo.
+  - The old `--color-lukka-blue*` tokens are **gone**. They held a dark slate identical to the body text, so nothing could read as a primary action. Don't reintroduce a token whose name doesn't match its value.
+- **Bronze contrast rule — computed, not assumed. Follow it exactly:**
+  - white on `--bronze` (`#A6642A`) = **4.69:1**, passes AA → bronze is a **fill** colour.
+  - `--bronze` as text on `--canvas` = **4.46:1**, **fails AA** → never use it for body-size text.
+  - `--bronze-deep` (`#7E4A1C`) on `--canvas` = **6.93:1**, passes → all bronze text, links and small icons.
+- **Type is sans-led**, and there is now exactly one scale for the whole application — see the **Typography** section below, which supersedes any per-surface heading convention. Plus Jakarta Sans carries all UI, filters, prices, card data and body copy; DM Serif Display is an *accent only*, at regular weight, for page and section titles on every surface including `/admin`. No mono family is loaded: reference codes use `.u-ref`. (This bullet previously named Inter and Fraunces — both were replaced by the "WhiteBlue Royal" pass and the note was stale.)
+- **Utilities that carry the look**: `.u-eyebrow` (uppercase 11px/0.12em — the editorial workhorse), `.u-tabular` (**every price**, or grid columns go ragged), `.u-ref`, `.u-lift` / `.u-lift-lg` (the only real elevations; cards use hairline `border-line` instead of shadows).
+- **Colours that can't reach CSS**: `lib/mapIcons.js` (SVG data URIs) and `lib/mapStyle.js` (Google Maps `styles` array) hardcode their colours because neither can resolve CSS custom properties. The `/listings` pins (`.lkp-pin`) are real DOM and use the tokens.
+- **The map is the one surface that deliberately leaves the site palette** — don't "fix" it back. `lib/mapStyle.js` renders real geography (green parks, blue water, a warm paper canvas, a warm road hierarchy) rather than the monochrome WhiteBlue treatment it used to carry: with no green, no water and no road hierarchy, Kinshasa disappeared and the map became a blank sheet pins floated on. Pin colour is a **data encoding**, not decoration — `lib/mapMarkerKinds.js` maps each real property category to one colour + one lucide glyph (blue appartement/duplex/penthouse, green maison/villa, orange terrain, red bâtiment/boutique/entrepôt, neutral ink for an unrecognised category), resolved `parcelle_subtype` first then `category_name`, the same precedence `typeLabel()` uses. `PropertyMap`'s legend is what gives those colours meaning; a new kind without a legend entry is an unexplained dot. Cluster bubbles carry a ring split into one arc per type present, sized by the real mix underneath. All of it is pinned by `tests/unit/map-markers.test.js` against the pure helpers, since the icon builders themselves need the Maps JS API.
+  - **Stale above, kept for the reasoning:** the colour kinds, the legend and the ringed clusters were removed (dd425f9) in favour of royal-blue price tags — see the header of `lib/mapIcons.js`. Clustering briefly returned with the viewport map and was removed again: every listing renders as its own price tag at every zoom.
+  - **2026-09-23:** resting pins are white speech bubbles, only the active one is blue; on `/listings` they are HTML pills (`lib/mapPinLayer.js`) and every listing always shows its price (`$1.5k` format) — no clusters, no dots. The basemap is vibrant (`lib/mapStyle.js`: green parks, vivid blue water, local street names and land parcels off). Every pill has the same solid edge. Root CLAUDE.md, "Markers".
+- **`/listings`' map is a viewport map, not a view of the page** (`components/ListingsMap.js`, `GET /api/listings/map`, `lib/mapViewport.js`). It shows every listing matching the URL filters inside the visible area and refetches when the map comes to rest; the 12-card list pane beside it stays paginated. On the map, commune/quartier/radius decide where it OPENS and then give way to the viewport, so panning out of Bandal still applies "2 chambres" to what comes into view. Root CLAUDE.md, "Interactive Property Map", has the full model; the detail page's single-listing map is still `PropertyMap`.
+
+## Typography — one scale, four surfaces
+
+**Before this, the app ran four typographic dialects on one font stack**, which
+is why the storefront, the agent portal, the Espace Client and `/admin` read as
+different products: the public site set headings in DM Serif, the agent portal
+used the serif for its page title but ad-hoc `text-[1.125rem] font-bold` sans
+for every card heading, the client portal had a third set of arbitrary sizes,
+and `/admin` used the display face **zero times** — every heading sans-bold at
+`text-xl` / `text-[1.3125rem]` / `text-sm`.
+
+**Two families, one hierarchy, applied identically everywhere** (tokens and
+utilities in `app/globals.css`):
+
+| Utility | Face | Size | Use |
+| --- | --- | --- | --- |
+| `.u-title-hero` | DM Serif | 32→40px | the h1 of an editorial full-page (Espace Client, /compte/alertes, /compte/demandes) |
+| `.u-title-page` | DM Serif | 28→30px | every dashboard page header — agent AND admin |
+| `.u-title-section` | DM Serif | 22px | a band within a page; auth-card titles; empty-state titles |
+| `.u-title-card` | Sans 700 | 17px | the heading inside one card or panel |
+| `.u-title-sub` | Sans 700 | 15px | a group label above a field cluster |
+| `.u-micro` / `.u-micro-strong` | Sans 400/600 | 13px | the dashboard workhorse: table cells, filter controls, form labels |
+| `.u-stat` | Sans 800 tabular | 28px | a headline metric on a stat tile |
+
+**Use these instead of writing a new arbitrary `text-[…]`.** A one-off size is
+exactly how the four dialects happened. `.u-price`, `.u-body`, `.u-meta`,
+`.u-eyebrow`, `.u-ref` and `.u-tabular` are unchanged and still apply.
+
+The serif is what makes an admin console read as part of the same product as
+the storefront — it is why it now appears there at all. It stays regular
+weight only (the face has no bold cut) and never carries UI or data.
+
+## Listing lifecycle — three independent axes
+
+Conflating any two of these is the bug that keeps recurring:
+
+| Column | Meaning | Who owns it |
+| --- | --- | --- |
+| `approve_status` | moderation: 0 pending / 1 approved / 2 rejected | admin only |
+| `listing_status` | market state: `active` / `under_offer` / `closed` | agent (+ admin override) |
+| `status` | visibility: 1 public / 0 hidden | agent ("Archiver") and admin ("Suspendre") |
+
+- **Archiving is `status = 0`** — the existing active/enabled flag the public
+  filter already excludes. No new visibility mechanism was invented; the only
+  new column is `archived_at`, which records *when*, so an agent archive is
+  distinguishable from a listing that was simply never enabled.
+- **Closing a transaction requires a real date; the price is optional since
+  2026-11-09** ("Faites le point" below — a close the agent would not price
+  is kept with `sold_price` NULL rather than lost; only the old paragraph
+  below assumes a price).
+- **(History) Closing a transaction requires a real price AND a real date.**
+  `markListingSoldAction` writes `sold_price` + `sold_at` and sets
+  `status = 0`, so a concluded property leaves public search. `sold_at` exists
+  because days-on-market was previously derived from `updated_at`, which moves
+  every time anything on the row changes — a listing touched three months after
+  closing reported a three-month-longer DOM.
+- **`lib/dataExport.js` filters on `approve_status = 1` ONLY**, and is the one
+  query in this codebase that deliberately does not apply the public
+  `status = 1 AND approve_status = 1` gate. Filtering on `status` there would
+  drop every SOLD listing — the rows carrying `sold_price`, `sold_at` and the
+  achieved-vs-asking delta, i.e. the entire commercial value of the dataset.
+  Consumers who want live supply only filter the new `currently_listed` column.
+  `tests/unit/data-export.test.js` asserts this on the SQL text, not on rows.
+
+## Admin console
+
+- **`lib/adminListings.js` is separate from `lib/agentListings.js` on purpose.**
+  The latter enforces `AND agent_id = $n` on every statement — that scoping is
+  its whole point and must never be weakened. An admin needs to reach any
+  listing, including the ~23 with no agent attached. Two modules with two
+  explicit authority models beats one module with a "skip the ownership check"
+  flag someone eventually passes from the wrong place.
+- **The quartier is picked, not typed** (2026-11-03, `components/QuartierPicker.js`):
+  a select of the chosen commune's quartiers (engine `GET /locations`), reset
+  when the commune changes, plus "Autre…" for a lieu-dit or a commune whose
+  list is partial. A stored value not in the list opens on "Autre…" with that
+  value, so saving the page never loses it. A landmark belongs in Référence —
+  root CLAUDE.md, "The quartier keeps a quartier".
+- **Granular override editing** (`/admin/listings/[id]`) is what the console was
+  missing entirely: it previously offered exactly two verbs, Approuver and
+  Rejeter, so a listing with a transposed price or a missing commune could only
+  be bounced back to its agent over WhatsApp. That is why 6 approved listings
+  still carry no commune tag — nobody had a way to add one.
+- **Suspendre ≠ Rejeter.** Rejection is a moderation verdict that notifies the
+  agent their listing was refused; suspension is operational and reversible in
+  one click, leaving approval intact. `?status=suspended` is a fourth
+  moderation queue reading a *different column* (`status = 0 AND
+  approve_status = 1`) — see `LISTING_MODERATION_STATUSES`.
+- **`/admin/agents/[id]`** owns identity, territory (specialty vs coverage —
+  they score differently in the matcher), the verification badge, session
+  revocation, WhatsApp password-reset links, and portfolio reassignment.
+  `agents.phone` is deliberately **not** editable: it is the primary
+  identifier, and changing it would silently invalidate listing attribution,
+  the verification that granted the badge, and sessions.
+- **Duplicate detection** flags same-normalised-phone and same-email groups
+  only, never name similarity. The phone normaliser folds DRC shorthand onto
+  `243…` and leaves every other country's digits alone — an unconditional
+  `243` prefix turned a real UK number in production into `243447932673460`.
+- **Quotas are per-PACKAGE, not per-agent.** This schema has no per-agent quota
+  column; a UI implying one would promise an override nothing enforces.
+- **`plan_change_requests`** is the queue behind the agent-facing "Demander ce
+  forfait". Approving a request assigns the package and writes the ledger row
+  in one action. FlexPaie online payment is being added beside it (2026-10-18,
+  "FlexPaie" below); the request queue stays.
+
+### Built for 30k agents — every list is one server page
+
+The console used to fetch whole tables and slice nothing: `getAgents()` (every
+agent, two correlated listing counts each) was called by six pages just to fill
+`<select>`s, and `/admin/agents` rendered a 24-commune checkbox form into every
+row. That is fine at 10 agents and a multi-megabyte page at 30,000.
+
+- **URL-driven state, `lib/adminPagination.js`.** Page, page size (25/50/100
+  only — an arbitrary size is an unbounded query) and every filter are query
+  params. The Server Component asks the database for exactly one page
+  (`LIMIT/OFFSET` + a `COUNT`); the browser never holds more than 100 rows, which
+  is why there is no virtualisation layer. `buildHref` drops empty params and
+  resets `page` whenever a filter changes. Shared UI: `app/admin/table/`
+  (`TableToolbar` — debounced search, selects, dates; `Pagination`; `TableFrame`
+  with a sticky header). `TableToolbar` takes current values as props rather
+  than `useSearchParams()` (see Gotchas).
+- **Never load every agent again.** Pick an agent with `app/admin/AgentPicker.js`
+  (server-side type-ahead, ≤20 results, commune specialists first); name the
+  agents a page shows with `getAgentNamesByIds`; list them with
+  `listAgentsForAdmin`. `getAgents()` still exists for the public directory's
+  callers but has no admin caller left — keep it that way.
+- **Admin display names never fall back to `agents.username`** (it is the phone
+  number): `ADMIN_AGENT_NAME` is person → agency → `Agent #id`.
+- **Search escapes `%`/`_`** on both sides (Postgres `ilikeTerm`, engine
+  `likeTerm`); a typed `%` is text.
+- **`app/admin/error.js`** is the console's error boundary (Next 16 passes
+  `retry`, not `reset`). `/admin/matching` 500'd for every admin because
+  `const t = stats.totals` shadowed the translator one line before a `t()` call
+  — `i18n-translator-binding.test.js` cannot see a shadowed `t`, so name data
+  anything but `t`. Pages still load each data source independently
+  (`Promise.allSettled`) and render an `ErrorNote` in place.
+- **Agency search on `/admin/viewings`** is resolved to `agents.id` in Postgres
+  (`searchAgentIds`, capped at 500) and OR'd engine-side with the customer
+  name/number match — agency names do not live in SQLite. "Escalated" is the
+  engine's `view=escalated` slice (PENDING + `sla_alerted_at`), not a status.
+- **Conversations open in a slide-over at `?c=<id>`**, server-rendered like
+  every other view, so a thread is linkable and survives a refresh. Sender,
+  intent and assistant tool chips are written by the engine at record time
+  (`messages.sender/intent/tool_calls`); older rows show "sender not recorded"
+  rather than a guess. Listing-link and `wa.me` chips are pattern matches.
+- **`/admin/market-data` asking-price stats (`lib/marketStats.js`)** use the
+  PUBLIC gate (`status = 1 AND approve_status = 1`) — the opposite choice from
+  `marketBenchmarks.js`, deliberately: a sold listing is not on the market.
+  Yearly rent ÷ 12 exactly as `lib/format.js` renders it; `price <= 0` is "prix
+  sur demande", counted apart and never averaged in as $0.
+- **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
+  Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
+  direct-to-agent tap is invisible to us and is shown beside the rate, never in
+  it. "Delivery health" is API-accepted vs refused plus agents who answered;
+  there is no delivered count because Chakra forwards no receipts.
+
+### Accounts, roles and the audit log
+
+- **Individual team accounts** (`lib/adminUsers.js`, table `console_admin_users`,
+  `migrations/20260914_admin_console_platform.sql` in the engine repo). NOT
+  Laravel's `admins`/`role_permissions` — those belong to the external
+  back-office. Nobody types another person's password: an owner invites by
+  name/email/role on `/admin/team` and gets a single-use activation link (72h,
+  only its SHA-256 stored) to send; the person sets their own password on
+  `/admin/activate` (public in middleware, gated by the token). Lockout: 5 bad
+  passwords lock the account 15 min; 20 failures from one IP in 15 min refuse
+  that IP. The last active owner cannot be demoted or disabled.
+- **Session tokens are `v2.<adminId>.<tokenVersion>.<exp>.<hmac>`**
+  (`lib/adminAuth.js`). middleware.js checks signature + expiry only;
+  `lib/adminSession.js` re-reads the account on every page (layout) and every
+  action (`requireAdmin(permission)`), so disabling someone or resetting their
+  access (both bump `token_version`) ends their sessions at once. The layout
+  learns the path from `x-admin-pathname`, set (and overwritten) by middleware.
+- **The shared password still works, deliberately, as bootstrap owner access**
+  (`adminId 0`). Without it, deploying accounts would have locked the team out
+  until someone created the first owner. Everything it does is audited as
+  `shared-password` and a banner says so. **Turn it off with
+  `ADMIN_SHARED_LOGIN=off` once an owner account is active.** A pre-v2 token is
+  read as that shared session so nobody was signed out by the deploy.
+- **Roles are `lib/adminRoles.js`**: owner / moderator / support / finance /
+  analyst, a fixed permission table, `SECTION_PERMISSIONS` for pages (longest
+  prefix wins). The sidebar hides what a role can't open; the layout and every
+  Server Action enforce it. An unknown permission is refused, never open.
+- **Every mutating action calls `recordAudit`** (`lib/adminAudit.js`,
+  `console_admin_audit_log`, append-only, owner-readable at `/admin/audit`,
+  exportable). Details never contain a password or a customer message body —
+  replies record their length. `verified_by`, `moderated_by` and the exchange
+  rate's `updated_by` now carry the real account (NULL/"shared" under the
+  shared password, honestly).
+
+### Operating the console
+
+- **Approval queue** (`lib/moderationQueue.js`, `/admin/listings`): pending
+  oldest first with waiting time; tabs pending / approved (public only) /
+  rejected / suspended; quality flags computed in SQL (no/few photos, no
+  commune/price/content, extraction-failure text, photo reused on another
+  listing, same title+price, unverified/no agent) plus a price-outlier flag
+  from cached commune medians (≥5 listings, ×3). **Flags are facts, never
+  auto-verdicts.** Bulk approve runs the publishability check per listing and
+  reports skips; reject requires a reason code (`lib/moderation.js`) stored in
+  `properties.moderation_reason_code/_note/moderated_at/moderated_by` and sent
+  to the agent (engine `MODERATION_REJECTION_REASONS`). The listing page has a
+  decision panel and a photo manager that can only reorder/cover/remove photos
+  already on the listing.
+- **Duplicate listings** (2026-11-10, owner decision: same property with
+  another agent is fine, the same agent twice is not). Engine half — the hold
+  at "OK" and AUTRE — in docs/claude/whatsapp-intake-and-agents.md, "Same
+  agent, same listing". Here (`lib/moderationQueue.js`, `lib/moderation.js`):
+  - Photos are matched on the content fingerprint in the stored name
+    (`PHOTO_FINGERPRINT_PATTERN`, `whatsapp_|agent_` + 13 hex), never the URL
+    (it carries the listing id, so the old URL match never caught a re-send).
+    `DUPLICATE_INDEX_CTES` builds the fingerprint and description indexes once
+    per query (MATERIALIZED), live/pending listings only.
+  - `same_agent_resend` (`SAME_AGENT_MATCH`): same agent, the other copy
+    live/pending/not closed, same purpose, bedrooms equal or unstated, ≥1
+    shared photo or identical description (≥40 chars), created more than
+    `SAME_MESSAGE_SECONDS` (30 min) apart — the units of one paste share the
+    building's photos and are not re-sends. It is in `BLOCKING_FLAGS`; bulk
+    approve also asks `findSameAgentResends` and skips with the twins' ids
+    unless approved from the compare page (`confirmResend`).
+  - `duplicate_photo` now means a photo also on ANOTHER agent's listing, and
+    with `duplicate_listing` (title + price) is an `INFO_FLAGS` fact only.
+  - Every duplicate chip is a visible link ("Comparer ↗", "· même agent /
+    autre agent") to `/admin/listings/compare`, which marks same/other agent
+    against the first listing, shows a red banner for the same agent, and on
+    an older live copy offers "Retirer (doublon) — garder n° X"
+    (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
+    message `withdrawn_duplicate` with `keep_id`). The queue's red "N annonces
+    en ligne en double" banner was removed on the owner's request the same
+    day; the list is `?status=approved&flag=same_agent_resend` (the i18n keys
+    `compare.liveResends` / `cleanUp` are kept, unused, for when it returns).
+- **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
+  `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
+  1–2, red none), place as "quartier, commune" under the title, the median
+  ratio under the price, and an agent cell with initials, person (never
+  `vendors.username`), agency when it differs, a `tel:` number and facts —
+  unverified, "Nouveau compte" (< 7 days), "1ʳᵉ annonce" or N listings. The
+  checks column keeps only flags no other cell shows, plus ONE duplicate link
+  for every listing the row matches ("Doublon possible · autre agent", red
+  "Déjà publiée par le même agent"). Table from `md`, one card per listing on
+  a phone; the live tab drops the decision column for "Publié sur", so the
+  table fits a 1440 px screen without scrolling. A new account's first
+  listing is the one to read twice: on 2026-11-10 two customers were onboarded
+  as agents by the WhatsApp intake, their message text became their "name".
+- **Review mode and the queue split** (2026-11-10, same day). Cells shared by
+  the queue and review mode: `app/admin/listings/ModerationCells.js`; rules:
+  `lib/moderationRow.js` (`readiness`, `splitQueue`, `reviewOrder`,
+  `queueSummary`, `nameLooksLikeSentence`, `agentTextLine`).
+  - **Pending tab, unfiltered**: a summary line ("5 en attente · la plus
+    ancienne il y a 3 h · 2 à vérifier", over the whole pending queue up to
+    100; past 100 the "à vérifier" count is left out) with "Commencer la
+    revue", then **À vérifier** ("Revoir ces N" → `?only=check`) and
+    **Prêtes** = verified agent registered more than 7 days ago, no flag at
+    all, ≥3 photos, with "Tout approuver (N)" (the same bulk action, which still
+    re-checks each listing and reports skips). A filter or sort shows one table.
+  - **Each row** has the agent's first words in grey: the first inbound
+    WhatsApp text (engine `GET /admin/properties/sources`,
+    `services/listingSource.js`: inbound messages from 15 min before to 30 min
+    after the draft, `adminApi.getListingSources`), else the text we read,
+    else the description (web-form listing). Engine down = no grey line, never
+    a broken page. The thumbnail opens `PhotoViewer` (all photos, ← → inside it,
+    swipe, approve/reject). Decided tabs show only the date; who, when and the
+    note open in a popover (hover or tap).
+  - **`/admin/listings/review`** (`listings.moderate`): full screen over the
+    console, À vérifier then Prêtes, oldest first. Photo gallery, agent card,
+    checks, "Message de l'agent" (those inbound messages) beside "Ce que nous
+    avons lu" (`getListingFactsForReview`; NULL = "non indiqué", the three
+    entry costs separate). Keys: A approve, R reasons (1–7, Entrée confirms),
+    → skip, ← back, Échap leaves; ignored while typing or with the photo viewer
+    open. Each decision opens the next undecided listing; the end screen counts
+    approved / rejected / skipped and can go back over the skipped ones. Reject
+    reasons are chips everywhere (`RejectReasons.js`, also the queue's dialog).
+    A same-agent re-send is still refused by `moderateListingsAction` and the
+    reason is shown; compare first.
+- **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
+  Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
+  server-side; the browser polls `/admin/api/queue-counts` every 30s while
+  visible (`LiveQueueCounts.js`). Queue pages show a "new items — refresh"
+  pill rather than reshuffling rows under the cursor.
+- **Global search** (Ctrl/⌘K, `lib/adminSearch.js`, `/admin/api/search`):
+  listings, agents, agencies, customers, conversations — only the groups the
+  role may open. Substring search is backed by pg_trgm GIN indexes.
+- **Profiles**: `/admin/agents/[id]` has tabs (profile, listings in every
+  state, requests routed to them, performance from `agent_performance_logs`,
+  notes & history); `/admin/customers/[id]` merges leads, viewings and
+  conversations into one timeline; `/admin/agencies[/id]` manages an agency's
+  whole roster (bulk activate/suspend). Internal notes: `console_admin_notes`.
+- **Every table exports CSV with its current filters** (`/admin/export/[dataset]`,
+  paged through the same list function, capped at 10,000 rows, audited,
+  formula-injection-safe) and supports **saved views** per person
+  (`console_admin_saved_views`; not available under the shared password).
+- **`/admin/billing`** is the renewal desk and ledger over `memberships`:
+  expiring-in-30-days first; revenue is RECORDED revenue (trials excluded) —
+  there is no gateway, so nothing claims reconciliation. The featured-listing
+  picker on Subscriptions is a server-side search (it used to offer only the 50
+  newest listings).
+- **`/admin/health`** reports Postgres/engine latency, last inbound WhatsApp
+  traffic, scheduled-job outcomes, send failures and missing delivery config,
+  from what the platform records. **Alerts** come from the engine's
+  `ops-health-alerts` sweep (root CLAUDE.md, "Admin console at scale"): open
+  incidents show here and as the Health sidebar badge (`openAlerts`), and are
+  WhatsApped to the desk only when `OPS_WHATSAPP_NUMBER` is set.
+- **Keyset pagination** (`lib/adminPagination.js`: `parseCursor`,
+  `keysetClause`, `pageCursors`) on the tables that grow without bound — audit
+  log, customers, agents (newest sort), listing queue (oldest/newest sorts).
+  The pager's arrows carry `?after=`/`?before=` cursors; numbered pages still
+  jump by OFFSET; `buildHref` drops a cursor on any other change. The cursor's
+  sort value is `created_at::text`, **never a JS Date** — Postgres keeps
+  microseconds, a Date keeps milliseconds, and the round-trip would skip rows.
+  CSV export follows the same cursors. Price/name/portfolio sorts stay OFFSET.
+- **Branches** (`agency_branches`, `agency_branch_agents`,
+  `migrations/20260915_agency_branches.sql`, `lib/adminBranches.js`): on
+  `/admin/agencies/[id]` — create/edit/archive (`agents.manage`), filter the
+  roster by branch, move selected agents from the roster's bulk bar. New tables,
+  not an `agents.branch_id`, because `agents`/`vendors` are Laravel's too.
+  Every read joins `b.vendor_id = a.vendor_id`, so an agent moved to another
+  agency silently leaves their old branch. Communes come from the location
+  hierarchy only.
+- **Receipts** (`/admin/billing/[id]`): a printable receipt for a recorded
+  payment, numbered `LP-<Kinshasa year>-<membership id>` (derived, not
+  stored). Not a tax invoice, and says so; a trial or a row with no amount gets
+  no receipt. The console chrome is `print:hidden`.
+- **An agency's name is `vendorNameSql()` (`lib/vendorName.js`), never
+  `vendors.username`.** For agencies created by WhatsApp onboarding or phone
+  signup the username IS the phone digits — the first deploy of the agencies
+  directory, billing ledger and receipts printed "243853580738" as the agency.
+  Order: non-phone username → an agent's `agency_name` → "Agence #id".
+  Covered by `tests/unit/admin-vendor-name.test.js`.
+- **The migration also REVOKEs `anon`/`authenticated` on every `console_*`
+  and branch table.** Supabase's default privileges grant those roles access
+  to new `public` tables over its REST API; nothing here uses that path, and
+  `console_admin_users` holds password hashes. Whether older, Laravel-owned
+  tables carry the same grants has not been checked.
+
+### Sales team and commissions (`/admin/sales`)
+
+`migrations/20260919_sales_and_impersonation.sql`, `lib/sales.js` (SQL),
+`lib/salesRules.js` (pure: periods, amounts, validation — shared with forms).
+
+- **Nothing is typed in as a result.** A rep's figures come from agents assigned
+  to them (`sales_account_assignments`, one active rep per agent, history kept)
+  and what those agents' records say: "onboarded" = `phone_verified_at`;
+  "subscription sold" = a `memberships` row that is a real payment (not a trial,
+  price > 0, status 1) for the agent's vendor. **A vendor is credited only when
+  all its assigned agents share one rep** — ambiguity credits nobody.
+- **`credit_from`** is set when an agent is assigned (default today, never in
+  the future): nothing before it earns anything. Crediting a rep for an agent
+  they signed up last month is an explicit, audited date, not a default.
+- **Commissions are generated, idempotently**, by "Calculer les commissions"
+  (`syncSalesCommissions`, one transaction): subscription % of the payment in
+  its own currency, a fixed onboarding bonus, and a target bonus for CLOSED
+  Kinshasa months only. `UNIQUE (source_type, source_id)` means a membership,
+  an agent or a rep-month is credited once, ever — reassigning an agent never
+  double-pays. The plan's rate is snapshotted on each line, so editing a plan
+  never rewrites earned money. There is no scheduled run: press the button.
+- **Cancellations**: pending/approved subscription lines whose membership is no
+  longer active are voided on the next run; a PAID one is flagged
+  `clawback_due` and settled by a (negative) adjustment — a query never
+  reverses money already handed over.
+- **Lifecycle** pending → approved → paid (via a payout: one currency, rows
+  locked `FOR UPDATE`, total > 0) or void (reason required). Money is never
+  summed across USD/CDF anywhere.
+- **Roles**: `sales.manage` (owner, finance) does every write; a rep never
+  approves or pays their own lines. The new `sales` console role has
+  `sales.view` and is sent to the rep record whose `admin_user_id` is theirs —
+  any other rep id is a 404.
+- The agent profile shows (and, for `sales.manage`, changes) the agent's rep.
+
+#### Launch commission policy (plan kind `launch_milestones`)
+
+`migrations/20260920_sales_launch_policy.sql`, `lib/launchCommission.js`
+(pure: tiers, deltas, quality test, referral codes, fortnights),
+`lib/salesLaunch.js` (SQL), `lib/salesReferral.js` (cookie, links, IP hash).
+A plan is now `kind` subscription (above) or launch_milestones; the
+subscription steps skip launch reps and vice versa.
+
+- **Attribution is permanent and written once**, at account creation, in
+  `sales_agent_attributions` (one row per agent, first valid referral wins):
+  web signup (`/r/<CODE>` sets `lukka_ref` for 30 days without replacing a
+  valid one → `/compte/agent/inscription?ref=` prefills the optional code
+  field) or WhatsApp onboarding (engine, root CLAUDE.md). Never backfilled;
+  existing agents are attributed only by an override with a 20+ character
+  reason (`sales_attribution_changes`). An unknown code on the web form is sent
+  back before the account exists; a failed lookup never blocks signup.
+  Refusals (unknown, inactive, self-referral, existing agent) land in
+  `sales_referral_refusals`. Every rep gets a code (JEAN01, from the first name
+  if left empty); a code that brought an agent in can no longer change.
+- **A confirmed listing is frozen in `sales_listing_credits` the first time the
+  run sees it**: public, price, commune, title + description, ≥3 photos, none of
+  the moderation queue's blocking flags, created after the attribution's
+  `credit_from`. No FK to `properties` (agents hard-delete). It keeps counting
+  while approved and either public or let/sold; rejected, deleted, archived or
+  excluded stops it. Duplicate detection is title+price, so identical units in
+  one building are not credited — deliberate, flagged here.
+- **Qualified** = verified number + a name + ≥3 counting credits + not
+  rejected; **payable** = qualified AND `validation_status = 'validated'`. Tiers
+  are computed from payable counts only.
+- **Ledger lines hold tier DELTAS** (`milestone` acq:<rep>:<n>, `listing_bonus`
+  add:<rep>:<n>, `quality` quality:<rep>), so a rep's lines always sum to the
+  cumulative tier and "pay only the difference" needs no arithmetic. A tier no
+  longer met voids unpaid lines (`auto:below_threshold`, revived if met again;
+  a person's void stands) and flags paid ones (`clawback_flagged_at`) — never a
+  negative line by query. Quality (changed 2026-10-21, owner decision): once,
+  when ≥80% of the agents the rep brought in 30+ days ago (`attributed_at`)
+  are still active — account active and not deleted, not rejected, at least
+  one listing online — with at least 5 such agents. It used to be ≥80% of 15+
+  credited listings valid on day 30; the listing day-30 check still runs and
+  is still shown per credit, it just no longer pays.
+- **The run** is `syncSalesCommissions` (one transaction, `SET LOCAL
+  statement_timeout`), from the button, after every validation / exclusion /
+  override, and daily at 06:00 Kinshasa via the engine's `sales-commissions`
+  job → `POST /api/cron/sales-commissions` (Bearer CRON_SECRET).
+- **Pages**: the rep page gains the referral toolkit (code, link, server-drawn
+  QR SVG via `qrcode`, WhatsApp share, WhatsApp signup link), funnel, tiers,
+  referred agents (validate / reject / move) and credited listings (exclude);
+  the ledger gains a fortnight filter whose "pay" pays exactly that fortnight's
+  approved lines, and payout-method suggestions. `/admin/sales/attribution`
+  (`sales.manage`) lists refusals, overrides and patterns (3+ signups from one
+  hashed connection, listings before the referral, day-30 failures) — facts,
+  never automatic penalties. `/admin/sales/me` sends a rep to their page.
+
+#### What a `sales` console account sees (2026-10-21)
+
+`lib/salesScope.js` (`getSalesScope`, null for every other role) and
+`lib/salesScopeSql.js` (`repAgentCondition`: an active assignment OR the
+launch attribution — the set the team page counts as "brought in"; a sales
+account with no rep linked is repId 0, which matches nobody).
+`tests/unit/sales-rep-scope.test.js`.
+
+- **Agents / Agencies** list only the rep's agents and those agents'
+  agencies, in SQL (`listAgentsForAdmin` / `listAgenciesForAdmin` /
+  `searchAgentsForAdmin` `repId`, also the global search and the agent
+  picker). Any other agent or agency id is a 404. No duplicates panel, no
+  selection, suspend/activate, agency change, reminder or delete
+  (`AgentsTable canManage`); the profile panel is read-only.
+- **Verifications and Market data** are gone for the role
+  (`verifications.view`, `market.view`: every role but sales).
+- **Lead Analytics** shows only taps on listings whose agent is the rep's
+  (`repClickCondition`), and none of the platform-wide engine cards
+  (conversion, delivery, nudges, check-ins).
+- **Agent performance** keeps only the rep's agents, totals recomputed
+  (`lib/agentPerformanceScope.js`, same formulas as the engine); the routing
+  switch is `routing.manage` only, shown as a chip otherwise.
+- The dashboard and Property Approvals are still network-wide for the role.
+
+**Owner-only deletes** (same day): a commission plan (`deleteSalesPlan`; reps
+on it are left with none, earned lines keep their amounts), a rep
+(`removeSalesRep`, `sales.delete`: refused while pending/approved lines
+exist; no history → deleted, otherwise kept for the ledger as inactive,
+unlinked, assignments ended and `removed_at` set, which hides them from the
+team list — engine `migrations/20261021_sales_rep_removal.sql`), and a
+customer account (`customers.delete`, row + favourites + alerts by FK
+cascade; engine leads and visits stay).
+
+### Listing limits, the customer → agent chain, agencies, CMS hero
+
+- **Plan listing limits are enforced** (`lib/listingQuotaRules.js` pure,
+  `lib/listingQuota.js` SQL; engine twin `services/listingQuota.js` — change
+  one, change the other). The cap is `packages.number_of_property` of the
+  agency's active membership (vendor-wide; the most generous active listing
+  plan; a 0/NULL package such as Photography Service sets no cap; no active
+  membership → no cap). A slot is `status = 1 AND approve_status IN (0, 1)` and
+  not closed — pending counts, archived / rejected / let-sold free a slot.
+  Checked in `createListingAction` (after the offline-replay guard),
+  `duplicateListingAction`, single and bulk "put back online", and on WhatsApp
+  "OK" (after the photo gate; the draft stays pending). A refusal returns
+  `{quota}` and `announceListingQuota` opens `components/ListingLimitDialog.js`
+  (mounted in the agent layout) with "Mettre à niveau mon forfait" →
+  `/compte/agent/abonnement`; Mes biens shows the banner and the add button
+  opens the dialog instead of the form at the limit. **Production's Free plan
+  allows 2 listings while the launch policy needs 3 to qualify an agent** —
+  a pricing decision, not changed in code.
+- **Viewings and leads always name an agent when one exists.** A request with
+  no `agent_id` (pre-routing, or central fallback) shows the listing's own agent
+  marked "non alerté" / "non attribué", with WhatsApp links to customer and
+  agent (`app/admin/ContactCell.js`) and one click: "Alerter l'agent"
+  (engine reassign, which notifies them) on viewings, "Attribuer à l'agent de
+  l'annonce" on leads. `getAgentContactsByIds` (lib/agents.js) gives name,
+  agency, digits-only phone and `routable` (verified, routing on, active).
+  `/admin/leads` is now TableToolbar/TableFrame with engine-side search
+  (`q`: name, number, commune, request, assigned agent) and an unassigned filter.
+- **Agencies show a principal contact**: the agency's first agent, named like
+  every console person (never `username`). "Agence #id" stays the honest
+  agency name when none exists, flagged "sans nom d'agence"; search also finds
+  agents' person names and numbers. Stored vendor phones with a leading "+" no
+  longer print "++".
+- **Sales team page** is organised around agents brought in (active
+  assignments, which attributions mirror) and those agents' live listings, with
+  qualified / to-validate counts; every count links to the filtered list on the
+  rep page (`?gfilter=with_listing|qualified|awaiting#referred`), and each row has
+  copy code, copy link, QR download (`/admin/sales/[id]/qr?format=png|svg`, same
+  access as the rep page) and "pay this fortnight" (`?status=approved&fn=…&payout=1`
+  opens the payout dialog). A rep whose code brought nobody in gets a how-to card.
+- **CMS hero image** (`migrations/20260921_cms_settings.sql`, `lib/cmsSettings.js`,
+  `lib/cmsHeroRules.js`, `app/admin/cms/HeroManager.js`): upload (resized to
+  2400 px JPEG via sharp, stored under `cms/hero/` in the listing bucket) or a
+  pasted URL on a next/image-allowed host, alt text, optional credit, live
+  preview, reset. The homepage reads it per request (`getHeroSettings` never
+  throws) and falls back to `Hero/hero-sunlit.jpg`.
+
+### "View as" an agent or a customer (impersonation)
+
+`lib/impersonationToken.js` (pure crypto + the edge decision),
+`lib/impersonation.js` (sessions), `lib/impersonationCookies.js`,
+`app/admin/impersonation/{actions.js,exit/route.js,page.js}`,
+`components/ImpersonationBanner.js`.
+
+- **Read-only, enforced in middleware.js for every path outside /admin**: any
+  non-GET/HEAD/OPTIONS request is a 403 while the `lukka_impersonation` cookie
+  is present. One rule at the edge instead of a check in each action. Reason:
+  confirming a visit from an agent's dashboard WhatsApps a real customer, and a
+  change made "as" someone is indistinguishable afterwards from theirs. The
+  extra matcher entry uses `has: cookie`, so ordinary storefront traffic never
+  reaches the proxy.
+- **Who**: `accounts.impersonate` (owner, support), an individual console
+  account (the shared password is refused), a written reason (10–500 chars).
+- **How**: a real agent/customer session cookie is minted for the target with
+  a 60-minute token, next to a signed `imp1.…` cookie (ADMIN_SESSION_SECRET
+  under an `impersonation:` prefix) carrying session id + nonce + the admin's
+  token_version. One open session per admin; exit, console logout, expiry, or
+  the admin being disabled/reset ends it. The banner is fixed to the BOTTOM of
+  the viewport (the storefront header and its sticky offsets own the top).
+- **Logged** in `console_impersonation_sessions` (`/admin/impersonation`,
+  owner) and as `impersonation.start`/`.end` in the audit log.
+- **Known limit**: agent/customer tokens are stateless, so the minted target
+  cookie stays valid until its own 60 minutes even after the row is ended;
+  exit deletes it from the browser.
+
+### Deliberately not done yet (and why)
+
+- **Engine leads/conversations/viewings are still SQLite.** Moving them to
+  Postgres rewrites every synchronous `services/db.js` call on the live
+  WhatsApp path (better-sqlite3 is synchronous; `pg` is not, so every caller
+  up the chain changes shape). That is a dual-write migration with its own
+  parity checks and cutover, not something to fold into a console deploy.
+- **Agency self-service staff** (an agency managing its own branches and
+  users from `/compte/agent`) needs an agency-level login, which does not
+  exist: agents log in individually and `vendors` has no account of its own.
+  Branches are admin-managed until then.
+- **Card payments** are not offered. Mobile-money payment through FlexPaie
+  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
+  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
+
+## Layout & shell
+
+- **Public pages live in the `app/(site)/` route group**; `app/admin` and `app/api` sit outside it. The shell (`Header` / `Footer`) is in `app/(site)/layout.js`, and the root layout is deliberately bare. Before this, everything nested in one root layout and `/admin` rendered the public header and footer *underneath* its own chrome. Route groups don't change URLs.
+- **Spacing contract, defined once in `app/(site)/layout.js`**: `pt-16` clears the fixed `h-16` Header. Don't re-implement this per page — four pages used to compensate ad hoc with different values.
+- **There is no desktop left icon rail, and no persistent mobile bottom bar.** `SideRail.js` (a fixed 76px `Rechercher`/`Favoris`/`Demandes`/`Compte` column, `hidden lg:flex`) and `BottomNav.js` (the same four destinations, `lg:hidden`, fixed to the viewport bottom) have both been removed entirely — the former because web/Design's screens never carried one, the latter on an explicit instruction to favour a Rightmove-style pattern (no persistent bottom chrome, floating per-page actions instead). All four destinations are still reachable: `Rechercher` via the search icon/FilterBar, `Demandes` as a text link in Header's top-right utility row (desktop) or its hamburger Sheet menu (mobile, signed-in only — the drawer keeps its own per-session link lists since 2026-09-22), `Compte` via the account dropdown or that same Sheet. **`Favoris` is no longer a desktop header link** — it was removed from that row, and now reaches desktop visitors through the account dropdown (signed in), the footer's new Compte column (signed out — the account icon is a bare login link with no dropdown behind it, so the footer is what keeps `/favoris` reachable at all for them), and the Sheet on mobile. Any element that used to clear BottomNav's height (`FloatingControlBar.js`, `MobileListingBar.js`, `ListingsSplitView.js`'s mobile fullscreen map layer) now sits at the true viewport bottom instead — check each if you're touching mobile-bottom-anchored UI, the clearance math changed everywhere it applied.
+- `ListingsSplitView`'s desktop map sticks at `top-16`, `h-[calc(100vh-4rem)]` — flush under the header down to the viewport bottom (2026-09-25). It used to sit at `top-[8.5rem]` to clear FilterBar, but on /listings FilterBar scrolls away, which left a gap. If FilterBar is ever made to stay pinned there, the map's offset must grow with it.
+- **Desktop header utility row, left to right**: search icon (only where nothing else on the page owns search), account, currency, `Demandes`, language, "Publier un bien". `Demandes` sits beside the currency toggle and the FR|EN control sits immediately before the CTA — both placements are deliberate and documented in `Header.js`. The language control is `LanguageToggle.js`, a segmented FR|EN pill rather than a `<select>`, matching `CurrencyToggle` beside it; it writes the `NEXT_LOCALE` cookie *and* the `lukka_locale` localStorage mirror, then `router.refresh()`es so Server Components re-render in the new language (see `lib/i18n/`).
+- **The homepage's second section is personalised when it can be.** `app/(site)/page.js` renders `SavedListings` ("Biens Enregistrés") instead of `FeaturedListings` ("Sélection de la Semaine") for a signed-in visitor with at least one saved property. The choice comes from `lib/savedHome.js`'s `getSavedHomeSection()`, which returns `null` for a signed-out visitor *and* for a signed-in one with an empty shelf — the fallback covers both. Deliberate: an empty personalised shelf would replace a full section of real listings with a prompt. The shelf is a horizontal snap rail at every breakpoint (`SavedListingsRail.js`), unlike `FeaturedListingsCarousel`'s scroll-then-grid, because its length is a fact about the visitor rather than a catalogue that continues.
+- **The header is solid on every route, homepage included.** It used to start transparent over the hero photo and solidify on scroll (`Hero.js` carried `-mt-16` to bleed up under it, cancelling the layout's `pt-16`). The "Landing refondue" screen is explicit that it never goes transparent — the wordmark has to stay legible over whatever photograph the hero carries — so the scroll listener, the `overHero` flag and every `inverted` variant it drove (including `CurrencyToggle`'s) are gone, and the hero band starts below the header.
+- **App mode (2026-11-11): inside the store app the site draws an app layout.** `lib/appModeRules.js` (pure) / `lib/appMode.js` `isAppRequest()`: on when the `lp_app` cookie is set (GET `/app`, where the app starts, sets it; `/app?web=1` clears it) or the user agent carries `LukkaPlaceApp` (`appendUserAgent` in `mobile/capacitor.config.json`). Then `app/(site)/layout.js` draws `components/app/AppTopBar.js` (serif wordmark + notifications bell with the unread count; royal on `/`, white elsewhere; same h-16 as Header) instead of Header, and `AppTabBar` (Rechercher `/`, Enregistrés `/favoris`, Compte `/compte/menu`; hidden on a listing page) instead of the footer. The home page is `AppHomePage` → `components/AppHomeTop.js` (the owner's app design, "Search home": serif title, real live count, the site's SearchBar, the latest saved search, the 6 newest listings as `components/app/AppListingCard.js`). `/compte/menu` is the account screen and the old hamburger menu (public in middleware; private rows only with a session). `/favoris` is `components/app/AppSavedScreen.js` (Biens / Recherches, `AppSegmented`; homes from lib/favorites.js through `/api/listings?ids=`; signed-in searches read server-side with id + `alert_frequency`, the `AppSwitch` writes `updateAlertPreferencesAction` on → weekly / off; a shared `?ids=` link keeps FavorisView). Results keep the website's filters, map and relaxation logic: `ListingsSplitView appMode` draws `AppListingCard`, `FloatingControlBar aboveTabBar` sits over the tabs, and the tab bar hides on `?view=map` (Suspense, useSearchParams). Every app screen sits on `bg-canvas-alt`. Listing page: `components/app/AppListingBar.js` replaces MobileListingBar (call / WhatsApp / chat as icons under the same rules and tracking, "Demander une visite" wide → `/listings/<id>/visite`); off the tabs the top bar shows a back arrow. `/listings/<id>/visite` is `components/app/AppVisitBooking.js`: two steps in ONE form (VisitSlotPicker stays mounted, hidden, on step 2 so the slot posts), the same `submitVisitRequestAction` with `return_to=app` (answers back there with `visit_sent` 1/team or `visit_error`), then "Visite demandée". No video call, no add-to-calendar (the time is a request). Never submit it from a local preview: the local engine URL is production and the agent is WhatsApped. Filters: `FilterModal app` (FilterBar `appMode`) renders `components/app/AppFilterSheet.js` around the SAME `fields` block and FilterBar's live count — rounded bottom sheet ≤ 88dvh, handle-only motion drag to close (offset > 110 or velocity > 600), "Réinitialiser", one "Voir N résultats". Loaded with next/dynamic so the website never ships motion; the website keeps its full-height sheet. Agents in the app: the agent layout asks `isAppRequest()` and `AgentSidebar appMode` shows five tabs (Accueil overview, Biens, Demandes, Visites, Compte) instead of the website's up to seven; Compte is `app/compte/agent/menu` (messages and alerts with counts, Faites le point, overview, projects if on, settings, subscription if on, public page, language, "Chercher un logement" → `/`, sign out). The client book stays hidden (2026-09-22 decision). UI kit (2026-11-12, owner's shadcn list, hand-written in `components/ui/*.jsx`, Lukka Place tokens, no new packages): accordion, alert, attachment, avatar, badge, breadcrumb, bubble, button-group, calendar, carousel, chart, date-picker, marker, message, message-scroller, skeleton, spinner. Carousel/calendar/chart are built on motion (no Embla, react-day-picker, recharts); MessageScroller is the AI demo's scroll behaviour without the AI SDK, for Messagerie. Used so far: AppAvatar (Compte screens), AppCardBadges (app cards), Alert + Spinner (booking), Skeleton + Alert (Enregistrés), FAQ Accordion (Compte), ChartBars "Où chercher" (home). All variants on `/app-demo?vue=composants`. Rules: secondary grey is canvas-deep (screens are canvas-alt); a date posts its local day, never toISOString; a sliding-out calendar month is inert (useIsPresent). The design's lister-verification, access-code and add-a-property screens are London-specific and not built: agents are verified by phone + documents, listings arrive on WhatsApp or the existing form. Design reference: the owner's Claude Design export "Lukkaplace App" (30 screens, written for London — keep its layout, use our data and wording). **Motion here is the `motion` package** (owner's choice for the app), unlike the website's CSS-only rule below: `components/app/AppMotion.js` (LazyMotion + `m.*`, reducedMotion user) wraps app mode only, so the website never loads it. Entrances move, never fade (server HTML must show the search card on 3G). The display serif is DM Serif Display (`lib/appFont.js`, not preloaded, `.u-app-serif`), app mode only — the website dropped it 2026-10-24. Preview locally: the `app-preview` launch entry (port 3005, `--webpack`), open `/app` once. `tests/unit/app-mode.test.js`.
+
+## Gotchas that cost real debugging time
+
+- **A Server Action request body is capped at 1 MB unless you configure it, and going over is invisible from the client.** This broke *every* manual listing submission from the agent dashboard while WhatsApp intake kept working, because intake is a plain Express route on the engine and never touches a Server Action. `experimental.serverActions.bodySizeLimit` was unset, so Next.js applied its 1 MB default and aborted the multipart upload with a 413 **before the action ran at all** — before validation, before `assertAgentSession`. A phone photo is 2-5 MB, so essentially nothing got through. Two things follow, and both are now enforced:
+  - **The transport ceiling and the app's own photo budget live in one file** (`lib/uploadLimits.mjs`) and `next.config.mjs` *imports* the number rather than repeating it. Two numbers that were meant to agree and silently didn't is the whole bug. `tests/unit/upload-limits.test.js` pins the relationship. (`.mjs` because `next.config.mjs` is loaded by plain Node ESM — no `@/` alias, no `server-only`, and a `.js` file with `export` in it makes Node warn about a typeless package on every start.)
+  - **Current figures: 10 MB per photo, 20 photos (10 until 2026-10-21), 40 MB per submission, so a 41 MB transport ceiling.** Twenty fit because the browser shrinks each photo to ~300 KB first. Per-photo went 5 MB → 10 MB because 5 MB was below what a current phone camera produces and was rejecting ordinary photos. **Change these in `uploadLimits.mjs` only** — the `bodySizeLimit`, the FR/EN copy (`{max}` is interpolated, never typed) and the browser's pre-flight all follow from them, and the tests derive their fixtures from them too rather than hardcoding a count × size that silently stops testing anything.
+  - **Raising the budget is also a memory decision.** Next.js buffers the entire multipart body in memory and then copies each file again for the Storage upload, so a 40 MB set costs roughly 90 MB on top of the ~70 MB idle baseline. `ecosystem.config.js`'s `max_memory_restart` went 300M → 768M with it: being killed mid-upload is strictly worse than refusing one, because the restart takes every other in-flight request down too. Check that cap whenever the budget moves.
+  - **A 413 reaches the caller as a rejected promise, never as `{ ok: false }`.** Every imperative `await someAction(...)` therefore needs a `try/catch`, or the failure is *completely* silent: no toast, no error, the form still full, the button apparently dead. That is exactly what agents were reporting. `SmartPasteSection` was worse still — `setPending(false)` sat after an unguarded `await`, so a rejection left the button spinning forever. Guard the pending flag with `finally`, not just `catch`. The other imperative action calls in `components/Agent*.js` post small text payloads and cannot 413, but they can still reject on an expired session; they are not yet guarded.
+- **Validate uploads in the browser too, with the same rule the action uses.** Not for security — the action re-checks, and must, since it is a public POST endpoint — but because a size verdict reached *after* the request is a verdict nobody can be told about. `validatePhotoSelection()` is shared by both sides and returns an i18n key + vars rather than a string, so the shared module stays free of the dictionary.
+- **Browser page translation crashes React, and it looks like nothing else.** Edge's translator (also Chrome's and Google Translate) replaces each text node React rendered with `<font><font>…</font></font>`. React's next commit calls `removeChild` on a text node that is no longer there, the browser throws `NotFoundError: The node to be removed is not a child of this node`, and the route falls to Next's default global error, *"This page couldn't load — Reload to try again, or go back."* Reported 2026-09-15 on `/compte/agent/demandes?tab=visites`; any client update on any translated page can trigger it.
+  - **How to recognise it:** that exact wording (no digest) means a *client* exception — a server error reads "A server error occurred". Nothing reaches `pm2-error.log`. Every reproduction without translation works, including curl, a dev server and a clean browser on production data. The tell was in the screenshot: the wordmark read "LukkaPlacer", and strings we hardcode in French appeared in inconsistent English.
+  - **How to reproduce:** on a production build, walk `document.body`'s text nodes, replace each with `<font><font>text</font></font>`, then trigger a client navigation. Same screen, same error.
+  - **The fix is `lib/translationDomGuard.js`**, an inline `beforeInteractive` script in `app/layout.js` that makes `Node.prototype.removeChild`/`insertBefore` tolerate a node something else already moved (the mitigation from facebook/react#11538). Shipped as a string so `tests/unit/translation-dom-guard.test.js` evaluates the exact bytes the browser runs. `insertBefore` appends rather than skipping — the widely copied variant skips, which silently drops the new tab's content.
+  - **It does not need to precede the chunk `<script>` tags, and doesn't.** React DOM calls `parent.removeChild(node)` on the node at call time (no cached `Node.prototype` reference in `react-dom-client.production.js`), so landing before hydration is enough.
+  - **The guard stops the crash; it does not stop stale text — keys do.** Both tabs on `/compte/agent/demandes` open with the same element shape, so unkeyed React reused those elements and patched their text in place — exactly the operation translation breaks. With the guard alone the page survived, but the previous tab's translated subtitle stayed on screen beside the new one. The two tab bodies are now keyed `<Fragment>`s, so a switch is a remount, which only removes and inserts whole elements. **When two conditional branches render look-alike markup, key them.**
+  - **Deliberately not `translate="no"`.** That also prevents the crash, but removes a feature agents use on purpose — much of the EN dashboard is still hardcoded French. Opting out of translation is a product decision; tolerating it is the bug fix.
+  - **Not version skew.** Next 16 already hard-reloads when a stale tab's build id mismatches the server's (`doMpaNavigation` in `fetch-server-response.js`), so a tab left open across a deploy does not produce this screen. No `deploymentId` is configured, and none is needed for that.
+- **Tailwind v4: no `tailwind.config.js`.** Any `--color-*` / `--font-*` in the `@theme` block becomes a utility automatically.
+- **Don't trust an uncommon `grid-cols-N`/`col-span-N` to get generated.** `lg:grid-cols-10` silently never made it into the compiled CSS once. Prefer an arbitrary-value template (`grid-cols-[42%_minmax(0,1fr)]`) for anything beyond 1–6.
+- **`@tailwindcss/postcss` and `tailwindcss` are devDependencies the *production build* still needs.** `npm install --omit=dev` breaks `next build`. Full `npm install` before building, even in production.
+- **`useSearchParams()` forces a Suspense boundary around its caller.** `/favoris` called it at the top level, which put the *entire page* inside `<Suspense fallback={null}>` — verified in a browser, `<main>` rendered completely empty and the boundary never resolved. If a page needs one query param for one section, read `window.location.search` in an effect there instead of gating the whole page. If you do use the hook, scope it to the smallest component and never give it a `null` fallback.
+- **Radix exit animations don't complete in a non-compositing tab.** With `document.hidden`, CSS animations sit at `currentTime: 0`, `animationend` never fires, and Radix `Presence` never unmounts — so a closed Dialog lingers in the DOM with `data-state="closed"` and keeps `body { overflow: hidden }`. This is an artifact of headless/hidden browser panes, **not** a code bug; it resolves the moment the page actually composites. Don't "fix" it.
+- **`cn()` (tailwind-merge), not string concatenation, whenever a component accepts a `className` override.** `FavoriteButton` concatenated, so a caller's `bg-transparent` and the component's `bg-surface/90` both survived and CSS source order decided the winner instead of the caller.
+- **`area` is a TEXT column carrying `'0'`, not NULL, when unknown** — a naive render produces "0 m²". Use `hasArea()` in `lib/listingView.js`.
+- **`agents.username` is the account's own phone digits, not a name.** Every account created through WhatsApp onboarding (`services/agentOnboarding.js`, engine repo) or this app's phone+password signup (`createAgent`) sets `username = phone`; the real name lives in `agent_infos.first_name`/`last_name`, one row per language. `lib/listings.js` selected `a.username AS agency_name` and so printed "33766517388" on every card and on the detail page's `EnquiryCard`, while `/agents/[id]` showed "NSUMBU Marie" all along because it reads through `lib/agents.js`'s `agent_infos` join. Resolve names through `AGENCY_NAME_EXPR` (`lib/listings.js`) or `agentDisplayName` (`lib/agencies.js`), never off `username` — and pass anything user-visible through `displayableAgencyName` (`lib/agentIdentity.js`), which refuses a phone-shaped string. **Join `agent_infos` LATERAL + `LIMIT 1`**: it is per-language and agent #28 really holds two rows, so a plain `LEFT JOIN` duplicates every one of that agent's cards.
+
+## Component conventions
+
+- **`lib/listingView.js` owns values derived from a listing row** — images, spec items, dates, location line, description snippet. The three card designs each re-derived these, which is exactly how the same 14-day recency condition once ended up rendering "Just Added" in one file and "Nouveau" in two others; that specific value (`isNewListing`) has since been removed from this module entirely along with the badge it fed, but the "one source of truth" principle stands for everything still here.
+- **Three listing card designs exist on purpose** — `ListingCard.js` (horizontal, Rightmove-style 1-large-2-small photo collage, used on `/favoris`), `ListingCardVertical.js` (grid card for the `/listings` split view), `FeaturedListingCard.js` (homepage carousel teaser). One visual language, three layouts. Don't collapse them.
+- **`SafeImage.js` for any listing-sourced image, never bare `next/image`** — some stored objects genuinely 400 at source, and a visitor should see the real "no photo" placeholder rather than a broken-image icon. `PhotoGallery`'s thumbnails used bare `next/image` and had no fallback while the main frame did.
+- **UI primitives come from `components/ui/*` (shadcn, Radix).** Installed: `button`, `card`, `dialog`, `dropdown-menu`, `popover`, `sheet`, `tabs`. Add more with `npx shadcn@latest add <name>` — and **diff `app/globals.css` afterwards**, it has silently overwritten the palette before.
+  - **Popover, not DropdownMenu, for filter panels.** DropdownMenu implements roving focus and typeahead over menu *items*, which fights any text or number input inside it. See `FilterPill.js`.
+  - Radix content portals to `document.body`, so it is **outside the `<form>`**. `FilterBar` therefore owns every filter value in React state and renders hidden inputs inside the form; the pill panels and the sheet are pure UI. Don't put a named form field inside a portalled panel and expect it to submit.
+- **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
+- **Motion is CSS, not a library.** `framer-motion`, `lib/motion.js` and `lib/useMotionSafe.js` are gone (see "Mobile performance & resilience" below). The presets live in `app/globals.css`: `.u-pop` (a toggled icon — key the span on a counter and apply the class only when it is > 0, so it never plays on mount), `.u-reveal` (entrance on mount), `.u-rise` (small panel over the map), `.u-reveal-in-view` (scroll-driven, `animation-timeline: view()`, no JS; a browser without it shows the element with no reveal). All are gated on `prefers-reduced-motion` in the CSS itself. Radix `Dialog`/`Sheet` animate via `data-state` + `tw-animate-css`. Don't add a motion library back for decoration: it was ~40 KB gzip on every page for effects most of them never ran on a phone.
+  - **The motion layer (2026-09-23)** adds, same file, same rules: `.u-stagger` (a list's rows enter on mount, 60ms apart, capped at 7) and `.u-stagger-inner` (the same on each row's *content*, for hairline grids where a fading cell flashes `bg-line` — `AgentStatGrid`); `.u-stagger-in-view` / `.u-stagger-in-view-inner` (scroll-driven per child, columns of a grid row cascading via `--u-col`); `.u-rail-reveal` (FeaturedListingsCarousel only: whole strip below `sm`, per card from `sm`); `.u-hero-settle` + `.u-lift-in` (hero photo and headline — transform only, never opacity, because the hero is the LCP); `.u-attention` (three beats on an overdue to-do badge, then still); `.u-header-elevate` (the header's shadow deepens over the first 120px of scroll, via a pseudo-element's opacity on `scroll(root)`). Card photos zoom 1.04 on hover and the card presses to 0.985 unless the press is on one of its buttons.
+  - **Keyframes use `translate`/`scale`, never `transform`.** A `both`-filled entrance holds its last frame forever, and a held `transform: none` silently kills every transform-based hover/press on that element (`.u-press`, `.u-card-interactive`, `.u-btn-primary`). Don't put an entrance on an element that uses Tailwind's `translate-*`/`scale-*` utilities either — that is the property they now share.
+  - To stagger a list that shares its parent with other elements, wrap the `map` in `<div className="u-stagger contents">`: no box, so the parent's gap is untouched, and `nth-child` counts only the rows.
+  - **Don't verify these in a hidden browser pane.** No frames render there, so scroll timelines and `getComputedStyle` read stale values and screenshots come back blank. Read `el.getAnimations()[0].effect.getComputedTiming().progress` after a frame has actually been drawn.
+
+## Mobile performance & resilience
+
+95%+ of visitors are on mid/low-end Android phones on 3G/4G in Kinshasa, paying
+per megabyte. Baseline measured on production at 375px (2026-09-15), before this
+pass: ~257 KB gzip of first-party JS on `/` served gzip-only, card photos at
+q=90, the Maps JS API (~245 KB) loaded on every listing page before anyone
+scrolled to it, invisible-but-tappable photo arrows on every card, and no
+loading or error boundary anywhere outside the client portal and `/admin`.
+
+- **Data budget.**
+  - `images.qualities: [75]` and `minimumCacheTTL` 30 days (`next.config.mjs`).
+    Storage object names are content hashes, so an optimised photo never goes
+    stale. Don't reintroduce `quality={90}`: it doubled grid photo bytes, and a
+    card and the gallery asking for different qualities download the same photo
+    twice.
+  - Maps load on demand. `ResponsiveMapPane` imports every map module through
+    `next/dynamic`. `ListingLocationMap` loads by itself once the frame is
+    within 400px of the viewport, at every width (2026-09-28, product
+    direction: no tap on phones); only Data Saver / 2G still gets the
+    "Afficher la carte" button. The frame keeps its height either way.
+    With stored coordinates it is `ListingPinMap` (its own chunk): only a
+    pale 500 m circle around the jittered point at zoom 14 (wider than the
+    ≤400 m jitter, so the real spot is inside it) and a "Zone approximative"
+    chip top-left (bottom-left is Google's logo). No pin, type symbol or
+    label — owner's choice 2026-10-23, after an irregular zone with a white
+    type badge was tried the same day. No
+    price on the map — the page shows it twice. A price pill was tried first. A comparison with nearby similar listings was tried and reverted
+    the same day (2026-09-28) on product direction. Without coordinates it
+    keeps the geocoding single-pin `PropertyMap` (max zoom 14).
+  - `lib/useSaveData.js` (`saveData` or a 2G `effectiveType`) skips work nobody
+    asked for: auto-loading the map, preloading the neighbouring card photo.
+    It never hides content, and it is false on the server and in
+    Safari/Firefox.
+  - Dialogs that only open on a tap (`AuthPromptModal`,
+    `SearchAlertConfirmModal`) are `next/dynamic`. The DM Serif italic font
+    file is not loaded.
+  - **Compression**: `WEB_COMPRESS=off` turns off Next's own gzip so Traefik's
+    `compress` middleware can serve brotli. Traefik skips a response that
+    already has a Content-Encoding, so the two changes only work together. Set
+    the env without the middleware and every page ships uncompressed.
+- **Touch.**
+  - Controls a thumb uses are ≥44px (`min-h-11`/`h-11`). A control drawn
+    smaller gets `.u-hit`, whose `::after` pads the tap area to 44px. It needs
+    a positioned element.
+  - `CardImageCarousel`'s arrows are `hidden` below `sm` and
+    `pointer-events-none` until hover or keyboard focus. Its dots don't respond
+    to taps on a phone (a swipe is the control there).
+  - Hand-written `:hover` rules in `globals.css` sit inside
+    `@media (hover: hover)`, because Android keeps `:hover` on the last thing
+    tapped. Tailwind's own `hover:` variant is already gated that way.
+  - No `backdrop-filter` on touch devices: `.u-glass-*` switches to an opaque
+    fill under `(hover: none)`, and bottom bars use `lg:backdrop-blur-*`. One
+    blur per card is re-rendered on every scroll frame.
+  - Text floor on phone-facing surfaces is 11px.
+- **Agent photos are shrunk on the phone** (`lib/photoShrink.js`, used by
+  `CreateListingDialog` and `AgentListingEditor`): 1600px long edge, JPEG 0.82,
+  one photo at a time. A 4 MB camera photo becomes ~300 KB, and EXIF
+  (including GPS) is dropped. Anything that can't be decoded, or doesn't come
+  out smaller, is sent as the original. `lib/uploadLimits.mjs` still validates
+  whatever is sent. Before encoding, `lib/photoEnhance.js` applies a capped
+  white-balance / lightness / vibrance correction that can only make a photo
+  lighter, never darker (root CLAUDE.md, "Listing photo auto-correction");
+  the engine carries an identical copy for WhatsApp photos.
+- **Slow and failed requests.**
+  - `loading.js` exists per section of `(site)/` (re-exporting
+    `(site)/_shared/SiteLoading.js` — never one `(site)/loading.js` again, see
+    "Real 404s" below), `(site)/listings/[id]/`, `compte/agent/` and
+    `(portfolio)/`, using `components/RouteSkeletons.js`.
+  - Each sits at a segment root, so a search-param change inside a page
+    (`/listings` filters, `?tab=`) does not flash the skeleton or remount the
+    map.
+  - `error.js` in the same three trees renders `components/RouteError.js`
+    (Next 16 passes `retry`). It shows an offline-specific message when the
+    browser reports no connection. `app/global-error.js` is inline-styled and
+    bilingual because it replaces the root layout.
+  - `OfflineBanner` (root layout) shows a pill while offline.
+    `lib/networkError.js`'s `isNetworkError` separates a dropped connection
+    from a server verdict. `ViewingPanel` and `AgentVisitRequestCard` offer
+    "Réessayer" on the toast for the first; retrying is safe because the
+    engine ignores a repeated status.
+  - `ViewingPanel` acknowledges a tap at once. `sent` is keyed to the
+    `viewing` object it was made against, so the refreshed timeline takes over
+    by itself. It is not `useOptimistic`, which reverts when the action ends,
+    before `router.refresh()` has delivered the new timeline.
+- **PWA.** `app/manifest.js` (icons `public/brand/icon-192.png` / `icon-512.png`,
+  resized from `app/icon.png`) and `public/sw.js`, registered in production only
+  after `load`.
+  - The worker caches `/_next/static` cache-first (200s only).
+  - It serves `/_next/image` stale-while-revalidate (80 entries).
+  - Navigations are network-first with a `/offline.html` fallback.
+  - **It never caches HTML** (sessions, prices, availability). It does not
+    touch `/api`, `/admin`, non-GET requests or other origins.
+  - `/sw.js` is served `no-cache`. The kill switch is in its header comment.
+    Pinned by `tests/unit/mobile-performance.test.js`, which runs the worker in
+    a VM.
+- **Real-user Web Vitals.** `components/WebVitals.js` beacons LCP/INP/CLS/FCP/TTFB
+  (route with ids collapsed, connection class, Data Saver) to
+  `POST /api/telemetry/vitals`. That route validates the payload and writes one
+  `[vitals] {json}` line per metric to the web process log, with no table and
+  no migration. Read with
+  `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[vitals\]'`.
+- **Open: React hydration error #418 on lukkaplace.com.** It predates this
+  pass: the pre-deploy build, run on the VPS and reached through an SSH tunnel,
+  throws it too. One cause is found and fixed. Listing dates were formatted in
+  the runtime timezone, so the UTC server and a UTC+2 phone printed different
+  days. Every listing date is now pinned to `LISTING_TIME_ZONE` in
+  `lib/listingView.js`, and after that fix the live process reached directly
+  on :3002 hydrates cleanly.
+  - **Not the cause:** it still happens (3 errors per page) through
+    `https://lukkaplace.com`, and none of these change that: brotli vs Next's
+    own gzip, a service worker vs none, cleared storage and cookies.
+  - **Already ruled out:** server HTML through Traefik has the same visible
+    text as the direct HTML, and with vs without cookies.
+  - **Next step:** a build with `reactProductionProfiling` or a non-minified
+    React so the message names the mismatched node, loaded on the real
+    hostname. A mismatch makes React re-render the page on the client, which
+    is costly on low-end Android.
+- **Deliberately not done here:**
+  - **Cacheable HTML.** The locale cookie makes every route dynamic (see
+    "Bilingual FR/EN"). The fix is the `app/[locale]/` migration, a URL change
+    that is a product decision in its own right.
+  - **Direct-to-Storage per-photo uploads with progress.** That needs
+    signed upload URLs, ownership checks on the returned paths, and a new
+    offline-replay contract. Shrinking already removes most of the upload time.
+  - **`PropertyCard` as a Server Component.** It renders inside client parents
+    (`ListingsSplitView`, both rails), so it stays a client component until
+    those are restructured.
+
+## Phone numbers are international now — the country is data, not a guess
+
+The platform opened to diaspora customers (buying in Kinshasa from London,
+Brussels, Toronto) and to agents listing property outside the DRC, so a phone
+number can no longer be assumed Congolese.
+
+- **`components/PhoneField.js` is the only phone input in the product.** It
+  posts two fields: the typed number as `name`, and the picked ISO 3166-1
+  country as `<name>Country`. Every Server Action reads both through
+  `phoneFromForm(formData)` (`lib/phone.js`). A new form that renders a bare
+  `<input type="tel">` reintroduces exactly the bug this replaced.
+- **The bug it replaced was silent and damaging.** `normalizePhone`'s
+  country-less branch recognises DRC shorthand, so a London number typed as
+  `07932673460` was stored as `243793267346` — a real Kinshasa number
+  belonging to somebody else. No error, no rejection: a working-looking
+  account whose OTP, alerts and viewing confirmations all went to a stranger.
+- **Three normalizers, three jobs, don't mix them up:**
+  - `normalizePhone(input, country)` — raw text from a form. With a country
+    it is exact; without one it still accepts DRC shorthand and refuses to
+    guess at anything else.
+  - `normalizeStoredPhone(value)` — a value that is ALREADY E.164 (a `wa_id`
+    from the WhatsApp pipeline, a number off a row, the number in a signed
+    cookie). Re-running `normalizePhone` on one of these rejects every
+    non-DRC number, which is what turned international agents' activation
+    links into "Lien expiré".
+  - `splitPhone(e164)` — the inverse, for re-opening a stored number into
+    the picker.
+- **`lib/countries.js` holds E.164 dial codes only; country NAMES come from
+  `Intl.DisplayNames`** in the reader's own locale. 230-odd hand-typed French
+  strings plus 230 English ones is a FR/EN parity problem nobody on this team
+  would maintain. `tests/unit/phone-countries.test.js` asserts every ISO code
+  resolves to a real region name, which is what catches a typo'd code.
+- **Trunk prefixes are per-country facts, not a blanket "strip the 0".** `''`
+  for Italy and Côte d'Ivoire (the leading 0 is part of the number there),
+  `'1'` across the NANP, `'0'` elsewhere. Getting this wrong deletes a real
+  digit.
+- **Seven dial codes are shared** (+1 across 24 NANP territories, +44 across
+  the UK and the Crown Dependencies, …). `PRIMARY_FOR_DIAL` says which
+  country a stored number displays as; without it, list order decided, and
+  every British number was labelled "Guernsey".
+- **The starting country is decided server-side** from `Accept-Language`
+  (`lib/requestCountry.js`), so the first paint already shows the right dial
+  code. Without it the field renders +243 and flips to +44 a moment after
+  hydration — real, observed in the preview. A bare `fr` (no region) is
+  ignored rather than maximised into `fr-FR`; that would default a Kinshasa
+  visitor to France. After hydration a previous explicit choice
+  (`localStorage`) and the visitor's own selection both win.
+- **No flag images and no new dependency.** Flags are regional-indicator
+  emoji. Windows ships no flag-emoji font, so they render there as the two
+  ISO letters — which is exactly the code chip the alternative design would
+  have drawn, and why there isn't a second one beside them.
+- **Radix restores focus to the trigger on close, and that is wrong here.**
+  Picking a country with Enter put focus back on the trigger button just in
+  time for that same keystroke's keyup to "click" it and reopen the panel.
+  `onCloseAutoFocus` is prevented, and `choose()` moves focus to the number
+  input synchronously — the panel animates out over ~100ms and keystrokes
+  land in the search box for the whole of it otherwise. Both confirmed in a
+  real browser, not reasoned about.
+
+## TESTING MODE — `AUTH_OTP_BYPASS=1` turns phone verification off
+
+`lib/otpBypass.js`, read by the four auth entry points (customer signup and
+login, agent signup and login). **Currently set on production**, deliberately,
+so the end-to-end flow can be tested at all.
+
+**Why it exists.** The `agent_auth_otp` template is not delivering, and
+`lib/otpDelivery.js`'s session-message fallback only reaches somebody who
+messaged the business number in the last 24 hours — which a first-time
+registrant never has. So no new account could complete signup, and nothing
+downstream of signup (listing attribution, the agent dashboard, demandes)
+could be exercised.
+
+**What it changes: exactly one thing.** Whether a code has to be presented.
+Passwords are still scrypt-hashed through `lib/authCrypto.js`, sessions are
+still the same signed tokens, and the bypassed path calls the same
+`consumeAgentOtp` / `consumeCustomerOtp` the real path does — so the row ends
+up in an identical state, including the retroactive listing claim that makes
+an agent's already-WhatsApped listings appear on their dashboard.
+
+**What it costs.** Phone verification is the only thing proving a registrant
+holds the number they typed. With this on, anyone can register any number and
+be treated as its owner — and since `consumeAgentOtp` claims every listing
+ever sent from that number, an agent signup on somebody else's number hands
+over that agency's portfolio. Acceptable for a closed testing window on known
+numbers; **not** acceptable once real agents are onboarding themselves.
+
+**Turning it off is `unset AUTH_OTP_BYPASS` + `pm2 restart lukka-place-web
+--update-env`.** No code change and no revert — that is why it is an env flag
+and not a commented-out block. The flag is read at call time, not module load,
+so the restart is enough.
+
+Not affected, and still OTP-gated: `/mot-de-passe-oublie` (self-service
+password reset). Use the admin reset below instead while the template is down.
+
+**(Superseded the same day: customers get no code at all, see "Phone
+verification". This applies only to the password-reset and leftover verify
+flows.) Customers are sent a code by default since 2026-11-06.** `customerOtpBypassEnabled()`
+is false whenever `AGENT_OTP_TEMPLATE` is set, unless `CUSTOMER_SENT_CODE=off`;
+the verify page leads with the code box even after a failed send (error +
+"Renvoyer le code"), and the WhatsApp proof is only the "Code pas reçu ?"
+fallback underneath, or the whole page when no template is configured. Whether
+the code ARRIVES is still the template's health, unproven since the incident
+below — check one reach a number that never wrote to us after deploying.
+History follows.
+
+**Customers can be sent a code instead (2026-11-04, owner decision) — off
+for now.** `customerOtpBypassEnabled()` is false only when
+`CUSTOMER_SENT_CODE=on` AND `AGENT_OTP_TEMPLATE` is set; then customer signup
+and the login of an unverified customer SEND a 6-digit code and the verify
+page asks for it, the reverse WhatsApp proof appearing only after
+`error=send_failed`. It went live on the template alone on 2026-11-03 and was
+switched back the next morning: three customers were sent `agent_auth_otp`,
+Chakra accepted all three, none arrived (one had written to us a minute
+before), and Chakra forwards no receipt to say why. Check the template in
+WhatsApp Manager (Authentication, fr, Copy-code button, intake account) and
+see one arrive on a number that never wrote to us before setting the flag.
+Agents still follow `AUTH_OTP_BYPASS`. Switched on again the same day at the
+owner's request, safely: the verify page now ALWAYS opens the WhatsApp
+challenge — first when no code was sent or the send failed, otherwise under
+the code box as "Code pas reçu ? Confirmez plutôt votre numéro depuis
+WhatsApp" — so a template that is accepted but never delivered can no longer
+strand a customer. The same day the customer form's name
+became required ("Nom et prénom", refused before the account exists), and
+"Membre fondateur" moved to the agent overview (`getAgentFounderInfo`, rank
+among live non-test agent accounts) — customers no longer see it.
+`tests/unit/customer-signup-code.test.js`.
+
+## Admin password reset — `lib/adminPasswordReset.js`
+
+An admin can set any agent's or customer's password directly, from
+`/admin/agents/[id]` (in the "Accès et sécurité" card, beside the WhatsApp
+link) and from the new `/admin/customers` list.
+
+- **It reuses `resetAgentPassword` / `resetCustomerPassword`**, not its own
+  UPDATE. Those already carry the semantics a password change must have here:
+  replace the hash, clear any in-flight reset code, bump `token_version` so
+  every outstanding session dies, clear the login lockout. An admin-set
+  password that skipped the `token_version` bump would leave whoever was
+  already signed in on the old password still signed in — usually the exact
+  situation the reset is being used to end.
+- **The two realms keep their own hashers.** `agentAuth` and `customerAuth`
+  are separate auth realms with separate session secrets
+  (`tests/unit/auth-realms.test.js` pins that). They compute the same scrypt
+  form today; that is not a guarantee to build on.
+- **The typed password is shown in clear in the form.** Deliberate: the admin
+  is about to read it out over WhatsApp, and a masked field they cannot check
+  is how an account gets locked harder than it started. It is never logged,
+  never returned by the action, and never sent anywhere — the admin relays it.
+- **Why `/admin/customers` is a list with an inline reset, not a detail page.**
+  Password reset is the only customer-account operation this console has any
+  business performing; everything else a customer owns already shows on
+  `/admin/leads` and `/admin/conversations`, keyed by phone. Agents keep their
+  detail page because they have identity, territory and a portfolio to manage.
+- This is also the only reset path customers have ever had — the activation-link
+  mechanism is an `agents` table feature.
+
+## Heading capitalization — Title Case in EN, sentence case in FR
+
+Enforced by `tests/unit/heading-capitalization.test.js`, applied by
+`node scripts/apply-title-case.mjs`, with the rule itself in
+`lib/titleCase.js` and "which keys are headings" in
+`scripts/heading-keys.mjs` — the transform and the test share both, so they
+cannot drift.
+
+**Two conventions, because the two languages have two:**
+
+| | Rule | Example |
+| --- | --- | --- |
+| English | Title Case | "Create an Agent Account" |
+| French | sentence case | "Créer un compte agent" |
+
+Forcing English Title Case onto French would produce "Créer Un Compte
+Agent", which reads to a French speaker the way "create an agent account"
+reads to an English one. `apply-title-case.mjs` only ever opens `en.json`;
+there is no code path that could Title-Case the French dictionary.
+
+- **`subtitle` ends in `title`** and was swept into the first run of the
+  transform, which turned a banner's body copy into "List Your Properties and
+  Receive Customer Enquiries on WhatsApp." Subtitles are excluded explicitly
+  in `heading-keys.mjs`. Watch for this whenever the suffix match is widened.
+- **Not `text-transform: capitalize`.** That utility uppercases *every* word,
+  giving "Are You **An** Estate Agent **Or** Agency?" — it has no concept of
+  articles, conjunctions or prepositions, cannot leave an acronym alone, and
+  would leave the underlying strings wrong anyway. The strings are
+  transformed at source so the rendered text is the text in the dictionary.
+- **Words with deliberate casing are never re-cased** — `WhatsApp`, `USD`,
+  `CDF`. A naive capitalizer turns "WhatsApp" into "Whatsapp".
+- **Interpolations are never touched** (`{count}`, `{name}`), and a template
+  that OPENS with one is exempt from the capital check, since the capital
+  comes from the value. `listings.results.heading` is `"{subject}
+  {transaction} in {place}"` — the test asserts the strings that can fill
+  `{subject}` instead of exempting that `<h1>` silently.
+- **Checking a template's ingredients is not the same as checking the
+  heading.** The `{subject}` fillers were asserted; `{transaction}` never
+  was. It comes from `search.label.toRent` / `toBuy` / `available` — three
+  keys that exist for this one `<h1>` and nothing else, and which read "to
+  rent" / "for sale" / "available". So `/listings` shipped "Apartments to
+  rent in Gombe": the very string this file used as its Title Case example,
+  in sentence case. They are now "to Rent" / "for Sale" / "Available" (odd
+  alone, correct in the only place they appear), and the test assembles the
+  real heading — every subject × every transaction — rather than inspecting
+  the parts. Change those three keys only together with that test.
+- **There is deliberately no test asserting French is *not* Title Case.** The
+  obvious version fires on every proper-noun meta title ("Contact — Lukka
+  Place") and would need a hand-maintained exception list. See the comment in
+  the test file.
+- **The nine hardcoded French JSX headings are gone.** They rendered French —
+  and therefore sentence case — to an English reader, because a heading
+  written straight into JSX never meets the dictionary. All nine now go
+  through `t()` (`account.requests.submitted`,
+  `admin.agentPanel.subscriptionHistory`, `admin.moderation.content`,
+  `admin.matching.title`, `admin.subscriptions.paymentsAndSubscriptions`,
+  `admin.subscriptions.featuredListings`, `agent.editor.descriptionSection`,
+  `agent.editor.photos`, and the already-existing `agent.subscription.title`),
+  so the rule reaches them. `grep -rEn "<h[1-6][^>]*>[^<{]*[A-Za-zÀ-ÿ]" app
+  components` is how you find a new one; it should stay empty.
+
+### A heading is not always next to an `<h2>`
+
+`heading-keys.mjs` unions **three** sources, not two. The third exists
+because `<Panel title={t('admin.dashboard.trafficSource')}>` renders a real
+`<h2>` — inside `Panel` — with no heading element anywhere near the call
+site. Twenty-one headings (`Panel`, `Step`, `SectionHeading`, `PageShell`,
+`AgentPageHeader`, `PortalEmpty`, `SectionTitle`, plus Radix's
+`DialogTitle`/`SheetTitle`) sat outside this rule until the prop scan was
+added, so "Sort by", "More filters" and "Traffic source" were shipping in
+sentence case under an English Title Case convention.
+
+- **Which props are heading props is derived, never listed.** A component is
+  read for `<h2>{title}</h2>`, and `title` becomes a heading prop of that
+  component. A hand-kept list is precisely what goes stale when someone adds
+  a dashboard panel.
+- **Radix's `DialogTitle`/`SheetTitle` are named explicitly**, since they are
+  the one case that never appears as `<hN>` in our source — Radix renders the
+  `<h2>` and wires `aria-labelledby` to it.
+- **The prop scan is scoped to the opening tag, and children are scanned from
+  after it.** `<SectionTitle action={<button>{t('…linkCopied')}</button>}>`
+  puts a button's label *inside the opening tag*; scanning from the tag's
+  start Title-Cased "Link copied" — a transient toast label — as though it
+  were a section heading. Both halves of that (the heading it must catch, the
+  label it must not) are pinned in the test file.
+- **A key used as both a dialog title and the button that opens it gets Title
+  Case in both places**, which is right here: this app's buttons already read
+  "Log In" and "Create an Account".
+- **A heading entry is not always a string.** `agent.listings.deleteBulkTitle`
+  and `account.favorites.compareTitle` are `{ one, other }` plural objects,
+  and both forms render into the same heading. A plain `typeof value ===
+  'string'` check skipped them entirely — they were the last two English
+  headings still in sentence case, and the naming convention had been
+  matching them the whole time. `headingStrings()` in `heading-keys.mjs` is
+  the one place that resolves an entry to the strings it can render; use it
+  rather than `lookup()` when checking or rewriting heading copy.
+- **A heading key that doesn't exist fails a test now.**
+  `lib/i18n/translate.js` falls back silently in production, so a typo'd
+  `t('admin.matching.titel')` ships an empty `<h1>` rather than an error, and
+  `allHeadingKeys` drops unknown keys so the transform never trips over one —
+  which is the same thing that would hide the typo. Both dictionaries are
+  asserted to hold every key the JSX renders in a heading.
+
+## Phone verification — WhatsApp OTP, both account types
+
+**Superseded for customers on 2026-11-06 (owner decision): a customer
+account is a phone number and a password, nothing else.** 13 of the 30 web
+customer accounts had never confirmed their number and were held at the code
+step on every login. Now:
+
+- **Signup** creates the account, signs in and redirects to `next`; no code is
+  sent and the verify page is not shown (`CompleteRegistration` is recorded at
+  signup). **Login** signs in on the right password.
+- **No feature waits for a confirmed number**: requests and visits found by
+  phone, request/visit actions, saved-search alerts, price-drop messages, chat
+  and its WhatsApp alerts (engine `services/chatNotify.js`) all serve every
+  customer. **Risk the owner accepted:** a mistyped number or someone else's
+  sees that number's requests and visits and sends our alerts to it (each
+  message carries the stop link). The real owner reclaims the number through
+  "Mot de passe oublié", whose code goes to that WhatsApp.
+- **Still counting only confirmed customers, deliberately not changed:**
+  partner referral credits (`lib/referralCredits.js`, money — confirmation is
+  the anti-fraud check) and the growth/partner "verified" counts. New web
+  customers will no longer reach them; that is a pricing decision for the owner.
+- **Forgotten password:** `/mot-de-passe-oublie` (a WhatsApp code we send,
+  with a WhatsApp-support button when it cannot be sent) or the team's reset
+  on `/admin/customers`.
+- **Logout ends this device only** (no `token_version` bump; password resets
+  still end every session). **The login form remembers the number**
+  (`lukka_customer_phone`, httpOnly, 1 year, kept on logout, removed with the
+  account).
+- Agents are unchanged: no session before the code, since confirming an
+  agent's number claims that number's listings.
+  `tests/unit/customer-easy-login.test.js`, verify-pipeline §76 chat check.
+
+The paragraphs below describe the earlier rule and are kept for its history.
+
+**Customer signup no longer establishes a session.** It creates the row,
+sends a code, and hands off to `/compte/inscription/verifier`; only a real
+code establishes the session. Agents have worked this way since they were
+built — customers were the side missing it, which meant a mistyped number
+produced an account we could never reach again through the only channel this
+product has.
+
+- **`scripts/migrate-customer-phone-verification.js` must run before this
+  code deploys.** `getCustomerByPhone` selects `otp_code_hash`,
+  `otp_expires_at` and `phone_verified_at`; without the migration every
+  customer login throws. Additive and re-runnable (`IF NOT EXISTS`).
+- **Existing customers are NOT backfilled as verified.** Nobody proved those
+  numbers, and stamping a timestamp would record a verification that never
+  happened. They are asked once, on their next login — the same one-time step
+  an unverified agent already goes through.
+- **`lib/verifyAttempt.js` replaced the `?agent=<id>` / `?customer=<id>` query
+  param.** That param was not a credential (the code is), but it was
+  guessable, and two things followed: the resend button would fire a real
+  WhatsApp message at whatever account id you typed into the URL, and the
+  page could never show the number it had just texted. A signed httpOnly
+  cookie fixes both — the page now confirms the last four digits back, which
+  is how someone catches their own typo instead of waiting ten minutes for a
+  code that was never coming. Same primitive and same reasoning as
+  `lib/resetAttempt.js`.
+- **`/compte/inscription/verifier` is in `middleware.js`'s public list**, for
+  the same reason the agent one is: it is the step *before* a session exists.
+  Gating it on a session bounces every new customer to a login they cannot
+  pass until they enter the very code that page is asking for. Pinned in
+  `tests/unit/middleware.test.js`.
+- **`lib/otpDelivery.js` is the one way a code leaves this app**, and it is
+  template-first with a session-message fallback. Meta only delivers a
+  free-form message to someone who messaged the business in the last 24h, so
+  a first-time registrant never receives one — accepted with a real message
+  id, silently never delivered. The fallback exists because the template
+  lives in Meta's WhatsApp Manager and may be missing or pending approval;
+  when it is, a session message still reaches everyone who has messaged us
+  recently. Both failing is reported as a real failure, never swallowed. The
+  password-reset flow was a bare free-form send until now and went through
+  this too.
+- **OTP primitives live in `lib/authCrypto.js`** (`hashOtp`, `verifyOtp`,
+  `otpExpiresAt`, `OTP_TTL_MS`), re-exported from `agentAuth.js` for the
+  callers that already imported them there. One 10-minute lifetime for every
+  code this product sends; a customer-flavoured copy is how two "10 minutes"
+  quietly become 10 and 15.
+- Signup verification (`otp_code_hash`) and password reset
+  (`reset_otp_code_hash`) are **separate column pairs on both tables**. One
+  flow must never invalidate the other's in-flight code.
+
+## Known gaps (real, documented, not to be papered over)
+
+- **`price_period` / `deposit_months`** — the `ALTER TABLE properties ADD COLUMN price_period text, ADD COLUMN deposit_months integer;` migration this was waiting on has run (2026-08-19, confirmed directly against `information_schema.columns`), and `SELECT_FIELDS` (`lib/listings.js`) now selects both. Before this, `services/postgres.js` (engine repo) was already writing both fields on *every* sync — since `syncListingToPostgres` is fire-and-forget and swallows its own errors, that meant every listing publish was silently failing to reach Postgres at all, with the submitting agent seeing a normal success reply. Existing Postgres rows still have `NULL` for both until their next sync; `DepositBadge` only starts showing real values as listings get republished or freshly submitted.
+- **`advance_months` / `commission_months` now exist on `properties` and are rendered** — this note previously said they did not, and was stale. The `ALTER TABLE` ran (`scripts/migrate-entry-cost-columns.js`), `syncListingToPostgres` writes all three, `SELECT_FIELDS` selects them, `lib/listingView.js`'s `entryTerms()` renders the full "3 + 1 + 1 mois" KeyFacts cell, and `components/EntryCostsBreakdown.js` itemises who receives each poste (avance and garantie to the Bailleur, commission to the Agent/Agence) with a derived total. **The genuine caveat that remains**: legacy rows may carry a SUMMED value in `deposit_months` from before the engine split the fields, and those are indistinguishable from a real long deposit without re-reading the original WhatsApp text. Nothing fills a missing advance or commission with a "standard" figure — there is no standard, and a guess here is a number a customer would budget against.
+- **`parent_building_id` / `building_name` exist and are selected, but no row carries one yet.** Added by `scripts/migrate-building-columns.js` (run against production 2026-09-11, both nullable, partial index on `parent_building_id`). The engine stamps them only on listings published through multi-unit expansion (`services/db.js` `expandAndPublishListing`), which no production listing has used yet — so `lib/buildingGroups.js` is live but every listing currently groups as itself, which renders exactly as it did before. The first multi-unit WhatsApp paste to be confirmed is what will draw the first building pin. Nothing is backfilled: a pre-existing listing has no building to belong to, and inventing a group id would invent a building.
+- **`latitude` / `longitude` are now read, but are populated on only 8 of 31 approved listings.** `SELECT_FIELDS` omitted both columns until 2026-09-04, which meant `lib/geocoding.js`'s `source: 'existing'` branch was dead for *every* listing on the site: each map view re-geocoded client-side against a billable Google API, once per session, while the rows that did carry coordinates went unused — and the km-radius filter in the same module queried those same columns, so there were two sources of truth for one location, disagreeing by construction. The SELECT is fixed and verified live (`listing #256: existing`). Persisting coordinates at publish time still needs an **IP-restricted `GOOGLE_MAPS_SERVER_KEY`**: the browser key is HTTP-referrer-restricted and Google refuses it server-side. Until then the other 23 fall back to commune centroid + deterministic jitter, which `ListingLocationMap` labels honestly.
+  - **Update (2026-09-14):** the engine now geocodes at publish time (`services/geocoding.js`, run from `syncListingToPostgres`) whenever `GOOGLE_MAPS_SERVER_KEY` is in the ENGINE's `.env`, and `scripts/backfill-listing-coordinates.js` (engine repo) fills older rows through the same code. The key already existed in this app's `.env.local` on the VPS; `scripts/geocode-listings.js` here predates the cascade and precision check and should not be used for new backfills. A listing that still has no coordinates is placed at its commune centroid by `/api/listings/map` and counted on the map badge.
+- **Google Maps is currently failing on the live site** with "This page can't load Google Maps correctly" — pins resolve and markers are created, so the pipeline works, but tiles are refused. That signature is billing/quota on the Google Cloud project, not a code fault. `localhost` is also absent from the browser key's referrer allow-list, so the map cannot be exercised in local dev at all (confirmed on both :3001 and :3002).
+- **`NEXT_PUBLIC_WHATSAPP_NUMBER` *is* set** (`.env.local`). A previous version of this note said otherwise and was stale. The real exposure is production: `.env.local` is hand-maintained and untracked, and `ecosystem.config.js` does not set it, so a fresh deploy that loses that file makes `WhatsAppCTA`/`CallCTA` build `wa.me/undefined` — a live link to nowhere — while the ~15 `getCentralWhatsAppHref` call sites render their disabled state.
+- **Commune tags: 6 of 31 approved listings still carry none.** `scripts/backfill-commune-tags.js` recovered 7 from real address text; the rest have no commune in their text, or are ambiguous. Note that **"Kinshasa" is both the city and one of the 24 communes**, and every address here ends with the city — so that name is excluded from automatic matching entirely. A listing genuinely in Kinshasa commune has to be tagged by a human.
+- **`features` (`text[]`) exists on `properties`, is rendered, and is populated on 32 of the 48 approved listings** — the "Caractéristiques principales" list on the detail page (`components/listings/PropertyDescription.js`, `lib/descriptionParser.js`). Column added by the engine's `scripts/migrate-listing-features.js`; filled on every new listing by the extraction itself, and on existing ones by the engine's `scripts/backfill-listing-features.js` (run 2026-09-13), which re-ran that same extraction over each listing's original WhatsApp message — not a regex, and never the public description, which is prose on all 48 rows. Checked after the run: 189 bullets, 5.9 per listing, 0 phone-shaped, and every line in an 8-listing sample traceable to its source message. **The other 16 have no original message on file** (properties 197, 226, 227, 239, 240, 253, 254, 256, 257, 264, 265, 266, 298, 300, 301, 302 — pre-engine, or created through the agent form) and stay NULL by design: they fall back to the AMENITY_KEYWORDS pass, which carries its own weaker caption. Known residue, left deliberately: the extraction sometimes repeats a room count KeyFacts also shows ("2 salles de bain"), and can normalise a bare "Sécurité" to the stock "Sécurité assurée" — redundant or mildly rephrased, never an invented physical fact.
+- **`listing_events` is a new, empty table** (`scripts/setup-listing-events.js`) holding `listing_saved` / `listing_unsaved`, written by `POST /api/track`. Nothing reads it yet — `lib/analytics.js` has no query against it, so the save funnel is recorded but not yet on the dashboard. `whatsapp_clicks.price` was added by the same script and is NULL on every row written before it; those events genuinely predate the measurement and are not backfilled.
+- **No logo file yet.** `components/Brand.js` renders a set-type wordmark; drop the client's SVG at `public/brand/` and flip `LOGO_SRC` / `MARK_SRC`. Nothing else imports a brand mark.
+- **Per-listing agent contact — the schema limitation this used to describe is resolved; a real self-service path now exists.** `properties.agent_id` (FK) is the mechanism, joined to `agents`/`agent_infos`. **Correction, checked directly against live Supabase (this note previously said otherwise and was stale): `agents.phone` is `character varying(32)`, not a 32-bit integer — it holds a real E.164 `wa_id` (e.g. `243997123456`) with no truncation risk.** Phase 2 added the admin-side `assignAgentToListingAction` (`web/app/admin/agents/actions.js`) that populates `agent_id` for real; Phase 4 added genuine agent self-service accounts (`agents.password_hash`, phone-verified via a real WhatsApp OTP — see `lib/agentAuth.js`), independent of Laravel's own unused `agents.password` column. A listing without an attributed agent still correctly falls back to the central `WhatsAppCTA` number, same as before — this is no longer the only path, just the honest fallback when there's genuinely no agent attached yet.
+
+## Bilingual FR/EN — how it works and what will bite you
+
+French is the default and is not a "source language of convenience": listings,
+communes and agents are French-first, and `lib/i18n/config.js`'s
+`DEFAULT_LOCALE` encodes that. English exists for the diaspora audience — the
+same audience the USD/FC toggle was built for.
+
+**Locale is a cookie (`NEXT_LOCALE`), not a `/fr` `/en` route segment.** That
+was a deliberate trade-off, recorded in `lib/i18n/config.js`: no restructuring
+of ~100 route files into `app/[locale]/`, no rewrite of every internal
+`<Link href>`, and one canonical URL per page so existing shares keep working.
+The cost is that reading the cookie opts a route into dynamic rendering — the
+seven public routes that used to prerender (`/`, `/a-propos`, `/contact`,
+`/favoris`, `/agents`, `/messages`, `/plan`) are now `ƒ`. Everything else was
+already dynamic. If per-locale static prerendering ever matters more, the
+migration is to `app/[locale]/`, not to reading the cookie in fewer places.
+
+- **Dictionaries** — `lib/i18n/fr.json` / `en.json`, ~1,185 keys each, grouped
+  into 18 top-level namespaces. `tests/unit/i18n.test.js` asserts they stay
+  key-for-key identical, that no value is blank, and that `{placeholder}` sets
+  match between the two — a "{count} biens" translated without its count is
+  silent data loss.
+- **Reading a string** — `await getT()` in a Server Component or Server Action
+  (`lib/i18n/server.js`), `useT()` in a client one (`lib/i18n/client.js`).
+  Never import `lib/i18n/server.js` from anything reachable by a `'use client'`
+  file: it pulls in `server-only` and `next/headers`, and the build fails.
+- **Namespaces are shipped per surface.** Each layout passes only what its own
+  subtree renders, so `/admin`'s copy never reaches a public visitor (~6KB
+  gzip saved per public page). `tests/unit/i18n-namespaces.test.js` walks the
+  real import graph and fails if a client component resolves a namespace its
+  layout doesn't provide — that gap is otherwise silent in production, warned
+  about only in dev.
+
+### The three mistakes that actually happened here, repeatedly
+
+1. **`t` in a module-level constant.** `const LABELS = { a: t('x') }` at the top
+   of a file is a `ReferenceError` at import — `t` only exists inside a
+   component or action. Constants hold `labelKey` strings and the consumer
+   resolves them at render. Every label map in this codebase follows that shape
+   (`components/navItems.js` is the reference).
+2. **`t` in a default parameter.** `function X({ label = t('y') })` has the same
+   problem: parameter defaults are evaluated where `t` is not in scope. The
+   default moves into the body (`CopyLinkButton`, `ShareOnWhatsAppButton`,
+   `LocationAutocomplete` all do this, with a comment).
+3. **A function that calls `t()` without binding one.** This is the dangerous
+   one: **the build passes and the page 500s at render.** It shipped several
+   times during the migration and was caught in a browser, not by `npm run
+   build`. `tests/unit/i18n-translator-binding.test.js` now checks every
+   top-level declaration. Two cases are worth remembering — `Wordmark`
+   (`components/Brand.js`) is a NAMED export, so an earlier check that only
+   looked at default exports saw nothing while every page rendering the header
+   crashed; and an earlier version of that test missed `FavoritesSection`
+   because an apostrophe in French JSX text was read as the start of a string
+   literal and threw off its brace counting.
+
+### What is deliberately NOT translated
+
+- **Real data**: listing titles, descriptions, commune and quartier names,
+  agency names, `category_name` out of `property_category_contents`. Only
+  labels around them are keys. `typeLabel()` translates the parcelle sub-type
+  and passes `category_name` through untouched.
+- **`AMENITY_KEYWORDS` (`lib/constants.js`)** and
+  **`EXTRACTION_FAILURE_MARKERS` (`app/admin/listings/actions.js`)** — French
+  keyword lists matched against listing text that is itself French.
+  Translating either would break the matcher, not localise it.
+- **The `flexibility` option VALUES** in the customer request form: the chosen
+  option is stored as free text and appended to what partner agencies read, so
+  translating the value would change what lands in the database depending on
+  the customer's display language. Only its visible label follows the toggle.
+- **The agent password-reset WhatsApp message (`lib/agents.js`)** — it is sent
+  to the agent, but triggered by an admin. Translating it would render it in
+  the *admin's* language, not the recipient's.
+
+### Verifying a change
+
+Static scanning is not sufficient and repeatedly under-reported here: strings
+hide in ternary branches, template literals, default parameters and multi-line
+JSX that a line-based scan does not see. The check that actually settles it is
+fetching each route twice with `cookie: NEXT_LOCALE=fr` and `=en` and looking
+for French in the English render — that works on output, so the source shape
+cannot fool it. `npm run build` catches neither an unbound `t` nor a missing
+namespace; the two i18n tests above exist because of that.
+
+## Testing
+
+- **`npm test`** runs the unit tier: Node's built-in `node --test`, no test framework dependency, matching the engine's own hand-rolled `scripts/verify-pipeline.js` precedent. 102 tests, three of which (`i18n.test.js`, `i18n-namespaces.test.js`, `i18n-translator-binding.test.js`) guard the bilingual layer — see the FR/EN section above for why the build alone does not.
+- Two flags carry the whole thing and are not optional: **`--conditions=react-server`** makes `import 'server-only'` a genuine no-op (that package exports a zero-byte file under that condition), which is what lets ~30 `lib/` modules be imported at all; and `tests/support/hooks.mjs` uses **`module.registerHooks`** to resolve the `@/` alias and retry extensionless specifiers with `.js` — Next resolves both implicitly, plain Node ESM resolves neither.
+- The unit tier substitutes `lib/db.js` with a recording fake pool (`tests/support/fakePool.js`), which buys the assertion class that matters most here: **SQL text invariants**. `properties` has no row-level security, so the `status = 1 AND approve_status = 1` filter is the only thing keeping unapproved listings private — and a test comparing returned rows would pass just as happily with that filter deleted, as long as the fixture held no pending rows. `tests/unit/listings-sql.test.js` asserts on the emitted SQL instead, which cannot be fooled that way.
+- **`npm run test:http` and `npm run test:chain` talk to live production data** and are gated behind an explicit `QA_ALLOW_PROD=1`. They are deliberately excluded from CI.
+- CI (`.github/workflows/ci.yml`) runs both suites on push. Node 22 is in the engine matrix as **non-blocking**: the production VPS runs 22, and 8 photo webhook tests fail there while passing on 24, with byte-identical code and dependencies (verified by checksum against the deployed server). Production photo handling works on 22, so this is a harness discrepancy — tracked rather than hidden. eslint is non-blocking too, over 3 pre-existing `react-hooks/set-state-in-effect` errors in deliberate hydration-safety code.
+
+## Agent growth toolkit (branch `feat/agent-growth-toolkit`)
+
+- **Dashboard context is memoised per request.** `getAgentDashboardContext`
+  is wrapped in React `cache()`; the layout and every page call it, and before
+  the wrap each request did the work twice (four engine round trips).
+- **Analytics read the rollup when it is fresh.** `lib/analytics.js`'s
+  `isRollupFresh()` (≤30 min, `listing_stats_daily`, written by the engine's
+  `listing-stats-rollup` job) routes per-listing totals, the trend chart and
+  month deltas to the rollup, and falls back to raw events otherwise —
+  including before `migrations/20260917_agent_dashboard_scale.sql` runs. UTC
+  days, same as every other bucket here. The rolling "30 derniers jours" card
+  stays on raw (indexed) events: a rolling window is not day-aligned.
+- **"Visuel & partage"** (actions menu on Mes biens): `lib/listingShareCopy.js`
+  (French caption — always French, it is read by the agent's customers),
+  `lib/listingFlyer.js` + `app/compte/agent/biens/[id]/visuel/route.js`
+  (**route retired 2026-10-06** — see "Listing card share" at the end of
+  this file; the rest of this bullet is history) (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts,
+  Plus Jakarta Sans fetched from Google Fonts once per process with a
+  default-face fallback). Images go through `sharp` (already a Next
+  dependency): WebP → PNG/JPEG, since satori decodes neither WebP nor AVIF,
+  EXIF rotation, since satori ignores orientation and a phone photo otherwise
+  renders on its side, and a resize so three 8 MB photos aren't a 30 MB
+  payload. sharp missing is survivable — a JPEG/PNG still renders, anything
+  else is skipped.
+  **The card is royal blue (`--blue`) and the QR code is gone**, both on an
+  explicit product decision (2026-09-16): the caption under the image already
+  carries the link, so the QR was a worse second route to the same page, and
+  the space now holds the AGENT's own logo, name and phone (`loadAgentBrand`)
+  so every share doubles as their marketing. No logo means their initials on a
+  white card; no name and no logo means no brand block at all, never a Lukka
+  Place mark passed off as the agent's. The phone appears only under the
+  public listing page's own rule (verified AND direct routing not switched
+  off). **Most agents have no image yet** — 7 of 10 in production — so the
+  initials fallback is the common case until they upload one in Paramètres.
+  - **The gold badge is earned, not decoration** (2026-09-16). It renders only
+    for `agents.verification_level` of 'verified' / 'agency_partner' — the tier
+    a team member sets from `/admin/verifications` after reviewing documents —
+    and a 'standard' agent gets nothing rather than an unbacked trust mark.
+    **Every production agent is 'standard' today, so no flyer shows it yet**;
+    that is what makes it worth something to the agents who earn it. Gold is
+    `#f59e0b` with INK text and check, not white: white on that gold is 2.1:1,
+    under even the 3:1 bar for a graphic.
+  - The photo seams are 6px of the white ground showing through (`GAP`; 2px
+    read as a hairline at Status size). Under the price are two lines,
+    "Appartement • 24 Novembre, Lingwala" then "2 chambres • 2 salles de bain"
+    (`roomSpecs`, full words — the abbreviated one-line `compactSpecs` and the
+    0.6-opacity photo watermark were both removed 2026-09-16 on product
+    direction). The Lukka Place mark is the white roofline
+    (`public/brand/icon-dark.png`, `loadPlatformMark`) set above the
+    "Lukka Place lukkaplace.com" text — roof over name is the real lockup, and
+    the full wordmark PNG would print the name twice. The WhatsApp glyph beside the phone is the same hand-rolled
+    path `WhatsAppCTA.js` carries (lucide ships no brand marks), drawn as an
+    `<img>` data URI because a missing glyph in the loaded face would render
+    as a blank box.
+  - **The caption is WhatsApp-formatted**: `*…*` bold on the purpose, place
+    and price, and a `📞 *Contact agent*` line carrying the number — gated by
+    `agentContactPhone`, the same verified/routing rule the listing page uses,
+    so the caption can never publish a number the site itself refuses to show.
+    The asterisks show literally outside WhatsApp; accepted, since that is
+    where this text is posted.
+  Ownership is `p.agent_id = $3` in SQL; `shareBlocker()` refuses pending,
+  rejected, archived, under-offer and closed listings because the link points
+  at a public page that would 404 or mislead. There is no web link that
+  posts to a WhatsApp Status: the Web Share sheet with the image attached is
+  the one-tap path, and the caption is copied first because WhatsApp drops
+  text shared with an image to Status.
+- **Marketing toolkit: graphics drawn in the browser** (2026-09-16). The share
+  kit (`AgentListingShareKit`, tabs Visuel / Texte / Propriétaire) no longer
+  asks the server for its image.
+  - `getSharePackAction` sends a **share pack**
+    (`lib/marketing/sharePackData.js`): the text already formatted, and
+    same-origin `/_next/image?…&w=1080&q=75` photo URLs. Going through the
+    optimiser means the canvas is never tainted and a phone decodes 1080px,
+    not a 4000px original. Only hosts `remotePatterns` covers are sent.
+  - `lib/marketing/layout.js` turns a pack into draw operations — pure, no
+    DOM, unit-tested position by position.
+  - `components/marketing/CanvasRenderer.js` paints them with Canvas 2D (not
+    html2canvas, which cannot do `object-fit: cover`) and exports JPEG.
+    Square 1080², Story 1080×1920, Landscape 1200×675 — native sizes, not 2×.
+  - **The square reproduces the server flyer**: baselines use satori's
+    half-leading model with Plus Jakarta Sans's own metrics (ascent 1.038,
+    descent 0.222). Checked against the production PNG in the browser:
+    vertical offset 0px on every text block, mean pixel difference 2.8/255.
+    The one visible difference is the narrow space in "1 000 $", which the
+    canvas draws and satori dropped.
+  - **Export uses `toDataURL`, not `toBlob`.** In the app's browser pane
+    every `toBlob` took ~1,050 ms at any size (540px, 2160px, even PNG) —
+    Chromium defers it as an idle task — while `toDataURL` encoded the same
+    JPEG in 32 ms. Measured warm, desktop: square 39 ms / 125 KB, story
+    102 ms / 133 KB, landscape 33 ms / 90 KB, all under the 150 KB budget.
+    No CPU throttling was available to test a phone profile.
+  - **Offline**: `lib/sharePack.js` keeps the pack and the image Blobs in
+    IndexedDB (`lukka-share-packs`, separate from the drafts database). With
+    the server unreachable, the dialog draws from that copy and shows
+    "Hors ligne — données du …", with a warning past 24 h, because an offline
+    graphic can show an old price. A server answer of "not yours / gone" is
+    never replaced by a stored copy. Verified with the dev server stopped:
+    story drawn from IndexedDB in 175 ms. The dashboard page itself is not
+    cached by the service worker, so this works in a dashboard that is
+    already open, not from a cold start offline.
+  - ~~The server route `/compte/agent/biens/:id/visuel` stays as the square
+    fallback~~ — retired 2026-10-06 with the card redesign (see "Listing card
+    share"). The browser is the only renderer.
+  - **Tagged links**: captions carry `?utm_source=` per way out
+    (`SHARE_SOURCES`: wa_status / wa_message / partage_agent;
+    rapport_proprietaire for the report). `lib/analyticsClient.js` now
+    forwards the landing URL's `utm_source` — both endpoints accepted it but
+    nothing sent it, so every tagged visit was stored as 'direct'. Listing
+    pages declare their canonical URL so tagged variants are one page.
+  - **Landlord report** (`getMandateReportAction`,
+    `lib/marketing/mandateReport.js` + `mandateReportCopy.js`): views,
+    WhatsApp taps, saves and visit requests for the last 7 whole UTC days
+    against the 7 before, read the way the dashboard reads them
+    (`listing_stats_daily` while fresh, raw events otherwise). Visit requests
+    come from the engine; when it cannot answer they are `null` and print
+    "non disponible", never 0. The card and the caption both say what the
+    counts cover (page openings including the agent's own, taps, saves,
+    requests via Lukka Place) and what they do not (calls and messages sent
+    straight to the agent, people who saw a Status without opening the
+    link). Live only — no offline report, since an old one shows the wrong
+    week.
+- **The agent dashboard on a phone** (reported from real 375px screens,
+  2026-09-16). `.u-title-page` and `.u-stat` are 22px below 640px (they were
+  28px, which alone pushed the header past the screen); agent pages are
+  `px-3 py-4` and cards `p-4` until `sm`. Three layouts were structurally
+  wrong rather than merely large, and each is fixed at its source:
+  - `AgentPageHeader` is ONE row on a phone since 2026-09-23 (title, search
+    icon, bell, icon-only "+"); see "Agent portal, streamlined for phones".
+  - `AgentPortfolioBanner`'s two buttons stack full-width; they were a
+    `flex-none` row wider than the screen, so "Voir ma page" was cut off.
+  - **`.agent-listing-row` (app/globals.css) is the Mes biens row**: named
+    grid areas on a phone, the seven-column table row at `lg`, with
+    `.alr-main` / `.alr-stats` on `display: contents` so ONE markup serves
+    both. It was a single `flex-wrap` line, which squeezed the title to
+    nothing and left the price against the photo. GRID_COLS in
+    `AgentListingsTable.js` must stay identical to the `lg` columns there.
+  - The row menu takes `collisionPadding` with a 88px bottom so Radix keeps it
+    clear of the fixed bottom nav, and the bulk bar sits at `bottom-20`.
+  - The share dialog is `max-h-[88dvh]` with all four actions above the
+    caption: at `92vh` on iOS Safari the last button sat under the browser
+    toolbar and could not be reached.
+- **Offline drafts** (`lib/offlineDrafts.js`, `CreateListingDialog`): fields
+  AND photos in IndexedDB per agent key; a publish while offline (or one that
+  dies on the network) is queued and re-sent when Mes biens is open and
+  online, once across tabs (Web Locks), flagged `offline_replay` so
+  `createListingAction` returns the existing listing
+  (`findRecentOwnDuplicate`, same agent + title + price within 24h) instead of
+  creating a second copy when only the response was lost. No service worker:
+  a page closed offline sends on its next online visit. A server verdict is not
+  a network failure — the draft is un-queued and the dialog reopens.
+- **Verification tiers** (`lib/verificationLevels.js`, `lib/agentVerification.js`,
+  `/admin/verifications`, settings card on `/compte/agent/parametres`):
+  `agents.verification_level` standard / verified / agency_partner, derived
+  `is_verified`, documents in a PRIVATE bucket opened only through an audited
+  5-minute signed-URL route (`agents.manage`). Raising a level requires the
+  approved documents it stands for; rejecting evidence lowers the level in the
+  same transaction. **The green public check now means this tier, not
+  `phone_verified_at`**, on `/agents`, `/agents/[id]`, `EnquiryCard` and
+  `PropertyCard`; the profile meta line no longer prints "Agence partenaire ·
+  Vérifiée" for every agent. Public reads use `to_jsonb(a) ->>
+  'verification_level'` so they keep working before
+  `migrations/20260917_agent_verification.sql` runs (a plain column reference
+  500'd the homepage in local QA); swap to the column once it is applied
+  everywhere. Setup: run that migration, then
+  `node web/scripts/setup-verification-bucket.js --write`.
+- **Known, not fixed here:** the agent dashboard layout still fails when the
+  engine is unreachable (`listLeads` throws; confirmed locally), Mes biens filters an
+  unbounded listing array in memory, and `createListingAction` takes its
+  commune/category allow-lists as arguments from the client.
+
+## Admin deletions, market-data export, agency name, photo allowances (2026-09-21)
+
+Migration `migrations/20260921_admin_deletions_and_photo_allowances.sql`
+(applied to production 2026-09-21).
+
+- **Ids come from the identity sequences.** `agents.id` and `packages.id` are
+  `GENERATED BY DEFAULT AS IDENTITY`. The engine's WhatsApp onboarding and
+  web's `createPackage` used to insert `MAX(id) + 1`, which never advanced
+  the sequence: production had `agents_id_seq` at 42 with agent #43 present, so
+  the next web signup would have hit a duplicate key. Both now omit the id,
+  and the migration realigned both sequences. This is also what makes deletion
+  safe: a deleted id is never handed out again, so engine rows that still carry
+  it cannot attach to a new person.
+- **Deleting an agent** (`lib/adminAgentDeletion.js`, `/admin/agents` menu →
+  Supprimer, **owner only**, `agents.delete`). The dialog shows the impact and
+  requires the agent's id to be typed.
+  - Listings are either archived and detached (default: `status = 0`,
+    `archived_at`, `agent_id = NULL`) or deleted with their child rows.
+    **Closed transactions are always archived, never deleted**, because
+    asking-vs-achieved exists nowhere else.
+  - Refused while the agent has a pending, approved or paid sales commission.
+  - The FK-cascade tables go with the agent. `agent_infos`,
+    `plan_change_requests` and `property_contacts` are deleted.
+    `projects.agent_id` and `whatsapp_clicks.agent_id` are nulled. The sales
+    audit tables are kept. ID documents are removed from the private bucket
+    after the commit. The agency and its memberships are untouched.
+  - `deleteAgentAccount(id, { dryRun: true })` runs every statement and rolls
+    back. It was run against production for agents 33 and 37 in both modes with
+    no constraint errors.
+- **Deleting a package** (`deletePackage`, `/admin/subscriptions`, trash icon,
+  `billing.manage`).
+  - Agencies on an ACTIVE membership of that plan are moved to the Free plan:
+    their membership ends now and a NEW Free row starts. The paid row is never
+    rewritten, because memberships is the payment ledger.
+  - Pending plan requests for it are declined.
+  - A package any membership or request ever referenced is soft-deleted
+    (`packages.deleted_at`, status 0), which hides it from every list and
+    picker while billing history keeps its name. One nobody ever held is
+    deleted outright.
+  - Free itself cannot be deleted.
+- **Photography per plan**: `packages.photo_sessions_per_month` and
+  `photo_discount_pct` (0–100, CHECKed, default 0).
+  - Edited in the Forfaits table's "Services photo" column.
+  - Shown on `/compte/agent/abonnement` (current plan card and plan picker)
+    through `lib/photoAllowance.js`. A perk at 0 prints no line.
+- **Market-data export**: the "Exporter les données" CSV / Excel buttons on
+  `/admin/market-data` (`data.export` roles) use the existing audited
+  `/admin/export/listings.csv`.
+  - Three columns are APPENDED to `LISTING_EXPORT_COLUMNS`: `views_total` and
+    `whatsapp_clicks_total` (read the way the dashboard reads them) and
+    `visit_requests_total` (the engine's new
+    `GET /admin/viewing-requests/counts-by-property`). That last one is empty,
+    not 0, when the engine does not answer.
+  - `?format=excel` is the same file with semicolons, for French-locale
+    Excel. It is not an .xlsx.
+- **Agency name vs agent name.** Signup asks for "Nom de l'agence / nom
+  commercial" (`agents.agency_name` — the column the WhatsApp onboarding already
+  fills) and "Nom de l'agent / contact principal" (`agent_infos` first/last
+  name). Paramètres edits both.
+  - The public name (`AGENCY_NAME_EXPR`, engine `propertyRepository`,
+    `agentPublicName` on the profile) now reads the agency first, with
+    "Contact : …" under the profile heading. `agency_name` was empty on all 10
+    accounts, so nothing public changed on deploy.
+  - `agentDisplayName` is deliberately still the person: it is the
+    `assigned_agent` key leads are matched on. Admin labels stay person-first.
+
+## Espace Client at scale (`/compte/client/*`)
+
+Built toward 100k customer accounts. Engine half: root CLAUDE.md, "Customer
+side of requests and visits".
+
+**Deploy order: run `migrations/20260918_customer_alert_preferences.sql`
+(engine repo) before this web deploy.** It adds `alert_frequency`,
+`last_alerted_at`, `customers.whatsapp_alerts_opted_out_at` and
+`customer_favorites.note`. Every read goes through `to_jsonb(row) ->> '…'`, so
+no page 500s without it, but saving a frequency, an opt-out or a note fails
+(and says so) until it has run, and "weekly" alerts can arrive on consecutive
+days.
+
+- **Sessions are revocable.** `getCurrentCustomerId` →
+  `resolveCustomerSession` compares the token's version with
+  `customers.token_version`. Nothing compared it before, so logout-everywhere
+  and both password resets ended no other session. A 401 from `/api/account/*`
+  also clears the `lukka_logged_in` flag (`lib/customerApiResponse.js`).
+- **Per-request memoisation** (React `cache()`): `getCurrentCustomerId`,
+  `getCustomerById`, `listFavoriteIds`, `listSavedSearches`,
+  `getPortalCustomer`, `getCustomerInquiries`. The tab badges use the
+  engine's `GET /admin/leads/counts`, not the inquiry history.
+- **Every tab has a `loading.js`** (`components/PortalSkeleton.js`); Favoris &
+  Alertes streams its sub-tab under a keyed Suspense.
+- **Instant removes with undo.** Favourites and alerts hide on tap; the toast
+  (`components/Toast.js` now takes an `action`) offers "Annuler" through
+  `restoreFavoriteAction` / `restoreSavedSearchAction`.
+- **Ceilings** (`lib/accountLimits.js`): 200 favourites, 20 saved searches,
+  enforced by a COUNT guard in the INSERT (soft by design). A 409 raises
+  `ACCOUNT_LIMIT_EVENT` and `AccountLimitNotice` (site layout) says why.
+  Alertes re-runs saved searches four at a time (`mapWithConcurrency`).
+- **Multi-commune requests**: the form and edit dialog take up to
+  `MAX_REQUEST_COMMUNES` (5, same as the engine); `parseLeadCommunes` reads
+  them back.
+- **The visit form prefills the account's number** via `GET /api/account/me`.
+  Requests are found in the account by phone, so a differently typed number
+  used to create a visit the account never showed.
+- **Visits** (`messages/ViewingPanel.js`, `lib/viewingTimeline.js`): the real
+  timeline from the engine's viewing row, computed server-side with the
+  server clock. Cancel, accept a proposed slot, post-visit 👍/👎/agent absent
+  and the reason all go through the engine. The WhatsApp "reschedule/cancel"
+  links that changed nothing are gone.
+- **Alerts** (`lib/searchAlertSweep.js`): chunked, only new approved listings,
+  never a widened `getListings` result, verified and not-opted-out numbers
+  only, a session message when `SEARCH_ALERT_TEMPLATE` is unset (it no longer
+  defaults to an unapproved name). Every message ends with the link to stop it.
+  Per-alert frequency and rename on the Alertes tab; the account-wide switch on
+  Mon profil.
+- **Favourites**: shown in saved order, private notes, "Partager ma sélection"
+  (the same `/favoris?ids=` link), and a count of saved listings no longer
+  online instead of a silently shorter list.
+- **"Trouver pour moi" prefills from the latest saved search**
+  (`lib/requestPrefill.js`) and says so; nothing outside the query is guessed.
+- **English**: the portal's hardcoded French (dates included) goes through the
+  dictionary now; `customer-portal-polish.test.js` lists the phrases that must
+  not come back.
+- **`/compte/alertes` and `/compte/demandes` are redirects** into the portal;
+  they were drifting copies. "Mot de passe oublié" goes to `/mot-de-passe-oublie`.
+- **Still open:** alert messages are session messages until a template is
+  approved (the 24h window applies); there is no STOP keyword handling — the
+  engine does not own `customers`, so opting out is the link in each message;
+  customer inquiry history is still capped at the latest 100 leads.
+
+## Deployment
+
+- PM2 process name `lukka-place-web`, port `3002` (the engine owns `3000` on the same VPS). Config: `ecosystem.config.js`.
+- **The resized-photo cache is permanent, not part of the build** (2026-09-30). `.next/cache/images` in BOTH `/var/www/lukka-place-web` and `/var/www/lukka-place-web-build` is a symlink to `/var/data/next-image-cache`; the deploy's `cp -a` of the build dir's `.next` carries the link across. Before this, every deploy swapped in a `.next` with an empty image cache, so after five deploys most photo flips paid a ~600 ms first resize instead of ~100 ms (reported as "sluggish" photos). **Never replace that link with a real directory**, and check `ls -la .next/cache/` after a deploy. After a bulk change of photo URLs, run the engine's `node scripts/warm-image-cache.js` on the VPS (every listing photo × every next/image width, ~1 min).
+- **Production data lives outside the repo directory**: the engine reads `DB_PATH=/var/data/lukka_place.db` and `UPLOADS_DIR=/var/data/uploads` from its `.env`. The `lukka_place.db` sitting in the engine's own directory on the VPS is a stale, empty leftover — do not read it and conclude the pipeline is broken.
+- **`next build` takes ~2 minutes on this VPS**, measured 2026-09-12 (`✓ Compiled successfully in 110s`, Next 16.3.1 with Turbopack). This note used to say ~23 minutes and was stale — that figure predates the Turbopack build. Still run it detached (`nohup`, writing to a log with a sentinel line) and poll rather than holding an SSH session open, and still only `pm2 restart` *after* the build reports success, so a failed build never takes the site down.
+- Traefik routing lives outside this repo, on the VPS at `/docker/n8n/dynamic/lukkaplace.yml` (file-provider dynamic config, same pattern as `engine.lukkaplace.com`'s router — `host.docker.internal:3002`).
+- Deploy = tar (excluding `node_modules`, `.next`, `.env.local`) → scp → extract over the existing `/var/www/lukka-place-web` → full `npm install` → `npm run build` → `pm2 restart lukka-place-web --update-env`.
+- `.env.local` on the VPS is hand-maintained, not part of the deploy archive — don't overwrite it by including it in the tarball.
+
+## "Faites le point" — one page for every listing (2026-11-09)
+
+The agent's answer to the engine's one-per-agent WhatsApp request (root
+docs/claude/whatsapp-intake-and-agents.md, "Faites le point"), replacing the
+per-listing question. `lib/statusCheck.js` (SQL + rules),
+`lib/statusCheckItems.js` (labels), `components/statusCheck/StatusCheckBoard.js`,
+`app/(site)/point/[token]/page.js` (from the link, no login),
+`app/compte/agent/point/page.js` (signed in; the to-do row "listings to
+confirm" now opens it), `app/(site)/point/actions.js`. French only, like the
+landlord report. `tests/unit/status-check.test.js`.
+
+- **The link**: 32 base64url characters; `agent_status_requests` holds only
+  its SHA-256. Valid 7 days, the agent active and not deleted; an expired one
+  says so and points to the dashboard, an unknown one is a 404. It can only
+  answer this page's questions about that agent's own listings — every write
+  has `AND p.agent_id = $2` and the state the answer applies to. Never
+  indexed, `force-dynamic`. The `/point` path is outside middleware.
+- **Per listing, one tap**: Disponible (stamps; on an under-offer listing it
+  means "back on the market"), Sous offre (stays public with its badge,
+  stamped), Loué / Vendu, Retiré (archive, never a transaction), and
+  "Le prix a changé ?" (engine price path, then stamped). Under-offer rows
+  get "Toujours sous offre / Loué / De nouveau dispo / Retiré". The sticky
+  bottom button confirms everything not yet answered.
+- **Loué / Vendu asks the price as one tap** ("au prix affiché ?" Oui / Non,
+  à un autre prix), then the date (default today, not future, not before
+  publication) and an optional "via Lukka Place ?". **The price is optional**
+  (owner decision 2026-11-09: a forced price makes agents tap "Retiré" and
+  the deal is lost). A close without one is `listing_status = 'closed'`,
+  `sold_at` set, `sold_price` and `price_source` NULL — this changes the old
+  rule that `closed` always carries a price; `lib/dataExport.js` leaves the
+  delta empty and `lib/marketBenchmarks.js` already excludes it. A figure
+  more than 50 % from the asking price is read back before saving. A priced
+  close is `price_source = 'DIRECT_INPUT'`.
+- **Freed slot**: after Loué / Retiré on a capped plan the row says
+  "1 place libérée sur votre forfait (N disponibles sur M)".
+- **Auto-paused listings** (engine, OFF until `LISTING_AUTO_PAUSE=on`):
+  `status = 0` + `auto_paused_at`, not archived; listed first with
+  "Réactiver" (subject to the plan's listing limit), Loué / Vendu, Retiré.
+  Read through `to_jsonb(p)` so the page works before the migration.
+- Every answer is also a `listing_availability_checks` row (`LINK` from the
+  link with `request_id`, `DASHBOARD` signed in), never blocking the answer.
+- **"Disponibilité confirmée" is never shown on an under-offer listing**
+  (`AvailabilityConfirmedBadge` takes `listingStatus`): "Toujours sous offre"
+  stamps the same column.
+
+## "Toujours disponible ?" — weekly availability check (2026-09-22)
+
+**Updated 2026-09-29**: the threshold is 14 days, shared with the engine's
+WhatsApp check (root CLAUDE.md, "Toujours disponible ? on WhatsApp") and the
+digest; each dashboard answer (confirm, price changed, marked let/sold) is
+also recorded in `listing_availability_checks` with `channel = 'DASHBOARD'`
+(`recordDashboardAvailabilityAnswer`, never blocks the answer, silent before the
+migration). The "no history table" note below is superseded.
+
+`migrations/20260922_listing_availability.sql` (`properties.availability_confirmed_at
+timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
+`app/compte/agent/availabilityActions.js`, `components/AgentAvailabilityPrompt.js`,
+`components/listings/AvailabilityConfirmedBadge.js`.
+
+- **No backfill, no history table.** Nobody had confirmed anything, so every
+  row starts NULL. A `listing_availability_checks` table was considered and
+  left out: nothing reads it — the badge and the to-do list need only the last
+  stamp, "Loué / vendu" is already `listing_status`/`sold_at`/`sold_price`, and
+  "Prix modifié" writes the price to the row. Add it when a report needs counts.
+- **"Due" = live AND stale.** Live is the public gate plus
+  `COALESCE(listing_status, 'active') = 'active'` — an under-offer listing is
+  not asked "still available?". Stale = older than `CONFIRM_AFTER_DAYS` (7)
+  measured from the last confirmation, or, never confirmed, from
+  `GREATEST(created_at, updated_at)`.
+- **`getListingsNeedingConfirmation(agentId, { limit })` is a contract** for the
+  dashboard to-do list: exactly `{ id, title, lastConfirmedAt, daysSince }`.
+  `lastConfirmedAt` is null when never confirmed (never the edit date);
+  `daysSince` counts from whichever baseline applied. The prompt card uses the
+  richer `getAvailabilityPrompts` (purpose, authored price + currency).
+- **The three answers reuse existing paths**: "Toujours disponible" stamps NOW
+  (ownership + liveness in the UPDATE's WHERE; `updated_at` deliberately not
+  touched); "Loué / vendu" opens `MarkListingSoldDialog` (new `renderTrigger`
+  prop) → `markListingSoldAction`, still the only way to `closed`; "Prix
+  modifié" calls `updateListingPriceAction` and stamps only once the price is
+  written. A saved price whose stamp fails reports `confirmed: false`, not a failure.
+- **Public badge** on `/listings/[id]` only (not cards, so the feed queries do
+  not pay for it): shown for a stamp ≤ `BADGE_MAX_AGE_DAYS` (30), Kinshasa day,
+  short month ("21 sept."); nothing otherwise — never "non confirmé". Worded as
+  the agent's confirmation, not "Vérifié" (that is `verified_at`). Read through
+  `to_jsonb(p) ->> 'availability_confirmed_at'` so the page cannot 42703 before
+  the migration; the agent-side reads catch 42703 and show no prompts.
+- **Revalidation**: confirm actions revalidate `/listings/:id`, Mes biens, the
+  overview and the editor (the detail page is dynamic, so this is the router cache).
+- Engine untouched: `syncListingToPostgres` never names the column (pinned in
+  verify-pipeline). WhatsApp replies are out of scope.
+- i18n keys: `agent.availability.*`, `listings.availability.confirmedOn`.
+
+@AGENTS.md
+
+## "À faire aujourd'hui" and the visit agenda (2026-09-22)
+
+- **One ranked list on the overview** (`lib/agentTodo.js` pure,
+  `lib/agentTodoLoader.js` reads, `components/AgentTodayPanel.js` +
+  `AgentTodayList.js`). Order is the product decision: overdue visits (the
+  slot passed with no agreement) → PENDING/RESCHEDULED by request age → NEW
+  leads by age → listings to confirm (longest first) → incomplete listings
+  (most gaps first). Four visible, "voir …" links per hidden kind (six until
+  2026-09-23; see "Agent portal, streamlined for phones"). Each row has
+  one primary action; visit answers go through the existing
+  `updateViewingRequestAction`, never a new write path. The two listing
+  sources are `getListingsNeedingConfirmation` and `getIncompleteListings`
+  (both degrade to `[]`); a confirm row opens the listing's editor (where the
+  availability prompt is), an incomplete row goes to the field behind its
+  first gap (`listingGapHref`).
+- **"Overdue" needs a real instant.** For PENDING it is the engine's
+  `requested_slot_at` (new field on `GET /admin/viewing-requests`,
+  `visitSchedule.requestedSlotAt`): the customer's phrase parsed against the
+  request's own `created_at`, so "demain 14h" can actually go by. For
+  RESCHEDULED it is `scheduled_at` only — the phrase is the agent's later
+  proposal and `created_at` is the wrong anchor. An unparseable phrase is
+  never overdue and never prefilled.
+- **A dashboard confirmation must carry the agreed instant.** Confirm opens
+  date + time (`components/VisitSlotForm.js`, Kinshasa time whatever the
+  phone's timezone), prefilled only with a slot still ahead. It is sent as
+  `scheduled_at` (ISO, `+01:00`); `lib/visitAgenda.js`'s `validateAgreedSlot`
+  runs in the form and the action, and the engine's `respondFromDashboard`
+  re-checks it (day without hour or past instant → nothing written, nothing
+  sent), stores UTC `Z`, and tells the customer that time rather than their
+  own phrase. A to-do row whose slot is known and ahead confirms in one tap
+  with the slot printed on the button. An overdue row proposes a new slot as
+  French text in the engine's own `formatSlotFr` shape (`slotPhraseFr`) — the
+  weekday is computed, because the engine's parser trusts a weekday over a
+  date number.
+- **`/compte/agent/visites` is the agenda now**, not a redirect: CONFIRMED
+  visits by Kinshasa day, a 7-day strip with real counts, directions, a
+  customer WhatsApp link (French, the customer reads it) and "Ajouter à mon
+  agenda". Requests and their answer buttons stay on Demandes › Visites; the
+  pages link to each other. A confirmed visit without `scheduled_at` is listed
+  as "heure à fixer", never placed on the day its phrase names.
+- **.ics** (`visites/[id]/agenda.ics/route.js`): CONFIRMED + real
+  `scheduled_at` only (409 otherwise), same 404 for "not yours" and "missing",
+  `private, no-store` (it carries a customer's phone). No DTEND — nobody
+  agreed a duration. Ownership is `lib/agentViewingOwnership.js`, now also
+  what `updateViewingRequestAction` uses, so answers and exports cannot
+  disagree.
+- **Directions** (`directionsUrl`): stored coordinates when numeric and
+  non-zero, else address + quartier + commune + "Kinshasa" as a text search,
+  else no link. `lib/agentAgenda.js` reads places for the agent's OWN listings
+  (`p.agent_id = $1`) — a visit reached through a name-assigned lead gets no
+  place rather than someone else's.
+- **Morning reminder**: today's confirmed visits not finished more than an
+  hour ago, as a banner above the list; nothing renders on a day with none.
+- Known limit: the engine's owner list caps at 100 rows per status, and the
+  ownership lookup still asks for 200 (pre-existing); an agent past 100
+  confirmed visits would lose the oldest from the agenda and the .ics.
+
+## Completeness checklist and quick replies (2026-09-22)
+
+Migration `migrations/20260922_agent_quick_replies.sql` (new table only).
+
+- **Completeness is gap CODES, not a percentage** (`lib/completenessRules.js`
+  pure, `lib/completeness.js` SQL). Separate from `agentProfileCompletion`
+  (the sidebar's public-page percentage), which is unchanged.
+  `getIncompleteListings(agentId, { limit })` → `[{ id, title, gaps }]` is a
+  contract another surface consumes; it never throws (logs, returns `[]`).
+- **A gap is only listed when the agent can close it from the dashboard**,
+  and each links to the exact field (`profileGapHref` / `listingGapHref`;
+  anchors are ids on Paramètres and in `AgentListingEditor`, pinned by the
+  test). Consequences:
+  - `no_map_pin` fires only when coordinates are missing AND quartier is
+    blank. Nothing on the web write path geocodes (only the engine's publish
+    sync and its backfill script), so a pin nag with a quartier already set
+    would be unfixable.
+  - `missing_deposit` is rental-only and means `deposit_months IS NULL`
+    (0 is a stated value).
+  - `no_communes` needs BOTH primary and serviced empty — the matcher scores
+    either.
+  - `no_agency_name` accepts the vendor's name, but not a phone-shaped string
+    or `vendorNameSql`'s "Agence #N" placeholder.
+  - Thresholds reuse existing ones: 3 photos (the editor's hint), 15
+    description characters (the save path's floor).
+  - Closed and archived listings are skipped.
+- **Mes biens shows gaps on each card, not in a panel** (2026-09-22). The
+  "N annonces à compléter" panel above the list is gone: it pushed the first
+  card below the fold on a phone and never said which listing a chip meant.
+  `AgentListingsTable` renders one "À compléter : …" link per incomplete card
+  (`getAgentListingGaps`, photos as "(2/3)"), anchored on the first gap's
+  field. The availability prompt left Mes biens too; it is on the overview's
+  to-do list and in the editor.
+- **Photography offer**: no longer rendered (it lived in the removed panel);
+  `getPhotographyOffer` is kept. It was shown on Mes biens only when a listing had
+  `thin_photos`. The package is found live (`LOWER(title) LIKE '%photo%'`,
+  active, not deleted). Title and price come from the row, and the link goes
+  to its card on Abonnement (`#plan-<id>`, added to `AgentPlanPicker`). No
+  package means no offer.
+- **Quick replies** (`lib/quickReplyRules.js` pure, `lib/quickReplies.js`
+  SQL, `components/AgentQuickReplies.js`, `AgentQuickRepliesManager.js`).
+  - **Defaults live in code.** Five French templates. A read never inserts
+    anything.
+  - **The first write copies them in.** Any edit, add or delete copies the
+    defaults into the agent's rows, in the same transaction (`WHERE NOT
+    EXISTS` + the partial unique `(agent_id, default_key)` for racing tabs).
+  - **Deletion is soft** (`archived_at`). An agent who removes everything
+    gets an empty list, not the defaults back. Max 20 per agent.
+  - **Messages are French whatever the UI language.** Customers read them,
+    the same reason as `listingShareCopy`.
+- **Placeholders are filled line by line.** A line whose value is missing, or
+  whose placeholder is unknown, is dropped whole, and the sheet names what was
+  dropped. Where the values come from:
+  - `{price}` is null when there is no usable price. "Prix sur demande" is a
+    label, not a price to quote.
+  - `{deposit}` is `entryTerms`' "3 + 1 + 1 mois", rentals only.
+  - `{link}` is only filled for a public listing.
+  - `{client_name}` is never phone digits.
+  - Defaults put each fact on its own line, so one missing fact costs one
+    line, not the whole message.
+- **The sheet opens `wa.me/<client wa_id>` from the AGENT's own WhatsApp.**
+  It is not the engine send that "Répondre" uses, so nothing is recorded:
+  it is a direct chat, which we cannot see.
+  - Templates and the agent's listings are loaded once per page and passed
+    through `QuickRepliesProvider` (Demandes). Each shared card gained one
+    `<AgentQuickReplies>` element, which renders nothing without a provider.
+  - The sheet has a listing picker, defaulting to the lead's or visit's own
+    property, so a general enquiry can still quote a listing.
+- **Degrades before the migration**: 42P01/42703 → defaults shown,
+  `editable: false` (the settings card says so; the sheet still works).
+
+## Statut du jour, share tracking and print pages (2026-09-22)
+
+Migration `migrations/20260922_listing_shares.sql` (new table only; code works
+before it runs).
+
+- **`listing_shares` records what the agent did, not what anyone saw.** One
+  row per listing each time the agent completes a share sheet with a graphic,
+  downloads one, opens or copies the caption, or presses our "Imprimer / PDF"
+  button (Ctrl+P is not counted). A cancelled share sheet records nothing. The
+  landlord report itself is never a share. Channels/formats are an allow-list
+  in `lib/listingShareRules.js` mirrored by the migration's CHECKs (a test
+  compares the two).
+- **Recording is fire-and-forget and server-validated.** The browser calls
+  `recordListingSharesAction` after the share, never awaited. The agent id comes
+  from the session; ownership AND `status = 1 AND approve_status = 1` are in the
+  INSERT, so a crafted id or a non-public listing writes nothing. One tap = one
+  record: an identical listing × channel × format row inside 30 s is skipped
+  (a genuinely simultaneous duplicate can slip through; accepted rather than a
+  lock per share), and an agent is capped at 60 rows a minute. Impersonation
+  blocks it at the edge like every POST.
+- **Missing table (42P01/42703)**: writes record nothing, the report count is
+  `null` (prints nothing), and Statut du jour falls back to the newest live
+  listings with `tracked: false` and says history is not available.
+- **Statut du jour** (`components/AgentStatusOfTheDay.js`, overview):
+  `getStatusSuggestions` — own live listings (shareBlocker's rule, in SQL) not
+  shared in `STATUS_RECENT_DAYS` (3), never-shared first, then least recently
+  shared, newest first, max 5. Images are drawn only on tap, via ONE
+  `getStatusPacksAction` round trip and the share kit's own pack + renderer
+  (9:16). Share all via `canShare({files})`, else sequential downloads (350 ms
+  apart, or browsers drop them). The empty states separate "nothing live" from
+  "all shared recently".
+- **"Partagée N fois"** on the landlord report counts `listing_shares` in the
+  report's own 7-day window, only when N > 0 (0 usually means shared by other
+  means, not a failure; null is unknown). The card puts it right-aligned on the
+  status row; the caption adds `SHARE_COUNT_DEFINITION` ("… pas une preuve que
+  quelqu'un l'a vu"). Kept out of `getMandateCounts` so its shape is unchanged.
+- **Print pages** `/compte/agent/biens/[id]/affiche` (A4 poster) and `/fiche`
+  (2-page technical sheet), linked from the share kit's Visuel tab (live kits
+  only) and the row menu (approved listings). Ownership is getFlyerListing's
+  SQL (404 otherwise); a blocked listing gets the share kit's blocker message
+  and no sheet, since its QR would lead to a 404.
+  - Content is **French always** (read by the market), only the toolbar is
+    translated. Only real fields; empty sections are not printed. Entry costs
+    are three separate lines (with per-line amounts only for a monthly rent),
+    never a sum. The landmark label is "Référence". Map link only for a parsed,
+    in-range, non-zero stored coordinate, labelled "position indicative".
+  - The phone is `agentContactPhone` (verified AND routing on). When a stored
+    number is withheld, the screen toolbar tells the agent why; the paper just
+    omits it (no central-number substitution).
+  - QR: the existing `qrcode` dependency, SVG generated server-side
+    (`lib/marketing/printSheetData.js`), URL
+    `?utm_source=print&utm_medium=poster|fiche`. `analyticsClient` forwards only
+    `utm_source`, so the medium is visible in the URL but not stored.
+  - Layout: `components/print/PrintStyles.js` ships its own CSS (not
+    globals.css). Each sheet is a size container `min(210mm, 100%)` wide with
+    A4's ratio and every length in `cqw`, so a phone shows a true miniature with
+    no sideways scroll and print is exactly A4. Print hides `aside`/`nav`/the
+    toolbar under `body:has(.lp-print)`.
+  - `lib/marketing/printSheetLoader.js` (imports listingFlyer, whose JSON import
+    the unit tier cannot load) is split from `printSheetData.js` so the SQL is
+    testable.
+- **Not verified in a browser here** (needs an agent session on real data; the
+  print button would write a real row): check the poster/sheet print preview,
+  Web Share with multiple files on Android, and the report card line.
+
+## Add-listing from Vue, and the reference field (2026-09-22)
+
+- **Vue's "+ Ajouter un bien" opens `CreateListingDialog` in place** (`primary`
+  prop for the header styling). It linked to Mes biens, where the agent had to
+  press the same button again. There is still no `/biens/nouveau` route.
+- **Both agent forms now write `properties.reference`** — the column the
+  WhatsApp intake already fills, not a new `internal_code`. Agents and
+  customers name a place by it (a repère like "Mimosas, Camp Docteur", or an
+  agency code like "REF-101"), so the label is just "Référence" with both
+  examples. Create, edit, smart paste and offline drafts carry it; Mes biens
+  shows "Réf. …" on the card and its search matches it. The editor's quartier
+  field is labelled "Quartier" now, since "Quartier ou référence" no longer
+  fits. Public page, WhatsApp "Réf." line and geocoding already read the
+  column. Editing it does not clear coordinates (the web path never did for
+  quartier either). The write-path-parity check for `reference` had only
+  been passing on a code comment; `tests/unit/agent-listing-reference.test.js`
+  pins the real writes.
+
+## Demandes lead card, simplified (2026-09-22)
+
+- **One full-width action: "Répondre sur WhatsApp"**, a `wa.me` link from the
+  agent's own WhatsApp (`lib/leadContact.js` `leadWhatsAppLink`, French, names
+  and links the enquired listing only when it is theirs and live). No 24h
+  window, and nothing recorded — like every direct chat. "Proposer des
+  alternatives" sits under it; quick replies, the Lukka Place composer,
+  "marquer comme traitée" and the status select are behind "Plus d'options".
+- **"Proposer un bien" is gone from the card**, and with it the only thing
+  that consumed the monthly lead quota (`packages.monthly_pitch_limit`), which
+  blocked agents on a 0-limit plan ("Vous avez traité vos 0 demandes du
+  mois"). The quota meter is off the overview and Abonnement.
+  `proposeListingAction` and `lib/leadQuota.js` still exist, unused by the UI.
+- **Alternatives were always empty — fixed.** `getListings` /
+  `getListingsByIds` gate on `status = 1 AND approve_status = 1` but do not
+  SELECT those columns, and `rankAlternatives` runs `shareBlocker`, which read
+  every row as pending. `lib/agentAlternatives.js` stamps rows from those reads
+  (`asPublicRows`). It also never dead-ends now: no purpose match → all of the
+  agent's live listings (flagged `ownWidened`); nothing of theirs → other
+  agencies' listings at once. "Ouvrir dans mon WhatsApp" is the primary
+  button, the Lukka Place send secondary. `tests/unit/agent-demandes-simplify.test.js`.
+
+## Agent client book and "Proposer des alternatives" (2026-09-22)
+
+**Hidden from agents since 2026-09-22** (product decision: Biens / Demandes /
+Abonnement / Réglages only). No nav entry, `/compte/agent/clients` redirects to
+Demandes, and the "clients cherchent" chips on Mes biens, the overview and the
+editor are gone. The tables, `lib/agentClients.js` and the components below are
+kept, so restoring it is a nav entry plus the page. "Proposer des alternatives"
+does not depend on the book and is unchanged.
+
+`migrations/20260922_agent_clients.sql` (`agent_clients`, `agent_client_contacts`),
+`lib/clientMatching.js` (pure), `lib/agentClients.js`, `lib/listingAlternatives.js`
+(pure), `lib/agentAlternatives.js`,
+`app/compte/agent/{clients/page.js,clientActions.js,alternativesActions.js}`,
+`components/AgentClient*.js`, `components/AgentAlternativesDialog.js`. Tests:
+`tests/unit/agent-clients.test.js`.
+
+- **The client book is private to one agent, end to end.** Every statement in
+  `lib/agentClients.js` carries `agent_id = $1` with the session's id; a client
+  or listing id from a form is only used together with it (the contact
+  marker's INSERT selects the agent's own client JOINed to the agent's own
+  listing, so a forged pair inserts nothing). Only `app/compte/agent/**`
+  imports it — a test enforces that; lead dispatch and `/admin` never read it.
+  Under "view as" (impersonation cookie present) the book renders as hidden.
+  PostgREST roles are revoked in the migration, as for `cms_settings`.
+- **Matching is computed at read time, never stored.** Listings are written by
+  the engine and by web, so a stored match would need triggers on both and go
+  stale on every price edit. Rules (`clientMismatchReason`): purpose exact;
+  listing commune in the client's communes (empty = anywhere; compared through
+  `communeKey`, which ignores accents, case and separators); price within budget
+  **±10 %** (`BUDGET_TOLERANCE`, stated in the form and on the page), USD
+  against `properties.price`; `beds >= bedrooms`. When the client set a
+  constraint and the listing doesn't state that fact (no price, beds or
+  commune tag), it is NOT a match. Only listings that `shareBlocker` passes
+  are matched, because the link has to open.
+- **Communes are picked from `getLocationHierarchyWithFallback()`, never
+  typed.** `saveAgentClientAction` fetches that allow-list itself rather than
+  taking it from the form (the gap still open on `createListingAction`). The
+  phone goes through `PhoneField` + `phoneFromForm`. There is one row per
+  number per agent: a unique index answers "déjà dans votre carnet".
+- **"WhatsApp ouvert le …", not "contacté".** The marker is stamped when the
+  agent taps the pre-filled `wa.me` link. Whether they then press send happens
+  on their phone, where we can't see it. `ON CONFLICT … DO UPDATE` keeps the
+  latest tap.
+- **Alternatives: purpose is a hard filter, everything else only ranks.** Same
+  commune first (the preference `propertyMatching` expresses by searching the
+  commune before widening), then `agentMatching.matchPercent`, then freshness.
+  The lead's own request wins. A visit request carries no budget or commune,
+  so the declined listing stands in for them. It is read in any state, own
+  listings only, and its price becomes a ranking ceiling that is never shown as
+  the customer's budget. The declined listing itself is never offered. Own live
+  listings are pre-selected. "Inclure les biens d'autres agences" adds public
+  listings, widened city-wide (and flagged) when the requested communes have
+  none.
+- **The server rebuilds the message** from listings re-read under the public
+  filter (`loadChosenAlternatives`) and sends it to the number on the stored
+  row. The browser preview calls the same `buildAlternativesMessage`. There are
+  two ways to send: through the engine (the Lukka Place number, subject to the
+  24h window) and through the agent's own WhatsApp (`wa.me`, same text).
+  Ownership uses the dashboard's full `leadScope`, including `matchedAgentId`.
+  **Not fixed here:** `actions.js`'s `assertOwnedLead` leaves out
+  `matchedAgentId`, so replying to a lead the dispatcher pushed, or changing
+  its status, fails with "Not your lead".
+- **Tracked links**: `?utm_source=whatsapp&utm_medium=agent&utm_campaign=alternatives`
+  (and `…=client_book`), through `listingPublicUrl`'s new optional
+  `medium`/`campaign`. Only `utm_source` is recorded (`analyticsClient.js`), so
+  both features show as source `whatsapp` in `/admin` until the campaign is
+  stored too.
+- **Degrades before the migration runs**: 42P01/42703 give an empty book with
+  `available: false` (the page says so), and writes answer "pas encore
+  disponible". The chips on Mes biens, the overview and the edit page simply
+  don't render.
+- The phone tab bar's columns now follow `NAV.length` (inline style), so a new
+  sidebar entry needs no second edit.
+
+## Agent portal, streamlined for phones (2026-09-23)
+
+From real 375px screenshots. Desktop (`lg`) layouts are unchanged throughout.
+
+- **Header is one row.** `AgentHeaderSearch` is an icon on a phone that opens
+  over the row; it filters as you type (350ms, `router.replace`, no scroll)
+  when it searches its own page, and waits for Enter when it searches another
+  (the overview's box searches Mes biens). Still a GET form underneath. It
+  does not resync from the URL while focused, or a slow answer would eat
+  letters. `CreateListingDialog primary` is icon-only below `sm`.
+- **Filters are chips, never select + "Filtrer".** Mes biens: counted chips
+  (Tous / En ligne / À compléter / Sous compromis / Loués / Archivés; a zero
+  chip is not drawn unless selected); `incomplete` is a new `?status=` value
+  read from `gapsByListing`. Demandes: one chip row per tab; the unread and
+  pending counts moved into the tab labels.
+- **"À faire"** (`lib/agentTodo.js`): one row per REQUEST — a NEW lead is
+  folded into the open visit carrying its `lead_id` (or same number + same
+  listing), since a web visit request writes both rows; a phone-only row
+  borrows a name held elsewhere for that number (`customerName`). A visit
+  overdue by more than 48h, or asked for with no time more than 7 days ago, is
+  `stale`: ranked after new leads, not counted "en retard", badge "Relancer ou
+  clore", with "Clore" linking to the Visites tab. Rows are compact and leave
+  the list the moment they are answered (restored on failure).
+- **The overview streams.** It awaits only the to-do list; header action,
+  stats, completeness, statut du jour, chart, recent leads and subscription are
+  async components behind `<Suspense>`. On a phone everything below the stats
+  sits behind "Voir plus" (`AgentMoreOnPhone`, CSS-decided default, no
+  hydration difference).
+- **Mes biens rows on a phone**: status is a tag beside the price and changes
+  from the row menu (`AgentListingActionsMenu` `onStatusChange`); checkboxes
+  exist only in selection mode ("Sélectionner" or a 500ms long press,
+  `.agent-listing-row.is-selecting`). The table now renders its own card
+  header (`title`, `action`, `emptyMessage`).
+- **Lead card**: "Répondre sur WhatsApp" + one "…" holding alternatives, quick
+  replies, the Lukka Place composer and status. Status changes are
+  `useOptimistic`; `AgentVisitRequestCard` shows its answer at once (keyed to
+  the row object, ViewingPanel's pattern).
+- **Réglages** is an index of sections on a phone (`?section=`); a form's
+  redirect reopens its section; `profileGapHref` includes `?section=`.
+  Desktop shows every card as before (`max-lg:hidden`, never `hidden lg:flex`,
+  which fights a card's own `flex`).
+- **`experimental.staleTimes.dynamic: 30`** (next.config.mjs): a page seen in
+  the last 30s is reused by the client router, so tab-bar switching does not
+  re-render on the server. Server actions and `router.refresh()` invalidate it.
+  Site-wide, browser memory only.
+
+## Storefront, streamlined for phones (2026-09-23)
+
+From a 375px walk of home → /listings → a listing on production. Desktop
+(`lg`) is unchanged throughout; every change below is phone-only.
+
+- **/listings has one set of controls: FloatingControlBar's Carte | Trier |
+  Alerte pill.** Each used to exist twice — FilterBar's Carte/alert row under
+  the search box and ResultsHeader's sort dropdown duplicated the pill — which
+  cost two rows above the first card (first card top 302px → 201px). Both
+  in-page copies are gone below `lg` (FilterBar's row deleted, SortDropdown
+  `hidden lg:inline-flex`). The pill also renders on an empty search, showing
+  only Alerte: that is the phone's only way to set an alert. SaveSearchButton's
+  `variant="pill"` resumes as `'alert'` after signup; the old `alert` variant
+  had no caller left and was removed. The page has `pb-28` below `lg` so the
+  pill never covers the last card or the pagination.
+- **Card specs are one line on a phone** ("Appartement · 🛏 2 ch · 🛁 2 sdb",
+  `SpecItem` inline); the labelled Rightmove rail is `lg` only.
+- **Listing page: the photo is the first thing under the header.** No
+  breadcrumb row and no Partager/Enregistrer row below `sm`; the gallery is
+  edge to edge (`-mx-4`) and Partager + the heart sit on the photo
+  (`PhotoGallery mobileActions`, `ShareButton variant="overlay"`). The title
+  moved up ~160px and the page is ~350px shorter. The phone EnquiryCard drops
+  its own save/share pair (`saveShare={false}`) — the photo and
+  MobileListingBar already carry them.
+- **KeyFacts on a phone put the icon beside the label** (one line, cells
+  ~95px → ~71px). `lib/keyFactsGrid.js`'s `GROUP_FROM_SM` is now a real flex
+  row at every width, since every cell is grouped below `md` — the "one
+  grouped cell among stacked ones" problem its old `contents` solved no longer
+  exists. `tests/unit/key-facts.test.js` pins the new class.
+- **The unloaded map is a 128px strip below `lg`**, not a 22rem empty box. It
+  grows when tapped; a layout change right after the visitor's own input is
+  not layout shift. Desktop keeps the full-height frame, since it autoloads.
+
+## Launch-readiness pass (2026-09-23)
+
+- **The list follows the map** (`?sw_lat&sw_lng&ne_lat&ne_lng`). Once the
+  visitor has moved the /listings map (not our own positioning — the first
+  settled view is the baseline), `ListingsMap` reports the visible area. Desktop:
+  `router.replace` and the list pane re-renders on that area. Phone:
+  `history.replaceState` only (no server round trip per pan); the "Voir N
+  biens" button carries it. `getListings` resolves an area through
+  `getMapMarkers` and lists those ids, so the list always equals the pin count
+  (`mapArea` in the result). Location filters give way to the area, as on the
+  map; FilterBar keeps the area across non-location changes and drops it for a
+  new place; "Zone de la carte ×" / "Effacer la zone" remove it and the map
+  returns to the searched place. An empty area keeps the split view (the map
+  is the way out). tests/unit/map-area-list.test.js.
+- **"Annonce vérifiée" on the gallery renders only on `verified_at`.** It was
+  unconditional, so every live listing claimed a check none had. Homepage /
+  about copy that said "vérifié" for moderation now says "relue par notre
+  équipe"; "Une seule ligne WhatsApp" (false since direct agent contact) is gone.
+- **Default sort is `complete`** ("Annonces complètes d'abord"): real photo
+  first, then photo count (≤3), commune tag, price, entry costs, newest within
+  a tier. A stated rule, not a recommendation engine; `newest` is still offered.
+- **`/robots.txt` and `/sitemap.xml`** (app/robots.js, app/sitemap.js,
+  `getSitemapListings` — public gate, hourly). Both were 404.
+- **"Vérifier via WhatsApp"** (`lib/whatsappVerify.js`,
+  `app/(site)/compte/whatsappVerifyActions.js`, `components/WhatsAppVerifyPanel.js`,
+  engine `services/phoneChallenges.js`). Both verify pages lead with it: the
+  person sends a shown code from their own WhatsApp; the page polls and then
+  runs the same consumeAgentOtp / consumeCustomerOtp a typed code uses. With
+  `AUTH_OTP_BYPASS=1` no code is sent and this is the only way in — the four
+  sign-in paths no longer stamp a number verified on their own
+  (tests/unit/whatsapp-verify.test.js). Needs the engine migration
+  `20260923_phone_verification_challenges.sql`.
+- **Visit request confirmation** links to /compte/client/visites instead of
+  promising a WhatsApp reply the 24h window may never deliver.
+- **Admin**: the sidebar is five groups (Opérations, Réseau & ventes, Revenus,
+  Analyses, Système); `/admin` opens each role's own queue (`ROLE_HOME`,
+  lib/adminRoles.js — a sales rep used to land on a page they may not open).
+  The rep page opens on a field view (`getRepFieldView`): signups today / 7
+  days and agents quiet for 7 days with a wa.me nudge from the rep's phone.
+
+## Pre-launch UX pass (2026-09-23)
+
+- **Logo no longer reads "LukkaPlacer".** The roof's right-hand vertical
+  stroke sat directly after the "e" and read as an "r" at header size. It was
+  erased from `public/brand/logo-light.png` and `logo-dark.png` (pixels right
+  of x≈2160 below the eave, via sharp); the roof and eave are otherwise the
+  supplied art. `public/og-image.png` was regenerated from the new dark logo
+  (505px wide on #1d5bd8, 1200×630). Every reference carries `?v=2` so phones
+  and WhatsApp's link-preview cache fetch the new files — bump it if the art
+  changes again.
+- **Listing page kicker** above the price: "APPARTEMENT À LOUER · 2 CH · 2 SDB"
+  (`typeLabel` + `listings.transaction.*` + `specItems`). The h1 stays the
+  place; this line says what the property is on a phone's first screen.
+- **"Visiter" in `MobileListingBar`**, beside WhatsApp; the heart moved out
+  (it is on the photo already). It dispatches `OPEN_VISIT_EVENT`
+  (`components/EnquiryCard.js`) and the `VisitRequestDialog` whose trigger is
+  actually displayed opens — the page mounts two EnquiryCards (phone column +
+  desktop rail), so without the `offsetParent` check both dialogs would open.
+- **"Récemment consultés"** (`components/RecentlyViewed.js`,
+  `lib/recentlyViewed.js`): ids in localStorage, recorded by
+  `ListingViewTracker`'s `listingId`, turned into listings through
+  `/api/listings?ids=` (public gate applies). On the homepage under the hero
+  and at the foot of each listing (self excluded). Renders nothing on the
+  server or on a first visit. `tests/unit/recently-viewed.test.js`.
+- **404s**: `app/(site)/listings/[id]/not-found.js` ("Cette annonce n'est
+  plus en ligne" + three live listings — the dead link people actually hit is
+  a listing shared weeks ago), `app/(site)/not-found.js`, and `app/not-found.js`
+  for unmatched URLs (outside the site header, so it carries the wordmark).
+  Before, all three were Next's default English page. Since 2026-10-24 all of
+  them answer a real 404 (see "Real 404s" below).
+- **Empty search state**: "Retirer la limite de prix" chip, and the last
+  hardcoded French string there moved to `listings.empty.allIn`.
+- **Hydration #418 does not reproduce** on the live home, listings or listing
+  pages (2026-09-23). Testing note: the in-app test browser does not paint
+  frames until a screenshot or input, and React 19's Suspense reveal waits for
+  one, so page content looks un-hydrated (no `__reactFiber` on `h1`,
+  "Chargement…" still in the DOM) until the first screenshot or click. Take a
+  screenshot before asserting on client behaviour.
+
+## Search that understands Kinshasa (2026-09-23)
+
+The hero box and the /listings box both go through `lib/searchParser.js` →
+URL params → `getListings`. Same look; what changed is what they understand
+and what happens on zero results. `tests/unit/search-parser.test.js` holds
+the real phrases, `search-relaxation.test.js` the SQL.
+
+- **Parser** reads bare prices ("500$", "800 usd", "1.5k", "budget 800"),
+  ranges ("entre 500 et 1000", "500-800"), number words and Lingala
+  ("deux chambres", "basuku mibale"), "3 pièces" (= 2 ch), "chambre salon"
+  (= 1 ch — it used to resolve to the quartier Salongo), "appart"/"apt"/typos,
+  "centre-ville"/"Kin centre" (= Gombe), and "Kinshasa" as the city unless
+  "commune de Kinshasa". Up to five places, all searched, in typed order.
+- **`?communes=Gombe,Ngaliema`** carries the extra places; `commune` stays the
+  first, so every single-commune reader is unchanged. FilterBar, chips, saved
+  search labels and the count endpoint carry it.
+- **Gazetteer**: hyphens/apostrophes read as spaces ("cite verte" =
+  Cité-Verte); `FUZZY_STOPWORDS` stops everyday words being guessed into
+  places; an ambiguous prefix inside one commune ("binza") is that commune; a
+  quartier name in several communes (Salongo) searches all of them.
+- **Leftover words** (`lib/searchKeywords.js`, shared client/server): filler is
+  dropped, each remaining word is matched on its own, accent-folded in SQL
+  (`translate()`, not `unaccent`), with a leading word boundary. It used to be
+  one ILIKE phrase, so "pas cher" or "near UPN" emptied the page.
+- **Zero results → `relaxSearch`**, only when the caller passes `allowRelax`
+  (the /listings page and `/api/listings/count`; never saved-search alerts):
+  drop unmatched words → quartier to commune → nearest listings by distance
+  from the commune centroid (≤15 km, ≤48, nearest first, via the map's own
+  marker read so untagged listings with coordinates count) → budget +15 % →
+  one bedroom fewer. Purpose and type are never relaxed. Every step taken is
+  in `relaxation` and printed by ResultsHeader; the heading says "près de".
+  The count endpoint returns `{ total: 0, suggested: N }` and the hero button
+  shows "N suggestions".
+- **Empty state** chips are the nearest communes with listings, with km.
+- **`KINSHASA_COMMUNE_CENTROIDS` was re-verified** — Masina, Ndjili, Maluku,
+  Kasa-Vubu and Mont-Ngafula were wrong; see the comment in `lib/geocoding.js`.
+  This also moves commune-fallback map pins and km-radius searches for those
+  communes to the right place.
+- **Search log**: one `[search] {…}` line per page-1 search in the web process
+  log (filters, total, whether exact, which relax steps). No visitor id.
+  `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[search\]'`.
+- The test hooks now load `.json` imports (`tests/support/hooks.mjs`), so
+  `lib/gazetteer.js` is testable.
+
+## Speed and agent reliability pass (2026-09-23)
+
+- **Measured first**: on the VPS every public page renders in 50-95 ms; the
+  ~650 ms visitors see is network (TLS, distance), and HTTP/2 + brotli are
+  already on. So caching here is about database load, not page speed.
+  - `lib/memo.js` — in-process, 60 s, shared in-flight promise, failures not
+    kept (one PM2 fork, so process memory is the whole cache; not
+    `unstable_cache`, which JSON-serialises Dates). `lib/listingsCached.js`
+    wraps facets, commune counts, showcase, price ceiling, the hero count and
+    the featured cards. Search results are never cached.
+  - The listing page reads its listing through React `cache()` so metadata
+    and page share one query per request.
+  - Not done, and the real lever for phones in Kinshasa: HTTP/3 on Traefik
+    (UDP 443 published, shared with n8n) or a CDN edge nearer Central Africa.
+- **"Aussi à proximité de {commune}"** under a place search with 1–2 exact
+  results (`getNearbyExtras`, `THIN_RESULTS_MAX`): up to 6 nearest others by
+  the same distance rule as the zero-result fallback, below the exact list,
+  never counted in it. Page 1 only, never on a map area or a relaxed result.
+- **Silent buttons**: every imperative Server Action call in the agent
+  dashboard is now in a try/catch; a rejection shows `actionFailureToast`
+  (`lib/actionFailure.js`) — "Connexion perdue … Réessayer" for a network
+  drop, "session peut-être expirée, rechargez" otherwise. It replaced
+  `err.message`, which production turns into React's generic English text.
+  Duplicate is never auto-retried (it could create two copies).
+- **Engine down ≠ dashboard down**: `getAgentDashboardContext` uses
+  `allSettled` (badges 0, `leadsUnavailable`), Demandes shows a
+  "momentanément indisponibles" banner instead of an empty inbox, the
+  overview's request stat shows "—" and its recent-leads card says so.
+- **Mes biens pages at 20** (`?page=`, filters and search kept; chips count
+  across all listings). The inventory read is still whole — it is light and
+  the shared context needs every id for lead ownership — only the cards
+  shipped to the phone are paged.
+- Old-site `/shopdetail/:id` requests (~1,500 in a week, all flagged as bots)
+  were NOT redirected: no archived page, table or log shows they were ever
+  property pages, so any target would be a guess.
+
+## Search engine visibility (2026-09-23)
+
+Goal: rank for "appartement à louer Gombe"-style searches. Before this,
+`/listings?commune=Gombe` shared the homepage's title and had no canonical,
+so to Google it was a copy of the homepage; there was no structured data
+anywhere. `tests/unit/seo-pages.test.js`.
+
+- **Landing pages** — `/location` and `/vente`, each `[[...slug]]`:
+  `/{tx}`, `/{tx}/{commune}`, `/{tx}/{type}`, `/{tx}/{type}/{commune}`
+  (`lib/seoPages.js`: plural type slugs, commune slugs from the 24 centroid
+  names; the commune named Kinshasa is `commune-de-kinshasa` so it cannot read
+  as the city). One component, `components/seo/SeoLandingPage.js`: heading,
+  up to 24 cards (`getListings`, same gate), "Le marché en chiffres"
+  (`getListingStats` — the page's own listings only; a median needs a type and
+  ≥5 priced listings; yearly rents are left out of monthly figures, never
+  divided), quartiers, a FAQ whose answers are either those figures or a true
+  description of the product, and links to other communes / types / the other
+  transaction built from `getSeoFacets` counts — never to an empty page. An
+  empty page is `noindex, follow` and lists the nearest communes that have
+  listings. Unknown segments 404.
+- **`/listings` canonical**: a filter set that equals a landing page
+  (`seoPathForParams` — transaction + optional commune/type, ignoring
+  sort/view/utm) names it as canonical; bare `/listings` is indexable;
+  anything narrower is `noindex, follow`.
+- **Structured data** (`components/seo/JsonLd.js`, `<` escaped):
+  RealEstateAgent + WebSite search box on `/` (`lib/seoSchema.js`),
+  RealEstateListing + BreadcrumbList on each listing (`lib/listingSeo.js` — no
+  coordinates, no agent phone), BreadcrumbList/CollectionPage/FAQPage on
+  landing pages, Article on guides, RealEstateAgent on `/agents/[id]` (only
+  when the agent has a real name).
+- **Listing `<title>`/description** come from structured facts ("Appartement
+  2 chambres à louer à Limete — 1 100 $ / mois"), not the agent's free-text
+  title; OG/Twitter cards unchanged. The commune crumb goes to its landing
+  page.
+- **`/guides`** (`lib/guides.js`): four French articles — garantie 3+1+1,
+  reading a listing, renting without scams, buying from the diaspora. No
+  market figures in them (those live on the landing pages); the diaspora one
+  says to consult an avocat/notaire. Review the copy before promoting it.
+  (Since 2026-11-11 only the 3+1+1 guide remains — see "The 3 + 1 + 1 guide
+  and `:::calculateur`" under Guides & Actualités.)
+- **Sitemap** now lists landing pages with listings and the guides instead
+  of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
+  landing pages; Guides joined the Lukka Place column.
+- **Environment switches, no code change needed**:
+  `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION` (token only) emit the
+  Search Console / Bing meta tags; `NEXT_PUBLIC_FACEBOOK_URL`,
+  `_INSTAGRAM_URL`, `_TIKTOK_URL`, `_LINKEDIN_URL` (https only) become the
+  footer icons' links and the Organization `sameAs`. `NEXT_PUBLIC_*` are
+  inlined at build time — rebuild after setting them.
+- Not done, deliberately: English URLs (locale is a cookie, so Google only
+  sees French — plan in `docs/seo-english-pages-plan.md`), and keeping
+  sold listings indexable (would need a read outside `APPROVED_FILTER`; the
+  listing 404 page already offers live alternatives).
+
+## Projets neufs & terrains — `/projets` (2026-09-24)
+
+Developers' buildings (off-plan or completed) sold/let by UNIT TYPE, and land
+sold in lots or portions. Engine migration `migrations/20260924_developments.sql`
+(`developments`, `development_unit_types`, `development_updates`,
+`development_lots`); reads degrade to "no projects" on 42P01.
+
+- **Separate entity, separate map.** Not `properties` rows: a 40-unit tower is
+  marketed by type, has a stage and a delivery date, and a lot plan has no
+  listing equivalent. `/projets` has its own list + map (`ProjectsMap`, ink
+  pills via `.lkp-projects`), so projects never crowd the `/listings` map. The
+  existing `parent_building_id` grouping for multi-unit WhatsApp pastes is
+  unchanged.
+- **Public gate** `d.status = 1 AND d.approve_status = 1` on every public read
+  (`lib/developments.js`, pinned by `tests/unit/developments.test.js`). Created
+  as drafts from `/admin/projets` (`projects.manage`: owner, moderator);
+  publish is refused until there is media, a commune and a unit type / lot
+  (`publishBlockers`).
+- **Honesty rules**: renders always labelled "Image d'illustration" and kept
+  apart from `photos`; `verified_at` set only by a person with a written note
+  (published); unstated availability is shown as nothing, not 0; a payment plan
+  that does not sum to 100 % is not shown; an off-plan timeline older than 90
+  days says so; a project without coordinates sits at its commune centroid and
+  the map says "position indicative".
+- **Land**: portions (`share_percent`) → `PortionSelector` (bar fill, price/m²,
+  saving vs the smallest portion, from the seller's own prices); traced lots
+  (`polygon`, 0..1000 box over the plan image) → `LotPlan`, traced in admin by
+  clicking corners (`LotPlanEditor`).
+- **Enquiries**: the form → engine `POST /admin/project-enquiries`
+  (`services/projectEnquiry.js`): lead `source: 'project-enquiry'`,
+  `development_id`, `agent_id` = the developer (their Demandes), WhatsApp to a
+  verified developer + ops. No commune → never dispatched to ranked agencies.
+  Direct WhatsApp/call buttons only for a verified, routing-enabled developer;
+  deliberately no central-number fallback (the engine would give its generic
+  model reply to a pre-typed project message).
+- **Developers**: `/promoteurs` (pitch, public demand by commune — only
+  communes with ≥3 distinct customers, 90 days — and an application saved as a
+  `developer-application` lead). Their projects show on `/agents/[id]`; an
+  overview card + `/compte/agent/projets` let them set units left and lot
+  status (scoped by `d.agent_id` in the UPDATE). No new sidebar entry.
+- **`/admin/demande`**: engine `GET /admin/demand-report` (distinct customers
+  per commune × rent/buy × bedrooms × budget band) against live supply
+  (`lib/demandRules.js`), printable — the report to take to a developer.
+
+## Developers publish their own projects (2026-09-25)
+
+Engine migration `migrations/20260925_developer_self_serve.sql` (run it BEFORE
+this web deploy: the map markers, the listing quota and the moderation queue
+read `properties.development_id`). Tests: `tests/unit/project-self-serve.test.js`.
+
+- **The wizard** — `/compte/agent/projets/nouveau` (type: immeuble / terrain en
+  portions / lotissement, and a name), then `/compte/agent/projets/[id]/modifier?step=`
+  etat → lieu → medias → offre → paiement → apercu. Each step saves to the row
+  (`saveProjectStepAction` re-validates the WHOLE project with the admin's
+  `validateDevelopmentInput`, then writes only that step's columns). Ticks come
+  from the row (`wizardProgress`), never from clicks. A verified phone is
+  needed to start. Photos are shrunk on the phone (`ImageUploader`).
+- **Authority** — every developer write goes through `lib/developments.js` with
+  `scope = { agentId }`, which puts `agent_id = $n` (or `EXISTS … d.agent_id =
+  $n` for child rows) into the statement. `agent_id` is never writable from a
+  form. The team's writes pass `scope = null`.
+- **Nothing a developer does publishes.** Submit sets `submitted_at` and pings
+  the desk (engine `POST /admin/ops-notify`). The team reviews on
+  `/admin/projets` (queue first, sidebar badge `projectsToReview`): Publier, or
+  "Demander des corrections" with a note (shown in the wizard, WhatsApped to a
+  verified developer). An edit to a live project stays live and sets
+  `changes_pending` ("J'ai vu les modifications" clears it).
+  `projectReviewState` names the five states.
+- **Units that are ready now are real listings.** A unit type ticked
+  `ready_now` gets individual units (generator: floors × per floor, `1A…` or
+  `101…`; or pasted), each created by `lib/projectUnits.js` through
+  `createListing` with `development_id`, `development_unit_type_id`,
+  `unit_label`, `unit_floor`, `parent_building_id = developments.building_uuid`,
+  `building_name`, the project's coordinates, and the project's REAL photos
+  only (no real photo → refused; a render must never sit in a listing
+  gallery). They are `approve_status = 0` and are approved WITH the project
+  (`setProjectPublished` / `acknowledgeProjectChanges`, one transaction); they
+  are therefore kept out of `/admin/listings`' pending queue, the work-queue
+  count and the engine's trusted auto-approval. Taking a project down puts its
+  approved units back to pending, except let/sold ones (the market record).
+- **Availability is counted, not typed**, for a ready type with public units
+  (`withLiveUnitCounts`): marking a unit let/sold in Mes biens is what lowers
+  "N disponibles". `units_available` is only typed for off-plan types.
+- **On the main map** those units are ONE building pin (the existing
+  `groupListingsByBuilding`) at the building's exact point — `exact: true`
+  skips the privacy jitter in `placeResolvedListings`. The drawer links to the
+  project. Off-plan projects and land never become `/listings` pins: the map
+  shows a "N projets neufs ici" chip (`GET /api/projects/count`) that opens
+  `/projets`. A unit's listing page shows "Fait partie de …"
+  (`ProjectUnitStrip`).
+- **Plan limits**: a listing with `development_id` takes no slot during the
+  launch (`QUOTA_COUNTED_SQL`, engine twin identical).
+- **Land**: portions are shares of ONE parcel — `portionBlockedIds` derives
+  (never stores) which available portions can no longer be sold once others
+  are sold/reserved; the public bar is labelled "Schéma indicatif". Lots:
+  generator, paste, optional plan tracing (shared `components/projects/LotPlanEditor.js`,
+  words passed in `labels`) or "Lukka Place trace le plan pour moi"
+  (`trace_by_team`, shown to the team).
+- **"Coller depuis Excel"** (`lib/projectPaste.js`): tab/semicolon/comma
+  rows, French numbers ("1 200,50", "1.200.000", "85 000 $"); every row goes
+  through the same validator as the form; bad rows are shown with their reason
+  and skipped, never guessed. The server re-parses; the preview is not trusted.
+- **Preview**: `/projets/apercu/[id]` renders `ProjectDetailView` (the public
+  page body, now shared) for the owner only, no enquiry form, pending units hidden.
+- **Also**: sales progress ("68 % vendu", real totals only), `/projets` hub
+  counts, a homepage "Nouveaux projets" strip (renders nothing when empty), a
+  Monday digest line for a public off-plan project with no construction photo
+  for 60 days, construction updates from the developer's phone.
+- **Not built yet**: WhatsApp commands ("Lot 7 vendu"), brochure-to-draft over
+  WhatsApp, launch alerts to matching saved searches, the project share card.
+
+## Agent listing actions, photo order, settings return (2026-09-28)
+
+- **Mes biens card**: ONE status badge (`listingState` in
+  `AgentListingsTable.js`: closed → archived → rejected → pending → under offer
+  → live), not the moderation + market + visibility chips side by side. The
+  title opens the public page in a new tab when there is one (live or under
+  offer), else the editor; the photo always opens the editor. "Sous compromis"
+  is a button that puts the listing back on the market, with "Annuler" on the
+  toast. The card's WhatsApp and ✓ icons moved into the "…" menu.
+- **Row menu** (`AgentListingActionsMenu`): one item list, rendered as a
+  bottom sheet below `lg` and a dropdown above. Voir l'annonce, Modifier;
+  Marquer comme disponible ↔ sous compromis, Marquer loué / vendu (opens
+  `MarkListingSoldDialog`, now controllable via `open`/`onOpenChange`);
+  Partager sur WhatsApp (`AgentListingWhatsAppButton` as a row), Marketing &
+  documents; Dupliquer, Archiver; Supprimer.
+- **Photo order** (`components/AgentPhotoSorter.js`, `@dnd-kit/core` +
+  `sortable`, editor route only): the HTML5 drag grid never fired from a finger.
+  Hold ~180ms to drag on touch, 6px on a mouse, keyboard too; every tile shows
+  its position; a tap opens "Couverture" / "Supprimer". Items are tracked by a
+  stable `id` (`saved:<i>:<url>` / `new:<objectURL>`).
+- **Réglages save** (`components/SettingsSaveButton.js`): "Enregistrement…"
+  while the action runs; the `?saved=` / `?success=1` redirect renders
+  "✓ Enregistré", and 700ms later `router.replace('/compte/agent/parametres')`
+  — on a phone that is the section list. Errors stay on the section.
+
+## Engagement tracking — every step of the listing funnel (2026-09-29)
+
+Migration `migrations/20260929_engagement_tracking.sql` (engine repo; additive,
+and the code writes correctly before and after it runs). Write side is
+`lib/trackIngest.js`; the client beacon is `lib/analyticsClient.js`.
+
+- **New `listing_events` types**: `call_click` (with `routing_type` DIRECT |
+  CENTRAL — `CallCTA`, `EnquiryCard`'s tel link, and a new call icon in
+  `MobileListingBar`), `gallery_open` / `gallery_complete` (`PhotoGallery`'s
+  `eventListing` prop; rules in `lib/galleryEngagement.js`: opening the viewer
+  or swiping past photo 1 opens, 80% of the photos seen — never fewer than 2 —
+  completes; the desktop mosaic's static tiles do not count as seen) and
+  `share_click` (`ShareButton`, only a completed share of a `/listings/<id>`
+  URL). None of them go near `whatsapp_clicks`, so the WhatsApp conversion rate
+  is unchanged.
+- **Every public page is a `page_views` row since 2026-10-29**
+  (`components/SitePageViewTracker.js`, mounted in the `(site)` and
+  `(portfolio)` layouts). Before, only `/listings/<id>` was ever recorded, so
+  the home page, search, map and agent pages had no visitors and nothing
+  upstream of a listing could be measured (found in the week-1 funnel review:
+  133 listing viewers, no idea how many people reached the site).
+  `sitePageViewPath` skips a listing page (ListingViewTracker sends that row,
+  with its commune) and drops the query string: one row per pathname, so a
+  filter change is not a page. Readers that need LISTING views already filter
+  on `path LIKE '/listings/%'` / `listing_id`; `getConversionByDevice` was the
+  one that divided taps by every view and now filters too. Totals, devices,
+  sources and visitor counts are site-wide from that date, and
+  `getAgentProfileViews` (`/agents/<id>`) counts for the first time.
+  `tests/unit/site-page-views.test.js`.
+- **`search_events`**: one row per distinct committed /listings search per tab
+  session (`components/SearchTracker.js`, page 1, not on a map area), with the
+  EXACT match count — 0 when the page had to relax the search. This is the
+  demand side of the market data; the `[search]` log line is still written.
+- **`lp_vid`**: a random first-party visitor id (cookie + localStorage copy,
+  1 year, not httpOnly — the browser creates it and nothing about it is
+  secret). Lets a report count different people. The server prefers the
+  cookie over the body's copy and stores anything malformed as NULL.
+- **Everybody is written, labelled** (product decision, 2026-09-29 — it
+  replaced a first version that dropped bots, prefetches and the owner's own
+  views). Each row of `page_views` / `whatsapp_clicks` / `listing_events` /
+  `search_events` carries `viewer_kind` (`lib/trackIngest.js` `viewerKindFor`):
+  `staff` (the `lp_staff=1` marker cookie, path `/`, that middleware.js sets on
+  every authenticated /admin request — the admin session cookie itself never
+  reaches /api/track — or a "view as" session), `bot` (`device = 'bot'`, which
+  also catches the WhatsApp / Facebook link-preview fetchers, anchored
+  `^whatsapp/`; or `automated: true` from a `navigator.webdriver` browser),
+  `prefetch`, `owner` (a signed-in agent on their OWN listing, decided in the
+  INSERT against `properties.agent_id`), `agent`, `visitor`. Every count
+  (dashboard, rollup, landlord report) includes all of them; filter on
+  `viewer_kind` to see people only. NULL on rows written before the migration.
+  The client still defers events on a page the browser is only prerendering
+  until it is shown (a never-opened prerender was on nobody's screen). Most
+  crawlers run no JavaScript, so they still produce no beacon at all.
+- **Before the migration**: a 42703 retries the INSERT without the new columns
+  (a view is never lost), a search on a missing table (42P01) is skipped.
+- **Mobile bar**: with the call icon, the price is one size down and its
+  period sits under it (`Price`'s `periodClassName`), so "1 300 $ / mois" never
+  splits after the slash and a sale price up to ~450 000 $ fits at 375px.
+- **Testing without polluting production**: the local dev server writes to the
+  production database. To exercise beacons locally, open a page with no
+  tracker (`/a-propos`), take a screenshot (the pane hydrates only then),
+  replace `window.fetch` for `/api/track` + `/api/telemetry/lead-click` with a
+  recorder, then `window.next.router.push('/listings/<id>')` — a hard load of a
+  listing page would send a real page view.
+- Engine half (rollup columns): root CLAUDE.md, "Engagement tracking".
+- Tests: `tests/unit/engagement-tracking.test.js`.
+
+## Listing performance page and the owner's live report (2026-09-29)
+
+- **`/compte/agent/biens/[id]`** — the listing's own page for its agent
+  (404 unless `properties.agent_id` is the session's): status, days on market,
+  the full funnel for `?range=` 7d / 30d / 12m against the previous period of
+  the same length (`lib/listingPerformance.js` + `lib/listingFunnel.js`,
+  drawn by `components/listings/ListingFunnel.js`), the views chart
+  (`getAgentListingViewsSeries([id])`), the price against comparable live
+  listings, the owner's report link, edit / print links. Reached from the Mes
+  biens row menu ("Statistiques & rapport") and by tapping the view count.
+- **Funnel reads**: views / WhatsApp / saves / visit requests through
+  `getMandateCounts` (rollup while fresh); people, photo steps, calls and
+  shares from raw events. A figure whose column does not exist yet is `null` →
+  "non disponible", never 0. Steps measured only from `TRACKING_STARTED_AT`
+  (2026-09-29) carry a `*` and the page says so.
+- **Market position** (`MARKET_POSITION_SQL` / `pickMarketPosition`): public
+  listings, same purpose and commune, the listing itself excluded; the
+  narrowest of same type + bedrooms → same type → commune that reaches
+  `MARKET_MIN_SAMPLE` (5); rent per month. Below 5 at every level: the count,
+  no figure.
+- **Owner's live report** `/rapport/<id>-<signature>` (`app/(site)/rapport/[token]`,
+  `lib/reportLinks.js`, `migrations/20260929_property_report_links.sql`).
+  French always, `noindex`, `force-dynamic`, listing facts and counts only (no
+  customer data), any listing status. The signature is an HMAC of
+  (id, property id, nonce) under `REPORT_LINK_SECRET` (fallback
+  `AGENT_SESSION_SECRET`, prefixed) — the table stores no secret and the agent
+  can always be shown their link again. One active link per listing; "Nouveau
+  lien" revokes the old one. Openings by the listing's own agent are not
+  counted in `view_count`. Missing table → "unavailable" / 404, never a 500.
+  **Set `REPORT_LINK_SECRET` in production** so rotating the agent session
+  secret does not break every link already forwarded.
+- **The WhatsApp button opens the agent's own WhatsApp with no recipient** and
+  a French message; Lukka Place never messages the owner.
+- The report captions say every opening is counted, the agent's own and automated tools included.
+- The Monday digest lists up to 3 listings with their own counts and a link to
+  this page (root CLAUDE.md digest; §41 of verify-pipeline).
+- Tests: `tests/unit/listing-hub-report.test.js`.
+
+## Commune market report, public median line, report link in the share kit (2026-09-29)
+
+- **`/admin/market-data/rapport/[commune]`** (`lib/communeReport.js` reads,
+  `lib/communeReportRules.js` pure + French copy; `analytics.view`, printable).
+  Only the 24 verified commune names are accepted (anything else 404s).
+  Sections: live supply by type × bedrooms (median, quartiles, $/m², median
+  age), the 12-month snapshot series, closes of the last 24 months (achieved
+  median, gap to asking, days to close — sold rows only, never the public
+  gate), and 90 days of demand (distinct searchers, how many found nothing,
+  median budget; the engine's distinct customer count for the commune).
+  Every median is `—` below `MIN_SAMPLE` (5) with its count kept. Content is
+  French whatever the console language. Linked from /admin/market-data once a
+  commune is picked.
+- **`AREA_M2_SQL`** (`lib/marketExclusions.js`): an area counts only when it is
+  a plain number (optionally m / m2 / m²). The price check used to strip
+  letters, reading "12x20" as 1 220 m².
+- **Listing page median line — HIDDEN until the site has 1,000 live listings** (2026-11-03, owner: too few comparables for a trustworthy figure; `MARKET_MEDIAN_MIN_LIVE_LISTINGS`, all cities, `countLiveListings`, memo 60 s; it returns by itself, no deploy). As built: (`components/listings/MarketMedianLine.js`,
+  streamed under Suspense): "Loyer médian demandé à Kintambo (appartement) :
+  750 $ / mois — 7 annonces comparables en ligne", from the agent hub's
+  `getMarketPosition` (listing excluded, test agents excluded). Only the
+  same-type or same-type-and-bedrooms level, never the whole-commune mix, only
+  from 5 comparables, and no percentage against the listing — pricing is the
+  agent's conversation with the landlord. `SELECT_FIELDS` now carries
+  `p.category_id`. Landing pages already show a median once a type is chosen.
+- **Share kit → Propriétaire** starts with `ReportLinkQuick`: copy the live
+  report link (created on first tap, idempotent) or send it from the agent's
+  own WhatsApp; managing / revoking stays on `/compte/agent/biens/[id]`. The
+  owner message is `ownerReportMessage` (lib/marketing/liveReportCopy.js),
+  shared with ReportLinkCard.
+- Tests: `tests/unit/commune-report.test.js`.
+
+## Visit booking, both agendas, bon de visite, "Mes visites" (2026-09-29)
+
+Engine half: root CLAUDE.md, "Visit booking — picked slot, bon de visite,
+multi-visit".
+
+- **The visit form is a picker, not free text** (`components/VisitSlotPicker.js`,
+  rules in `lib/visitSlots.js`): the next 7 Kinshasa days (14, as a calendar
+  grid, since 2026-10-10), 09:00 / 11:00 / 14:00
+  / 16:00. A slot is greyed out only when it starts < 2 h from now or within
+  an hour of the agent's CONFIRMED visits (`GET /api/listings/:id/visit-slots`
+  → engine busy-slots — instants only, fails open to "everything free"). There
+  is no working-hours data, so nothing else is blocked. It posts
+  `preferred_slot_at` (`YYYY-MM-DDTHH:00:00+01:00`); the action re-checks it
+  (`validatePickedSlot`) and derives `requested_time` with `slotPhraseFr`, so
+  every existing agent message and reader is unchanged. A page cached before
+  the picker still posts free text, which is kept. The picker renders only
+  inside a dialog/sheet opened in the browser, which is why it reads the clock
+  in its initial state.
+- **Customer agenda `/compte/client/visites`** (was a redirect;
+  `lib/customerAgenda.js`): Aujourd'hui / Demain / À venir / Heure à préciser /
+  Passées. The time is `scheduled_at` once agreed, the customer's own pick while
+  PENDING (labelled "demandé"), nothing otherwise — a slot the agent proposed in
+  words is never placed on a day. Call / WhatsApp the agent (the listing page's
+  verified-agent rule, else Lukka Place's number, labelled), view the listing,
+  cancel / accept a proposed slot (the Messages tab's own actions, now also
+  revalidating this page), `.ics` for a confirmed visit
+  (`visites/[id]/agenda.ics`, own visits only, commune as location — no
+  directions, the address stays with the agent). Linked from Messages.
+- **Agent agenda** (`/compte/agent/visites`): "À confirmer" on top (PENDING +
+  RESCHEDULED, answered with the Demandes tab's `AgentVisitRequestCard`, whose
+  confirm now prefills the customer's pick via `requested_slot_at`), "Appeler le
+  client" beside WhatsApp, and "Visite effectuée" / "Pas eu lieu"
+  (`components/AgentVisitDoneButtons.js` → `app/compte/agent/visitOutcomeActions.js`
+  → engine `agent-completed`) once a confirmed slot has started
+  (`lib/visitOutcome.js`). DONE sends the customer the bon de visite and offers
+  the same text from the agent's own WhatsApp. Past visits still to declare get
+  their own section.
+- **"Mes visites"** (`lib/visitCart.js`, `lib/useVisitCart.js`,
+  `components/AddToVisitCartButton.js` under "Demander une visite",
+  `components/VisitCartSheet.js` mounted site-wide through `VisitCartMount`
+  (dynamic, no SSR)): up to 4 listings in localStorage, a floating pill while
+  non-empty, one picker per listing, a warning (not a refusal) when two slots are
+  < 1 h apart, then `submitVisitBatchAction` → engine batch. Every listing is
+  re-read under the public gate and every slot re-checked; a listing gone
+  offline is removed from the cart. One batch per number per hour (429).
+- **The storefront has no ToastProvider** — only the portals and /admin do,
+  and `useToast` throws outside one. The cart button crashed every listing page
+  in local QA until it switched to inline feedback; `visit-booking.test.js`
+  guards the storefront visit components.
+- `lib/adminApi.js`'s `engineFetch` errors now carry `.status`.
+- Tests: `tests/unit/visit-booking.test.js`.
+
+## Agent tools: photos with my logo, neutral sheet, WhatsApp commands (2026-09-29)
+
+Migration `migrations/20260929_listing_share_formats.sql` (engine repo)
+replaces both `listing_shares` CHECKs: channel gains `wa_command`, format gains
+`watermarked_photo` and `fiche_neutre`. Until it runs, those records fail the
+CHECK and record nothing; the share itself is unaffected.
+
+- **"Photos avec mon logo"** (share kit row → `components/marketing/WatermarkedPhotos.js`,
+  layout `lib/marketing/watermark.js`, `renderWatermarked` in CanvasRenderer):
+  every photo in the pack's new `gallery` (≤ 10, same-origin /_next/image URLs)
+  drawn in the browser at its own aspect (longest edge ≤ 1080, never cropped or
+  upscaled) with a band over the bottom: the agent's logo or initials, name,
+  and phone only under `agentContactPhone`; "lukkaplace.com" on the right; no
+  brand → only "lukkaplace.com". "Partager les N photos" uses the share sheet
+  with every file, else sequential downloads 350 ms apart; a tap on one
+  downloads it. Recorded `kit_share` / `kit_download` × `watermarked_photo`.
+  Online only (the gallery is not stored with the offline pack).
+- **Fiche neutre** (`/compte/agent/biens/[id]/fiche?variant=neutre`,
+  `sheetVariant`, toolbar toggle Complète | Neutre): the same one-page sheet
+  without the Lukka Place logo, the reference, the agent's name and phone, the
+  QR code, the link and the map pin — anything that leads back to the public
+  page, which names the agent — and a blank "Contact : Nom / Téléphone" block
+  for whoever hands it on. Printing records `print` × `fiche_neutre`. The
+  sheet's columns now key their sections (React warned on every render).
+- **WhatsApp commands** (engine `services/agentCommands.js`): the engine
+  identifies the verified sender and relays to `POST /api/internal/agent-command`
+  (Bearer CRON_SECRET, timing-safe; `lib/agentCommands.js`). `!mesbiens`: up to
+  10 of the agent's public listings (ownership + public gate in SQL) with
+  `?utm_source=wa_command` links. `!share 310`: the share kit's own caption
+  (`buildListingSocialCopy`, `agentContactPhone`), only for the sender's own
+  listing (`getFlyerListing`'s `p.agent_id`) and only when `shareBlocker`
+  passes — otherwise one honest line; recorded as `wa_command` × `text`.
+  `!aide`: the list.
+- Tests: `tests/unit/agent-tools.test.js`, `listing-shares-print.test.js`.
+
+## Kinshasa utility tags and filters (2026-09-29)
+
+Engine migration `migrations/20260929_listing_utilities.sql` (`properties.utilities
+text[]`, CHECK against the ten codes, GIN index). Every read goes through
+`to_jsonb(p) -> 'utilities'`, so nothing 42703s before it runs.
+
+- **Four chips on /listings** (`FilterBar`, above the results, hidden when the
+  bar is condensed): Électricité, Eau, Sécurité, Accès (`lib/utilityTags.js`
+  `UTILITY_FILTERS`). They ride the existing `amenities` URL param, so saved
+  searches, alerts, labels (`searchCriteriaTags`, `ActiveFilterChips`), the map
+  and `search_events` carry them with no new plumbing.
+- **A chip matches the structured codes OR the listing's words** —
+  `utilities ?| codes` OR a word-boundary match of its keywords against title,
+  description **and `features`** (`keywordTextMatch`, also used by the "Plus de
+  filtres" amenity boxes). Checked on production: the words ("groupe
+  électrogène", "courant", "forage") were in `features` on 4–14 live listings
+  and in no description, so the title/description-only match — the amenity
+  boxes' rule until now — found nothing at all.
+- **Listing page**: `components/listings/UtilityBadges.js`, captioned
+  "Déclaré par l'agent", never "vérifié" (`verified_at` owns that word).
+  Nothing renders without codes.
+- **Agent editor**: one-tap chips grouped by chip (`#utilities`), sent only
+  when touched (`utilities_touched`), saved by `setListingUtilities`
+  (ownership in the WHERE, its own statement, `'unavailable'` before the
+  migration — the rest of the edit still saves).
+- Tests: `tests/unit/utility-tags.test.js`.
+
+## Speed pass — hero source, namespace split (2026-09-29)
+
+- **Hero** (`components/Hero.js` `HeroPicture`): a `<picture>` built with
+  `getImageProps`. Below 640px a `<source>` pins the 640w variant: the 26rem
+  band is taller than a phone is wide, so the photo draws ~630 CSS px wide and
+  `sizes="100vw"` had DPR-3 phones fetch 1080/1200w. Wider screens keep the
+  `100vw` set. `fetchPriority="high"` + `loading="eager"` replace `priority`
+  (deprecated in Next 16). The blur placeholder stays as the img background.
+- **`projects` copy ships from `app/(site)/projets/layout.js` only** (~11 KB of
+  French off every other public page). `account` was measured too (17.6 KB)
+  but stays site-wide: `CallCTA`, `AccountLimitNotice`, `/favoris` and the
+  whole Espace Client read it, and the namespace test works per top-level
+  namespace.
+- Tests: `tests/unit/speed-pass.test.js`, `i18n-namespaces.test.js`.
+
+## Agent portal redesign (2026-10-05)
+
+Approved from `web/Design/agent-portal-prototype.html` (gitignored, like the
+rest of `web/Design/`). Mobile-first; the `lg` layouts are unchanged in shape.
+
+- **One state per listing, one file**: `lib/agentListingFilters.js`
+  (`agentListingState`, `isLiveListing`, `matchesListingFilter`,
+  `LISTING_FILTER_PILLS`). The overview's "Biens en ligne", the Mes biens
+  chips and each card's badge all read it — before, the overview counted
+  approved listings (18) while "En ligne" also counted pending ones (20).
+  "En ligne" (`?status=active`) = public, under offer included; "En revue"
+  (`review`) = waiting for moderation. The grey "Brouillon" is only an offline
+  draft not yet sent, never a listing row. French says "sous offre" everywhere
+  (it said "sous compromis").
+- **One 30-day window**: `getAgentWindowStats` (lib/analytics.js) gives views,
+  clicks and new listings for the last 30 whole UTC days and the 30 before;
+  `trendPercent` returns null rather than a change from zero. It replaced
+  `getAgentMonthlyDeltas`, whose month-to-date comparison read "−100 %" early
+  in a month. `VIEW_RANGES['30d']` is 30 daily bars starting on the same day
+  (`windowStartKey`), so the chart adds up to the "Vues" figure. WhatsApp
+  clicks on the overview are now 30-day, not all-time.
+- **One waiting count**: `waitingCount` (new requests + visits to answer) on
+  the dashboard context drives every header bell and the Demandes tab badge.
+- **One profile checklist**: `profileChecklist` (lib/completenessRules.js)
+  merges agentProfileCompletion with the profile gaps; Réglages' ring and the
+  desktop rail's "Profil complété" both use it, so neither says 100 % while the
+  overview banner lists a missing item.
+- **No lead quota in the agent UI** (product decision): the plan cards and the
+  subscription card show only the listings allowance; the bar turns amber from
+  80 % (`quotaTone`, lib/listingQuotaRules.js). `monthly_pitch_limit` stays
+  editable in /admin. Plans come from `packages`; a new plan (Pro) appears when
+  its row exists.
+- **Leads**: "Répondre sur WhatsApp" (green, `--green-ink`) is every enquiry's
+  primary action, with a call link (`leadTelHref`). Visit cards open with the
+  slot: the agreed instant, else the customer's picked `requested_slot_at`,
+  else their own words.
+- **`--warning-ink`** (#7a5619) is the text colour on `--warning-50`; the old
+  amber text measured 3.4:1 (the token comment claimed 4.9). Amber chips use it.
+- Tests: `tests/unit/agent-portal-redesign.test.js`.
+
+## Espace Client redesign (2026-10-05)
+
+Approved from `web/Design/client-portal-prototype.html` (gitignored), same
+language as the agent portal redesign. Mobile-first; desktop keeps the sticky
+strip under the header.
+
+- **Four tabs since 2026-10-10** (Visites and Demandes merged into Activité —
+  see "One booking flow…" at the end of this file). As built on 2026-10-05:
+  five tabs (`ClientPortalTabs.js`, `PORTAL_TABS`): Accueil
+  `/compte/client`, Enregistrés `/compte/client/favoris` (Favoris | Alertes,
+  `?tab=alertes`), Visites, Demandes `/compte/client/messages` (also lit on
+  `/demandes`, the form), Profil. On a phone they are a fixed bottom bar —
+  the one exception to "no persistent bottom bar" (Layout & shell), because it
+  only exists inside the signed-in portal. The compact portal footer
+  (`components/Footer.js`) carries the bar's clearance. Counts are grey totals
+  from `getPortalCounts` (now memoised per request); nothing re-runs a search.
+- **Accueil is an inbox, not a page of numbers** (`lib/clientPortalView.js`,
+  pure, `tests/unit/client-portal-redesign.test.js`): a royal "Réponse
+  attendue" card when an agent proposed another slot (one-tap Accepter), three
+  counters, visits to rate (`needsCheckin`: CONFIRMED, agreed, slot passed,
+  not rated), the next confirmed visit, new listings for the alerts, the
+  customer's own search requests, quick actions. Each engine/search block
+  streams under its own Suspense. **Accueil never stamps saved searches
+  viewed** — only the Alertes tab does — so its "N nouveaux" survive a visit
+  to Accueil. Request rows leave out `NON_SEARCH_LEAD_SOURCES` (developer
+  application, project/listing enquiries, visit requests).
+- **An agent's proposal is read from its own phrase** (`proposedSlotAt`, the
+  engine's formatSlotFr shape only, nearest year). On a RESCHEDULED row
+  `scheduled_at` can still hold the slot the proposal replaced (production:
+  proposal "30 septembre", stored 23 September). A proposal whose time has
+  passed is not offered for acceptance: the card turns grey and offers
+  WhatsApp + cancel. The Messages tab's ViewingPanel still offers Accept on
+  such a row (unchanged).
+- **Visites** (`visites/VisitCard.js`, shared with Accueil): each card opens
+  with a time band — amber proposed, green confirmed, blue asked, grey past —
+  then the listing, then the actions (WhatsApp green-ink, call, .ics, cancel,
+  `VisitCheckin` after the slot). "À répondre" heads the list.
+- **Entry costs are three chips** (`components/EntryCostChips.js`,
+  `entryCostParts`): Garantie / Avance / Commission, each only when stated
+  (0 kept, NULL dropped), never summed, none on a sale. On favourite cards and
+  as three rows in the compare table.
+- **Old links**: `/compte/client?tab=alertes|favoris` answers a real 307 from
+  `next.config.mjs` `redirects()` (the page's own `redirect()` runs inside the
+  stream and would be a client hop) — every WhatsApp alert already sent links
+  there. `/compte/client/alertes`, `/compte/alertes`, `/mises-a-jour`,
+  `AccountLimitNotice` and the alert sweep's `manageLink` point at
+  `/compte/client/favoris?tab=alertes`.
+- **Profil**: grouped inset lists (Compte, Notifications, Application) with a
+  language row (`LanguageToggle`, the cookie — there is still no column).
+
+## Storefront upgrade (2026-10-06)
+
+Approved from `web/Design/storefront-prototype.html` (gitignored), same
+language as the two portal redesigns. An upgrade of what was live, not a new
+structure; desktop layouts are unchanged unless stated.
+
+- **Landing**: the phone hero band is 19.5rem (was 26rem) and the search card
+  overlaps it deeper, so the card starts in the top half of the screen (the
+  button used to sit at the fold). Louer | Acheter is full width on phones.
+  The button reads "Voir 47 biens" (the live count is the label). As the
+  visitor types, the card reads back what `lib/searchParser.js` understood
+  as chips ("Nous avons compris : Kintambo · 2 ch.+ · ≤ 1 500 $",
+  `lib/searchUnderstood.js`) — a read-back only, never a filter of its own.
+  **No "Essayez…" example chips**: removed on product direction until there
+  are enough listings that an example search is never empty.
+  `PropertyTypeTiles` (one tile per type with listings, counts from the same
+  `getPropertyTypeFacets` as the hero dropdown) sits above "Notre approche",
+  which is now three numbered cards (copy unchanged).
+- **Card chips, rolled back the same day** (product direction: "too
+  clustered"): feed cards show amenity matches only, and only when there is
+  one — no entry-terms chip, no "À louer" chip (the card had both before the
+  upgrade too; they were removed, not restored). Map cards are as before the
+  upgrade. A card with no amenity match now has no chip row, so cards in a
+  rail can differ by one row in height; the action bar still aligns
+  (`mt-auto`).
+- **Phone map**: Prix · Chambres · Type chips under the search
+  (`components/MapQuickFilters.js`, `lib/mapQuickFilters.js`) open a small
+  sheet and push the new param, keeping every other filter and the map area;
+  `page` is dropped. Types are the real facets (passed down from
+  /listings/page.js through ListingsSplitView).
+- **Listing page (phone)**: a sticky section strip under the header,
+  Aperçu · Coûts · Caractéristiques · Emplacement
+  (`components/listings/ListingSectionNav.js`, IntersectionObserver
+  scroll-spy), naming only sections that render — "Coûts" only when
+  `entryCostBreakdown` is non-null. Anchors: `#apercu` (the facts card),
+  `#couts` (EntryCostsBreakdown), `#caracteristiques`, `#emplacement`.
+  KeyFacts is the original two-column grid on phones (a compact row of
+  counts was tried and rolled back the same day, on product direction).
+  "Voir les N photos" opens a photo grid
+  (PhotoGallery, phone only) whose tiles open the lightbox.
+- Tests: `tests/unit/storefront-upgrade.test.js`.
+
+## Listing card share — the standard WhatsApp share (2026-10-06)
+
+Product direction: the branded image (photos, price, agent) is what an agent
+sends, not a bare link that WhatsApp unfurls into a small grey preview.
+
+- **Mes biens' "Partager sur WhatsApp"** (the card button and the "…" menu
+  row) opens `components/ListingQuickShare.js`: the square card drawn in the
+  browser (same pack and renderer as the share kit), then ONE button →
+  `navigator.share({ files: [jpg], text: caption })` → WhatsApp → chat, group
+  or Status. The card is drawn BEFORE that tap so iPhone Safari keeps the
+  user gesture. The caption is copied in the same tap (WhatsApp drops text
+  shared with an image to a Status). No file sharing (most desktops) →
+  "Télécharger l'image". "Envoyer le texte seulement" stays a real wa.me
+  `<a>`. In the menu the dialog is a sibling (`quickShareOpen`), never inside
+  an item — Radix unmounts the menu content on close.
+- **Recorded with existing CHECK values**: image `kit_share` / `kit_download`
+  × `square`; text `menu_whatsapp` × `text`. No migration.
+- **The card** (`lib/marketing/layout.js`, square / 9:16 / 16:9): rounded
+  photo tiles on royal blue; purpose + type pills on the cover; "+N photos"
+  veil on the last tile from the pack's `photoTotal` (the listing's real
+  count); price (thousands separator drawn as a plain space —
+  `displayAmount`, U+202F has almost no width in Plus Jakarta Sans); pin +
+  place; chips with lucide line icons (`LINE_ICONS` in
+  `lib/marketing/icons.js`: pin, bed, bath, area, door — stroked by
+  CanvasRenderer); the agent's OWN white card on the blue panel, right of
+  the price (`agentLogoCard`: their logo, or their initials large in royal —
+  product direction "agents have their own space to shine", square and
+  9:16; the 16:9 keeps a small avatar in the bar); a white contact bar:
+  name, gold badge only when earned, WhatsApp number only under
+  `agentContactPhone`, and the Lukka Place lockup on the right (colour
+  roofline `/brand/icon-light.png`, pack field `markLight`). No agent brand → the
+  lockup alone, centred. Packs stored offline before this (no `specs`,
+  `photoTotal`, `markLight`) still draw: icon-less chips, no "+N", white
+  roofline on a blue tile.
+- **Lift** (same day): soft shadows under the logo card, the bar and the
+  purpose pill, a dark-to-clear band across the top of the cover photo behind
+  the pills, and a 144px price on the 9:16. CanvasRenderer takes rect
+  `shadow` / `gradient` and image `alpha`. Green accents ("/ mois", pin, a
+  green rim on the bar) and a 6% roofline watermark were tried and removed
+  the same day on product direction.
+- **The caption** (`buildListingSocialCopy`): `*À LOUER* · Type`, `*amount*
+  / mois`, `📍 place`, then a "▸" list (rooms, `entryCostLine` — "Garantie 3
+  mois · Avance 1 mois · Commission 1 mois", each part named, never summed —
+  and "Réf. …"), `*Agent name* · phone` (only under `agentContactPhone`;
+  "Contact" when there is no displayable name), "Photos et visite ↓" + link.
+  One emoji (📍) instead of one per line.
+- **The server flyer is retired**: `app/compte/agent/biens/[id]/visuel` and
+  the satori/sharp helpers in `lib/listingFlyer.js` are gone, so there is one
+  design and one renderer. A phone that cannot draw gets the caption.
+- Previews: `web/Design/share-card/` (gitignored).
+- Tests: `tests/unit/marketing-toolkit.test.js`, `agent-growth-toolkit.test.js`,
+  `listing-shares-print.test.js`.
+
+## Agent portal speed and cleanup (2026-10-06, later the same day)
+
+Measured first: every agent page renders in 70–160 ms on the VPS; from
+outside, ~0.6 s goes on opening the TLS connection alone. The fixes cut round
+trips and bytes, not server time.
+
+- **Share card is prepared before the tap** (`lib/listingCardCache.js`).
+  `prepareListingCard(listing)` is one shared promise per listing version
+  (id + price + title + cover + updated_at, 5 min TTL, failures never kept).
+  `AgentListingWhatsAppButton` warms it when it scrolls into view
+  (`warmListingCard`: idle time, one at a time, max 6 per page, never on Data
+  Saver / 2G); the row menu warms it on open; `ListingQuickShare` awaits the
+  same promise. Measured before: ~1.9 s, almost all photo downloads.
+  Not pre-rendered on the server at publish time, deliberately: one renderer
+  (the browser canvas), and a stored card of last month's price would lie.
+- **The pack sends exactly the three photos drawn**: cover at 1080 px, side
+  tiles at 640 (`SIDE_PHOTO_WIDTH`) — it used to send five at 1080.
+  `fetchPackImages` asks for `image/avif,image/webp`: fetch()'s default
+  `*/*` made /_next/image answer JPEG (44 KB vs 26 KB WebP on listing 310).
+- **"Marketing & Documents" → "Documents et rapports"**
+  (`AgentListingShareKit`): only the A4 poster, the A4 sheet and the owner
+  report. The listing graphic, "Photos avec mon logo" and the listing text
+  are gone (the WhatsApp share does all three); so are
+  `components/marketing/WatermarkedPhotos.js`, `lib/marketing/watermark.js`,
+  `renderWatermarked` and the pack's `gallery`. The dialog loads no share pack
+  and opens instantly; the menu passes `shareBlocker(listing)` for the print
+  rows. `watermarked_photo` stays in `CHANNEL_FORMATS` for the DB CHECK only.
+- **The owner report is all-time** (`allTimeWindow(listing.created_at)`,
+  `getMandateReportAction`): whole UTC days since the listing went online,
+  no "semaine précédente" (`previousFrom === from`); no creation date →
+  from 2026-01-01, before which nothing was tracked. `reportWindow` (7 days)
+  stays for other readers. `FLYER_SELECT` now carries `p.created_at`.
+- **Demandes is one inbox** (`lib/agentInbox.js`, `app/compte/agent/demandes`):
+  enquiries and visit requests in one list, a web visit request once (its
+  lead folded into the visit — `lead_id`, or same number + listing while
+  NEW / VIEWING_REQUESTED, agentTodo's rule). Pills Toutes · À traiter ·
+  Confirmées · Traitées (`?filtre=`), counted; order: waiting first, confirmed
+  visits soonest first, then handled; newest first inside each. `?lead=` pins
+  the request (or the visit it was folded into); `?tab=visites` / `?status=`
+  still land (`inboxFilterFromParams`). Every in-app link now uses `?filtre=`.
+- **Cards: one primary action + call + "···"** (`AgentVisitRequestCard`,
+  `AgentLeadCard`): name, badge and age on top; slot in bold (or the request)
+  and the listing; then "Confirmer la visite" (to confirm) / "Contacter sur
+  WhatsApp" (confirmed) / "Répondre sur WhatsApp". Déplacer, Refuser /
+  Annuler, quick replies, alternatives, the Lukka Place composer and the
+  status select are behind "···". Every label through `agent.inbox.*`;
+  relative times via `formatRelative(value, locale)` (an EN dashboard printed
+  "il y a 8 jours"). The customer's own words ("Demande de visite — créneau
+  souhaité : …", "mercredi 30 septembre à 09h30") are data and stay as written.
+- **Agent tabs are fully prefetched**: the sidebar and bottom-bar `<Link>`s
+  carry `prefetch`, so a tab's payload arrives while the agent reads the
+  current one; `staleTimes.static: 60` bounds how old a prefetched tab may be
+  (the default is 5 min, too long for an inbox). Actions still invalidate it.
+- Tests: `tests/unit/agent-inbox.test.js`, `marketing-toolkit.test.js`.
+- **Bell and Demandes badge = new since last look** (same evening):
+  `waitingCount` is now the "À traiter" items (counted by `inboxBadgeCounts`,
+  so a web visit request's lead + visit count once — it read 3 where the
+  inbox said 2) that arrived after the agent last opened Demandes. The page
+  stamps `lp_inbox_seen` (server clock, per device — there is no read-state
+  column) through `components/InboxSeenMarker.js`, which refreshes once so
+  the layout's tab badge clears too. `actionableCount` keeps the full
+  "À traiter" number; looking clears the badge, answering clears the row.
+- **Window poster removed** from Documents et rapports and the listing's
+  Statistiques page (product direction). `/compte/agent/biens/[id]/affiche`
+  itself still exists.
+
+## One booking flow, the visit calendar, Activité, About (2026-10-10)
+
+From an owner walkthrough on a phone. Engine migration
+`migrations/20261010_agent_visit_availability.sql` (additive; web degrades to
+"nothing blocked" before it runs). Tests: `tests/unit/visit-booking.test.js`,
+`portal-funnel.test.js`, `client-portal-redesign.test.js`.
+
+- **Every "visit" button opens the same dialog** (`components/VisitRequestDialog.js`,
+  controlled by `open` / `onOpenChange`). The saved-listings card's "Planifier
+  une visite" was a hand-built `wa.me` link to Lukka Place's own number asking
+  "quelles sont vos disponibilités ?" — untracked, and it reached neither the
+  agent nor the customer's agenda. It now opens the calendar with
+  `returnTo="visites"`, so `submitVisitRequestAction` answers on
+  `/compte/client/visites?visit_sent=1` (two fixed destinations; the path is
+  never read from the form). The card's WhatsApp button uses
+  `resolveWhatsAppRouting` like every other CTA (it always went central) and is
+  labelled by where it goes: "Écrire à l'agent" / "Écrire à Lukka Place".
+- **The picker is a calendar grid**: 14 Kinshasa days in Monday-first weeks
+  (`calendarWeeks`), then the day's four slots. `VISIT_DAYS` is 14; the engine's
+  busy-slot window is 15 days.
+- **Agents can block days** (`lib/agentAvailability.js`,
+  `components/AgentVisitAvailability.js` on `/compte/agent/visites`,
+  `saveVisitAvailabilityAction`): weekdays off and single dates. The calendar
+  greys them out (`dayClosed`, reason `closed`), and both visit actions refuse
+  one server-side (`visit_error=closed`). It removes days only — no opening
+  hours, the four slots are the same for everyone, and the agent still
+  confirms each request. The agent id is the session's; reads never throw.
+- **Visites + Demandes = one "Activité" tab** (four tabs, `grid-cols-4`), with
+  a Visites | Recherches switch (`ActivitySubTabs.js`, reusing `SavedSubTabs`).
+  The rule is `isVisitInquiry` (`lib/clientPortalView.js`): a lead with a
+  viewing request behind it is a visit and is listed under Visites only — the
+  Demandes list used to show those leads too, so one booking appeared in two
+  tabs. Both URLs are unchanged, so every link already sent still lands.
+- **About page**: the live-figures band and the "Bukavu" tag are gone (the alt
+  text still says where the photo was taken); copy is "Kinshasa d'abord, toute
+  la RDC ensuite", four reasons and a call-to-action band. The same line is in
+  the hero subtitle, the footer tagline and copyright, and the site meta
+  description. No city is named as a next step — none is decided.
+- **Photos**: correction e4 and a lighter card scrim — root CLAUDE.md,
+  "Listing photo auto-correction".
+- **Later the same day** (owner feedback on the live build):
+  - **Times are a dropdown of quarter-hours, 08:00–20:00** (`VISIT_SLOT_TIMES`,
+    49 of them — 18:00 was the first cut, widened the same day; a native
+    `<select>`, grouped Matin / Après-midi / Soir, a taken or
+    too-soon time shown disabled with its reason). `validatePickedSlot` accepts
+    exactly those. The four fixed slots are gone.
+  - **The confirmation says who has the request**: `visit_sent=1` when the
+    listing has a reachable agent (`agent_phone` non-null, the engine's own
+    condition for alerting them), `visit_sent=team` otherwise
+    (`enquiry.sentTeam`, `account.agenda.sentTeam`). It used to say "sent to
+    the agent" for a listing with no agent at all.
+  - **Serif headings were CAPITALS** until 2026-10-24 (see "Post-launch polish" at the end of this file — they are sentence case again).
+
+## Site settings, bulk delete, sales cleanup, FlexPaie (2026-10-18)
+
+- **Footer copyright** is `© {year} Lukka Place.` in both languages, no tagline
+  (pinned in `tests/unit/admin-settings-delete-payments.test.js`).
+- **`/admin/settings`** (`cms.manage`, owner): two `cms_settings` rows,
+  `site.social_links` and `site.features` (`lib/siteSettings.js`, pure rules in
+  `lib/siteSettingsRules.js`). Each social URL must be https on that network's
+  own host, with a path; a stored value is re-validated on read. Memoised 30 s,
+  dropped on save. Never throws — the footer falls back to the env links.
+- **"Onglets et sections"** on `/admin/settings` hides work in progress
+  (`site.features`, `featuresFromStored`). Three switches plus a list:
+  - `agentSubscriptions` (default OFF): the agent portal's Abonnements tab;
+    `/compte/agent/abonnement` redirects to `/compte/agent`; the limit dialog
+    and Mes biens banner say "Contacter l’équipe" (`/contact`). The engine's
+    WhatsApp limit refusal reads the same key (`services/listingQuota.js`).
+  - `publicProjects` (default on): "Neuf" in the header and drawer, the
+    footer's /projets + /promoteurs links, the home strip, the map's projects
+    pill (`/api/projects/count` → 0), the sitemap, and /projets/* +
+    /promoteurs (layout redirect to /listings plus `noindex` — the redirect
+    runs inside (site)'s loading.js Suspense, so it is a client hop on a 200).
+  - `agentProjects` (default on): the overview's projects card and
+    /compte/agent/projets/* (redirect to /compte/agent).
+  - `hiddenAdminTabs`: console sidebar entries to hide, for the whole team.
+    The tab list lives in `lib/adminNav.js` (plain data, icon names) so the
+    sidebar and the settings form share it; a stored href not in it is
+    dropped, and `/admin/settings` can never be hidden. A hidden tab's page
+    still opens from its URL (the team keeps working on it); its permission
+    is unchanged.
+  - Set on production 2026-10-18 (shared DB, takes effect on deploy):
+    Abonnements and Projets neufs hidden on every surface, `/admin/projets`
+    and `/admin/subscriptions` hidden from the sidebar.
+- **Bulk "Supprimer la sélection"** on `/admin/agents`, `/admin/agencies` (new
+  row selection, `AgencySelection.js`) and `/admin/listings` (every tab):
+  `app/admin/BulkDelete.js` (confirm dialog → toast with "Annuler" for 10 s),
+  `lib/adminSoftDelete.js`, `migrations/20261018_admin_soft_delete.sql`.
+  - A soft delete: `deleted_at` + `status = 0`, previous status kept in
+    `console_soft_deletions`; an agency cascades to its agents, an agent to
+    their listings. Undo restores the previous status; the server accepts it
+    for 60 s (`UNDO_GRACE_MS`), matched in SQL (a JS Date drops microseconds).
+  - Owner only (`agents.delete`, new `listings.delete`). The permanent
+    impact-dialog deletion (`lib/adminAgentDeletion.js`) is unchanged.
+  - Readers that skip deleted rows: admin agents / agencies / moderation
+    lists, counts, global search, `getAgentById` (profile 404, dashboard →
+    login), `getAgents`, agent login, the agent's own listings. Engine:
+    `resolveAgentId`, `identifySender`, and a resync never sets `status = 1`
+    on a deleted listing.
+  - **Run the migration BEFORE deploying** — those queries name `deleted_at`.
+  - No "Corbeille" view yet: after the grace window a delete stands (rows are
+    still in the database; restoring one is a manual SQL job).
+- **Sales (`/admin/sales`)**: the team table is four columns — rep, assigned
+  agencies (from active assignments), live listings, commission status chips
+  (to approve / to pay / paid). The rep page gains "Agences" with "Retirer"
+  per agency (`endRepAssignmentsForVendor`), and agent unassign now asks for
+  confirmation and works on every rep, inactive and launch ones included
+  (adding agents is still active subscription reps only). Unassigning ends
+  assignments only — a launch attribution (`sales_agent_attributions`) is
+  still changed through "Changer de commercial".
+- **FlexPaie** (`lib/flexpaie.js`, `lib/flexpaieRules.js`, `lib/payments.js`,
+  `/api/payments/flexpaie/{initiate,webhook,status}`,
+  `migrations/20261018_flexpaie_payments.sql`: `subscriptions`, `invoices`,
+  `payment_logs`). Env: `FLEXPAIE_BASE_URL` (https), `FLEXPAIE_MERCHANT_ID`,
+  `FLEXPAIE_API_KEY` — server-only; unset = 503 "not_configured".
+  - The callback URL carries a per-invoice token (SHA-256 stored); a callback
+    is logged and then ignored as evidence — only FlexPaie's status check
+    (`GET /check/{orderNumber}`: status "0", amount and currency covering the
+    invoice) marks it paid. A mismatch is never credited nor failed.
+  - Paid = one transaction: ordinary `memberships` row (payment_method
+    'FlexPaie', via `assignPackageToAgent({ client })`), invoice paid,
+    subscription active. A second callback is a no-op.
+  - **The API shape comes from the community SDK's docs, not FlexPaie's own**
+    (none was available): confirm field names and codes with a sandbox
+    payment before setting the key in production. There is no payment UI yet;
+    the Abonnements tab stays hidden until there is.
+
+## Console create / delete for listings and agents (2026-10-20)
+
+`app/admin/listings/createActions.js`, `app/admin/listings/nouveau/`,
+`DeleteListingButton.js`, `app/admin/agents/[id]/AgentDeleteButton.js`.
+Tests: `tests/unit/admin-crud.test.js`.
+
+- **"Créer une annonce"** (`/admin/listings/nouveau`, `listings.edit`): the
+  agent form's write path (`createListing`: city from the commune, commune
+  amenity from `location_communes`, `approve_status` 0) for an agent picked
+  with `AgentPicker` or none (central number). Communes and categories are
+  re-read in the action. Currency / period go through `adminUpdateListing`
+  after the insert. "Publier directement" runs `approveListingAction` (its
+  publish checks, and the agent's "en ligne" message) only for a
+  `listings.moderate` role. No plan quota: the team is not an agent.
+- **"Ajouter des photos"** in the photo panel appends uploads after the
+  gallery already there (cover unchanged); hidden while a reorder is unsaved.
+- **"Supprimer l'annonce"** on each queue row and on the listing page is the
+  bulk bar's soft delete for one id (owner, `listings.delete`, 10 s undo;
+  photos stay in storage so the undo is whole).
+- **"Supprimer l'agent"** on the agent page opens the table's
+  `DeleteAgentDialog` (impact, archive or delete listings, typed id) and goes
+  back to `/admin/agents` (`onDeleted`).
+- Already there and unchanged: every field of a listing in the editor
+  (moderation via Approuver / Rejeter / Suspendre — there is no "draft"
+  state in this schema), agency name, communes and (since today) first /
+  last name on the agent page; the phone stays locked.
+
+## Launch fixes: cities in search, agent assignment, deletes, reminders (2026-10-21)
+
+Tests: `tests/unit/launch-fixes-2026-10-21.test.js`; engine §60.
+
+- **Search knows cities.** `lib/cities.js` `findCityMention` (a whole city
+  name, or a 4+ letter start of one: "lubum") and `findCommuneInCity` run in
+  `parseSearchQuery` BEFORE Kinshasa's gazetteer, because Kinshasa has
+  quartiers named after cities (Lubumbashi in Kasa-Vubu, Goma in Ndjili) and
+  "lubum" searched Kasa-Vubu. A city sets `ville`; inside another city only
+  its communes are matched ("Kampemba" → commune + Lubumbashi), the gazetteer
+  is not consulted. The hero card has a "Ville" select (`?ville=`); text
+  wins over it, and a Kinshasa place typed after clears `ville`.
+- **Surface takes decimals** (`normaliseArea` / `formatArea`, lib/listingView.js):
+  2 decimals, French display ("12,5 m²"). `properties.area` was already TEXT —
+  no migration; only the forms (step 0.01), the actions and the engine's
+  publish rounding changed.
+- **Listing → agent** (`ListingAgentCard`, `adminAssignListingAgentAction`):
+  any agent (not deleted) or none; `vendor_id` follows the agent.
+- **Renommer l'agence** (`/admin/agencies/[id]`, `renameAgencyAction`): writes
+  `agents.agency_name` on every live agent of the vendor (what every card and
+  profile shows). `vendors.username` is never touched (old back-office login);
+  when it is a real word the console keeps showing it, and the toast says so.
+- **Supprimer** on prospects (`/admin/leads`, row + detail) and visits
+  (`/admin/viewings` row): permanent, owner-only (`leads.delete`,
+  `viewings.delete`), engine `DELETE /admin/leads/:id` (lead + visits +
+  matches + proposals + open questions, one SQLite transaction) and
+  `DELETE /admin/viewing-requests/:id` (the visit + its open questions; the
+  lead stays). Audited; nobody is messaged.
+- **Rappeler de vérifier** (agent page + agents table menu, `agents.manage`):
+  `lib/verificationReminder.js`'s text (owner's wording; the bonus and the "5" were
+  dropped 2026-11-03, bonuses no longer run)
+  through the engine's `/admin/send-whatsapp`. A session message: it only
+  reaches an agent who wrote to the business number in the last 24 h, and the
+  toast says "envoyé", never "reçu".
+
+## "Créer un agent" and "Vérifier le numéro" — the team vouches (2026-10-23)
+
+`app/admin/agents/nouveau/`, `app/admin/agents/createAgentActions.js`,
+`app/admin/agents/ActivationLinkPanel.js`, `[id]/AdminVerifyAgentButton.js`,
+`lib/adminAgentCreate.js`. Engine half: CLAUDE.md, "Agents created or verified
+by an admin". Tests: `tests/unit/admin-agent-create.test.js`, engine §66.
+
+- **No code from the phone.** An admin with `agents.manage` creates a verified
+  account (first / last name, agency, `PhoneField` number through lib/phone.js,
+  communes from the list the action re-reads) or verifies an existing one from
+  its page. This skips proof of ownership on purpose: the number goes on the
+  agent's listings and receives their enquiries. Admin console only — the test
+  walks `(site)`, `(portfolio)` and `api` to keep it that way.
+- **The engine writes the row** (WhatsApp onboarding's own upsert,
+  `onboarding_source = 'admin'`) and claims the number's listings, group
+  captures included. No agents INSERT here.
+- **Refused**: a number with any account (soft-deleted included; the error
+  links to it), the two business numbers, a malformed number, no first name;
+  verify also refuses a number already verified on another live account.
+- **Who vouched**: audit `agent.admin_create` / `agent.admin_verify` and a note
+  on the agent's timeline naming the admin (`actorLabel`). Nothing on `agents`
+  names them.
+- **Activation link**: shown once in `ActivationLinkPanel` with Copier and
+  "Envoyer depuis mon WhatsApp" (a wa.me link that opens the admin's own
+  WhatsApp, text typed in). Nothing is sent by Lukka Place. Verify returns no
+  link when the account already has a password.
+- **The profile's "Numéro vérifié" checkbox** grants through the same engine
+  verify (`adminVerifyAgent(id, { issueLink: false })`) before anything on the
+  form is saved: same refusals (our numbers, a number verified on another
+  live account), same listing claim, same audit + note (`via:
+  'profile-checkbox'`). It issues no link — the admin sees none there, and a
+  new token would void an onboarding link the agent has not opened. The
+  profile save itself only ever revokes.
+
+## Agent ratings — "Notez l'agent" (2026-10-18)
+
+Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine
+migration `20261018_agent_reviews.sql` was applied to production 2026-10-18;
+without it nothing renders and the rating card answers "réessayez".
+
+- **Espace Client**: `visites/VisitAgentRating.js` on the visit card (and on
+  Accueil's "to rate" list) once the check-in said 👍/👎 and the agent is not
+  rated (`needsAgentRating`, lib/clientPortalView.js). Five stars, optional
+  comment, `rateAgentAction` → engine. Once rated it shows "Votre note : N/5".
+- **Public**: `/agents/[id]` shows "4,7 ★ · N avis vérifiés" in the hero and
+  an "Avis clients" band with APPROVED comments only, from
+  `MIN_PUBLIC_REVIEWS` (5) ratings (`lib/agentReviews.js`, never throws). Not
+  on listings, and no aggregateRating in JSON-LD (self-served reviews).
+- **Admin**: `/admin/agent-reviews` (agents.view; publish/refuse is
+  listings.moderate, audited without the comment text).
+- Tests: `tests/unit/agent-reviews.test.js`.
+
+
+## Commercial spaces (2026-10-19)
+
+Root CLAUDE.md, "Commercial spaces", has the model. Web half: `lib/commercialSpaces.js`
+(pure, duplicated in the engine), `components/CommercialSpecFields.js` (create dialog
+and editor), `?property_type=commercial`, the "Bureaux & commerces" group in
+SearchBar / FilterBar / FilterModal / the homepage tiles, and the `bureaux` /
+`locaux-commerciaux` landing slugs. A commercial listing shows its specs on
+KeyFacts and "N bureaux" on cards. Run the engine migration
+`20261019_commercial_spaces.sql` before agents can pick "Bureau"; until then reads
+yield nulls and the specs setter answers `unavailable`.
+
+## Cities beyond Kinshasa — web half (2026-10-20)
+
+Root CLAUDE.md, "Cities beyond Kinshasa", has the model (commune keys unique
+nationwide, "Kalamu (Boma)"). Tests: `tests/unit/cities-data.test.js`.
+
+- **`lib/cities.js` + `lib/data/cities.json`** (generated by
+  `scripts/build-cities-data.mjs` from the engine's data and the centroids its
+  `scripts/geocode-communes.js` fetched on the VPS — never edit by hand; the
+  test compares it with the engine's files). `COMMUNE_CENTROIDS`
+  (lib/geocoding.js) = Kinshasa's verified points + each other commune's
+  geocoded point, or its city's centre when Google gave none (13 of 39) —
+  flagged approximate like any centroid pin.
+- **A commune is `location_communes`, not ids 21–44.** Every
+  `amenity_id BETWEEN 21 AND 44` became `IN (SELECT amenity_id FROM
+  location_communes)` (the test fails if one comes back). Run the engine's
+  `scripts/migrate-multi-city.js --write` BEFORE this deploy.
+- **A feed is one city** (`buildFilters`, pushed last): `ville`, else the
+  searched commune's city, else Kinshasa (+ `city_id IS NULL`). Id lists and
+  agent portfolios are never narrowed. `lib/publicCities.js`: a city is public
+  from `MIN_PUBLIC_CITY_LISTINGS` live listings — **0 since 2026-10-20** (owner
+  decision, reversing the 3 set that morning): every city is in the picker,
+  empty ones included. A non-public `?ville=` is dropped on /listings and both
+  listing APIs. `CityPicker` (in FilterBar) renders when two or more cities are
+  public. An empty city shows the plain empty state, without Kinshasa's
+  communes as suggestions.
+- **The map** opens on the city (`defaultViewForCity`), geocodes inside it
+  ("Commune de Kalamu, Boma"), refuses a point outside the city's box, and
+  "Autour de moi" accepts any covered city (`inCoveredArea`).
+- **Writes**: `resolveListingLocation` (lib/agentListings.js) gives city_id +
+  commune amenity from `location_communes` (Kinshasa when unknown); a commune
+  change moves `city_id` too (agent and admin editors). Addresses name the city.
+- **Forms**: agent and admin commune lists load `{ city: 'all' }` (engine
+  `GET /locations?city=all`) and render `<CommuneOptions>` (city optgroups only
+  when more than one city is listed); agent-area checkboxes read
+  "Kampemba · Lubumbashi". The customer request form, SEO landing pages, market
+  reports and projects stay Kinshasa-only for now.
+- **Not done**: city landing pages / SEO per city, the hero search's own city
+  picker, visit-slot picker times in UTC+2 for those cities (it posts
+  `+01:00`; the engine re-reads the agent's answers on the right clock, but a
+  customer's picked slot for a Lubumbashi listing is an hour off until the
+  picker learns the listing's offset).
+
+## Listing videos (2026-10-21)
+
+Engine half and the rules: root CLAUDE.md, "Listing videos and 20 photos".
+Tests: `tests/unit/listing-videos.test.js`.
+
+- **`properties.videos` jsonb `[{url, poster}]`**, written by the engine for
+  WhatsApp listings only. Read through `to_jsonb(p) -> 'videos'`
+  (`lib/listingVideos.js` `VIDEOS_SQL` / `VIDEO_COUNT_SQL`), so nothing 42703s
+  before the engine migration. `listingVideos()` keeps https URLs only.
+- **Listing page**: `components/listings/ListingVideos.js` (plain `<video>`,
+  `preload="none"` when there is a cover — visitors pay per MB) under the
+  facts, plus a "Vidéos" entry in the phone section strip. Not on cards. With
+  no photo, the cover frame is `featured_image`, so cards and the gallery show
+  it as the listing's picture.
+- **Moderation**: the panel plays the videos; the queue's `no_photos` flag
+  needs no photo AND no video; a cover frame (`_poster.jpg`) is never offered
+  as a gallery photo, and `setListingGallery` falls back to it before the
+  "no photo" placeholder when the last photo is removed.
+- **Not built**: uploading a video from the agent dashboard or the admin form
+  (needs direct-to-Storage uploads — a 16 MB clip does not belong in a Server
+  Action body). The web forms keep requiring photos; videos come in through
+  WhatsApp.
+
+## Short-term rentals — the "Durée" filter (2026-10-21)
+
+Model and engine half: root CLAUDE.md, "Short-term vs long-term rentals".
+Tests: `tests/unit/lease-term.test.js`.
+
+- **`?lease_term=short|long`** (`buildFilters`): short = a rent with
+  `price_period` 'jour' / 'semaine'; long = any other rent (no period counts
+  as monthly). Either implies a rental. Carried by saved searches, alerts, the
+  map and the count endpoint through `parseListingsSearchParams`.
+- **Search bar**: "Longue durée" / "Courte durée" chips open the chip row on
+  /listings (hidden on a sale search; tapping the selected one clears it;
+  picking one makes the search a rental), a "Durée de location" section in the
+  phone filter sheet, an active-filter chip, and the search box reads
+  "à la journée", "par nuit", "50$/jour", "courte durée", "longue durée".
+- **Prices** say "/ jour" / "/ semaine" everywhere `formatPrice` / `<Price>`
+  render; map pins say `$40/j`, `$200/sem`; JSON-LD unit is DAY / WEE. Market
+  medians, price checks, outlier flags and demand matching leave short-term
+  rents out (`monthlyEquivalent` → null).
+- **Agent forms** (create + editor): "Durée de location" select (mois / jour /
+  semaine / an), written as `price_period` for a rent only. **Admin editor and
+  admin create** now post the stored vocabulary (`mois`, `an`, `jour`,
+  `semaine`, `total`); they used to post `month` / `year` / `day`, which no
+  reader understood (no production row held one, checked 2026-10-21).
+
+## Property types: Immeuble, Villa, Concession (2026-10-22)
+
+Engine migration and rules: root CLAUDE.md, same heading. Every type picker
+reads the categories table, so the dropdowns change with the migration.
+
+- **Old names keep working** (`CATEGORY_ALIASES`, lib/listings.js):
+  `?property_type=bâtiment` (saved searches, alerts, shared links) matches
+  Immeuble; `villa` matches the Villa category OR a parcelle sub-typed villa.
+  The search box reads "villa" as `property_type=villa` (it was the parcelle
+  sub-type), plus "concession" and "immeuble".
+- **Landing pages**: `/{tx}/immeubles`, `/villas`, `/concessions`;
+  `/{tx}/batiments/*` is a 308 to `/immeubles` (next.config.mjs).
+- Plurals `listings.typePlurals.immeuble/villa/concession`; homepage tiles
+  use Building / Fence icons; the detail map pin draws an Immeuble as a building.
+- Smart paste tries "immeuble" then "batiment" (`matchCategoryId` takes a list).
+
+## Practical listing details and four more types (2026-10-22)
+
+Model and engine half: root CLAUDE.md, same heading. `lib/listingDetails.js`
+(pure: rules, plot parser, SQL), `components/ListingDetailFields.js` (form
+fieldset), `components/listings/PracticalDetails.js` (listing page).
+Tests: `tests/unit/listing-details.test.js`.
+
+- **Reads** go through `DETAILS_SQL` (one `listing_details` jsonb via
+  to_jsonb) in the public and moderation selects and the agent editor's.
+- **Listing page**: "Détails pratiques", captioned "Déclaré par l'agent" —
+  meublé, households, landlord, generator / solar / pool / gym, meter, plot size (m² · ares /
+  ha, plus the agent's own words) with "≈ N $ le m²" on a sale, paiement
+  échelonné + terms. Renders nothing when nothing is stated.
+- **Filters**: a **Meublé** chip in the row under the search bar
+  (`amenities=furnished`, now the `furnished` column OR the words, and a
+  listing the agent marked unfurnished is left out); **Taille du terrain**
+  (`plot_min` / `plot_max`, m²) in both filter sheets, hidden for
+  plotless types — it reads `plot_area_m2`, else the `area` of a listing
+  whose category IS land (`PLOT_M2_SQL`). Chips, saved-search labels, map and
+  count endpoint carry both. The "Plus de filtres" Générateur / Panneaux
+  solaires boxes and the new Confort group (Piscine, Salle de sport) read the
+  `has_*` column OR the words (`AMENITY_DETAIL_COLUMNS`).
+- **Hero search**: on the Rent tab a Durée row (Toutes / Longue durée / Courte
+  durée) sends `lease_term` and feeds the live count.
+- **Search box**: "5 ares", "20x30", "1 ha", "600 m²" → `plot_min` (read
+  before prices, so "600 m²" is never $600); "meublé" → Meublé ("non" /
+  "semi-meublé" do not count); "studio", "annexe", "chambre à louer",
+  "ferme", "terrain agricole" → their types. "2 chambres" stays a
+  bedroom count. `?property_type=studio` also matches Appartement listings
+  whose title says studio (filed before the category existed).
+- **Forms** (agent create, agent editor, admin editor, admin create): the
+  fieldset with "Non précisé" defaults; the plot field shows the computed
+  size live. Sections hide by category + purpose (`detailSections`), and
+  `setListingDetails` / `adminSetListingDetails` re-gate on the row's REAL
+  category and purpose. Smart paste fills it.
+- New types: plurals, landing pages `/studios`, `/chambres`, `/fermes`,
+  tile icons, pin kind (a farm is land).
+- **Filter sheet (phone) type chips** (2026-10-22, owner decision): Tous, Parcelle,
+  Appartement, Maison, Villa, Terrain, in that order, each with its real count
+  (greyed at 0); every other type with listings (Duplex, Studio, Bureau…) is one
+  "Autres types de bien" dropdown. **Villa** = the Villa category OR a villa
+  parcelle OR a Maison / Duplex whose title says villa (the engine filed WhatsApp
+  villas under Maison until 2026-10-22) — `categoryAliasClause`, shared by the
+  filter and the facet count, so "Villa 5" opens five listings. Villa is an
+  overlay facet: it can re-count a Maison.
+
+## Gallery viewer close, faster map cards (2026-10-23)
+
+From two phone reports (iPhone, 4G). Tests: `tests/unit/gallery-close-map-card.test.js`.
+
+- **The gallery viewer (`PhotoGallery`) had no reachable way out of a video.**
+  The stock dialog × was a dark 32px icon on the dark frame, and the site
+  header (`z-[60]`) paints over every `z-50` dialog's top edge — where that
+  × sits. The viewer is now `z-[70]` (overlay too, via `DialogContent`'s new
+  `overlayClassName`), full screen on a phone, with its own top bar: counter
+  left, a white 44px × right, never over the video's native controls. A tap
+  on the bare stage around the video, a swipe down, Escape or × close it,
+  and the video is paused first (Radix keeps it mounted through the exit
+  animation). Sideways swipe pages photos (not on a video: that is scrubbing).
+  Other dialogs are still `z-50` under the header; raise one the same way if
+  its top edge matters.
+- **Map cards waited on every listing in view.** A pin tap fetched the
+  listing, then `MapCardCarousel` fetched all visible ids 20 at a time and
+  drew nothing until the last batch — 3+ round trips at ~330 ms before the
+  photo was asked for. `lib/mapListingCache.js` is now shared: `ListingsMap`
+  remembers the tapped row (or the list page's copy), so its card draws on
+  the first frame; the rest load tapped-card-and-neighbours first and draw
+  after each batch. The active card's cover is `priority` (eager, high
+  fetch priority) and the photo slot shimmers (`.lkp-shimmer`,
+  `CardImageCarousel loadingShimmer`, map only) until it paints. Photos were
+  already next/image with `sizes` and q75; there is no blur placeholder
+  because no row carries a blurDataURL, and inventing one per photo would
+  cost a server pass for a few hundred bytes of saving.
+
+## Post-launch polish (2026-10-24)
+
+From the post-launch design review. Tests: `tests/unit/format.test.js`.
+
+- **Prices group with U+00A0, never U+202F.** Intl's fr-FR separator is the
+  narrow no-break space, which Plus Jakarta Sans draws at almost no width, so
+  cards read "1000000 $". `frNumber` (lib/format.js) is the one formatter;
+  `formatPriceParts`, `formatPriceCdfParts`, `formatCdfCompact` and the public
+  filter / rate labels use it. Use it for any new visible number rather than
+  `toLocaleString('fr-FR')` (admin and portal screens still have ~40 raw calls).
+- **One container width on the storefront: `max-w-[1600px]`** with
+  `px-4 sm:px-6 lg:px-8`, the header's. Hero, search card, type tiles,
+  "Notre approche", CommuneShortcuts and the projects strip were on 1240px /
+  7xl, so the left edge jumped between sections.
+- **WhatsApp is green everywhere a visitor sees it**: EnquiryCard's
+  "Contacter par WhatsApp" and MobileListingBar now match the cards
+  (`bg-green`, hover `green-deep`, the WhatsApp glyph). Known: white on
+  `--green` is 2.87:1, below AA for text — true of every green button.
+- **Serif titles are sentence case** (owner decision, reversing 2026-10-10's
+  capitals): the uppercase rule in globals.css is gone. Storefront section
+  titles use `.u-title-storefront` (24 → 30px): SectionHeading,
+  PropertyTypeTiles, ValueProposition ("Notre approche" was a sans eyebrow,
+  now a title like the others) and NewProjectsStrip. Dashboards keep
+  `.u-title-section` at 22px.
+
+## Budget range, one font, agent sign-in history (2026-10-24, later)
+
+Owner requests from phone screenshots. Tests: `tests/unit/budget-steps.test.js`,
+`tests/unit/agent-login-log.test.js`.
+
+- **Hero budget is Min | Max** (`components/SearchBar.js`, steps and rules in
+  `lib/budgetSteps.js`): rent steps $100 to $1,000 by 100, then 1,250 / 1,500
+  / 2,000 / 2,500 / 3,000 / 4,000, every $1,000 to $10,000, then "10 000 $ +"
+  (as a max it sends NO price_max; as a min it is 10,000). A sale has its own
+  scale (10k → 1M): a $10k ceiling meant nothing for a $380,000 house. A bound
+  disables the contradicting options on the other side; a min above the max
+  drops the max. Same `price_min` / `price_max` params as FilterBar. On a phone
+  "Type de bien" is full width and Min | Max share the next row.
+- **One font family.** Every title on all four surfaces is Plus Jakarta Sans,
+  bold; DM Serif Display is no longer loaded (`app/layout.js`).
+  `--font-display` / `--font-heading` resolve to the sans so old classes keep
+  working; the 26 `font-display` class uses became `font-bold`; `.u-title-*`
+  are sans 700 (hero 28→36px, page 22→28, section 20, storefront 22→26); the
+  print sheets' `.lp-serif` too. Supersedes the "accent serif" notes above.
+- **Agent sign-in attempts** (`agent_login_attempts`, engine
+  `migrations/20261024_agent_login_attempts.sql`; `lib/agentLoginLog.js`
+  reads/writes, `lib/agentLoginRules.js` pure). Recorded from the password
+  login (success / wrong_password / locked / verify_required), the code page
+  (wrong_code / expired_code / code_verified), the reverse WhatsApp check
+  (whatsapp_verified) and activation (activated), with IP and user agent. Only
+  existing accounts; a number with no account is not stored. Never throws into
+  the login; nothing recorded before the migration (42P01).
+  - `/admin/agents` and `/admin/agencies/[id]`: a "Dernière connexion" column
+    (relative time, Kinshasa time on hover, last outcome, failures since the
+    last sign-in). The row menu's "Voir l'historique de connexion" (and a tap
+    on the cell) opens the last 100 attempts with IP and a short device label —
+    `agents.manage` only, since it shows IP addresses.
+- **The hero's Ville dropdown is back** (2026-10-24, owner: picking is easier
+  than typing for most visitors). `#hero-city` starts on Kinshasa and lists,
+  in the owner's order, Kinshasa, "Toutes les villes", Lubumbashi, Goma,
+  Bukavu, Kisangani, Kolwezi, Matadi, Mbuji-Mayi (`HERO_CITY_ORDER`; a city
+  typed in the box that the list leaves out is still shown). **"Toutes les
+  villes" is a real nationwide search**: `ville=toutes` (`ALL_CITIES`,
+  `isAllCities`, lib/cities.js) makes `searchCityOf` return null and
+  `buildFilters` add no city clause — unless a commune is named, which places
+  the search in its city. No `ville` is still Kinshasa, so no existing link
+  changed. `publicVille` passes it through; the results heading reads "Biens
+  à louer en RDC" (`listings.results.headingNational`); /listings'
+  `CityPicker` offers it too; it is never a landing-page canonical (noindex).
+- **`/listings?city=…&location=…` are accepted aliases** (owner, same day:
+  "accept both"), 308-redirected by middleware.js onto the real params
+  (`lib/searchAliases.js`, pure): `city` → `ville` (Kinshasa → none, "toutes"
+  / "Toutes les villes" → `toutes`, unknown → dropped), `location` → read by
+  the search box's own parser (commune / quartier / landmark; words that name
+  no place → `q`), read with the city name inside another city. An explicit
+  `ville` / `commune` wins over its alias. The hero itself still emits
+  `ville` / `commune` — saved searches, alerts and canonicals use them.
+  `tests/unit/hero-city-search.test.js`. The text box below is now "Commune ou
+  quartier". Typed text still wins over the dropdown, and the dropdown follows
+  it (typing "Kampemba" or tapping the Lubumbashi chip selects Lubumbashi);
+  picking another city clears a place of a different city from the box.
+
+## Real 404s, city landing pages, SEO links (2026-10-24)
+
+From an SEO audit: Google had indexed nothing, and the site gave it reasons to
+distrust what it found. Tests: `tests/unit/real-404.test.js`,
+`tests/unit/seo-pages.test.js`.
+
+- **A dead listing or unknown landing path is a real 404.** A `loading.js` is
+  a Suspense boundary; once its skeleton has streamed, the status is 200 and a
+  `notFound()` below it can only add `noindex` — a soft 404. One
+  `(site)/loading.js` sat over every public page, so `/listings/293` (offline),
+  `/listings/99999` and `/location/xyz` all answered 200. Now:
+  - each section of `(site)` has its own `loading.js` re-exporting
+    `(site)/_shared/SiteLoading.js`;
+  - the home page and the `/listings` results moved into route groups
+    (`(home)/page.js`, `listings/(search)/(results)/page.js`, URLs unchanged)
+    so their boundary still sits above the segment whose key changes with
+    search params — filters still do not flash the skeleton;
+  - `listings/[id]/layout.js` (`publicListingExists`: same gate and joins as
+    `getListingById`, no columns — prefetches run it) and
+    `location|vente/[[...slug]]/layout.js` (`parseSeoSegments`, pure) call
+    `notFound()` ABOVE their own `loading.js`.
+  Don't add a `loading.js` above those three again.
+  `guides/[slug]` checks in its own layout too since 2026-10-26 (the index
+  moved to `guides/(index)/`); `projets/[slug]` and `rapport/[token]` still
+  sit under a section skeleton (200 + noindex when missing).
+- **Other cities have landing pages**: `/location/lubumbashi`,
+  `/vente/terrains/goma` (`SEO_CITIES`, `cityFromSlug`; Kinshasa has none of
+  its own — the roots are Kinshasa). `seoPath` takes `city`, a commune winning
+  over it; `/listings?transaction_type=location&ville=Goma` names it as
+  canonical (indexable), a bare `?ville=Goma` stays noindex. Facets are split by city
+  (`facetCity`: the commune's city, else Kinshasa), so Kinshasa's pages no
+  longer count or link other cities' listings. A city-level page lists "Dans
+  d'autres villes". The sitemap adds a city page once it has a listing; a
+  listing in another city's commune crumbs to its city page.
+- **Louer / Acheter go to `/location` and `/vente`** (Header, portfolio
+  header, homepage tiles, listings sidebar), not `/listings?transaction_type=`.
+- **The listing h1 opens with type and transaction**: "Appartement à louer —
+  Yolo Nord I, Kalamu"; the blue kicker above the price keeps the room counts.
+
+## Link preview card and the 4:5 feed card (2026-10-26)
+
+From the "Social & Open Graph Share Cards" design canvas. Tests:
+`tests/unit/social-share-cards.test.js`.
+
+- **og:image is drawn per listing** (`app/(site)/listings/[id]/opengraph-image.js`,
+  `twitter-image.js` re-uses it). Since 2026-11-06 it is the **"Éditorial"
+  card** (design canvas "Aperçu lien prestige"; the owner judged the earlier
+  dark full-photo card with a centred capsule "typical AI template"): three
+  of the listing's photos on the left (one 494×630, two stacked 266×312,
+  6px ivory gaps), an ivory column on the right — "À LOUER · GOMBE" in royal,
+  the price in DM Serif Display (sized by `ogPriceSize` so "Prix sur demande"
+  and "170 000 $" fit), "par mois", a rule, the type and two room counts in
+  words, "Vérifié par Lukka Place" only on `verified_at`, and the one-colour
+  royal logo (`public/brand/logo-royal.png`, made from logo-dark.png's shape)
+  with lukkaplace.com. The large slot is the listing's COVER unless it is
+  darker than `OG_DARK_COVER` (then the brightest); the small slots are the
+  brightest of the rest (`pickOgPhotos`, `loadOgPhotos`: up to 6 fetched,
+  duplicates dropped, one warm grade on all). Brightness alone could not
+  find the best room, so the cover — which the team sets in the admin photo
+  manager — leads. Two photos sit side by side, one fills the block, none
+  draws the royal block with the white logo. The old rule that kept the price
+  in the centre 630×630 is dropped: WhatsApp's square thumbnail is ~100px.
+  **Drawn at 2× since 2026-11-06** (owner: "not HD"): laid out on the
+  1200×630 grid, every length multiplied by the scale (`s(n)` in the route —
+  a CSS `transform: scale` wrapper was tried and satori left the photos and
+  logo unscaled), photos cropped at 2× and saved near-lossless, then ONE
+  JPEG step: `encodeOgCard` tries `OG_ENCODINGS` (2× q88, 2× q80, 1.5× q86
+  4:4:4, 1.5× q80, 1× q90 4:4:4) and keeps the first under `OG_MAX_BYTES`
+  (300 KB, WhatsApp drops heavier preview images). Six live listings: four at
+  2×, two busy outdoor ones at 1.5×, 200–280 KB. `X-Og-Scale` on the response
+  says which won. `size` declares 2400×1260. The 4:5 / square share cards stay
+  at their native 1080 width; only their export got gentler
+  (`EXPORT_JPEG_QUALITY` 0.92, fallback 0.86, budget 400 KB, was 0.82 / 0.70 /
+  150 KB).
+  **Cached and drawn ahead** (same day): at 2× a card took 6–7 s on every
+  request and Facebook's crawler gave up first — a group post showed an empty
+  grey box. The drawing moved to `lib/listingOgRender.js`
+  (`renderListingOgCard`): the finished JPEG is kept in memory per listing
+  VERSION (`ogCacheKey`: price, title, photos, verified_at, updated_at…;
+  120 entries, 6 h), concurrent requests share one drawing, and both share
+  dialogs' "read the link now" actions `await prepareListingOgCard(id)`
+  BEFORE asking Facebook to fetch. Measured locally: first drawing ~4 s,
+  repeats 0.3 s (`X-Og-Scale: … cached`). Per process: a restart empties it.
+  The share dialog's `DialogContent` carries `auto-rows-max` — with the team's
+  "Où le publiez-vous ?" panel the grid squeezed the card's row and the card
+  spilled over the buttons.
+  The earlier design, for the record: full-bleed cover, white logo top-left,
+  a dark capsule with price + type + two counts in the centre, a white box
+  with the page's own h1.
+  What it says is `lib/listingOgCard.js` (pure, French always); photo / logo /
+  fonts / PNG→JPEG are `lib/listingOgImage.js`. Plus Jakarta Sans is fetched as
+  TTF from Google Fonts once per process (satori reads no woff2), and the PNG
+  is re-encoded to a ~60–80 KB JPEG with sharp, since WhatsApp drops heavy
+  preview images. Same public gate as the page (`getListingById`): anything
+  not live answers 404. `generateMetadata` no longer sets `images` — the file
+  wins anyway, and two sources would disagree. The routes build as dynamic
+  (ƒ); the response carries `Cache-Control: public, max-age=600`. WhatsApp
+  keeps its own copy of a preview it already fetched.
+- **4:5 "Carte feed social"** (`FORMATS.feed`, 1080×1350, `feedFlyer` in
+  `lib/marketing/layout.js`): a Carré | 4:5 switch in `ListingQuickShare`
+  (Mes biens' "Partager sur WhatsApp"), drawn from the SAME kit as the square
+  (`listingCardCache` caches the kit per listing version, then each format), so
+  switching is a redraw, not a second download. One cover photo, the royal
+  price badge, the white wordmark (pack field `wordmark`, `/brand/logo-dark.png?v=2`),
+  heading / place / light chips, and a royal band that always leads back to
+  the platform: "Voir ce bien sur Lukka Place" + "lukkaplace.com/listings/387"
+  typed out (Instagram does not open caption links). **No agent number on the
+  4:5 or in its caption**, for agents and team alike (product direction: a
+  social post brings people back to Lukka Place, where the agent's contact and
+  the visit request are). The square sent on WhatsApp keeps the agent's number.
+  The property badge is the pack's `verified` (`properties.verified_at`, now
+  in `FLYER_SELECT`), never the agent's tier. Its caption is `copies.social`
+  (`buildListingSocialCopy` `style: 'social'`: no `*bold*`, no contact line,
+  hashtags from real fields, utm_source `reseaux_sociaux`).
+- **Agents post it from one tap, and it leads to their own page** (2026-10-27):
+  "Publier sur les réseaux sociaux" in the Mes biens row menu opens the
+  dialog on the 4:5 (`initialFormat="feed"`, live listings only). An agent's
+  kit carries `agentPage` (`buildShareKit` `agentId`, `agentPageUrl` /
+  `agentPageLabel`): `/agents/<id>` with their `ref=` code. The dialog shows
+  it as "Ma page Lukka Place" with a copy button for their Instagram / TikTok
+  bio (`utm_source=bio_agent`), and the social caption ends with "Tous mes
+  biens sur Lukka Place :" + the same page (`utm_source=reseaux_sociaux`),
+  after the listing's own link. The card itself still prints the listing's
+  address. The team's kit has no agent page. `tests/unit/agent-social-share.test.js`.
+- **The company posts it too**: "Carte réseaux sociaux" on `/admin/listings/[id]`
+  (`TeamSocialCardButton`, live listings only) opens the same dialog with
+  `audience="team"` — 4:5 only, the kit from `app/admin/listings/shareActions.js`
+  (`requireAdmin('listings.view')`, `getFlyerListingForTeam`: any agent's
+  listing, no ownership clause), caption utm_source `lukka_reseaux`
+  (`TEAM_SOCIAL_SOURCE`), nothing written to `listing_shares` or this phone's
+  offline packs. The kit builder is `lib/marketing/shareKit.js`, shared with
+  the agent action. `/admin` now ships the `agent` dictionary namespace for it.
+- **Recorded** as `kit_share` / `kit_download` × `feed` and `kit_copy` × text.
+  `feed` needs the engine migration `20261026_listing_share_feed_format.sql`;
+  until it runs, a feed share records nothing and the share itself works.
+- **Facebook reads the link before it is posted** (2026-11-05,
+  `lib/facebookPreview.js`). Two of three team link posts showed a bare
+  "LUKKAPLACE.COM / lukkaplace.com" box: Facebook's first read of those URLs
+  failed (the pages, og tags and og:image all answered 200 to its user agent
+  the next day) and it caches that read per URL, query string included, for
+  about a month. Opening the 4:5 dialog (team or agent, never the sold card)
+  now calls `refreshTeamFacebookPreviewAction` / `refreshFacebookPreviewAction`,
+  which rebuild the caption's exact link server-side (`kit.socialUrl`) and
+  POST it to Graph `?scrape=true` — ready only with a real title AND an image,
+  3 tries, a good read cached 6 h in-process. Needs `FACEBOOK_APP_ID` +
+  `FACEBOOK_APP_SECRET` (or `FACEBOOK_APP_TOKEN`), read at call time; unset →
+  nothing is called and the dialog shows "Aperçu Facebook non vérifié" with
+  the Sharing Debugger link ("Récupérer à nouveau" by hand, which also repairs
+  a post already published). `tests/unit/facebook-preview.test.js`.
+- Not built: a visitor-facing "Générer la carte" on the public listing page,
+  and a 9:16 option in the dialog (the layout has one).
+- **Where the team posted it** (2026-11-06, `team_social_posts`,
+  `migrations/20261106_team_social_posts.sql`, `lib/teamSocialTargets.js`
+  pure + client-safe, `lib/teamSocialPosts.js`,
+  `app/admin/listings/TeamSocialShare.js`). Why: the team posts listings by
+  hand into ~25 Kinshasa property groups on Facebook, nothing recorded which
+  listing went where, and the same Gombe listing was nearly posted twice in a
+  group whose admins approve every post.
+  - The team dialog now opens from every row of `/admin/listings`' Approuvées
+    tab (share icon) as well as the listing page. Under the buttons:
+    "Où le publiez-vous ?" (our Facebook page, Instagram, the groups listed in
+    `TEAM_SOCIAL_TARGETS` with a link to each, or "Autre…" typed). Picking a
+    place swaps the caption's link for that place's own link
+    (`utm_medium=groupe|page`, `utm_campaign=<key>`, recorded by
+    lib/attribution.js) and asks Facebook to read THAT link — it caches per
+    URL. The URL is rebuilt server-side from the listing and the resolved
+    target (`teamSocialUrl`), never taken from the browser.
+  - "Marquer comme publié ici" (`recordTeamSocialPostAction`,
+    `listings.view`, audited `listing.social_post`) writes one row: public
+    listings only (gate in the INSERT), the same place within 24 h refused as
+    `duplicate`. A row is what someone SAID they posted, not proof it is up.
+  - The Approuvées tab shows "Publié sur" (places + date, newest first) and
+    two filters: Réseaux sociaux (pas encore / déjà publié) and "Pas encore
+    dans <groupe>" — the list to work through for one group.
+  - Before the migration: `hasTeamSocialPosts()` (to_regclass) gates every
+    read, the column shows "—", filters are ignored, the mark button is off
+    and says the migration is missing. `ListingQuickShare` stays free of admin
+    copy (it also renders for agents): the picker is the `teamSlot` prop.
+    Tests: `tests/unit/team-social-posts.test.js`; engine §78.
+
+## Dashboard: WhatsApp clicks, split (2026-10-26)
+
+`/admin/dashboard` (`ClickBreakdown.js`, `lib/analytics.js` `getWhatsAppClickTotals`
+/ `getWhatsAppClickBreakdown`). Tests: `tests/unit/dashboard-click-breakdown.test.js`.
+
+- **Period chips** `?periode=7|30|90|tout` (default 30) drive the whole Trafic band.
+- **The headline counts people** (`peopleSql`: `viewer_kind` visitor or NULL, device
+  not bot); the hint gives distinct people, the change against the previous
+  window of the same length, and how many taps were left out (team, agents on
+  their own listing, bots). The conversion rate is people over people.
+- **Splits**, all people only except Audience: audience, where the tap went
+  (direct agent / central), which button, source, type + purpose, price band
+  (USD; yearly rent ÷ 12; short-term apart), commune, top listings with
+  clicks ÷ page views (can pass 100 %: a card tap never opens the page), and a
+  12-week trend.
+- `viewer_kind`, `visitor_id`, `routing_type`, `placement` are read through
+  `to_jsonb`, so nothing 42703s before their migrations.
+- **Which button** (`whatsapp_clicks.placement`) needs engine
+  `migrations/20261026_whatsapp_click_placement.sql`; until it runs the INSERT
+  retries without it. Older taps show "Avant le suivi". Values: see
+  "WhatsApp tap placement" below (2026-10-27).
+
+## Investor metrics — `/admin/investisseurs` (2026-10-26)
+
+`lib/investorMetrics.js` (SQL + pure helpers), `app/admin/investisseurs/page.js`,
+monthly CSV `GET /admin/export/investors` (`data.export`, audited). Page is
+`market.view` (every role but sales), "Analyses" group, printable.
+Tests: `tests/unit/investor-metrics.test.js`.
+
+- **Starts at launch.** Production was reset for launch (every listing id ≥ 314,
+  first created 2026-10-20). `launch` = the first non-test listing's
+  `created_at`; monthly tables start in its month and every figure — monthly
+  and rolling (demand, response, acquisition: 90 days, shortened) — is bounded
+  at that instant. Pre-launch traffic was testing on listings that no longer exist.
+- **People only** (`peopleSql`, which now also drops `source = 'localhost'`:
+  the local dev server writes to production — this changed the dashboard too).
+  No test agency (`NOT_TEST_LISTING_SQL`, `agents.is_test`), no deleted row.
+- **Nothing unmeasured is 0**: a median needs `MIN_SAMPLE` (5) values, a
+  month with no rolled-up day has no visit-request count, a missing table
+  (42P01) makes its section "non disponible".
+- Sections: funnel by month (visitors, listing views, searches + no-result,
+  WhatsApp, calls, visit requests, recorded closes), liquidity (share of live
+  listings contacted in 30 days, time to first contact, days on market,
+  achieved vs asking), supply, unmet demand (search_events with 0 exact
+  results), retention (returning visitors, agents publishing again within 30
+  days), agent response (agent_performance_logs), acquisition by source, and
+  when each measurement began.
+- Not built: cost per lead (no ad-spend record), cohort charts.
+
+## Where visitors and accounts come from — attribution and partner codes (2026-10-27)
+
+Growth plan items 1–3 and 8–10. Engine migration
+`migrations/20261027_growth_attribution.sql` (additive; web writes correctly
+before it runs — every INSERT falls back on 42703 / 42P01). Tests:
+`tests/unit/growth-attribution.test.js`, `middleware.test.js`; engine §34, §66.
+
+- **One session, one source** (`lib/attribution.js`, pure, client + server).
+  The beacon used to send only the current page's `utm_source`, and its own
+  Referer is lukkaplace.com, so everything after the landing page — and every
+  visit from Google or Facebook without tags — was stored as `direct`. The
+  browser now keeps the landing attribution in sessionStorage (`lp_attr`):
+  utm source / medium / campaign / content / term, the ad click id
+  (`fbclid` / `ttclid` / `gclid`), the external referrer host and the landing
+  path. Every beacon carries it as `attribution` (plus `utmSource` for old
+  servers); a new tagged link replaces it. `source` on page views, WhatsApp
+  taps, listing events and searches is `sourceOf(attribution)`: utm_source,
+  else the ad platform, else the referrer host, else `direct`. **Expect the
+  dashboard's source split to move**: sessions that were `direct` after their
+  first page now carry their campaign.
+- **`page_views` stores the full campaign** (`utm_medium`, `utm_campaign`,
+  `utm_content`, `utm_term`, `click_id_type`, `referrer_host`, `ref_code`).
+  The other event tables keep only `source`; a campaign for a tap or a search
+  comes from the visitor's touch (below), joined on `visitor_id`.
+- **`visitor_touches`**, one row per `lp_vid`, written on each page view for
+  `visitor` / `agent` viewers only: the FIRST source ever seen (never updated)
+  and the LAST touch — a campaign tag, an ad click or another site; a partner
+  cookie alone is not a touch. Untagged visits only move `last_seen_at`, at
+  most every 30 minutes. The click id is kept here (Meta / TikTok server
+  events will need it).
+- **`account_acquisitions`**, written ONCE when an account is created:
+  `lib/accountAcquisition.js` from both web signup actions (copies the
+  visitor's touch in the INSERT, so a later cookie change never moves it), and
+  the engine's `services/accountAcquisition.js` from `upsertAgentFromWhatsApp`
+  (`channel` whatsapp / admin, the rep's code when one was attributed; no
+  browser, so no campaign). Never throws into a signup.
+- **Partners** (`lib/partnerRules.js` pure, `lib/partners.js` SQL): agents,
+  creators and campaigns, each with a code in the sales-rep shape (MARIE01).
+  **One namespace with `sales_reps.referral_code`**, enforced by triggers on
+  both tables. `partner_clicks` (one per connection per partner per hour),
+  `partner_conversions` (one per account — first valid referral wins).
+  - **`/go/<code>`** (`app/go/[code]/[[...rest]]/route.js`): `/go/NADIA01` →
+    `/`, `/go/NADIA01/387` → `/listings/387`. Counts the click, mints `lp_vid`
+    when the browser has none (so click and visit share it), sets `lp_ref`
+    (30 days, httpOnly, not replaced while it names an active partner), and
+    lands tagged `utm_source=agent|influencer|campagne&utm_medium=partner&utm_content=<code>`
+    — unless the destination already has a utm_source (an agent's shared link
+    keeps `wa_status` etc.). A rep's code → `/r/<code>` as before; unknown →
+    lands untagged.
+  - **`?ref=CODE` on any page** → middleware.js 307s to
+    `/go/CODE?via=param&to=<page without ref>`. Not on
+    `/compte/agent/inscription` (its `?ref=` is a rep code prefilling the
+    form), `/go`, `/r`, `/api`, `/admin`; GET only. A rep code there is
+    ignored, never pulling a customer into agent signup.
+  - **Signup credits the partner** in `lp_ref` (customer and agent web
+    signup); never an agent's own number.
+- **Every agent has a code** (`ensureAgentPartnerCode`, created on first
+  need: first name, else agency name, else `LP` + id in letters), and it rides
+  as `ref=` (last param) on the links they share: the share kit's captions and
+  link (square, 4:5, text), Mes biens' WhatsApp captions, Statut du jour,
+  `!share` / `!mesbiens`, the print QR code (not the neutral sheet, which has
+  no QR) and the owner report caption. **Deliberately NOT on replies to
+  customers Lukka Place brought** — lead replies, alternatives, quick replies:
+  those people were ours, and crediting the agent for them would pay for our
+  own leads. The team's social kit carries no code.
+- Before the migration: no codes (links unchanged), nothing credited, page
+  views fall back to the older INSERTs.
+- **`/admin/partenaires`** (items 17–19, `lib/partnersAdmin.js`,
+  `partners.view` — every role but sales; `partners.manage` — owner — to
+  create a creator/campaign, edit its fee, switch any code off). Tabs
+  Créateurs / Campagnes / Agents, period 7/30/90/tout, one page of partners
+  side by side: clicks → visitors → viewed a listing → listings viewed →
+  WhatsApp taps (all AFTER the visitor's first click, people only) →
+  accounts → verified → cost per verified account (`costPerAccount`: a
+  per-account fee, or a flat fee over every verified account; null, never
+  "0 $"). Visit requests are not in it: they are engine SQLite rows with no
+  visitor id. The period cutoff is SQL (`NOW() - make_interval`), never
+  `Date.now()` in the page. `partners.fee_amount / fee_currency / fee_basis`
+  and the funnel indexes are in the same migration. The partner page has the
+  toolkit (code, bio link `/go/CODE`, invite page `/i/CODE`, a link per
+  listing `/go/CODE/387` — one per video — WhatsApp share, QR PNG/SVG from
+  `./qr/route.js`), clicks per day, and the accounts it brought with a
+  "N accounts from the same connection" chip from 3 (a fact, never a
+  verdict). A code never changes once created.
+- **`/admin/liens`** (item 4, `lib/campaignLinks.js`): a GET form that builds
+  a tagged link + QR for any ad, post, flyer or radio spot. Sources and
+  formats come from fixed lists (`CAMPAIGN_SOURCES` / `CAMPAIGN_MEDIUMS`) so
+  one campaign never splits into "Facebook" / "fb"; campaign and content are
+  folded (`normaliseTag`), campaign defaults to `lancement_dec`; destination
+  is home, a listing number, a path or a lukkaplace.com address — anything
+  else is refused. Optional partner code → `ref=`. Nothing is stored.
+- **`/i/<code>`** (item 11, `app/(site)/i/[code]`): "Créez votre compte
+  gratuit — invité par Marie" with an agent's real name and photo and up to
+  three live listings. `RememberInvite` calls `rememberInviteAction` from the
+  browser — the same `lib/partnerVisit.js` /go uses (cookie, visitor id,
+  click) — because a Server Component cannot set cookies and WhatsApp's
+  link-preview fetcher runs no JavaScript. The CTA goes through
+  `/go/CODE?to=/compte/inscription`. A rep's code → `/r/`; unknown → 404 (no
+  loading.js, so a real one).
+- **Code field at signup** (item 12): customer signup has an optional
+  "Code de parrainage", prefilled from `lp_ref` (`lib/partnerPrefill.js`); an
+  unknown code is sent back (`error=ref`) BEFORE the account exists; a typed
+  code wins over the cookie (`via 'form_code'`). Agent signup's existing
+  field takes a partner code as well as a rep's (one namespace): a live
+  partner's code skips the rep check entirely.
+- **"Mes parrainages"** (item 16, `components/AgentReferralCard.js`, on the
+  agent overview after À faire): the agent's code, invite link `/i/CODE`,
+  copy, WhatsApp share (French text), QR PNG (`/compte/agent/parrainage/qr`,
+  session only), and clicks / customer accounts / verified numbers. Counts
+  only — no amount until the reward rule is decided. The overview banner's
+  shared portfolio link now carries `?ref=` too.
+- Items 5–7, 13–25 and 27–31 are below ("Referral credits, ad tracking and
+  the launch pages"). Item 26 (customers inviting customers) is not built,
+  owner decision.
+
+## Referral credits, ad tracking and the launch pages (2026-10-27)
+
+Engine migration `migrations/20261028_referral_credits_and_growth.sql`, run
+AFTER `20261027_growth_attribution.sql`. Every read before it says "not
+switched on" (42P01) and the pages render. Tests:
+`tests/unit/growth-launch.test.js`; engine §24 (job order), §67.
+
+- **$1 per activated customer, agents only** (`lib/referralRules.js` is THE
+  rule, change it there; `lib/referralCredits.js` is the ledger). Owner
+  decision: a customer counts once their number is verified AND they saved a
+  listing, set an alert or requested a visit within 14 days (visit times come
+  from the engine's `GET /admin/leads/counts`, now with `firstViewingAt`). No
+  daily cap. Each credit waits 7 days (`approvable_at`) before it can be
+  approved. Creators and campaigns are paid by their recorded fee, never here.
+  - **Never earns**, written VOID with the reason: any agent's number
+    (`auto:agent_number`), a number that already earned a credit
+    (`auto:number_already_credited`, a live-credit unique index on the phone
+    hash). The agent's own number and accounts opened from a team browser
+    (`lp_staff` / impersonation) are refused earlier, in
+    `lib/accountAcquisition.js`.
+  - pending → approved (`partners.payout`: owner, finance, bulk) → paid (one
+    `partner_payouts` row per agent and currency, credits locked FOR UPDATE).
+    A deleted account voids an unpaid credit and FLAGS a paid one for
+    clawback; a person can do the same with a reason. No query ever takes
+    money back or deletes a credit.
+  - Flags (`referralFlags`): 3+ accounts from one connection in a day,
+    activation under 30 % once 5+ accounts have had their 14 days. Facts only.
+  - `/admin/partenaires/agents`: who brought whom, credits by state, approve,
+    pay (mobile money / cash / bank + reference), void, CSV export, and
+    "Annoncer le programme aux agents" (owner; `lib/referralAnnouncement.js`,
+    once per verified agent, 100 per press, a SESSION message: accepted is
+    not delivered).
+  - **Beyond the 24 h window (2026-11-03).** `REFERRAL_ANNOUNCEMENT_TEMPLATE`
+    (web env, read at call time, unset by default) makes the button send that
+    approved template (body {{1}} first name or "cher partenaire", {{2}} the
+    code; the link is `https://lukkaplace.com/i/{{2}}`) and re-send ONCE to
+    every agent whose announcement went as a session message; a refused
+    template falls back to the text. Without it, the engine sends the text when
+    a verified agent writes in (`POST /api/internal/referral-announce`, root
+    CLAUDE.md "Growth launch"). `partner_program_announcements.channel`
+    (session / template / on_write, NULL = session) and `resent_at`
+    (`migrations/20261103_referral_announcement_channel.sql`). The page says
+    which of the two the button will do. Payouts every two weeks is stated in
+    the text and on the agent's card.
+  - The run is the console's "Calculer les crédits" and the engine's morning
+    job (below). The agent's card shows waiting / approved / paid in USD and
+    the last customers by first name.
+- **Meta / TikTok pixels and server events** (items 5–6). Pixel ids on
+  `/admin/settings` → "Croissance" (`cms_settings` `site.growth`,
+  `lib/growthSettingsRules.js`), else `META_PIXEL_ID` / `TIKTOK_PIXEL_ID`.
+  Tokens ONLY in the server environment: `META_CAPI_TOKEN`,
+  `TIKTOK_EVENTS_TOKEN` (`lib/adServerEvents.js`, server-only; the console
+  shows only whether each is set). Nothing loads while both ids are empty.
+  - `components/AdTracking.js` (in `app/(site)/layout.js`) loads the pixels
+    (`lib/adPixelLoaders.js`), PageView per route. `lib/adEvents.js`:
+    ViewContent (ListingViewTracker), Search (SearchTracker), Contact
+    (trackLeadClick / trackCallClick), each with a server copy through
+    `POST /api/ad-event` under the SAME event id. CompleteRegistration (a
+    verified customer: both verify paths and `/compte/activer`) and Schedule
+    (a visit request, single and batch) are sent from the server action
+    (`lib/adServerContext.js` `recordAdEventFromAction`) and queued for the
+    browser in `lp_adq` under the same id. Phone and visitor id leave SHA-256;
+    `fbc` is rebuilt from the visitor's last `fbclid` touch, `ttclid` passed.
+  - **TikTok event names** (`TIKTOK_EVENT_NAME`) and the Graph API version
+    (`v21.0`) were written from the platforms' public docs without a live
+    account: check both in Events Manager after the first events.
+- **Consent** (item 7, `lib/adTrackingRules.js`): a browser on a European
+  time zone gets a banner (Accepter / Refuser, `lp_consent` 180 days); every
+  other browser is `na` and measured. No cookie = nothing sent, browser or
+  server. `/confidentialite` describes it (facts about this code only; have
+  it reviewed before treating it as the formal policy); linked from the
+  footer and the banner.
+- **Creators' TikTok figures** (item 20): a weekly form on the creator's page
+  (`partners.stats`: owner, moderator, support, analyst; stored under the
+  week's Monday, `partner_social_stats`) beside that week's clicks and
+  accounts.
+- **`/admin/croissance`** (item 21, `lib/growthDashboard.js`,
+  `lib/growthRules.js` `channelOf`): customer accounts per day and by
+  channel (partner → paid click → source → first source; "inconnu" before
+  tracking), verified, new agents, visitors (per day, added up), listings
+  viewed per visitor, weekly ad spend typed in (`ad_spend_weekly`) and cost
+  per verified account for Meta / TikTok. NO target (owner decision).
+- **Owners' morning WhatsApp** (item 22): engine job `growth-daily`
+  (`services/growthDaily.js`, `GROWTH_DAILY_HOUR` default 7 Kinshasa,
+  `GROWTH_DAILY_SUMMARY=off` keeps only the credit run) calls
+  `POST /api/cron/growth-daily` (credit run + yesterday's text) and sends the
+  text to `ADMIN_ALERT_NUMBERS` (else the desk), through the desk-alert
+  template when set.
+- **Signup on WhatsApp** (item 23): "Créer mon compte via WhatsApp" on
+  `/compte/inscription` and the invite page (`lib/whatsappSignup.js`,
+  "Inscription Lukka Place — Code : X"). The engine
+  (`services/customerOnboarding.js`, routed before the sales referral)
+  creates a VERIFIED customer (`signup_channel 'whatsapp'`, no usable
+  password until set), credits the code's partner, records the acquisition
+  and replies with a 72 h single-use link to `/compte/activer` (public in
+  middleware.js). An existing number gets its login link instead.
+- **Signup prompts** (item 24, `components/SignupNudge.js`,
+  `lib/signupNudgeRules.js`): 2nd saved listing, 3rd listing opened, a search
+  with no exact result. Once per tab session, never when signed in, a card
+  under the header (never at the bottom where the phone bars live), quiet on
+  listing pages, the map and /compte.
+- **Membre fondateur** (item 25, `lib/founder.js`): accounts created before
+  the cutoff (settings, default 2026-12-21, Kinshasa) get the badge on
+  Accueil; every account its member number, counted, never stored.
+- **Browse for fun** (items 27–31, `lib/browseFeatures.js`, homepage
+  `components/HomeDiscovery.js`, 60 s memo): `/bien-du-jour` (the team's
+  pick from `/admin/croissance`, else a daily md5 draw among live listings
+  with 3+ photos; its preview is `./opengraph-image.js`, the listing card),
+  `/combien-coute[/2-chambres-gombe]` (median long-term asking rent, 5+
+  listings, short stays out, yearly ÷ 12), `/collections/<slug>` (villas,
+  moins-de-300, avec-piscine, courte-duree, nouveaux: real searches,
+  nationwide, 3+ listings), `/videos` (3+ listings with a video, one per
+  screen), `/indice-lukka` (monthly snapshots, 5+ asks; the image at the
+  stable `/indice-lukka/image`). **Metadata image routes get hashed paths**
+  (`/listings/[id]/opengraph-image-ixmui2`): never link `…/opengraph-image`
+  directly. No loading.js above any of these pages: one with too little
+  behind it is a real 404. In the sitemap only when they exist.
+- **Deploy** (item 33): run `20261027_growth_attribution.sql` then
+  `20261028_referral_credits_and_growth.sql`; restart the engine (new job,
+  new webhook branch); deploy web. Then set the pixel ids on
+  `/admin/settings`, the two tokens in web's `.env.local` (+ restart), create
+  creators on `/admin/partenaires`, and press "Annoncer le programme" when
+  ready.
+
+## Agent directory — the "Agents" tab (2026-10-26)
+
+`/agents` (`app/(portfolio)/agents/page.js`, SQL `lib/agentDirectory.js`, pure
+`lib/agentDirectoryRules.js`), "Agents" in the header and the phone drawer.
+Tests: `tests/unit/agent-directory.test.js`.
+
+- **Search and filters are URL params on a GET form** (`q`, `nom=1`, `ville`,
+  `communes` (comma list, ≤ 5; the old single `commune` still reads),
+  `pres=1`, `offre` location|vente, `verifies=1`, `tri` listings|rating|recent,
+  `page`): one server render per search, usable before hydration on 3G,
+  shareable. Client code: the two selects that submit on change
+  (`DirectorySelect.js`) and "Autour de moi" (`NearMeButton.js`).
+- **Area is picked by one-tap commune chips** (2026-10-26), busiest first, each
+  with its agent count (`getCommuneCounts`: the other filters applied, the
+  chosen communes not, so a chip's number is what tapping it adds). A commune
+  with no agent is never offered; the chosen ones always show, first. Twelve
+  visible, the rest under "Voir les N autres communes" (`<details>`, no JS).
+  Several communes are an OR. Kinshasa's own commune reads "Commune de
+  Kinshasa" so it is not taken for the city.
+- **The box reads a place** (`resolvePlaceQuery`): a city, any city's commune,
+  or a Kinshasa quartier / alias / landmark from the gazetteer ("Righini" →
+  Lemba, "près de l'UPN" → Ngaliema; Salongo → every commune that has one),
+  but only when nothing else is left in the text ("Agence Matonge" stays a
+  name search). It then replaces the menus' area and is not also a name
+  filter; a note says what was understood and links to `nom=1` to search the
+  text as a name. `agentDirectoryRules.js` imports the gazetteer — keep it out
+  of client components.
+- **"Autour de moi"**: on tap only, `navigator.geolocation` → the nearest
+  commune centres (`lib/nearestCommunes.js`, no imports, runs in the browser;
+  the nearest plus up to two within 1.6× its distance, nothing beyond 15 km)
+  → `?communes=…&pres=1`. Coordinates never leave the phone or reach the URL.
+  Centres are `COMMUNE_CENTROIDS`, passed as props.
+- **One SQL page of 24** with `COUNT(*) OVER ()`; it replaced
+  `getPublicAgents()`, which loaded every agent. Listed: active, not deleted,
+  ≥ 1 live listing. A commune matches the agent's declared communes OR a live
+  listing tagged there; a city, any of its communes. Search is accent-folded
+  (`translate()` in SQL, `foldSearchText` on the term) and `%`/`_`-escaped.
+- **WhatsApp / Appeler only under the listing page's rule** (verified number,
+  direct routing on), selected in SQL as `contact_phone`. Names never use
+  `agents.username` or the "Agence #id" console placeholder.
+- Every filtered or paged copy is `noindex, follow`, canonical `/agents`.
+- "Vérifiés" filters on the document-reviewed tier, which no agent holds yet.
+
+## Guides & Actualités — the blog behind `publicBlog` (2026-10-26)
+
+Posts written at `/admin/blog` (`blog.manage`: owner, moderator), shown on
+`/guides` once `/admin/settings` › "Guides & Actualités (blog)" is on.
+**Off by default.** Engine migration `migrations/20261026_blog_posts.sql`
+(new table, RLS on, anon revoked) — **applied to production 2026-10-26**;
+checked end to end the same day (draft #1 created, previewed, 404 in public,
+deleted — the soft-deleted row is still in the table).
+Tests: `tests/unit/blog.test.js`.
+
+- **Off = exactly the old `/guides`**: the four code guides (`lib/guides.js`),
+  no menu link, no posts in the sitemap, a post's URL is a 404. On: posts join
+  the guides, newest first, with Tout / Guides / Actualités (`?categorie=`,
+  noindex), a "Guides & Actualités" header/drawer link, posts in the sitemap.
+  A post whose slug equals a guide's replaces that guide (`mergeArticles`), so
+  a guide can be edited from the console without a deploy.
+- **Public = `PUBLIC_POST_FILTER`** (`lib/blog.js`): published AND
+  `published_at <= NOW()` AND not deleted. A future date is a scheduled post;
+  no job publishes it. Every public read is `[]`/null on 42P01.
+- **Real 404**: `guides/[slug]/layout.js` checks `getPublicArticle` above the
+  segment's skeleton; the index lives in `guides/(index)/` with its own.
+- **No HTML anywhere.** The body is a textarea in a small format parsed by
+  `parseBody` (`## titre`, `- point`, `1. étape`, blank line = paragraph,
+  `[texte](/chemin)` or https links only, plus the rich blocks below) into
+  the same blocks the code guides use, rendered by
+  `components/blog/ArticleBody.js` as text.
+- **Linked to the listings**: a post can name a transaction, a commune and a
+  type; the article ends with three live listings (`getListings`, public gate)
+  and a button to the matching landing page (`postListingsHref`: `seoPath`,
+  else `/listings?…`). Types are the landing pages' list, communes
+  `lib/cities.js`.
+- **English is optional and all-or-nothing** (title + body); an English reader
+  sees it when present, otherwise the French with the "rédigé en français" note.
+- **Cover**: upload only (a typed URL is never trusted), resized to 1600 px
+  JPEG under `cms/blog/` in the listing bucket; alt text required with it.
+- Every write is audited (`blog.create|update|unpublish|delete`, body length,
+  never the text). Delete is soft and frees the slug. Preview at
+  `/admin/blog/[id]/apercu` whatever the state or the switch.
+- **Rich blocks, written with Claude (2026-11-10, owner decision: articles are
+  written in Claude, not in a console editor).** The body format gained pipe
+  tables and `:::` directives — `tableau`, `chiffres` (key figures),
+  `graphique` (bars / line; `source=` required), `astuce|attention|info`,
+  `citation`, and two LIVE blocks: `prix` (the price guide's medians via
+  `getPriceGuides`, a commune short of listings is named, never priced) and
+  `annonces` (three public listings). `parseBody` never throws (an unreadable
+  block is `{invalid}`); `bodyProblems` makes Save and the import refuse it
+  with the block's name (`badBlock` + `detail`). Still no HTML path.
+  Rendering: `components/blog/ArticleBody.js` (async; a plain body stays
+  translator-free), `BlogChart.js` (server HTML bars / SVG line, axis from 0,
+  no chart library), `LiveBlocks.js` (`:::prix`), `LiveListings.js` — passed
+  as `listingsBlock` by the public page ONLY, because PropertyCard's client
+  namespaces are not provided under /admin; the preview names the search.
+  Motion: `Reveal.js` arms a below-the-fold block and plays it on scroll
+  (`[data-reveal]` in globals.css: rise, bars grow, line draws), `CountUp.js`
+  counts the first number of a key figure (writes textContent, no state);
+  SSR output is the final content and reduced motion shows it still.
+- **`npm run blog:import -- content/blog/<slug>.md [--write]`**
+  (`scripts/blog-import.mjs`): header between `---` lines (titre, resume,
+  categorie, slug, commune, type, transaction, couverture, couverture_alt,
+  titre_en, resume_en), French body, optional English after
+  `=== english ===`. Dry run by default; new posts are drafts, a re-import
+  updates the text and KEEPS the state (a published post's new text is live —
+  it warns); a local cover is resized and uploaded like the console's. Audited
+  as `script:blog-import`. Source files live in `content/blog/`; the writing
+  rules are the user-level `lukka-blog` skill.
+  `tests/unit/blog-rich-blocks.test.js`.
+- **The 3 + 1 + 1 guide and `:::calculateur` (2026-11-11, owner decision).**
+  `lib/guides.js` now holds ONE code guide, `garantie-3-1-1-kinshasa`,
+  rewritten around Loi n° 15/025 (arts. 3, 5, 10, 17–22, 39, 43, sourced in
+  the text) with an interactive calculator. The three other guides were
+  deleted on the owner's request; `next.config.mjs` 308s their URLs to
+  `/guides` (`REMOVED_GUIDE_SLUGS`), and SeoLandingPage lists the one guide on
+  rental pages only. A code guide may carry an `en` version (title,
+  description, body, optional cta — all or nothing, like a post);
+  `articleFromGuide(guide, locale)` serves it to an English reader.
+  The calculator is a block, `{ calculator: { kind: 'garantie' } }`, also
+  writable in a post as the one-line `:::calculateur` (`CALCULATORS`).
+  Maths in `lib/depositCalc.js` (pure: the three costs stay separate, the
+  first advance month is rent, legal ceiling 3 / first month only / 1);
+  UI `components/blog/DepositCalculator.js` (client, opens on 670 $ 3+1+1);
+  `LiveDepositCalculator` (LiveBlocks.js) resolves `guides.calculator.*` as
+  templates and passes `getCdfRate()` with its own date, so FC amounts are
+  "≈" at the site's reference rate, never an editable or dealing rate.
+  `tests/unit/deposit-guide.test.js`.
+- Not built: a WhatsApp share preview image per post (the cover is og:image
+  when set), comments, authors' names on articles.
+
+## WhatsApp tap placement, "Agences" in the menu, /admin/cms and SEO defaults (2026-10-27)
+
+Tests: `tests/unit/dashboard-click-breakdown.test.js`, `agent-directory.test.js`,
+`admin-cms.test.js`.
+
+- **`whatsapp_clicks.placement`** is one of `card` (WhatsAppCTA on a feed /
+  rail / list card), `listing_desktop` (EnquiryCard in the listing page's
+  desktop rail), `listing_mobile_bar` (MobileListingBar) or `map_card`
+  (WhatsAppCTA `placement="map_card"` — no map card renders a WhatsApp button
+  yet, so nothing writes it today). `lib/leadClicks.js` `leadClickPlacement`
+  turns anything else into NULL; the route never rejects a tap for it, and
+  the 42703 fallback is unchanged. **The phone copy of EnquiryCard (in the
+  page body, `lg:hidden`) sends no placement** — none of the four values
+  describes it, and the dashboard's "inconnu" row says "Avant le suivi ou non
+  précisé". `listing_page` (written 2026-10-26 → 27, both EnquiryCard copies)
+  stays valid in the CHECK for rows already stored and is not relabelled.
+  trackLeadClick still fires the ad `Contact` event and the session attribution.
+- **"Agences"** (`nav.agencies`) is the directory link (`/agents`, the real
+  route), last in PRIMARY_LINKS: right after À propos in the bar, and in the
+  drawer the row just above Favoris. It replaced the "Agents" entry, so there
+  is one directory link; the portfolio header says Agences too.
+- **Hero search**: already as specified before this pass (Ville defaults to
+  Kinshasa, lib/budgetSteps.js lists, Louer ↔ Acheter resets the budget).
+  Kept: the sale Max list starts at 25 000 (owner, 2026-10-25), and Courte
+  durée shows no budget — those rents are per day / week, a monthly scale
+  would filter them wrongly.
+- **/admin/cms**: the "Bannières d'accueil (sliders)" section and
+  `getSliders` / `updateSlider` are gone — those Laravel rows were only the old
+  template's taglines ("Search Congo's Largest Choice Homes"…), never rendered
+  by this site. Removing the rows is the engine's
+  `scripts/remove-legacy-slider-copy.js` (dry run by default; `--write` backs
+  them up to JSON, then deletes only the exact known taglines). The ad table
+  labels each row by the FORMAT it stores (`resolution_type` 1/2/3 =
+  300×250 / 300×600 / 728×90, `lib/cmsAdRules.js`) — no column names a page,
+  and no banner is shown on lukkaplace.com, so a page name would be invented.
+  A thumbnail appears only for an https image next/image may load; the
+  current rows hold bare Laravel file names that 404 everywhere, shown as
+  "Fichier … introuvable". URL inputs read `https://…`, buttons Enregistrer,
+  a URL must be http(s) or empty.
+- **"Optimisation SEO & Meta"** (/admin/cms, `cms.manage`): default title and
+  meta description per language, and the default Open Graph image (https or
+  a site path), stored as `cms_settings` `site.seo` through
+  `lib/siteSettings.js` (`getSeoSettings`, memoised 30 s, never throws). Rules
+  in `lib/siteSettingsRules.js` (`validateSeoInput`, `seoFromStored`,
+  `seoMetadata`). `app/layout.js`'s generateMetadata uses them; an empty field
+  keeps `site.metaTitle` / `site.metaDescription` and the built-in
+  og-image.png. Page metadata still wins: the root title is a plain string,
+  so any page title replaces it, and listing pages keep their own
+  opengraph-image. No row exists until someone saves the form.
+
+
+## Engagement moments (2026-11-03)
+
+Six small rewards, each built on a fact we already record. Tests:
+`tests/unit/engagement-moments.test.js`.
+
+- **"92 % correspond à votre recherche"** under a card's price
+  (`components/SavedSearchMatchBadge.js`, rules `lib/savedSearchMatch.js`):
+  signed-in customers with a saved search only, after hydration. Purpose,
+  commune(s) and an exactly comparable type are gates (outside them: no
+  badge, never a low number); the score is `agentMatching.matchPercent`'s
+  budget plus bedrooms as a minimum; best saved search wins; shown from 70 %.
+  Saved queries are read directly (not through `lib/searchQuery.js`, which
+  would pull the map code into every card).
+- **Price drops on saved listings**: `lib/favoritePriceDrops.js` (cut = the
+  card badge's rule, `PRICE_DROP_LATERAL` in lib/listings.js; 1–50 %; made
+  AFTER the save; public, active). WhatsApp from the daily `search-alerts`
+  cron, first chunk only (`lib/favoritePriceDropSweep.js`): one message per
+  customer, ≤5 cuts, verified and not-opted-out numbers, recorded in
+  `customer_price_drop_notifications` (engine
+  `migrations/20261103_favorite_price_drop_notifications.sql`) only after the
+  send was accepted. Session message — the 24 h window applies. The
+  Enregistrés tab shows a green dot while a cut is newer than this device's
+  `lp_fav_seen` cookie (`lib/favoriteSeen.js`), cleared by opening the tab.
+- **"N nouveaux biens depuis votre dernière visite"** on /listings and
+  Accueil (`components/NewSinceLastVisit.js`, `lib/visitStamps.js`): a gap
+  of 30 min starts a new visit; both stamps in localStorage only;
+  `GET /api/listings/new-since?since=` counts through getListings with the
+  alert sweep's "published since", and the link opens exactly those ids.
+- **Confirmed visit card** (`visites/VisitCard.js`): countdown chip
+  (`visitAgenda.visitCountdown`, Kinshasa days), a shine across the green
+  band, the agent's face (`AgentMonogram`: their logo, else initials)
+  and a full-width "Ajouter à mon agenda".
+- **Agent firsts** (`components/AgentMilestoneCelebration.js`,
+  `lib/agentMilestones.js`, `lib/agentMilestoneRules.js`): first visitor
+  view, first WhatsApp tap, first visit request, first deal — confetti card on
+  the overview once per device, only when reached in the last 14 days, the
+  most important one when several are new.
+- **"Loué / Vendu via Lukka Place"** (`lib/marketing/soldShareKit.js`,
+  `components/SoldShareHost.js` in the agent layout): after
+  MarkListingSoldDialog succeeds, "Bravo !" then the listing's own card with
+  "Loué via Lukka Place" WHERE THE PRICE WAS — no price (the asking price
+  would read as the deal price; `sold_price` is the landlord's business) —
+  captions linking to the agent's page (the closed listing's page is gone).
+  Never stored offline, nothing recorded in `listing_shares`.
+
+## The agent announcement campaign — the Campagne tab (2026-11-04)
+
+`/admin/campagne` (`partners.view`; the switch is `partners.manage`, audited):
+the referral programme announcement in one place — its state with
+"Arrêter / Relancer la campagne", how it goes out (the "Annoncer" button on
+/admin/partenaires/agents and the engine's send when an agent writes in),
+whether `REFERRAL_ANNOUNCEMENT_TEMPLATE` is set, the exact text, and how many
+agents it reached / would still reach. One switch, `cms_settings`
+`growth.referral_campaign` (`lib/siteSettings.js` `getReferralCampaign`):
+no row or an unreadable one = **stopped**, and both ways out send and record
+nothing while stopped. Stopped on 2026-11-04 because agents read the message
+as THEM having to sign up; the text (`announcementText`) was rewritten the same
+day to the `parrainage_clients_agent` template's wording ("Lukka Place vous
+paie pour nous amener vos clients… vous n'avez rien à faire pour votre
+compte").
+
+**The same switch turns agents' CODES off** (same day, owner: "shut them
+down" — switching one partner off is not enough, `ensureAgentPartnerCode`
+just mints a new one, JOSUE01 → JOSUE02). `lib/partners.js`
+`AGENT_CODES_LIVE_SQL` is inside `FIND_PARTNER_BY_CODE_SQL`, which every
+code check reads (/go, ?ref=, /i/<code>, both signups' prefill and credit,
+`partnerVisit`); the engine's WhatsApp signup (`services/customerOnboarding.js`)
+carries the same condition. While stopped an agent's link lands untagged,
+/i/<code> is a 404, nothing is credited, and "Mes parrainages"
+(`AgentReferralCard`) is not rendered, and the credit job
+(`CREDIT_CANDIDATES_SQL`) creates no agent credit — sign-ups already linked
+wait and are credited only if the campaign is restarted. On 2026-11-04 the
+only agent credit on record was already void.
+Creators' and campaigns' codes are not affected.
+Tests: `tests/unit/referral-campaign-switch.test.js`.
+
+## Interactions clients → agents (`/admin/interactions`, 2026-11-04)
+
+One number for "how many times did customers reach an agent", and one row per
+agent. `lib/interactionCounts.js` (pure: the channels and what counts),
+`lib/agentInteractions.js` (Postgres taps + the engine's
+`GET /admin/interaction-counts`, read independently so one store being down
+leaves the other's channels on the page with an `ErrorNote`).
+
+- **Counted**: visitors' direct WhatsApp taps and "Appeler l'agent" taps
+  (`viewer_kind = 'visitor'`), messages to our number from a listing, visit
+  requests, profile and project requests, and the desk's "mises en relation".
+  A tap proves the button was pressed, not that a conversation followed; the
+  page says so. Central-number taps are shown beside the total, not in it (a
+  sent message is already counted as an enquiry). An engine row that names only
+  a listing is attributed to that listing's agent; none → "Sans agent attribué".
+- **"Enregistrer une mise en relation"** (`leads.manage`,
+  `app/admin/interactions/actions.js`): the desk records a customer it put in
+  touch with an agent outside the site. Engine side: root CLAUDE.md, same
+  heading. The lead detail page shows how and who recorded it;
+  `NON_SEARCH_LEAD_SOURCES` keeps it off the customer's own searches.
+- `tests/unit/interaction-counts.test.js`.
+
+## Agent signup page, after the October ad (2026-11-04)
+
+The 29–30 October Meta campaign sent 4,215 phone visitors (3,788 feed + 427
+Audience Network, campaign `120253650320780174`) to
+`/compte/agent/inscription`; 2 reached the code step and new agents stayed at
+the usual daily rate. The page was a bare five-field form opening on
+"Nom de l'agence". Now (`app/(site)/compte/agent/inscription/page.js`):
+
+- **Why join, above the form**: "2 mois gratuits" (the engine's SIGNUP_REPLY
+  claim, no new one) and customers write on your WhatsApp. A live-listing
+  count was shown too and removed the same day on the owner's request.
+- **"S'inscrire sur WhatsApp" first** (`agentWhatsappSignupLink`,
+  lib/whatsappSignup.js): opens the intake number with a message the engine
+  answers without a model call — SIGNUP_REPLY ("send your first listing"),
+  or, with an ACTIVE rep's code, salesReferral's welcome (code remembered for
+  the account the first listing creates). Never "Inscription Lukka Place…"
+  (that creates a CUSTOMER); a partner's code is not passed (the engine would
+  say "code inconnu"). `tests/unit/agent-signup-page.test.js` runs the
+  engine's matchers on the exact text.
+- **The person first, the agency optional**: `error=agency` is no longer
+  raised; an empty agency leaves the public name to the person
+  (AGENCY_NAME_EXPR). The referral field folds behind "J'ai un code de
+  parrainage" unless a code is carried or `error=ref`. Inputs are 44px and
+  16px on a phone (no iOS zoom); nothing autofocuses.
+- **Funnel log** (`components/SignupFunnelTracker.js` →
+  `POST /api/telemetry/signup-funnel`, a log line like vitals, no table):
+  `form_start`, `submit`, `whatsapp_tap`, `referral_open`, with source,
+  campaign, device, viewer kind and visitor id. Read with
+  `pm2 logs lukka-place-web --lines 20000 --nostream | grep '\[signup-funnel\]'`
+  and count distinct `visitor`. A WhatsApp signup's account still shows up as
+  `account_acquisitions.channel = 'whatsapp'`.
+- Not done: the password still comes before verification, and the Meta pixel
+  / CAPI token are not set (`/admin/settings` → Croissance), so a campaign
+  cannot optimise for registrations yet.
+
+## Conversion pass: request without an account, viewer count, Meta catalogue (2026-11-04)
+
+Tests: `tests/unit/conversion-features.test.js`.
+
+- **"Trouver pour moi" without an account** (`lib/guestRequestRules.js`,
+  `components/GuestRequestForm.js`, action `app/(site)/trouver-pour-moi/actions.js`).
+  An empty search used to link to /compte/client/demandes, which sends a
+  guest to sign in. It now shows the form at the bottom of
+  `ListingsEmptyState` (a jump link near the top), prefilled from the search,
+  and the same form lives at **/trouver-pour-moi** (prefill with the
+  /listings param names, so an ad can open on "2 chambres à Gombe"). Fields:
+  louer/acheter, commune (server allow-list, Kinshasa), type, chambres,
+  budget, name, WhatsApp number. It creates the lead through the same
+  `createLead` / POST /admin/leads as the signed-in form, `source:
+  'guest-search-request'`, so the engine pushes it to the commune's agencies.
+  - **The number is the visitor's claim, not a proven one** — the summary says
+    "numéro non vérifié". Guards before the lead: a honeypot (`website`),
+    the phone check, validation, 5/hour per connection and 2/day per number
+    (in process, one PM2 fork). Nothing is ever sent to that number by us.
+  - The "sent" copy promises only what is true: the commune's agencies
+    receive it, and one with a match will write.
+  - Outside Kinshasa (no commune list) the old signed-in link stays.
+  - A Meta/TikTok **Lead** event (`AD_EVENTS`, TikTok "SubmitForm") is sent
+    from the action under `lead-g-<id>`; `form: 'request'` funnel steps go to
+    `[signup-funnel]`.
+- **"N personnes ont consulté ce bien ces 7 derniers jours"**
+  (`lib/listingInterest.js`, `components/listings/ListingInterestLine.js`,
+  under the availability badge, in its own Suspense). Distinct `visitor_id`,
+  visitors only (no owner, agents, team, bots, prefetch). Shown as counted
+  from 1 ("1 personne a consulté…", plural object), nothing at 0 — the owner
+  chose real numbers over the first version's 5-person minimum. Never padded.
+- **Meta home listings catalogue** at **/feeds/meta-home-listings.csv**
+  (`lib/metaHomeListingsFeed.js`). Public listings, active, residential, a USD
+  price (monthly for a rent; day / week / year rents left out), ≥1 usable
+  photo, a point rounded to 2 decimals (~1 km; stored point else commune
+  centroid). 232 of 277 live listings on 2026-11-04. A failure is a 503,
+  never an empty feed. Column names follow Meta's public spec, unverified
+  against a live catalogue: check the first upload's diagnostics.
+  Meta pixel/CAPI events with listing ids now say `content_type:
+  'home_listing'` (was 'product') so retargeting matches the catalogue.
+  **Setup** (not done): Commerce Manager → new Home listings catalogue →
+  scheduled feed with that URL → connect the pixel; needs the pixel id on
+  /admin/settings → Croissance first.
+- Not built: alerts without an account (saved searches belong to customer
+  accounts; the request above is the no-account way to be told), and
+  Click-to-WhatsApp ads (an ads setting; the buyer assistant answers
+  `buyer_request` messages but has never handled live traffic).
+
+## Landing pass: folded phone search, alerts from the homepage and the listing (2026-11-04)
+
+From a 375×812 walk of the live site: "Voir N biens" ended at 835px, the first
+listing photo at ~1,066px, and nothing on the homepage said what an account
+is for. Tests: `tests/unit/landing-conversion.test.js`.
+
+- **Phone search card** (`SearchBar.js`): Ville, Type and Budget fold behind
+  "Plus de critères" below `sm` (`max-sm:hidden`), with a count of criteria
+  set in the fold; from `sm` every field shows as before.
+- **"N nouveaux biens en 7 jours"** on the hero (`countListingsPublishedSince`,
+  public gate, published = the "Nouveau" badge's rule; 60 s cache
+  `cachedWeeklyNewCount`). Nationwide, nothing at 0, never rounded up.
+- **HomeAlertBand** after the listings: a WhatsApp alert on Louer/Acheter +
+  a Kinshasa commune (those with listings first, real counts) + an optional
+  maximum budget (`lib/homeAlert.js`), and a link to /trouver-pour-moi.
+- **QueryAlertButton** saves a given /listings query from any page: signed in
+  → SearchAlertConfirmModal then `saveSearch` (href `/listings?query`, the
+  same record as saving from /listings); a guest → AuthPromptModal with
+  `next=/listings?query&lkp_auth_return=alert`, which SaveSearchButton's pill
+  (always mounted on /listings) resumes once the session is real.
+- **"M'alerter des biens similaires"** on the listing page
+  (`SimilarAlertButton`, beside the contact card and under the similar rail):
+  `lib/similarSearch.js` `similarAlertQuery` — same rent/sale, commune, type
+  (lowercased category name), bedrooms as a floor, price 70–130 % (none for a
+  yearly rent; a daily/weekly one is `lease_term=short`). Nothing when the
+  listing states no commune, type, bedrooms or price.
+- **"Biens similaires" fix**: `getSimilarListings` ranked by embedding alone,
+  so an $800/month flat showed a $1,000,000 building for sale (listing 653).
+  It now keeps the purpose, the rent period and the same 70–130 % band; the
+  commune and citywide fallbacks keep the purpose.
+- **Signup page** lists what the account does (alerts, favourites on every
+  device, price drops on saved listings) above "Vos favoris… seront conservés".
+- **SignupNudge on /listings** docks above the phone's Carte | Trier | Alerte
+  pill (lower-right from `lg`): under the header it covered the search box.
+
+## Market observations in the price guide (2026-11-04)
+
+Engine root CLAUDE.md, "Market observations", has the sources and the
+collection. Web half: `lib/marketGuide.js` (SQL), `lib/marketObservationRules.js`
+(pure: sources, kinds, hand-entry validation), `/admin/market-data/marche`.
+`tests/unit/market-observations.test.js`.
+
+- **`/combien-coute` blends two kinds of asking price**: our public listings
+  (the `status = 1 AND approve_status = 1` gate, unchanged) and
+  `market_observations` that are clean, a home (RESIDENTIAL_KINDS), 1–5
+  bedrooms, under 365 days old and seen online in the last 60. Both sides
+  leave furnished homes out (a separate expat market). Before the migration
+  the guide falls back to Lukka listings only (42P01/42703); any other error
+  is not hidden.
+- **De-duplication**: a published group capture is the Lukka listing (skipped
+  while that listing is public; never counted once rejected or deleted); the
+  same rounded price in a commune × bedrooms seen on several sources counts as
+  MAX of the per-source counts, never the sum.
+- **The page says where the numbers come from**: "{n} annonces", "Dont {lukka}
+  sur Lukka Place et {market} relevées ailleurs", the source names (per-source
+  counts are before de-duplication, so they are named, not printed). "Voir les
+  N annonces" counts Lukka listings only — the search never shows an advert
+  seen elsewhere — and is hidden when there are none.
+- **Admin** (`market.view` to read, new `market.manage` — owner, moderator,
+  analyst — to write): source health, Lukka vs market by commune × bedrooms
+  (a median only from 5 listings per side), the Africanvestor page as a
+  published estimate (figures read from the page itself; a search summary had
+  quoted different ones), hand entry for Facebook / Zwandako (paste → the
+  engine's `POST /admin/parse-listing` prefills → a person checks and saves;
+  the pasted text is not kept; a link is required except for Facebook), and
+  the list with exclude (`manual:<code>`) / restore. An automatic exclusion
+  cannot be restored.
+- **"Coller des annonces" + `/admin/market-data/prospects` (2026-11-05).** One
+  paste of many adverts feeds the price guide AND the agents to recruit
+  (engine root CLAUDE.md, same heading, has the reader). `MarketPasteBatch`
+  shows one card per advert with two ticks — "Prix → guide des prix" and
+  "Agent → prospects" — and says when a number is already on the list or is a
+  Lukka Place agent (`knownPhones`). `saveMarketPasteAction` re-checks every
+  row (`validateManualObservation(…, { requireUrl: false })`,
+  `validateProspect`), refuses the whole save naming the first bad row, and
+  writes both tables in one transaction (`lib/marketProspects.js`
+  `saveMarketPasteBatch`). The prospects page (market.view; edits
+  market.manage) has status chips, search, a WhatsApp opener in French that
+  promises nothing (no "gratuit"), quick status buttons that date the first
+  contact, notes, the adverts behind each person and the CSV export
+  (`/admin/export/prospects`). Before the migration both pages say so and
+  nothing 500s. `tests/unit/market-prospects.test.js`.
+
+## Homepage below the search (2026-11-04)
+
+Decluttered from an approved mockup; the hero and search panel are unchanged.
+`tests/unit/home-below-search.test.js`.
+
+- **One section style**: `components/HomeSectionHeader.js` (title + a
+  sentence-case link with an arrow, no eyebrow) and `HOME_SECTION` (width,
+  gutters, `py-10 sm:py-16`) on Sélection / Biens enregistrés, Nouveaux
+  projets, Explorer, the market band and Notre approche. Bands are told apart
+  by their ground (white, royal, chalk), never by a border around them.
+- **Récemment consultés** on the homepage is `RecentlyViewed variant="strip"`
+  with `minItems={2}`: one line of 56px photos, price and place. The listing
+  page keeps the card rail.
+- **The alert band** is one `bg-blue-deep` band, two buttons; "Créer une
+  alerte" unfolds the unchanged `HomeAlertPicker` on a white panel
+  (`HomeAlertReveal`, rendered hidden so its state survives a close).
+- **Explorer** (`HomeDiscovery`) = at most four collection photo tiles + at
+  most six type chips (busiest residential types, then one "Bureaux &
+  commerces") + "Visites en vidéo". `PropertyTypeTiles.js` is deleted.
+- **Le marché locatif en chiffres** (`HomeMarketBand`, `HomeMarketExplorer`,
+  `lib/homeMarket.js`): the published price guides — every commune with a
+  guide for 1–4 bedrooms, busiest first, up to 12 — as tappable bars; the
+  middle half (p25–p75), "dont N sur Lukka Place" and "Voir le détail".
+  No buttons between the figure and the chart: a price alert and a "Voir les
+  annonces à …" button were tried and removed the same day (owner: the alert
+  band already offers the alert). Communes across the top, figure left,
+  chart right on a desktop. The Lukka Index panel beside it was removed the same day
+  (owner: not needed for now); its `home.market.index*` strings are unused.
+  /indice-lukka is unchanged.
+- **Notre approche**: three unboxed points with icons, shorter copy (same
+  claims), header link to /a-propos; the "Voir les annonces" button is gone.
+
+## /admin/seo — SEO & Google (2026-11-05)
+
+`app/admin/seo/page.js` (`market.view`, Analyses group), pure rules in
+`lib/seoAuditRules.js`, reads in `lib/seoAudit.js`, Search Console in
+`lib/searchConsole.js`. `tests/unit/seo-audit.test.js`.
+
+- **Live checks**: the domain's TXT records (Google's
+  `google-site-verification=` — added on Hostinger 2026-11-05 for the
+  `sc-domain:lukkaplace.com` property — and Bing's `MS=`), the sitemap counted
+  by calling `app/sitemap.js` itself, English pages (none: the locale is a
+  cookie, docs/seo-english-pages-plan.md), social profiles, Bing.
+- **Target searches** (FR + EN, `TARGET_SEARCHES`): the landing page meant to
+  answer each and its listing count (`getSeoFacets`, Kinshasa only, overlays
+  only on their own page). With Search Console connected, the position is the
+  impression-weighted average of our queries holding all the target's words
+  (`matchTargetRows`; FR/EN synonyms fold, "apartments for rent" =
+  "appartement à louer"). Without it the column says so — never a guess.
+- **Search Console** is a service account, no dependency: RS256 JWT via
+  node:crypto → access token → searchAnalytics + sitemaps, cached 10 min,
+  never throws. Env `GSC_SERVICE_ACCOUNT_JSON` (raw JSON or base64),
+  `GSC_PROPERTY` (default `sc-domain:lukkaplace.com`). Setup steps are on the
+  page. **Connected 2026-11-10** (service account
+  `lukka-seo-reader@project-93c8620f-b903-4735-9e2.iam.gserviceaccount.com`,
+  Restricted user; key base64 in the VPS `.env.local`); checked live:
+  queries, positions and the sitemap come back.
+- **Coverage** per commune (≤5 listings = thin, 0 = noindex page) and
+  **listing quality** over every public listing (<3 photos, no commune, no
+  quartier, description <120 chars, no price, land with bedrooms and no
+  parcelle sub-type — its title reads "Terrain 3 chambres", e.g. #685).
+- **`sameAs` now carries the console's saved profiles** (`sameAsProfiles`:
+  /admin/settings links over the env ones, no WhatsApp, query strings
+  stripped). Before, only `NEXT_PUBLIC_*_URL` was read, so the Instagram and
+  TikTok links the footer showed never reached Google's Organization data.
+
+## Keyword listing URLs and the homepage's search words (2026-11-10)
+
+First Search Console week: 174 impressions, average position 16; the
+homepage ranked for "luka place" and little else, "maison à louer à
+kinshasa" sat at 58. mediacongo and expat.com own those searches, with the
+words in every listing URL and title.
+
+- **Listing URLs carry words**: `/listings/509-appartement-1-chambre-a-louer-limete`
+  (`lib/listingSlug.js` `listingPath`; kind → rooms → louer/vendre → commune,
+  quartier or city; French whatever the reader's language; a missing fact is
+  left out). The id is the only part read back (`getListingById` parses the
+  leading integer), so `/listings/509`, an old slug and every WhatsApp link
+  open the same page. **No redirect, by choice**: the page declares the slug
+  URL canonical and the sitemap, JSON-LD and public cards (`PropertyCard`,
+  map previews, `RecentlyViewed`, agent profile, landing-page ItemList) link
+  it — a 308 would cost a Kinshasa phone ~330 ms on every old link.
+  Dashboards, admin and messages still build `/listings/<id>`; that is fine.
+- **Analytics unchanged**: `ListingViewTracker` records `/listings/<id>`
+  whatever the address; `listingIdFromPath` and `lib/localePaths.js`
+  (`/en/listings/…`) accept either form, so a slug page is not counted again
+  as a site page. `tests/unit/listing-slug.test.js`.
+- **Homepage**: its own `<title>` / description (`home.seoTitle`,
+  `home.seoDescription`; a title saved on /admin/cms still wins) and a small
+  first line inside the hero `<h1>` (`home.hero.kicker`, "Maisons et
+  appartements à louer et à vendre à Kinshasa et en RDC") above the stacked
+  nouns. The phone hero grew 19.5 → 22.25rem so the "N nouveaux biens" pill
+  stays clear of the search panel. The site-wide default title is unchanged.
+
+## English pages for search engines — `/en/…` (2026-11-05)
+
+Phases 1–2 of docs/seo-english-pages-plan.md. Google sends no cookie, so it
+had only ever seen French. Tests: `tests/unit/locale-paths.test.js`,
+`tests/unit/middleware.test.js`.
+
+- **One table, `lib/localePaths.js`** (pure, import-free): `/`→`/en`,
+  `/a-propos`→`/en/about`, `/contact`, `/agents[/id]`, `/location`→`/en/rent`,
+  `/vente`→`/en/buy`, type slugs translated (`EN_TYPE_SLUGS`: apartments,
+  houses, land, plots, compounds…; a test fails if a new French type has
+  none), commune/city slugs unchanged, `/listings/:id`, `/combien-coute[/slug]`
+  →`/en/rent-prices[/slug]`. Everything else (search, accounts, guides, legal)
+  has no twin. `/en` accepts only English slugs: `/en/rent/appartements` 404s.
+- **No copied routes.** middleware.js rewrites `/en/*` onto the French route
+  and sets `x-lukka-url-locale: en` (`lib/i18n/urlLocale.js`);
+  `lib/i18n/server.js` `getLocale` reads it before the cookie. It also sets
+  `NEXT_LOCALE=en`, so the reader's next search is English. `getUrlLocale()`
+  is the URL's language — canonicals follow it, never the cookie.
+- **hreflang**: `localizedAlternates(frPath)` (server.js) on home, about,
+  contact, agents, agent profiles, listings, landing pages and the price
+  guide — canonical in the URL's language + fr / en / x-default. The sitemap
+  lists both URLs with `alternates.languages` (`withEnglishTwins`).
+- **Links stay English for an English reader**: `components/LocaleLink.js`
+  (next/link + `localizeHref(href, locale)`) replaces next/link in ~50 public
+  components (chrome, cards, home, landing pages, listing and agent pages). It
+  changes nothing for French readers or for a path with no twin, so swapping
+  it in is safe. Landing-page links, crumbs and JSON-LD use `localizeHref`
+  directly.
+- **The FR | EN switch changes URL with a full load** (`window.location`), not
+  `router.push`: `/en/rent/x` and `/location/x` are the same route segments,
+  and the client router reused the page rendered in the old language
+  (measured). Pages without a twin still just refresh.
+- **English listing `<title>`/description/h1** use English type words and
+  prices (`listingSeo.js` `EN_KINDS`, `priceOf`, `listingKindLabel`): "2-bedroom
+  apartment for rent in Limete — $450 / month". The listing's own title and
+  description stay as the agent wrote them.
+- **Known, not done**: cards still print "450 $ / mois" and the French
+  category on English pages (lib/format.js is French-only, site-wide); the
+  404 page on an unknown `/en` path is French; the guides have no English
+  version (phase 3, copy work). The locale header can be sent by any client on
+  a French URL — it only renders that page in English for that client, the
+  same as the cookie; nothing is shared-cached.
+
+## Messagerie — customers and agents chat in the site (phase 1, 2026-11-05)
+
+Design: the "Messagerie Lukka Place" canvas (claude.ai artifact UNbqnT7tocXg57fRWeVGrv).
+Phase 1 (below) is the data and the API; phases 2–4 the customer's screens,
+the agent's screens and the WhatsApp alerts. Tests: `tests/unit/chat.test.js`.
+
+- **Tables (Postgres)**: engine `migrations/20261105_chat.sql` — `chat_threads`
+  (one per customer × agent × listing; `property_id` and `lead_id` are soft
+  references on purpose, a hard-deleted listing keeps its conversation),
+  `chat_messages`, `chat_reports`. RLS on, nothing granted. Every read
+  degrades to empty and every write to 503 `unavailable` before it runs.
+  **Applied to production 2026-11-05** (11 indexes, no anon/authenticated
+  grant); every query in lib/chat.js was then EXPLAINed against it, no
+  writes.
+  Not in the engine's SQLite: both account types are here, and a message
+  must not wait on the engine.
+- **`lib/chatRules.js`** (pure: limits, body normalisation, preview, cursor,
+  in-process rate limiter, poll cadence), **`lib/chat.js`** (every query),
+  **`lib/chatApi.js`** (viewer, JSON-only bodies, status → HTTP).
+- **Access is in the SQL.** A viewer is `{role, id}` from that side's own
+  httpOnly session (`?as=agent` picks the agent's; agent sessions get the
+  token_version + deleted check customers already had). Every query carries
+  `t.customer_id = $viewer` or `t.agent_id = $viewer`; not yours = 404, the
+  same as missing.
+- **Who can start**: a customer with a verified phone, to an agent the
+  listing page would show a number for (`CHAT_REACHABLE_AGENT_FILTER` =
+  the `agent_phone` rule in lib/listings.js; the test compares them). From a
+  listing the agent is read from the listing, never the request, and the
+  listing must be public. Not yourself. 10 new conversations / 24 h per
+  customer, enforced in the INSERT. Agents answer; they do not open threads.
+- **Sending**: 2,000 characters, 30 messages / minute per account (in
+  process — one PM2 fork), `clientId` (UUID) makes a retry return the stored
+  message. A blocked thread takes nothing; only the side that blocked lifts
+  it. Agents may share only their OWN public listings (`kind: 'listing'`).
+  A new message un-archives the thread for both sides.
+- **Read state** is one id per side (`*_last_read_id`), moved only by
+  `POST …/read`, never by a GET — so a poll, or an admin viewing as the
+  account (middleware refuses its POSTs), never marks anything read.
+- **Routes** (`app/api/chat/…`, all `no-store`): `GET|POST threads`,
+  `GET threads/:id`, `GET|POST threads/:id/messages` (`?after=` is the poll,
+  with the other side's read id and the block state), `POST threads/:id/read
+  | archive | block | report`, `GET unread`. Writes read
+  `application/json` only (no cross-site form can post one; cookies are Lax).
+- **Phase 2 — the customer's screens (2026-11-05).** `/messages` (inbox; a
+  guest sees a sign-in card with the WhatsApp fallback the old stub had),
+  `/messages/[id]` (conversation), `/messages/nouveau?listing=ID | ?agent=ID`
+  (first message; signed out → login and back; an existing thread opens
+  instead; an agent who cannot receive messages gets an honest page, never a
+  composer). Components in `components/chat/` (`ChatInbox`, `ChatThread`,
+  `ChatComposer`, `ChatStart`, `ChatParts`) take `side`, so the agent's
+  screens reuse them. Browser helpers `lib/chatClient.js`; times
+  `lib/chatTime.js` — always `Africa/Kinshasa`, so the server render and
+  hydration print the same clock (React #418 otherwise).
+  - **Polling**: a chain of timeouts (4 s, 15 s after a quiet minute, none
+    while hidden, at once on return); the inbox every 30 s. Sends are
+    optimistic with a client id; a failed one stays with "Réessayer"; a poll
+    that returns the message first replaces the pending copy.
+  - **Entry points**: "Envoyer un message" in `EnquiryCard`, an icon in
+    `MobileListingBar` (with it and the call icon, "Visiter" shows its icon
+    only under 400px), and on the agent profile (rail and phone bar) — all
+    through `canMessageListing` / `chatStartHref` (lib/chatRules.js), i.e.
+    the `agent_phone` rule. "Messages" is in the header's account menu and
+    drawer (after Favoris: a test pins Favoris first).
+  - **Footer**: compact on `/messages`, none on a conversation
+    (`FooterByPath`'s `hiddenUnder`, `<footer>` is `empty:hidden`).
+  - i18n namespace `chat` (site layout; the profile gets its labels from the
+    server), plus `nav.messages`.
+- **Phase 3 — the agent's screens (2026-11-05).** `/compte/agent/messages`
+  and `/messages/[id]` under the agent portal: on a computer three columns
+  (conversations 360px | the thread | customer panel 300px from `xl`), on a
+  phone the list, then the thread with its back arrow (`frame.js` sizes the
+  area: full height on a computer, above the tab bar on a phone). Same
+  components with `side="agent"`: `ChatInbox variant="column"` (open thread
+  highlighted, "Sans réponse · 12 min" when the customer spoke last),
+  `ChatThread variant="agent"` (a "{name} attend votre réponse depuis …"
+  banner; the agent's own quick replies as chips that FILL the field, rendered
+  by `renderQuickReply` with this listing and the customer's first name; "Partager
+  un bien" → `ShareListingsDialog`, the agent's own public listings from
+  `listShareableListings`, ≤5 per send, each its own listing card, sent in
+  order), `ChatClientPanel` (first name + initial, client since, number
+  verified, the listing with "Modifier l'annonce", opened on — never the
+  customer's phone). "Messages" sits in the sidebar and the phone tab bar
+  with a blue badge: `countUnreadThreads` in the agent layout. The agent
+  layout ships the `chat` namespace.
+  - The waiting chip says how long, nothing more: no alert reaches anyone
+    about an unanswered chat yet (phase 4), so the copy promises none.
+- **Phase 4 (2026-11-05)**: WhatsApp alerts for unread messages are the
+  engine's `chat-notify` job (root CLAUDE.md, "Messagerie — WhatsApp alerts",
+  with the two templates to submit). `/admin/interactions` counts site
+  conversations as the `siteChat` channel (`lib/agentInteractions.js`
+  `CHATS_BY_AGENT_SQL`; "answered" = the agent replied). No lead is recorded
+  per chat: it would duplicate the conversation in the agent's Demandes.
+- **Unread badges (2026-11-06)**: count unread MESSAGES (not conversations)
+  through `countUnread` / `GET /api/chat/unread` (`{messages, threads}`).
+  `lib/useChatUnread.js` keeps them live (every 30 s while visible, on return
+  to the tab, and at once when ChatThread records a read via
+  `notifyChatUnreadChanged`) and `useUnreadTitle` prefixes the tab title
+  "(3) …". Customer: on the header's account icon and beside "Messages" in
+  the account menu and the phone drawer (`components/chat/UnreadBadge.js`,
+  "99+" past 99), nothing asked when signed out. Agent: the sidebar / tab-bar
+  badge starts from the layout's server count, then follows the hook.
+- **Not done yet**: visit cards inside a conversation; `/admin/messages` and
+  the reports queue; the privacy-policy sentence about reported
+  conversations; photos in a conversation.
+
+## Navigation speed pass (2026-11-06)
+
+Measured from Kinshasa first (owner's own connection, reported 3G, ~450 ms
+RTT, ~0.55 Mbps): every request to the Paris VPS costs 250–600 ms before its
+first byte, a static file included; each listing photo ~365–580 ms; the Maps
+JS for a map ~200 KB in 4–5 dependent round trips plus tiles. The server
+itself renders in 50–150 ms. So the work is fewer round trips on the path a
+tap takes, and fewer bytes. `tests/unit/navigation-speed.test.js` pins it.
+
+- **A card fetches its whole page on hover or touch**:
+  `PropertyCard`'s Link carries `unstable_dynamicOnHover` (off on Data Saver
+  / 2G), which needs `experimental.dynamicOnHover: true` in next.config —
+  without the flag Next silently ignores the prop. In view a card still
+  prefetches only the loading skeleton (the page is dynamic: the locale
+  cookie). Verified on a local production build: hover → one
+  `/listings/734?_rsc=` (60 KB), click → page shown with no request.
+- **The detail page's opening photos are fetched on mouse hover**
+  (`lib/warmListingPhotos.js`, desktop/tablet only, never Data Saver): the
+  mosaic's hero + two side tiles, through `getImageProps` with the gallery's
+  own `sizes` (`lib/detailGallerySizes.js`, shared, so the browser picks the
+  same srcset candidate and the gallery hits the cache).
+- **One cover download, not two**: the phone carousel in `PhotoGallery` is
+  hidden on desktop but its photo is `priority`, so with `sizes="100vw"` it
+  fetched a 1920w copy of the cover beside the hero's 1080w. It now uses
+  `DETAIL_HERO_SIZES` (still full width on a phone). `CardImageCarousel`'s
+  `fullWidth` prop keeps the bigger video badge.
+- **Header and Footer prefetch on intent** (`components/IntentLink.js`, a
+  LocaleLink): on /listings the chrome prefetched ~8 pages in ~16 requests
+  competing with the photos. `prefetch={false}` alone also kills the hover
+  prefetch in Next 16, hence the state. The logo and the drawer's own
+  `router.prefetch` are unchanged.
+- **The similar-listings rail streams** (`RelatedSection` in
+  `listings/[id]/page.js`, Suspense): pgvector + fallback queries no longer
+  hold the gallery and price.
+- **Photos are AVIF first** (`images.formats`): with Next's own AVIF quality
+  mapping, 35–45% smaller than WebP on live photos (640w 48 → 29 KB, 1080w
+  87 → 59 KB), ~0.1–0.2 s more encoding once per variant. After deploying,
+  run `node scripts/warm-image-cache.js` on the VPS (it already asks for
+  image/avif) — every AVIF variant starts cold.
+- **Static map, built, OFF**: `lib/staticMap.js` draws the detail page's
+  zone as one Static Maps image (same styles, zoom 14, the same jittered
+  point and 500 m circle) — one ~50 KB request instead of the Maps JS chain.
+  The URL is built on the server (`listingStaticMapSrc`: the jitter pulls
+  lib/geocoding.js and its quartier data, which must not ship to the
+  browser). A tap, or an image that fails to load, opens the interactive
+  `ListingPinMap`. **To switch on**: enable "Maps Static API" on the browser
+  key's Google Cloud project (it answered 403 "API not activated" on
+  2026-11-06; add it to the key's API restriction list if it has one), then
+  set `NEXT_PUBLIC_STATIC_LISTING_MAP=on` in web/.env.local and restart (read
+  at request time on the server, not inlined).
+- **Not done, and the bigger levers**: a CDN with a Kinshasa edge
+  (Cloudflare) in front of `/_next/static` and `/_next/image`, plus HTTP/3;
+  and making public pages cacheable (locale from the `/en/` URL instead of
+  the cookie, account-dependent bits fetched in the browser) so a listing
+  page could be prefetched in full from the grid.
+
+## Admin dashboard in four tabs (2026-11-06)
+
+`/admin/dashboard` was one scroll of 27 blocks. It is now a KPI row plus four
+tabs (`lib/adminDashboardTabs.js`, pure, `tests/unit/admin-dashboard-tabs.test.js`).
+
+- **URL-driven**: `?tab=apercu|demande|offre|marche`, `?periode=` applies to
+  every tab, `?chambres=` filters the rent index. Only the open tab's queries
+  run (each tab is its own Server Component under `app/admin/dashboard/tabs/`,
+  in a Suspense keyed on tab + period). A tab needs a permission (`marche` is
+  `market.view`, so a sales rep does not see it); with no `?tab=` a moderator
+  opens on Offre, support on Demande, everyone else on Aperçu.
+- **KPI row** (`KpiHeader.js`): live listings (top 3 communes under it),
+  WhatsApp clicks (people) with the change vs the period before, cost per
+  WhatsApp click, and unmet demand = distinct people whose searches found
+  nothing (`investorMetrics.getDemand`, `search_events.result_count = 0`).
+  **CPW is deliberately "—, not tracked"**: no ad spend is recorded anywhere,
+  and the test pins that it is never computed. Add a spend source first.
+- **What each tab holds**: Aperçu — urgent queues, traffic cards, 12-week
+  trend. Demande — visit/conversation queues, zero-result searches,
+  audience/routing/placement/source splits, devices, referrers. Offre —
+  listing/agent queues, the 5 oldest pending listings, top 10 agents by live
+  listings (scoped for a sales rep), most-clicked listings. Marché — median
+  rent index (same blended SQL as the public price guide, `queryPriceGuides`,
+  min 5 rents), interest by commune/type/price band, views by commune.
+- `WorkQueues` takes `only` (the tab's queue keys, `TAB_QUEUES`) and
+  `ClickBreakdown` takes `parts`; each preview links to its full, paginated page.
+
+## "Mon déménagement" — the move project and the card signup (2026-11-07)
+
+Marketing direction (2026-11-06): every move has its own story (a fourth child,
+a new job), and the product only ever asked "3 chambres à Ngaliema". Engine
+half: `docs/claude/leads-and-enquiries.md`, same heading.
+
+- **`/compte/inscription` is now the card flow** (`components/MoveOnboarding.js`):
+  one question per screen, chips, progress bar, swipe or "Suivant", then the
+  unchanged `SignupForm` as the last card (answers in a hidden `moveProject`
+  field). Cards: reasons (multi), transaction, household, bedrooms, the place
+  that matters + its commune, communes (city first, up to 5), priorities
+  (multi), budget (chips per transaction; none for a short stay), timeline,
+  current home. **Every card has "Passer" and "Créer mon compte directement"
+  jumps to the account card**: the owner cut signup to three fields on
+  2026-11-06 because steps lost customers. The old form is `?direct=1`.
+- **Drop-off is measured from day one**: each card reached beacons
+  `/api/telemetry/onboarding`, one `[onboarding] {mode,step,index,total}` log
+  line (no table). `pm2 logs lukka-place-web --lines 20000 --nostream | grep
+  '\[onboarding\]'`, count per step. If one card loses people, cut it.
+- **Answers survive** a reload or an error redirect (`lukka_move_draft_v1` in
+  localStorage, try/catch; cleared on submit). A visitor sent here by the
+  save-search prompt starts from their latest device-saved search
+  (`projectFromSearchQuery`), and the communes/budget cards are skipped when
+  that search already says them.
+- **Rules are `lib/moveProjectRules.js`** (pure, shared with the tests):
+  codes, `parseMoveProject` (unknown values dropped, never an error; NULL / []
+  = not said), `moveSearchQuery`, `moveStoryFr` / `moveCriteriaFr` (French,
+  for agencies), `moveRequestBlocker`. **Nothing is deduced**: household size
+  never becomes a bedroom count, the anchor place never becomes a commune
+  (the communes card only pre-ticks it, visibly). **Priorities are not search
+  filters** — few listings carry the utility tags, so they would hide most
+  real homes; they go to agencies in the story.
+- **Storage**: `customer_move_projects` (engine
+  `migrations/20261107_customer_move_projects.sql`, one row per customer, RLS
+  on, cascade on customer delete), `lib/moveProjects.js`. Before the migration
+  runs, reads are "no project" and writes `saved: false`; signup never fails
+  over it (`saveProjectAndAlert` never throws).
+- **On signup** the project is saved after the account exists, plus a saved
+  search from `moveSearchQuery` (alerts and Accueil's counts run on it), and
+  the customer lands on `/compte/client/projet?nouveau=1` — unless a gate sent
+  them with another `next`.
+- **`/compte/client/projet`**: the story (reasons, "Aujourd'hui", "Vous
+  cherchez", "Quand"), whether the alert is on, up to 8 matching homes
+  (`getListings`, newest, never widened; none → an honest line and a wider
+  /listings link), and **"Envoyer ma demande aux agences" — the only thing
+  that contacts anyone**: a `move-project` lead with the story, once per 20 h
+  (`MOVE_RESEND_AFTER_MS`). `/compte/client/projet/modifier` reopens the cards
+  on the stored answers and saves through `saveMoveProjectAction`.
+- **Accueil** opens with a "Mon déménagement" card (the story in one line, or
+  "Parlez-nous de votre déménagement" for an account without a project).
+  **`/admin/customers/[id]`** shows the project as the French brief.
+- `tests/unit/move-project.test.js`; `customer-easy-login.test.js` now pins the
+  new redirect line.
+- **Five cards, a budget range, close homes (2026-11-07, later, owner: ten
+  cards felt excessive; the budget must be adjustable; show near matches).**
+  Cards are now `reasons · search` (rent/buy + bedrooms + household on one
+  card) `· place` (communes + the place that matters) `· budget · details`
+  (timeline + priorities + current home). The budget is a min–max range
+  (`cleanBudgetRange`: whole USD, capped per transaction, reversed ends
+  swapped) set from preset chips and adjusted in two fields; the search gets
+  `price_min` + `price_max`. **The budget card shows live what the range
+  finds** (`POST /api/move/matches`, public, rate-limited, nothing stored):
+  the exact count and first homes, and when fewer than 4 match,
+  `lib/moveMatches.js` adds close homes apart, never counted with the exact
+  ones: ±25 % around the range at the chosen communes (`MOVE_BUDGET_STRETCH`;
+  owner chose 25 % while listings are few, to narrow as they grow — /listings
+  keeps its own 15 %), then nearby communes
+  (`getNearbyExtras`, real commune centres, same rule as /listings). Each
+  close home carries its reason (`closeMatchTags`): "12 % au-dessus de votre
+  budget" only for a USD, monthly-comparable price; "À Lingwala, ≈ 3 km" only
+  when that distance was measured. A home with no reason it can show is left
+  out. `/compte/client/projet` shows the same two groups.
+  `customer_move_projects.budget_min` comes with
+  `migrations/20261107_move_project_budget_min.sql`; until it runs the
+  project saves without it (42703 retry). Draft key is `lukka_move_draft_v2`
+  (old drafts named the ten old cards).
+- **Up to five projects per account, always editable (2026-11-07, owner).**
+  `migrations/20261107_move_projects_multiple.sql` gives each row its own
+  `id` (identity; the primary key moves off `customer_id`) and an optional
+  `title`. `MAX_MOVE_PROJECTS` (5) is a COUNT guard in the INSERT
+  (`createMoveProject`), like favourites. Every read and write is scoped
+  `customer_id = $1` from the session; another customer's project id is a
+  404. Routes: `/compte/client/projet` the list ("Mes projets", each with its
+  exact-match count, "Voir les biens" and "Modifier", "Nouveau projet" while
+  under five, `?limite=1` explains the ceiling) · `/projet/nouveau` ·
+  `/projet/[id]` (story, matches exact + close, alert, request to agencies,
+  edit, delete with an in-place confirmation; the alert is kept) ·
+  `/projet/[id]/modifier` (the cards plus an optional name; the back arrow on
+  card 1 leaves without saving). `/projet/modifier` (the single-project link)
+  redirects to the first project's edit, or to `nouveau`. **A project is
+  always one tap from being edited**: the portal has a fifth tab, "Projets"
+  (`grid-cols-5`), and Accueil lists every project with a pencil. Signup
+  lands on the new project's own page. Before the migration runs, the code
+  keeps one project per customer, addressed as id 0 (`LEGACY_PROJECT_ID`,
+  the old `ON CONFLICT (customer_id)` upsert on 42703). The admin customer
+  profile lists every project.
+- **The "Où" card: city first, then communes as boxes (2026-11-07, owner).**
+  "Dans quelle ville ?" is a grid of boxes, one per city in lib/cities.js
+  (Kinshasa first); nothing else on the card shows until one is picked. Then
+  "Un lieu compte particulièrement ?" (its commune select lists only that
+  city's communes, and the commune picked is pre-ticked below) and "Dans
+  quelles communes ?": every commune of that city as a box, up to 5, with a
+  "N sur 5 choisies" count; the rest grey out at five. Changing city drops
+  communes (and the anchor's commune) from the old city. A city with no
+  communes on file (Muanda) says so and searches the whole city.
+- **The end of a move, the stages, and the rest of the plan (2026-11-07).**
+  `migrations/20261107_move_project_journey.sql` adds `status`
+  (active/paused/found), `found_at`, `paused_at`, `settled_at`,
+  `settled_answer`, `story_text`, `story_consent_at` — all set only by the
+  customer's taps. On `/projet/[id]`: **"C'est le bon !"** (confirmed in
+  place) → status found, the project's alert removed (kept if another
+  searching project shares the same query), its last lead CONVERTED;
+  **"Mettre en pause"** / **"Reprendre la recherche"** (also "ce n'était pas
+  le bon"), the alert stopped and restored. **"Bien installés ?"** appears 30
+  days after found (`checkinDue`), on the project and as a prompt on Accueil:
+  the answer, the customer's story (optional), and an unticked consent box —
+  without consent the story stays in the account (admin shows "non affichée").
+  A **stage strip** (`moveStagesReached`: projet · recherche · demande ·
+  visites · trouvé · installé) is computed from real events only ("visites"
+  = a viewing request made since the project began). **"Avant de signer"**
+  is a general checklist (no claim about a listing; entry costs stay on each
+  listing page). The request card promises the 24 h desk follow-up (engine
+  `services/moveFollowup.js`). Status chips on the list and Accueil; Profil
+  links to "Mes projets"; "L'église" is a fourth place that matters.
+  **Listing pages** show "Pour votre projet « … »" for a signed-in customer
+  with a searching project (`components/ProjectFitLine.js`, `projectFit`):
+  bedrooms, commune and budget ✓/✗, only fields both sides state, the
+  best-fitting project, nothing for the wrong kind of home. **"Trouver pour
+  moi"** without an account has optional "Votre situation" chips (reasons →
+  the same French brief to agencies). **`/admin/move-projects`**
+  (`customers.view`, `lib/moveProjectStats.js`): north star = moves found
+  (and settled in), projects, searching/paused, median days to found,
+  reasons × found, communes × found, top reason·commune pairs, and stories
+  shared with consent only.
+  **Not done, deliberately:** the WhatsApp assistant's first question (owner
+  moved the questions to the account over the 24 h window); anything needing
+  a new Meta template (story in the agency template, cold-customer
+  check-ins); the agent client book reason (the book is hidden from agents
+  since 2026-09-22) and an agent "Mon parcours" page (the agent space is
+  limited to Biens / Demandes / Abonnement / Réglages by product decision).
+
+## Sign-up under a rush (2026-11-07, before the content campaign)
+
+An audit of the sign-up path found two bugs and three load risks; all five
+are fixed, `tests/unit/signup-rush.test.js`.
+
+- **A refused sign-up lost the move answers.** The draft was cleared on
+  submit, so an error redirect (number already registered, invalid number)
+  came back to an empty project. The draft (`lib/moveDraft.js`) now stays
+  until the account exists and is cleared by `components/ClearMoveDraft.js`
+  in the signed-in client layout. Checked in a browser: the answers survive.
+- **A double tap could crash.** The button now locks while sending
+  ("Création du compte…", `useFormStatus`), and a duplicate phone that
+  slips past the "exists" check (UNIQUE `customers.phone`, 23505) redirects
+  to `error=exists` instead of the error page.
+- **Password hashing blocked the single web process ~51 ms per sign-up or
+  login** (scryptSync, measured on the VPS). Customer sign-up and login use
+  `hashPasswordAsync` / `verifyPasswordAgainstHashAsync` /
+  `burnConstantTimeAsync` (`lib/authCrypto.js` `*Async`, crypto.scrypt on
+  the thread pool, same parameters and output — either form verifies the
+  other). Admin, agent and reset paths still use the sync forms.
+- **Shared mobile IPs.** Kinshasa's operators put many customers behind few
+  IPs (carrier-grade NAT), so the default 60/min per IP would refuse
+  ordinary customers. `/api/move/matches` and `/api/telemetry/onboarding`
+  allow `SHARED_IP_MAX_EVENTS` (600/min); everything else keeps 60. The
+  limiter sweeps at most once a second.
+- **Database load.** `/api/move/matches` answers identical searches (same
+  `moveSearchQuery`) from a 60-second in-memory cache (500 entries; public
+  approved listings only, so shared answers reveal nothing). The pg pool is
+  10 (was 5), `DB_POOL_MAX` overrides; Supabase's transaction pooler on 6543
+  multiplexes them.
+- **Not changed, worth knowing:** new customers' alerts are WhatsApp session
+  messages until `SEARCH_ALERT_TEMPLATE` is approved, so customers who never
+  wrote to us may not receive them; the 24 h move follow-up can send the desk
+  up to 20 alerts per 15 minutes in a rush.
+- **Owner feedback, round 3 (2026-11-07).** Fifteen "why" options (added:
+  fin de bail, quartier plus sûr, inondations/érosion, se rapprocher de la
+  famille, commerce/bureau, plus de confort); "Ce qui compte" in Kinshasa's
+  terms (courant SNEL/groupe/solaire, eau REGIDESO/forage, route praticable
+  en saison des pluies, zone non inondable, taxis/bus, marché, calme…); the
+  place question reads "Près de quoi voulez-vous vivre ?" / "Dans quelle
+  commune se trouve ce lieu ?". **Suivant is pinned** to the bottom of the
+  screen (above the portal tab bar in edit mode; no blur on phones).
+  **"Voir aussi : Prix proches · Communes proches"** asks for close homes even
+  when homes match (`getMoveMatches` `closeMode` 'price'|'place'; API body
+  `closeMode`, cached per mode; project page `?proches=prix|lieu`).
+  **Stages cascade** (`moveStagesReached`): the furthest event — any request
+  of the customer since the project began, any visit, found, settled — ticks
+  every earlier stage. **Pills are tappable**: Recherche / Demande / Visites
+  save `customer_move_projects.manual_stage`
+  (`migrations/20261107_move_project_manual_stage.sql`, forward only);
+  "Trouvé" opens the "C'est le bon !" confirmation (`?confirmer=trouve`),
+  "Installé" the check-in (`?installe=1`).
+- **The stepper is a control (2026-11-07, owner: "they can't go back").**
+  `ProjectStepper.js` (client): tapping Projet / Recherche / Demande envoyée
+  / Visites sets the stage **forward or back** at once, saves it
+  (`setManualStageAction`, now returns `{ok}` instead of redirecting; `'auto'`
+  clears it) and shows "Étape mise à jour : … · Annuler" (the portal Toast).
+  Tapping the current pill does nothing. Once found, the status decides and
+  "Ce n'était pas le bon" is the way back. `moveStageView` replaces the
+  event-forced cascade: the customer's choice wins both ways; `proven`
+  (events) ticks solid, self-reported ticks dotted; `trackerAhead` shows
+  "D'après vos demandes et visites, vous en êtes peut-être à : …" and "Revenir
+  au suivi automatique" hands it back. **`StageCard.js`** under the pills
+  follows the current stage: story → matches → requests and agency
+  proposals → upcoming visits + "Avant de signer" → moving-in checklist
+  (SNEL cash power, REGIDESO, keys and inventory, receipts, address) →
+  welcome. "± 25 %" left the pill: it reads "Prix similaires".
+
+## "Changer de numéro" — a customer moves the account to a new number (2026-11-08)
+
+Owner request: a customer could not change their number at all. Paramètres'
+phone row opens `/compte/client/parametres/numero`: new number (the sign-up
+`PhoneField`) → a 6-digit code by WhatsApp to the **new** number (the same
+`sendOtpViaWhatsApp`, template first) → done; Paramètres then says "Votre
+numéro est maintenant …". `lib/customerPhoneChange.js`,
+`lib/customerPhoneChangeRules.js`, engine `migrations/20261108_customer_phone_change.sql`
+(verify §83), `tests/unit/customer-phone-change.test.js`.
+
+- **Only the new number is asked.** The usual reason is a lost or replaced
+  SIM, so a code to the old number would block exactly those people; the
+  session already says who they are. No password either (owner chose the
+  4-step flow). Someone holding an unlocked, signed-in phone could change the
+  number — accepted.
+- **Refused:** the account's own number ("same"), a number another customer
+  account holds ("taken", never merged; also caught as 23505 at the switch).
+  5 codes per hour per account (counter and pending change in ONE guarded
+  UPDATE), 5 wrong codes per code, 10-minute expiry. Columns
+  `customers.phone_change_*` are separate from signup and reset codes.
+- **On success, one transaction:** old number into `customer_phone_history`,
+  `phone` = new, `phone_verified_at` = now (the code proved it), reset code
+  and lockout cleared, `token_version` + 1 (every other device signed out);
+  the action re-signs this device and updates the remembered-number cookie.
+- **History stays.** Engine leads/visits are keyed by `wa_id`, so
+  `getAccountPhones` (current first, then history) feeds Mes demandes,
+  visits, the tab counts and the request-edit ownership check; visit answers
+  try each number and move on only on the engine's 404. New requests, alerts
+  and agent messages use the new number. **Visits already in progress keep
+  the old number** for agent WhatsApps (engine data agents act on; not moved).
+  `/admin/customers/[id]` lists "Anciens numéros" with links to their leads.
+- **Not built:** a desk-side change for a customer locked out (lost SIM AND
+  signed out) — proposed for `/admin/customers/[id]`.
+
+## Customer friction fixes — sign-up, sign-in, account (2026-11-08)
+
+Owner request after a friction review of the customer side.
+`tests/unit/customer-friction-fixes.test.js`.
+
+- **A save goes straight to the account card.** `AuthPromptModal` (♥, alerts)
+  adds `from=save`; `/compte/inscription` then opens `MoveOnboarding` on the
+  account card with no questionnaire chrome (`saveOnly`) and the lead "Vous
+  pourrez raconter votre déménagement ensuite". Accueil already invites the
+  move afterwards.
+- **Refusals keep the form.** `signupAction` and `loginAction` are
+  `useActionState` actions now: a refusal RETURNS `{ error, values, attempt }`
+  (never the password); success still redirects. The phone field re-mounts
+  (`key={attempt}`) with what was typed; name and password are controlled
+  state. Sign-up's cursor starts on the name.
+- **Existing account said early.** The number is checked on blur
+  (`checkSignupPhoneAction`, 60/min per connection — says no more than the
+  sign-up refusal already did). "Se connecter avec ce numéro"
+  (`signInWithNumberAction`, a `formAction` button) puts the number in the
+  remembered-number cookie, never the URL, and with `?apres=projet` the login
+  form sends this device's move draft so `loginAction` saves it as a project.
+- **Show/hide password** (`components/PasswordInput.js`) on sign-up, sign-in
+  and the reset page.
+- **"Trop de tentatives"** now says the reset unlocks at once and links it.
+- **A customer password reset signs in** (`/compte/client?motdepasse=change`);
+  agents still go to their sign-in page.
+- **Sessions renew while used**: middleware re-issues the customer cookie
+  (same id and token version) once it is a week old
+  (`renewedCustomerSessionToken`); never under an impersonation cookie.
+  Only `/compte/*` requests pass the middleware, so it is visiting the
+  account that renews.
+- **One way to ask agencies.** `/compte/client/demandes` (the "Trouver pour
+  moi" form) forwards to the newest open move project's request section, or
+  to a new project (`lib/moveRequestHref.js`). `RequestForm.js` and
+  `submitPropertyRequestAction` are kept unused.
+- **No running totals on the account tabs** (Enregistrés "7", Activité): a
+  tab shows only the price-drop dot.
+- **Offline saved homes are listed** (`lib/favoriteUnavailable.js`,
+  `favoris/UnavailableFavorites.js`): title, let/sold vs withdrawn, "Biens
+  similaires" (same deal, commune, rooms), remove. Never a price, photo,
+  agent or address of an off-site listing.
+- Wording: the Visites empty page and the favourites button say "Demander une
+  visite" like the listing; Activité's empty page says a direct WhatsApp chat
+  with an agent stays in WhatsApp. Sign-in/sign-up French moved to the
+  dictionary (`auth.haveAccount`, `auth.noAccountYet`,
+  `auth.customerLoginMetaTitle`).
+
+## Agent friction fixes — sign-up, sign-in (2026-11-08)
+
+Owner request after a friction review of the agent side.
+`tests/unit/agent-friction-fixes.test.js`.
+
+- **A number is never blocked for good.** Sign-up on a number that already
+  has an agent:
+  - removed by the team (`deleted_at`) → a new account; the removed one stays
+    removed and `getAgentByPhone` now prefers the live row
+    (`ORDER BY (deleted_at IS NULL) DESC, id DESC`);
+  - verified with no password (joined on WhatsApp) → `startAgentPasswordSetup`
+    (lib/agentPasswordSetup.js): the password-reset WhatsApp code, then
+    "choose your password" (`/mot-de-passe-oublie/verifier?nouveau=1`);
+  - never verified → `reclaimUnverifiedAgent` takes it over (new password,
+    token_version + 1) when it holds no listing — the guard is in the UPDATE —
+    after the referral check; the number still has to be verified;
+  - verified with a password → "Un compte existe déjà" with sign-in and the
+    WhatsApp reset offered.
+  Sign-in sends a no-password agent to the same password setup instead of
+  "incorrect" and a lockout. That attempt is not written to
+  `agent_login_attempts` (its outcome CHECK has no value for it).
+- **A failed code send lands on the verify page** (`&error=send_failed`, with
+  resend and the WhatsApp proof), from sign-up and sign-in; it used to say
+  "réessayez" on sign-up, where only "exists" could follow.
+- **After a reset an agent with a verified number is signed in**
+  (`/compte/agent?motdepasse=change`), like a customer.
+- **Forms keep what was typed**: `agentSignupAction` / `agentLoginAction` are
+  `useActionState` actions (refusal → `{ error, values, attempt }`, never the
+  password); the forms are `AgentSignupForm.js` / `AgentLoginForm.js`. Labels
+  from the `admin` / `agent` namespaces are passed in by the pages (the
+  `(site)` tree does not ship them). Show/hide eye on both; sign-in remembers
+  the number (`lukka_agent_phone`, lib/agentSession.js) and links the reset on
+  "locked".
+- **Agent sessions renew while used**, same rule as customers
+  (`renewedAgentSessionToken`, middleware, never under "view as"). The dashboard's
+  imperative action calls checked on this date all handle a rejection.
+- **Not changed, owner's call:** the web listing form still refuses a price of
+  0 — `missing_price` is a BLOCKING moderation flag, so a "prix sur demande"
+  listing could not be approved; the Free plan's 2-listing cap vs the launch
+  policy's 3 is pricing.
+
+## Incentives for keeping listings up to date (2026-11-09)
+
+Owner decision, alongside the fortnightly "Point sur vos annonces" check that
+replaces the per-listing "Toujours disponible ?": give agents a reason to
+answer it. "Up to date" is one rule everywhere — `UP_TO_DATE_SQL` in
+`lib/listings.js`: `availability_confirmed_at`, else the moment the listing
+went public (the "Nouveau" badge's `GREATEST(created_at, moderated_at)`),
+within `CONFIRM_AFTER_DAYS` (14). A brand-new listing is therefore up to date.
+Both columns are read through `to_jsonb(p)`, so nothing 42703s before a
+migration. The engine copy (`services/agentRanking.js`) must change with it.
+`tests/unit/listing-up-to-date-incentives.test.js`; engine verify §92.
+
+- **Search order.** The default sort (`complete`, i.e. no `sort` or the
+  "complètes d'abord" option) ranks up-to-date listings first, then the
+  completeness order inside each tier (`UP_TO_DATE_TIER_SQL`; no date at all
+  counts as stale). This covers /listings, the homepage rails, collections,
+  guides, SEO landings and the agent storefront, which all read `getListings`'
+  default. "Plus récents" and the price orders are untouched, and so is the
+  map (its set and its order). The sort's label still says "complètes
+  d'abord"; renaming it is a copy decision left to the owner.
+- **Card badge.** `PropertyCard` shows "✓ Confirmée le 9 nov." in the date
+  slot (publication date moves to the tooltip, so every card keeps one row).
+  Decided on the server by `availabilityBadge` (`badgeConfirmationDate`, ≤ 30
+  days, active or NULL `listing_status` only) and formatted there in FR and EN,
+  because the card is a client component and `lib/listingAvailability.js` is
+  server-only; rows from `getListings`, `getListingsByIds` and
+  `getSimilarListings` carry `availability_badge`. `availability_confirmed_at`
+  is now in `SELECT_FIELDS` (the detail page read it separately before).
+- **Agent profile** (`/agents/[id]`, `getAgentTrackRecord` in
+  `lib/agencies.js`, never throws). "N biens loués ou vendus" = the agent's
+  listings with `approve_status = 1 AND listing_status = 'closed'` — not the
+  public gate, since a closed listing has `status = 0`; a count, never a price,
+  shown from 1. "Annonces à jour" chip = at least one public live listing
+  (`status = 1 AND approve_status = 1 AND listing_status IS DISTINCT FROM
+  'closed'`) and every one of them up to date. Neither renders a negative
+  ("pas à jour") state.
+- **Lead routing** (engine): root `docs/claude/leads-and-enquiries.md`,
+  "Automated Agent Matching".
+
+## Request claims, priority level, matching console (2026-11-10)
+
+Engine side: root docs/claude/leads-and-enquiries.md, "Matching in waves".
+
+- **`components/AgentLeadClaimCard.js`** replaces `AgentLeadCard` on Demandes
+  for a request the matching sent this agency and it has not taken
+  (`row.customer_hidden`, set by the engine, which nulls `wa_id` / `name`):
+  the request without the customer, the wave, "commune voisine" when it is a
+  neighbour match, and « Je m'en occupe » / « Pas dispo »
+  (`answerLeadMatchAction` → engine `POST /admin/leads/:id/claim`, the
+  session's agent id only). Once 3 agencies took it, the card says so and
+  offers nothing. Keyed `l-<id>-claim`, so taking it remounts into
+  `AgentLeadCard`, which then shows "Vous vous en occupez (n/3)".
+- **`components/AgentPriorityCard.js`** on the overview: Or / Argent / Bronze
+  from engine `GET /admin/agents/:id/priority`, points per part with what to do
+  next. Agency only, never public. Renders nothing when the engine cannot
+  answer (an unread level is not shown as Bronze).
+- **The team sees every level too** (owner decision, same day): the same card
+  with `audience="admin"` on `/admin/agents/[id]` (overview tab, worded about
+  the agency), and a "Niveau" column (level · points) in `/admin/matching`'s
+  agency table, read live from engine `GET /admin/agents/priority-levels?ids=`
+  — the level the next request will use, not the one stored on old match rows.
+- **`/admin/matching`** counts open requests only (directed ones in the first
+  tile's hint), "Prises par une agence" with the share taken within 1 h, a
+  response rate over claims + passes, wave / level / neighbour on each match
+  row, CLAIMED / DECLINED filters, and the desk alert count in the coverage
+  panel. The lead-matches CSV appends wave, level, matched_commune,
+  neighbour_of, claimed_at, declined_at, answer_channel.
+
+## Lukka Place app — push alerts for agents (2026-11-10)
+
+The store app (`mobile/` at the repo root, Capacitor) loads `/compte/agent`;
+the engine pushes agent alerts first and WhatsApps only as the fallback (root
+docs/claude/whatsapp-delivery.md, "App alerts"). Web side:
+
+- **`lib/appBridge.js`** is inert in a browser; inside the app it uses
+  `window.Capacitor.Plugins.PushNotifications` (no Capacitor code in the
+  bundle): permission once, Android channel `alerts`, FCM token →
+  `POST /api/push/register`. Mounted by `components/AppPushBridge.js` in the
+  agent layout. A tapped notification opens `/compte/agent/alertes/<id>`.
+- **Routes** take the agent from the session (`getCurrentChatAgentId`:
+  token_version + deleted). The register response sets the httpOnly
+  `lukka_push_token` cookie so `agentLogoutAction` revokes this phone.
+  `/compte/agent/alertes/<id>` marks read and redirects with a RELATIVE
+  Location (behind the proxy `request.url` is localhost) to the stored path,
+  only inside `/compte/agent` (`safeAgentPath`).
+- **Alertes** (`/compte/agent/alertes`): the inbox, newest first, id cursor.
+  Desktop rail always; the phone tab bar shows it only inside the app
+  (`mobileAppOnly`, known after hydration), so a phone browser keeps its tabs.
+- **Réglages › Application** (`components/AgentAppCard.js`): in the app, on/off
+  for this phone; in a browser, store links only when
+  `NEXT_PUBLIC_PLAY_STORE_URL` / `NEXT_PUBLIC_APP_STORE_URL` are set.
+- Before `migrations/20261110_push_notifications.sql`: empty inbox, 0 unread,
+  register answers 503. `tests/unit/push-notifications.test.js`.
+- **Customers (2026-11-10, phase 0).**
+  - **One app.** `mobile/` starts at `/app` (`app/app/route.js`: agent session →
+    agent space, else `/`; relative Location).
+  - **Push plumbing is shared by both sides.** `lib/pushNotifications.js` takes
+    `userType` on every function. `lib/pushSession.js` `currentPushAccount(side)`
+    resolves the named side's own session. `/api/push/*` take `as:
+    agent|customer`.
+  - **`AppPushBridge side="customer"`** is mounted in the Espace Client layout.
+  - **Customer inbox** at `/compte/client/notifications` (not "alertes", which
+    is the saved-search tab). `[id]` marks read and redirects within
+    `/compte/client`, `/messages` or `/listings` (`safeCustomerPath`).
+  - **Mon profil › Notifications** gets three things:
+    - the inbox row with its unread count;
+    - the existing WhatsApp switch;
+    - per-kind app switches (`NotificationCategorySwitches`, categories in
+      `lib/pushRules.js CUSTOMER_CATEGORIES`; visits locked on).
+  - **"Application mobile"** is `components/AppAlertsCard.js side="customer"`
+    (the agent card, renamed and shared).
+  - **Customer logout and account deletion** revoke this phone.
+  - `lib/adminApi.js pushToAccount` is how web-side senders push (phase 1
+    wires them).
+
+## Customer sign-up funnel and the 1,000-account goal (2026-11-11)
+
+Owner goal: 1,000 customer accounts; the bottleneck is visitors who never
+create one. `/admin/croissance` counted accounts by channel
+(`account_acquisitions`, "Where visitors and accounts come from" above) but
+nothing said which prompt produced an account or where people gave up.
+This replaces the 2026-10-27 "no target" decision on that page.
+
+- **Entry** = where a sign-up started (`lib/signupFunnelRules.js`
+  `SIGNUP_ENTRIES`): favorite / save_search / alert (AuthPromptModal, by its
+  `trigger`), nudge (SignupNudge), messages, updates, login_page,
+  partner_invite (static links), price_guide (reserved), direct (no or
+  unknown entry). It rides to `/compte/inscription` as `?entree=`, then a
+  hidden `entry` field into `signupAction`. A new sign-up link adds
+  `withSignupEntry(href, entry)`; a new entry is added to the rules list,
+  both dictionaries (`admin.growth.signup.entries.*`) and, if it is a prompt,
+  `PROMPT_ENTRIES`.
+- **Steps**: prompt_shown → prompt_open (prompts only) → form_view (page
+  load, `CustomerSignupTracker`) → form_start (first character typed — the
+  name field is autoFocused, so focus means nothing) → submit → refused (with
+  the reason) | created (with the customer id). Browsers report the first
+  five through `POST /api/telemetry/signup-funnel` (`form: 'customer'`,
+  `sanitizeCustomerSignupEvent`); refused/created come from `signupAction`
+  only (`recordSignupOutcome`), so a browser cannot fake an account.
+- **Table** `customer_signup_events` (engine
+  `migrations/20261111_customer_signup_funnel.sql`, RLS on, verify §105).
+  Recording never throws and is silent before the migration; the funnel
+  section then says tracking has not started. Team browsers (`lp_staff`,
+  impersonation) are stored as `staff` and left out.
+- **Dashboard**: `/admin/croissance` opens on the goal (all customer rows,
+  today, this Kinshasa week, pace over 14 days, an estimate labelled as one,
+  none without a pace) and shows the funnel by entry (distinct visitors per
+  step, accounts and refusals as counts) plus refusals by reason, and the
+  accounts of the window with no recorded entry (before tracking, or by
+  WhatsApp). `/admin/dashboard` carries a one-line goal banner for roles with
+  `partners.view`. `CUSTOMER_SIGNUP_GOAL` (1000) is the one place the target lives.
+- Tests: `tests/unit/customer-signup-funnel.test.js`.
+
+### Sign-up friction fixes (2026-11-11, owner)
+
+- **Customer passwords: 6 characters** (`lib/passwordRules.js`
+  `CUSTOMER_PASSWORD_MIN`) on sign-up, the WhatsApp activation page and the
+  customer password reset (`verifyAndResetPassword` applies the role's own
+  minimum; the reset page reads it from the attempt's role). Agents keep 8:
+  confirming an agent's number claims its listings. Console accounts keep 12.
+- **An unknown "Code de parrainage" no longer refuses a customer sign-up.**
+  The code is dropped (logged as `[customer-auth] unknown partner code … ignored`)
+  and the account is created; the partner link the browser followed
+  (`lp_ref`) still credits. The funnel's `ref` refusal stays in the
+  vocabulary for older rows. Agent sign-up is unchanged.
+- **`/admin/croissance` cost per account counts every account**, not only
+  verified ones, and the page no longer shows "Numéros vérifiés": customers
+  stopped confirming their number on 2026-11-06, so the figure only fell and
+  the cost per paid account only rose. `verified` stays in
+  `getGrowthDashboard`'s data; referral credits (`lib/referralCredits.js`)
+  still require a confirmed number, an owner pricing decision not changed here.
+- Tests: `tests/unit/customer-signup-friction.test.js`.

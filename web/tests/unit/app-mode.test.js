@@ -243,3 +243,82 @@ test('the listing bar draws WhatsApp green and chat blue (variants through cn, n
   const chat = cn(base, 'text-blue').split(' ');
   assert.ok(chat.includes('text-blue') && !chat.includes('text-ink'));
 });
+
+test('the /app-demo board is local only: a production build answers 404', () => {
+  const page = read('app/app-demo/page.js');
+  assert.match(page, /if \(process\.env\.NODE_ENV === 'production'\) notFound\(\);/);
+  assert.ok(page.indexOf("process.env.NODE_ENV === 'production'") < page.indexOf('cachedFeaturedListings()'), 'refused before any data is read');
+  assert.match(page, /robots: \{ index: false, follow: false \}/);
+});
+
+test('the app avatar: a real photo or the person\u2019s initials, never a stock face', async () => {
+  const { initialsOf, avatarSrc } = await import('@/lib/avatar');
+  assert.equal(initialsOf('Amara Okafor'), 'AO');
+  assert.equal(initialsOf('Pharaon'), 'P');
+  assert.equal(initialsOf('Jean Pierre Mbala'), 'JM');
+  assert.equal(initialsOf('243812345678'), null, 'a username that is phone digits gives no initials');
+  assert.equal(initialsOf(''), null);
+  assert.equal(avatarSrc('https://xyz.supabase.co/storage/v1/object/public/avatars/a.png'), 'https://xyz.supabase.co/storage/v1/object/public/avatars/a.png');
+  assert.equal(avatarSrc('avatar.png'), null, 'a bare filename is not tried');
+  assert.equal(avatarSrc(null), null);
+  const customer = read('app/(site)/compte/menu/page.js');
+  const agent = read('app/compte/agent/menu/page.js');
+  assert.match(customer, /<AppAvatar name=\{name\} size="lg" \/>/);
+  assert.match(agent, /<AppAvatar name=\{name \|\| agency\} src=\{agent\.image\} size="lg" verified=\{verified\}/);
+  for (const src of [customer, agent, read('components/app/AppAvatar.js'), read('components/ui/avatar.jsx')]) {
+    assert.doesNotMatch(src, /unsplash|pravatar|randomuser/i);
+  }
+});
+
+test('the UI kit (shadcn API, Lukka Place style): motion only where something moves, and the safeguards hold', () => {
+  const ui = (name) => read(`components/ui/${name}.jsx`);
+  const kit = ['accordion', 'alert', 'attachment', 'avatar', 'badge', 'breadcrumb', 'bubble', 'button-group', 'calendar', 'carousel', 'chart', 'date-picker', 'marker', 'message', 'message-scroller', 'skeleton', 'spinner'];
+  for (const name of kit) {
+    const src = ui(name);
+    assert.doesNotMatch(src, /unsplash|pravatar|randomuser/i, `${name}: no stock imagery`);
+    if (/from "motion\/react"/.test(src)) assert.match(src, /^"use client"/, `${name}: motion needs a client component`);
+  }
+  // No extra packages: carousel, calendar and chart are built on motion.
+  for (const name of ['carousel', 'calendar', 'chart', 'date-picker']) assert.doesNotMatch(ui(name), /from "(embla-carousel-react|react-day-picker|recharts|date-fns)"/, `${name}: no extra package`);
+  assert.match(ui('message-scroller'), /role="log"/);
+  assert.match(ui('message-scroller'), /aria-relevant="additions"/);
+  assert.match(ui('calendar'), /const present = useIsPresent\(\)/, 'the month sliding out cannot be tapped');
+  assert.match(ui('carousel'), /useReducedMotion\(\)/);
+  assert.match(ui('chart'), /<span className="u-tabular text-right font-semibold text-ink">\{d\.display \?\? d\.value\}<\/span>/, 'numbers are text, the bar is only a picture');
+  assert.match(ui('date-picker'), /value=\{value \? localDayKey\(value\) : ""\}/, 'the local day, not toISOString');
+  assert.doesNotMatch(ui('date-picker'), /toISOString\(\)\.slice/);
+  assert.match(ui('bubble'), /initial=\{appear \?/, 'only a message that just arrived animates');
+  assert.match(ui('badge'), /secondary: "border-transparent bg-canvas-deep/, 'visible on the app\u2019s grey screens');
+  // The showcase never puts invented words in a real agency's mouth.
+  assert.doesNotMatch(read('app/app-demo/ComponentsShowcase.js'), /Pharaon/);
+});
+
+test('the UI kit in the app screens: badges, booking alert and spinner, saved skeleton, FAQ, where to look', () => {
+  assert.match(read('components/app/AppListingCard.js'), /<AppCardBadges listing=\{listing\} \/>/);
+  const badges = read('components/app/AppCardBadges.js');
+  assert.match(badges, /cardPromoBadge\(listing\)/, 'the same facts as the website (a recorded cut, "Nouveau")');
+  const booking = read('components/app/AppVisitBooking.js');
+  assert.match(booking, /<Alert variant="destructive"/);
+  assert.match(booking, /const \{ pending \} = useFormStatus\(\)/);
+  assert.match(booking, /disabled=\{disabled \|\| pending\}/, 'no second request while the first is on its way');
+  const saved = read('components/app/AppSavedScreen.js');
+  assert.match(saved, /<Skeleton className="h-\[6\.5rem\] w-28 rounded-none" \/>/);
+  assert.match(saved, /<Alert variant="destructive" className="py-2\.5">/);
+  const menu = read('app/(site)/compte/menu/page.js');
+  assert.match(menu, /const FAQ = \['visit', 'whatsapp', 'costs', 'alerts'\];/);
+  assert.match(menu, /<Accordion type="single" collapsible/);
+  const home = read('components/AppHomeTop.js');
+  assert.match(home, /href: localizeHref\(`\/listings\?commune=\$\{encodeURIComponent\(c\.commune\)\}`, locale\)/);
+  assert.match(home, /communes\.length >= 3 \?/, 'no chart for one or two communes');
+  for (const lang of ['fr', 'en']) {
+    const app = JSON.parse(read(`lib/i18n/${lang}.json`)).appShell;
+    for (const key of ['visit', 'whatsapp', 'costs', 'alerts']) {
+      assert.equal(typeof app.faq.items[key].q, 'string', `${lang} faq ${key}`);
+      assert.equal(typeof app.faq.items[key].a, 'string', `${lang} faq ${key}`);
+    }
+    assert.equal(typeof app.home.whereTitle, 'string');
+    assert.equal(typeof app.visit.sending, 'string');
+  }
+  // The FAQ answers promise nothing the app does not do (no refunded deposit, no fixed amounts).
+  assert.doesNotMatch(JSON.parse(read('lib/i18n/fr.json')).appShell.faq.items.costs.a, /rembours|restitu|\d+ mois/);
+});

@@ -5,7 +5,7 @@ import { Images } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import FavoriteButton from '@/components/FavoriteButton';
 import Price from '@/components/Price';
-import { CardBadges } from '@/components/ListingBadges';
+import AppCardBadges from './AppCardBadges';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { listingPath } from '@/lib/listingSlug';
@@ -40,7 +40,7 @@ export default function AppListingCard({ listing, priority = false }) {
           />
         </Link>
         <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
-          <CardBadges listing={listing} />
+          <AppCardBadges listing={listing} />
         </div>
         <FavoriteButton listingId={listing.id} price={listing.price} commune={listing.commune} className="absolute right-3 top-3" />
         {images.length > 1 ? (

@@ -5,6 +5,7 @@ import { m } from 'motion/react';
 import { Bookmark, ChevronRight, Sparkles } from 'lucide-react';
 import SearchBar from './SearchBar';
 import AppListingCard from './app/AppListingCard';
+import { ChartBars, ChartContainer } from './ui/chart';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizeHref } from '@/lib/localePaths';
@@ -89,6 +90,24 @@ export default function AppHomeTop({
                 <AppListingCard key={listing.id} listing={listing} priority={index === 0} />
               ))}
             </div>
+          </section>
+        ) : null}
+
+        {/* Où chercher: the live listing count per commune (the search card's own
+            popular communes), each row opening that commune's results. */}
+        {communes.length >= 3 ? (
+          <section>
+            <h2 className="mb-2.5 text-[1.0625rem] font-bold text-ink">{t('appShell.home.whereTitle')}</h2>
+            <ChartContainer caption={t('appShell.home.whereCaption')}>
+              <ChartBars
+                data={communes.slice(0, 6).map((c) => ({
+                  label: c.commune,
+                  value: c.count,
+                  href: localizeHref(`/listings?commune=${encodeURIComponent(c.commune)}`, locale),
+                }))}
+                highlight={communes[0]?.commune}
+              />
+            </ChartContainer>
           </section>
         ) : null}
 

@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from '@/components/LocaleLink';
-import { Bell, ChevronRight, Heart, Search } from 'lucide-react';
+import { Bell, ChevronRight, CircleAlert, Heart, Search } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppSegmented from './AppSegmented';
 import AppSwitch from './AppSwitch';
 import AppSavedRow from './AppSavedRow';
@@ -67,7 +69,15 @@ function HomesTab() {
     return (
       <div className="space-y-3" aria-busy="true">
         {ids.slice(0, 3).map((id) => (
-          <div key={id} className="h-[6.5rem] animate-pulse rounded-2xl bg-canvas-alt" />
+          // Shaped like the row it stands in for: photo, price, place, facts.
+          <div key={id} className="flex overflow-hidden rounded-2xl border border-line bg-surface">
+            <Skeleton className="h-[6.5rem] w-28 rounded-none" />
+            <div className="flex-1 space-y-2 p-3.5">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3.5 w-1/2" />
+            </div>
+          </div>
         ))}
       </div>
     );
@@ -126,9 +136,12 @@ function AccountSearch({ search }) {
         <AppSwitch checked={on} onChange={toggle} busy={busy} label={`${t('appShell.saved.alerts')} — ${search.label || ''}`} />
       </div>
       {error ? (
-        <p role="alert" className="px-4 pb-3 text-[0.8125rem] font-medium text-danger">
-          {error}
-        </p>
+        <div className="px-3 pb-3">
+          <Alert variant="destructive" className="py-2.5">
+            <CircleAlert />
+            <AlertDescription className="text-[0.8125rem] text-ink">{error}</AlertDescription>
+          </Alert>
+        </div>
       ) : null}
     </li>
   );

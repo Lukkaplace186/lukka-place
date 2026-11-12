@@ -9128,7 +9128,9 @@
       "latest": "Ajoutés récemment",
       "seeAll": "Tout voir",
       "findTitle": "Pas encore trouvé ?",
-      "findText": "Décrivez ce que vous cherchez : des agences vous proposent des biens."
+      "findText": "Décrivez ce que vous cherchez : des agences vous proposent des biens.",
+      "whereTitle": "Où chercher",
+      "whereCaption": "Annonces en ligne par commune, en ce moment."
     },
     "card": {
       "photos": {
@@ -9192,10 +9194,32 @@
       "submit": "Demander la visite",
       "doneTitle": "Visite demandée",
       "myVisits": "Voir mes visites",
-      "backToListing": "Retour à l’annonce"
+      "backToListing": "Retour à l’annonce",
+      "sending": "Envoi…"
     },
     "filters": {
       "reset": "Réinitialiser"
+    },
+    "faq": {
+      "title": "Questions fréquentes",
+      "items": {
+        "visit": {
+          "q": "Comment demander une visite ?",
+          "a": "Sur l’annonce, touchez « Demander une visite », choisissez un jour et une heure, puis laissez votre numéro WhatsApp. L’agent vous confirme sur WhatsApp et la visite apparaît dans Mes visites."
+        },
+        "whatsapp": {
+          "q": "Pourquoi WhatsApp passe par Lukka Place ?",
+          "a": "Votre message arrive d’abord chez Lukka Place : la demande est enregistrée, l’agent est prévenu et vous recevez aussitôt son numéro."
+        },
+        "costs": {
+          "q": "Que veulent dire garantie, avance et commission ?",
+          "a": "Ce sont trois frais d’entrée distincts. Quand l’agent les a donnés, l’annonce les indique séparément, en mois de loyer."
+        },
+        "alerts": {
+          "q": "Comment être prévenu des nouveaux biens ?",
+          "a": "Enregistrez une recherche depuis les résultats, puis activez « Alertes » dans Enregistrés. Dans l’application, l’alerte arrive en notification."
+        }
+      }
     }
   }
 }

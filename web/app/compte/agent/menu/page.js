@@ -12,6 +12,7 @@ import { countUnread } from '@/lib/chat';
 import { countUnreadNotifications } from '@/lib/pushNotifications';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { agentLogoutAction } from '../actions';
+import AppAvatar from '@/components/app/AppAvatar';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,11 +23,6 @@ export async function generateMetadata() {
 
 const VERIFIED_LEVELS = new Set(['verified', 'agency_partner']);
 
-/** Letters only: an agent without a name has their phone digits as username. */
-function initialsOf(name) {
-  const letters = String(name || '').split(/\s+/).filter((part) => /^[A-Za-zÀ-ÿ]/.test(part));
-  return letters.slice(0, 2).map((part) => part[0].toUpperCase()).join('') || null;
-}
 
 function Row({ href, icon: Icon, label, count = 0 }) {
   return (
@@ -74,28 +70,20 @@ export default async function AgentAppMenuPage() {
   const agency = agent.agency_name || agent.vendor_name || null;
   const phone = agent.phone ? formatPhoneDisplay(agent.phone) : null;
   const verified = VERIFIED_LEVELS.has(agent.verification_level);
-  const initials = initialsOf(name || agency);
 
   return (
     <div className="min-h-full bg-canvas-alt">
       <div className="mx-auto max-w-lg space-y-6 px-4 pb-8 pt-6">
         <h1 className="text-[1.75rem] font-extrabold tracking-tight text-ink">{t('agent.appMenu.title')}</h1>
 
-        <div className="flex items-center gap-3.5">
-          <span className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-blue text-[1.125rem] font-bold text-white">
-            {initials || <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" aria-hidden="true" />}
-          </span>
+        <div className="flex items-center gap-4">
+          <AppAvatar name={name || agency} src={agent.image} size="lg" verified={verified} verifiedLabel={t('agent.appMenu.verified')} />
           <div className="min-w-0 flex-1">
             {name ? <p className="truncate text-[1.0625rem] font-bold text-ink">{name}</p> : null}
             {agency && agency !== name ? <p className="truncate text-[0.875rem] text-ink-70">{agency}</p> : null}
             {phone ? <p className="u-tabular text-[0.8125rem] text-ink-45">{phone}</p> : null}
+            {verified ? <p className="mt-0.5 text-[0.8125rem] font-semibold text-green-ink">{t('agent.appMenu.verified')}</p> : null}
           </div>
-          {verified ? (
-            <span className="inline-flex flex-none items-center gap-1 rounded-full bg-green-tint px-2.5 py-1 text-[0.75rem] font-semibold text-green-ink">
-              <BadgeCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('agent.appMenu.verified')}
-            </span>
-          ) : null}
         </div>
 
         <Group title={t('agent.appMenu.activity')}>

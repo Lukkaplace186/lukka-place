@@ -116,7 +116,7 @@ test('motion is in the app only, and respects reduced motion', () => {
 
 test('Saved in the app: the design screen, except a shared selection link', () => {
   const page = read('app/(site)/favoris/page.js');
-  assert.match(page, /if \(!shared && \(await isAppRequest\(\)\)\) return <AppSavedScreen accountSearches=\{await accountSearches\(\)\} \/>/);
+  assert.match(page, /if \(!shared && \(await isAppRequest\(\)\)\) \{\s*return <AppSavedScreen accountSearches=\{await accountSearches\(\)\} initialTab=\{params\?\.onglet === 'recherches' \? 'searches' : 'homes'\} \/>/);
   assert.match(page, /return <FavorisView \/>/);
   const screen = read('components/app/AppSavedScreen.js');
   // The same stores the website reads: the account when signed in, this phone otherwise.

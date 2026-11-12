@@ -119,7 +119,13 @@ const FIELD_SELECT =
   'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.9375rem] ' +
   'text-ink focus:outline-none';
 
-export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null }) {
+/*
+ * `compact` is the app's home screen (components/AppHomeTop.js, 2026-11-12):
+ * tabs, one field with the criteria button beside it, and the button, so the
+ * first listings reach the first screen. The field's label stays for screen
+ * readers, and the commune pills move under the card (AppHomeTop draws them).
+ */
+export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null, compact = false }) {
   const t = useT();
   const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
@@ -296,6 +302,25 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // Criteria set in the folded fields, so a closed fold never hides a choice.
   const foldedActive = [ville !== DEFAULT_CITY, Boolean(propertyType), Boolean(budgetMin), Boolean(budgetMax)].filter(Boolean).length;
   const folded = moreOpen ? '' : 'max-sm:hidden';
+  const criteriaButton = (
+    <button
+      type="button"
+      aria-expanded={moreOpen}
+      aria-controls="hero-city hero-type hero-budget-min hero-budget-max"
+      aria-label={moreOpen ? t('home.search.fewerCriteria') : t('home.search.moreCriteria')}
+      onClick={() => setMoreOpen((open) => !open)}
+      className={`u-press relative flex h-[3.25rem] w-[3.25rem] flex-none items-center justify-center rounded-xl border transition-colors sm:hidden ${
+        moreOpen || foldedActive > 0 ? 'border-blue bg-blue-tint text-blue-deep' : 'border-ink-25 bg-surface text-ink'
+      }`}
+    >
+      <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-5 w-5" />
+      {!moreOpen && foldedActive > 0 ? (
+        <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-deep px-1.5 text-[0.75rem] font-bold text-white">
+          {foldedActive}
+        </span>
+      ) : null}
+    </button>
+  );
 
   let ctaLabel;
   if (count === 0 && suggested > 0) ctaLabel = t('home.search.seeSuggestions', { count: suggested });
@@ -312,7 +337,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         aria-label={t('home.search.transactionType')}
         // Widths follow the labels (flex-auto), not three equal columns:
         // "Courte durée" does not fit a third of a 375px card.
-        className="mb-4 flex w-full gap-1 rounded-2xl bg-canvas-alt p-1 sm:mb-5 sm:inline-flex sm:w-auto"
+        className={`${compact ? 'mb-3' : 'mb-4'} flex w-full gap-1 rounded-2xl bg-canvas-alt p-1 sm:mb-5 sm:inline-flex sm:w-auto`}
       >
         {HOME_TABS.map(({ value, labelKey }) => {
           const on = homeTab === value;
@@ -377,9 +402,11 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         </div>
 
         <div className="col-span-2 min-w-0 lg:col-span-1">
-          <label htmlFor="hero-location" className={FIELD_LABEL}>
+          <label htmlFor="hero-location" className={compact ? 'max-sm:sr-only ' + FIELD_LABEL : FIELD_LABEL}>
             {t('home.search.locationLabel')}
           </label>
+          <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1">
           <LocationAutocomplete
             // Remounts on tab change so a stray typed value doesn't linger
             // from one transaction context into another.
@@ -398,6 +425,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             rowClassName="flex w-full min-w-0 items-center gap-2.5"
             inputClassName="min-w-0 flex-1 bg-transparent py-3 text-[0.9375rem] text-ink placeholder:text-ink-35 focus:outline-none"
           />
+          </div>
+          {compact ? criteriaButton : null}
+          </div>
         </div>
 
         {isShortStay ? (
@@ -487,7 +517,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       </div>
 
       {/* Phones only (see `moreOpen`). */}
-      <button
+      {compact ? null : <button
         type="button"
         aria-expanded={moreOpen}
         aria-controls="hero-city hero-type hero-budget-min hero-budget-max"
@@ -501,7 +531,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             {foldedActive}
           </span>
         ) : null}
-      </button>
+      </button>}
 
       {understood.length > 0 ? (
         <p className="u-reveal mt-3 flex flex-wrap items-center gap-1.5 text-[0.75rem] text-ink-45" aria-live="polite">
@@ -529,7 +559,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       </button>
 
       {/* --- 4. Quick pills ------------------------------------------------ */}
-      {communes.length > 0 ? (
+      {communes.length > 0 && !compact ? (
         <div className="mt-4 sm:mt-5">
           <span id="hero-quick-communes" className="u-eyebrow mb-2 block">
             {t('home.search.popularCommunes')}

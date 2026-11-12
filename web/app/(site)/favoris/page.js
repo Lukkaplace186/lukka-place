@@ -49,7 +49,11 @@ async function accountSearches() {
 export default async function FavorisPage({ searchParams }) {
   // Inside the store app: the app design's Saved tab — except for a shared
   // selection link (?ids=), which keeps the page made for it.
-  const shared = parseShareIds((await searchParams)?.ids).length > 0;
-  if (!shared && (await isAppRequest())) return <AppSavedScreen accountSearches={await accountSearches()} />;
+  const params = await searchParams;
+  const shared = parseShareIds(params?.ids).length > 0;
+  // ?onglet=recherches: the home screen's "Recherches et alertes" row opens on the searches.
+  if (!shared && (await isAppRequest())) {
+    return <AppSavedScreen accountSearches={await accountSearches()} initialTab={params?.onglet === 'recherches' ? 'searches' : 'homes'} />;
+  }
   return <FavorisView />;
 }

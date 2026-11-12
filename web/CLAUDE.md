@@ -5255,3 +5255,25 @@ docs/claude/listing-data.md, same heading. `lib/practicalFacts.js` (pure),
   "2 chambres Limete 500$" (`lib/searchParser.js`), recent searches
   (`lib/searchHistory.js`), merging a device's homes at sign-in
   (`mergeAnonymousData`).
+
+## App home, tightened from the owner's references (2026-11-12)
+
+Supersedes the "serif title / serif wordmark" wording in "App mode" for the
+home screen and the top bar. Layout taken from the owner's reference
+screenshots (Rightmove, Zoopla), colours and type from `DESIGN.md`.
+
+- `SearchBar compact` (app home only): tabs, the location field with a
+  52px criteria button beside it (opens Ville / Type / Budget, shows the
+  count of criteria set), the button. The label stays for screen readers.
+  The card is ~220px instead of ~480px, so listings reach the first screen.
+  The website's card is unchanged.
+- The popular communes are a row of links under the card (each opens that
+  commune's results); three shortcut rows follow, always there: "Recherches
+  et alertes" (`/favoris?onglet=recherches`, which opens the saved screen on
+  its searches tab; shows the latest saved search's name when there is one),
+  "Trouver pour moi", "Combien ça coûte". They replace the "Reprendre" row
+  and the bottom "Pas encore trouvé ?" card.
+- The home title is `.u-title-page` (sans) on a shorter royal band; the top
+  bar shows the real logo (`/brand/logo-dark.png` on the royal bar,
+  `logo-light.png` elsewhere). `.u-app-serif` is still used on the welcome,
+  visit-sent and account screens and the avatar initials: not changed yet.

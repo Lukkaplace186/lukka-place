@@ -16,7 +16,7 @@ const INBOX = '/compte/client/notifications';
 
 /**
  * The app's top bar (app mode, app/(site)/layout.js), in place of the
- * website's Header: the wordmark and the notifications bell, nothing else —
+ * website's Header: the real logo and the notifications bell, nothing else —
  * the tab bar and the account menu carry the rest. Same h-16 as Header, so
  * every page's pt-16 / top-16 offsets still hold.
  *
@@ -65,8 +65,11 @@ export default function AppTopBar() {
             <ChevronLeft strokeWidth={2} className="h-6 w-6" aria-hidden="true" />
           </button>
         ) : null}
-        <Link href={localizeHref('/', locale)} className="u-app-serif text-[1.5rem] leading-none" aria-label="Lukka Place">
-          Lukka Place
+        {/* The supplied logo (white on the royal home bar), as components/Brand.js
+            draws it: a static local PNG, so a plain img. */}
+        <Link href={localizeHref('/', locale)} aria-label="Lukka Place" className="inline-flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={onHome ? '/brand/logo-dark.png?v=2' : '/brand/logo-light.png?v=2'} alt="" width={2354} height={746} className="block h-7 w-auto" />
         </Link>
       </div>
       <Link

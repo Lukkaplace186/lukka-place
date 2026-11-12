@@ -9255,7 +9255,16 @@
       "findTitle": "Pas encore trouvé ?",
       "findText": "Décrivez ce que vous cherchez : des agences vous proposent des biens.",
       "whereTitle": "Où chercher",
-      "whereCaption": "Annonces en ligne par commune, en ce moment."
+      "whereCaption": "Annonces en ligne par commune, en ce moment.",
+      "shortcuts": {
+        "label": "Raccourcis",
+        "searches": "Recherches et alertes",
+        "searchesText": "Soyez prévenu dès qu’un bien correspond.",
+        "find": "Trouver pour moi",
+        "findText": "Décrivez votre besoin, des agences vous proposent des biens.",
+        "prices": "Combien ça coûte",
+        "pricesText": "Les loyers et les prix par commune."
+      }
     },
     "card": {
       "photos": {

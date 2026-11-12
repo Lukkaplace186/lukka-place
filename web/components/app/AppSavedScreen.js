@@ -192,9 +192,9 @@ function SearchesTab({ accountSearches }) {
  * (null when signed out); the switch writes through the Alertes tab's own
  * action, so both always agree.
  */
-export default function AppSavedScreen({ accountSearches = null }) {
+export default function AppSavedScreen({ accountSearches = null, initialTab = 'homes' }) {
   const t = useT();
-  const [tab, setTab] = useState('homes');
+  const [tab, setTab] = useState(initialTab);
 
   return (
     <div className="min-h-full bg-canvas-alt">

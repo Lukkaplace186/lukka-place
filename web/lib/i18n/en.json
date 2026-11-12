@@ -9255,7 +9255,16 @@
       "findTitle": "Not Found It Yet?",
       "findText": "Describe what you are looking for and agencies send you homes.",
       "whereTitle": "Where to Look",
-      "whereCaption": "Listings online per commune, right now."
+      "whereCaption": "Listings online per commune, right now.",
+      "shortcuts": {
+        "label": "Shortcuts",
+        "searches": "Searches and alerts",
+        "searchesText": "Hear as soon as a home matches.",
+        "find": "Find it for me",
+        "findText": "Describe what you need and agencies send you homes.",
+        "prices": "What it costs",
+        "pricesText": "Rents and prices per commune."
+      }
     },
     "card": {
       "photos": {

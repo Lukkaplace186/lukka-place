@@ -15974,6 +15974,9 @@ console.log('\n2. services/openai.js');
         assert.match(sql, /NOT EXISTS \( SELECT 1 FROM agent_status_requests r WHERE r\.agent_id = a\.id AND r\.created_at > NOW\(\) - \(\$1/);
         assert.match(sql, /p\.approve_status = 1/);
         assert.strictEqual(statusCheck.REQUEST_INTERVAL_DAYS, 14);
+        // Owner 2026-11-12: every listing 14+ days old (the NEWEST), not just the oldest.
+        assert.match(sql, /HAVING MAX\(COALESCE\(NULLIF\(to_jsonb\(p\) ->> 'availability_confirmed_at'/);
+        assert.doesNotMatch(sql, /HAVING MIN\(/);
         assert.match(statusCheck.STAMP_ALL_SQL.replace(/\s+/g, ' '), /WHERE p\.agent_id = \$1 AND p\.status = 1 AND p\.approve_status = 1/, 'one tap never reactivates a hidden listing');
       });
 

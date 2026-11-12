@@ -16,14 +16,16 @@
  * confirms every live listing in one tap, here.
  *
  * WHO, WHEN
- * An agent with a verified phone, active and not deleted, who has at least one
- * public listing (active or under offer, not a project unit) whose last
- * confirmation — or, never confirmed, last change — is older than
- * REQUEST_INTERVAL_DAYS, and who was not sent a request in that time
- * (`agent_status_requests`). Confirming everything puts the whole portfolio
- * on one clock, so an agent hears from us once per cycle whatever the size of
- * their portfolio. No reminder is ever sent; silence is answered by the next
- * cycle.
+ * An agent with a verified phone, active and not deleted, with public listings
+ * (active or under offer, not a project unit), ALL of which were last
+ * confirmed — or, never confirmed, last changed — more than
+ * REQUEST_INTERVAL_DAYS ago, and who was not sent a request in that time
+ * (`agent_status_requests`). Owner decision 2026-11-12: wait until every
+ * listing is at least 14 days old, then one link for all of them (it was "the
+ * oldest is 14 days old" on the first run). An agent who keeps adding
+ * listings is asked once the newest reaches 14 days. Confirming everything
+ * puts the whole portfolio on one clock. No reminder is ever sent; silence is
+ * answered by the next cycle.
  *
  * DELIVERY
  * The template (LISTING_STATUS_TEMPLATE, read at call time) reaches anyone.
@@ -155,7 +157,8 @@ const DUE_AGENTS_SQL = `
            WHERE ai.agent_id = a.id AND ai.language_id = 20 AND COALESCE(ai.first_name, '') <> ''
            LIMIT 1) AS first_name,
          COUNT(*)::int AS listings_count,
-         MIN(${BASELINE_SQL}) AS oldest_baseline
+         MIN(${BASELINE_SQL}) AS oldest_baseline,
+         MAX(${BASELINE_SQL}) AS newest_baseline
     FROM agents a
     JOIN properties p ON p.agent_id = a.id
    WHERE ${ASKABLE_SQL}
@@ -166,7 +169,7 @@ const DUE_AGENTS_SQL = `
         WHERE r.agent_id = a.id AND r.created_at > NOW() - ($1 || ' days')::interval
      )
    GROUP BY a.id, a.phone
-  HAVING MIN(${BASELINE_SQL}) < NOW() - ($1 || ' days')::interval
+  HAVING MAX(${BASELINE_SQL}) < NOW() - ($1 || ' days')::interval
    ORDER BY oldest_baseline
    LIMIT $2
 `;

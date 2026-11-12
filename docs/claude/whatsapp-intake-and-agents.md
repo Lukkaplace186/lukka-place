@@ -495,9 +495,12 @@ confirmed, and no rental or sale had a recorded price.
 - **The job** (`services/agentStatusCheck.js`, still job `listing-availability-check`,
   same `AVAILABILITY_CHECK_HOUR` and `AVAILABILITY_CHECK=off` switch — **removed
   from production 2026-11-11 (owner)**, first run 10:00 Kinshasa on 2026-11-12): ONE message per agent with a verified phone,
-  active and not deleted, who has a public listing (active, under offer, or
-  auto-paused) unconfirmed for 14 days, and no request in 14 days. Confirming
-  everything puts the whole portfolio on one clock. No reminder is ever sent.
+  active and not deleted, whose public listings (active, under offer, or
+  auto-paused) are ALL unconfirmed for 14 days — the newest included (owner,
+  2026-11-12; the first run, 16 agents, used "the oldest") — and no request
+  in 14 days. An agent who keeps adding listings waits until the newest is 14
+  days old. Confirming everything puts the whole portfolio on one clock. No
+  reminder is ever sent.
   An agent who still owes another answer (`hasOpenAgentQuestion`) waits a day.
 - **Record**: Postgres `agent_status_requests`
   (`migrations/20261109_agent_status_requests.sql`): one row per request, only

@@ -7,7 +7,11 @@
     "wp-bandalungwa": "fr.wikipedia.org/wiki/Bandalungwa",
     "wp-kalamu": "fr.wikipedia.org/wiki/Kalamu_(Kinshasa)",
     "wp-kinshasa": "en.wikipedia.org/wiki/Kinshasa_(commune)",
-    "agents": "the same name tagged in different communes by agents on live listings, 2026-10-07 — recorded as ambiguity only, never as a deduction"
+    "agents": "the same name tagged in different communes by agents on live listings, 2026-10-07 — recorded as ambiguity only, never as a deduction",
+    "verified-2026-11-12": "Published quartier lists checked 2026-11-12 (fr/en Wikipedia, commune reports quoted in theses on memoireonline.com, JICA 2010 N'djili report): the spelling we used before, kept so stored listings still match",
+    "acp-kintambo": "ACP 2024–2026 (acp.cd) and mediacongo.net 2015: Jamaïque, a popular name in Kintambo (for Lubudi-Luka or Nganda; not one of the 8 official quartiers)",
+    "en-wp": "en.wikipedia.org (Mont Ngafula: Mbudi neighbourhood; Bandalungwa: Kokolo), checked 2026-11-12",
+    "owner-2026-11-12": "Lukka Place owner, 2026-11-12 (names agents use, not official quartiers)"
   },
   "aliases": [
     { "name": "GB", "communes": ["Ngaliema"], "source": "owner" },
@@ -53,6 +57,19 @@
     { "name": "Huilerie", "communes": ["Gombe", "Kinshasa"], "source": "agents" },
     { "name": "Huileries", "communes": ["Gombe", "Kinshasa"], "source": "agents" },
     { "name": "24 Novembre", "communes": ["Ngiri-Ngiri", "Lingwala"], "source": "agents" },
-    { "name": "Plateau", "communes": ["Mont-Ngafula", "Kinshasa"], "source": "agents" }
+    { "name": "Plateau", "communes": ["Mont-Ngafula", "Kinshasa"], "source": "agents" },
+
+    { "name": "Dibaya", "communes": ["Bumbu"], "quartier": "Dipiya", "source": "verified-2026-11-12" },
+    { "name": "Baoba", "communes": ["Ngaba"], "quartier": "Baobab", "source": "verified-2026-11-12" },
+    { "name": "Nkinga", "communes": ["Selembao"], "quartier": "Nkingu", "source": "verified-2026-11-12" },
+    { "name": "Lubundi", "communes": ["Bandalungwa"], "quartier": "Lubudi", "source": "verified-2026-11-12" },
+    { "name": "Lubambu", "communes": ["Masina"], "quartier": "Lubamba", "source": "verified-2026-11-12" },
+    { "name": "Mbom'Ipoku", "communes": ["Matete"], "quartier": "Mbomb'Ipoku", "source": "verified-2026-11-12" },
+    { "name": "Kinsuka Pêcheurs", "communes": ["Ngaliema"], "quartier": "Kinsuka Pêcheur", "source": "verified-2026-11-12" },
+    { "name": "Jamaïque", "communes": ["Kintambo"], "source": "acp-kintambo" },
+    { "name": "Mbudi", "communes": ["Mont-Ngafula"], "source": "en-wp" },
+    { "name": "Camp Kokolo", "communes": ["Bandalungwa"], "source": "en-wp" },
+    { "name": "Camp Riche", "communes": ["Lemba"], "source": "owner-2026-11-12" },
+    { "name": "Mende", "communes": ["Lemba"], "source": "owner-2026-11-12" }
   ]
 }

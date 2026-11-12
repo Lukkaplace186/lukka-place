@@ -1,7 +1,7 @@
 {
-  "Bandalungwa": ["Adoula", "Bisengo", "Kasa-Vubu", "Lubundi", "Lumumba", "Makelele", "Molaert", "Tshibangu"],
+  "Bandalungwa": ["Adoula", "Bisengo", "Kasa-Vubu", "Lubudi", "Lumumba", "Makelele", "Molaert", "Tshibangu"],
   "Barumbu": ["Bitshaku-Tshaku", "Funa I", "Funa II", "Kapinga Bapu", "Kasaï", "Libulu", "Mozindo", "Ndolo", "Tshimanga"],
-  "Bumbu": ["Dibaya", "Kasaï", "Kwango", "Lieutenant Mbaki", "Lokoro", "Lukenie", "Maï-Ndombe", "Mbandaka", "Matadi", "Mfimi", "Mongala", "Ntomba", "Ubangi"],
+  "Bumbu": ["Dipiya", "Kasaï", "Kwango", "Lieutenant Mbaki", "Lokoro", "Lukenie", "Maï-Ndombe", "Mbandaka", "Matadi", "Mfimi", "Mongala", "Ntomba", "Ubangi"],
   "Gombe": ["Batetela", "Cliniques", "Commerce", "Croix-Rouge", "Fleuve", "Gare", "Golf", "Haut Commandement", "Lemera", "Révolution", "Socimat"],
   "Kalamu": ["Immocongo", "Kauka I", "Kauka II", "Kauka III", "Kimbangu I", "Kimbangu II", "Kimbangu III", "Matongé I", "Matongé II", "Matongé III", "Pinzi", "Yolo Nord I", "Yolo Nord II", "Yolo Nord III", "Yolo Sud I", "Yolo Sud II", "Yolo Sud III", "Yolo Sud IV"],
   "Kasa-Vubu": ["Anciens Combattants", "Assossa", "Katanga", "Lodja", "Lubumbashi", "ONL", "Salongo"],
@@ -14,13 +14,13 @@
   "Lingwala": ["30 Juin", "Camp Lufungula", "CNECI", "La Voix du Peuple", "Lokole", "Ngunda Lokombe", "Pakadjuma", "Singa Mopepe", "Wenze"],
   "Makala": ["Bahumbu", "Bagata", "Bolima", "Kabila", "Kisantu", "Kwango", "Lemba Village", "Mabulu I", "Mabulu II", "Mawanga", "Malala", "M'fidi", "Mikasi", "Salongo", "Selo", "Tampa", "Uéle", "Wamba"],
   "Maluku": ["Bu", "Dumi", "Kikimi", "Kimpoko", "Kingakati", "Kingunu", "Kinzono", "Maluku", "Maï-Ndombe", "Mangengenge", "Mbankana", "Menkao", "Monaco", "Mongata", "Mwe", "Ngana", "Nguma", "Yosso", "You"],
-  "Masina": ["Abattoir", "Boba", "Congo", "Efoloko", "Imbali", "Kasaï", "Kimbangu", "Kivu", "Lokari", "Lubambu", "Mafuta Kizola", "Mandiangu", "Mapela", "Matadi", "Mfumu Nsuka", "Nzuzi wa Mbombo", "Pelende", "Sans Fil", "Télévision", "Tshangu", "Tshuenge"],
-  "Matete": ["Dondo", "Loeka", "Lubefu", "Lumumba", "Lukunga", "Lunionzo", "Malemba", "Maziba", "Mbom'Ipoku", "Sankuru", "Sumbuka", "Totaka", "Vivi"],
-  "Mont-Ngafula": ["CPA Mushie", "Kimbondo", "Kimbuala", "Kimwenza", "Kindele", "Lutendele", "Mama Mobutu", "Mama Yemo", "Masanga Mbila", "Masumu", "Matadi Kibala", "Matadi Mayo", "Mazamba", "Mbuki", "Mitendi", "Musangu", "Ndjili Kilambu", "Ngansele", "Plateau", "Vunda Manenga"],
+  "Masina": ["Abattoir", "Boba", "Congo", "Efoloko", "Imbali", "Kasaï", "Kimbangu", "Kivu", "Lokari", "Lubamba", "Mafuta Kizola", "Mandiangu", "Mapela", "Matadi", "Mfumu Nsuka", "Nzuzi wa Mbombo", "Pelende", "Sans Fil", "Télévision", "Tshangu", "Tshuenge"],
+  "Matete": ["Dondo", "Loeka", "Lubefu", "Lumumba", "Lukunga", "Lunionzo", "Malemba", "Maziba", "Mbomb'Ipoku", "Sankuru", "Sumbuka", "Totaka", "Vivi"],
+  "Mont-Ngafula": ["CPA Mushie", "Kimbondo", "Kimbuala", "Kimbuta", "Kimwenza", "Kindele", "Lutendele", "Mama Mobutu", "Mama Yemo", "Masanga Mbila", "Masumu", "Matadi Kibala", "Matadi Mayo", "Mazamba", "Mbuki", "Mitendi", "Musangu", "Ndjili Kilambu", "Ngansele", "Plateau", "Vunda Manenga"],
   "N'Djili": ["Bandundu", "Bilombe", "Équateur", "Goma", "Inga", "Kasaï", "Katanga", "Kivu", "Makasi", "Mongala", "Oriental", "Ubangi", "Tshuapa"],
-  "N'Sele": ["Badara", "Bahumbu I", "Bahumbu II", "Bibwa I", "Bibwa II", "Buma", "Dingi Dingi", "Domaine", "Kikimi", "Kindobo", "Maba", "Mangenge", "Mibu", "Mikala I", "Mikala II", "Mikondo", "Mikonga I", "Mikonga II", "Mobanse", "Mpasa I", "Mpasa II", "Munke", "Ngampama", "Ngina", "Pêcheurs", "Sicotra", "Talangai"],
-  "Ngaba": ["Baoba", "Bulambemba", "Luyi", "Mateba", "Mukulwa", "Mpila"],
-  "Ngaliema": ["Anciens Combattants", "Bangu", "Basoko", "Binza Delvaux", "Binza Ozone", "Binza Pigeon", "Bumba", "Congo", "Djelo Binza", "IPN", "Joli Parc", "Kimpe", "Kinkenda", "Kinsuka Pêcheurs", "Lonzo", "Lubudi", "Lukunga", "Macampagne", "Mama Yemo", "Manenga", "Mfinda", "Monganga", "Mont-Fleury", "Météo", "Musey", "Ngomba Kikusa", "Punda", "UPN"],
+  "N'Sele": ["Badara", "Bahumbu I", "Bahumbu II", "Bel Air", "Bibwa I", "Bibwa II", "Buma", "DIC/Lau", "Dingi Dingi", "Domaine", "Fleuve", "Kikimi", "Kindobo", "Kinkole", "Maba", "Mangenge", "Mibu", "Mikala I", "Mikala II", "Mikombe", "Mikondo", "Mikonga I", "Mikonga II", "Mikonga III", "Mobanse", "Mpasa I", "Mpasa II", "Munke", "Munziami", "Ngamaba", "Ngampama", "Ngina", "Pêcheurs", "Sicotra", "Singa Inga", "Talangai"],
+  "Ngaba": ["Baobab", "Bulambemba", "Luyi", "Mateba", "Mukulwa", "Mpila"],
+  "Ngaliema": ["Anciens Combattants", "Bangu", "Basoko", "Binza Delvaux", "Binza Ozone", "Binza Pigeon", "Bumba", "Congo", "Djelo Binza", "IPN", "Joli Parc", "Kimpe", "Kinkenda", "Kinsuka Pêcheur", "Lonzo", "Lubudi", "Lukunga", "Macampagne", "Mama Yemo", "Manenga", "Mfinda", "Monganga", "Mont-Fleury", "Météo", "Musey", "Ngomba Kikusa", "Punda", "UPN"],
   "Ngiri-Ngiri": ["24 Novembre", "Assossa", "Diangenda", "Diomi", "Elengesa", "Khartoum", "Peti-Peti", "Saïo"],
-  "Selembao": ["Badiadingi", "Cité Verte", "Herady", "Inga", "Kalunga", "Konde", "Libération", "Lubudi", "Madiata", "Mbala", "Molende", "Muana Tunu", "Ndobe", "Ngafani", "Nkinga", "Nkombe", "Nkulu", "Pululu Mbambu"]
+  "Selembao": ["Badiadingi", "Cité Verte", "Herady", "Inga", "Kalunga", "Konde", "Libération", "Lubudi", "Madiata", "Mbala", "Molende", "Muana Tunu", "Ndobe", "Ngafani", "Nkingu", "Nkombe", "Nkulu", "Pululu Mbambu"]
 }

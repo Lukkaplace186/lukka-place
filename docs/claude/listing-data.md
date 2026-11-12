@@ -61,6 +61,39 @@
     agent's own words, correct spelling, never add a detail.
 - **Landmarks**: Always use the French term "référence" (not "repère") in any user-facing or prompt-facing French text.
 
+### Kinshasa quartier list checked against published sources (2026-11-12)
+
+`kinshasa_locations.json` came with the initial commit and no recorded
+source. On 2026-11-12 each commune was compared with fr/en Wikipedia,
+commune reports quoted in theses (memoireonline.com), the 2009 UNDP city
+profile, JICA 2010 (N'djili) and ACP articles; CAID (caid.cd) was down. 13
+communes match. Applied, nothing deleted:
+- Spellings corrected, the old one kept as an alias (source
+  `verified-2026-11-12`) so stored listings still match: Dibaya → Dipiya
+  (Bumbu), Baoba → Baobab (Ngaba), Nkinga → Nkingu (Selembao), Lubundi →
+  Lubudi (Bandalungwa), Lubambu → Lubamba (Masina), Mbom'Ipoku →
+  Mbomb'Ipoku (Matete), Kinsuka Pêcheurs → Kinsuka Pêcheur (Ngaliema).
+  One live listing (Postgres) still stores "Dibaya".
+- Added as official: Kimbuta (Mont-Ngafula); Bel Air, DIC/Lau, Fleuve,
+  Kinkole, Mikonga III, Mikombe, Munziami, Ngamaba, Singa Inga (Nsele, the
+  commune's 2013 statistics report: 36 quartiers). "Fleuve" now asks
+  Gombe or Nsele.
+- Aliases: Jamaïque (Kintambo; popular name, Lubudi-Luka or Nganda), Mbudi
+  (Mont-Ngafula), Camp Kokolo (Bandalungwa), Camp Riche and Mende (Lemba,
+  owner).
+- **Not changed, open:** names no source lists — Kimbanseke (sources: 30
+  quartiers; ours 46, 16 unsourced: Batumona, Bikuku, Kabila, Kakudji,
+  Kamboko, Kayolo, Kimbunda, Mabinda, Mayengele, Mbemba Fundu, Munkonka,
+  Ngamayama, Ngiesi, Pandanzila, Pierre Fokom, Way-Way), Socimat (Gombe:
+  sources count 10), Tshibangu (Bandalungwa), Masumu (Mont-Ngafula), Tshuenge
+  (Masina), Nkombe (Selembao), Bibwa I/II, Mikondo, Mobanse, Talangai
+  (Nsele). Ngaliema's Binza Delvaux, Binza Ozone, IPN, Macampagne,
+  Mont-Fleury, Météo and UPN are well-known areas, not among the commune's 21
+  official quartiers (2009 report); kept official because listings, map
+  points and pickers use them. Not added (one source or risky): Plateau 1/2,
+  Saya, Kimvula (Mont-Ngafula), Saïo I/II, Kolosala, Mingandi (Ngiri-Ngiri),
+  Kabinda (Lingwala), "Terminus" (generic word), N'djili "Q1–Q13".
+
 ## Listing verification — "Vérifié par Lukka Place"
 
 `properties.verified_at` + `verified_by` (`scripts/migrate-listing-verification.js`,

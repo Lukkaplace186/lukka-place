@@ -41,6 +41,9 @@ export const SIGNUP_ENTRIES = [
   'login_page', // "Créer un compte" under the login form
   'partner_invite', // /i/<code>, an agent's or creator's invitation
   'price_guide', // the price guide (reserved for its sign-up hook)
+  'whatsapp', // "Continuer avec WhatsApp" on the login page (2026-11-12)
+  'visit', // after a visit request, to follow the agency's answer
+  'onboarding', // the app's first-open questions
   'direct', // anything else: a typed URL, an old link, a shared link
 ];
 
@@ -80,7 +83,7 @@ export function cleanSignupRefusal(value) {
 
 /** AuthPromptModal's `trigger` → entry. */
 export function entryForPromptTrigger(trigger) {
-  if (trigger === 'favorite') return 'favorite';
+  if (trigger === 'favorite' || trigger === 'favoriteKeep') return 'favorite';
   if (trigger === 'alert') return 'alert';
   return 'save_search';
 }

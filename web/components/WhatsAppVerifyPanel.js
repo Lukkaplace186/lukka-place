@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Check, Loader2 } from 'lucide-react';
 import { checkWhatsAppVerificationAction } from '@/app/(site)/compte/whatsappVerifyActions';
+import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -18,7 +19,7 @@ const POLL_MS = 3000;
  * again — on a phone the person leaves for WhatsApp and comes back, and that
  * return is exactly when the answer is ready.
  */
-export default function WhatsAppVerifyPanel({ code, href, maskedPhone, businessNumber, next, restartHref }) {
+export default function WhatsAppVerifyPanel({ code, href, maskedPhone, businessNumber, next, restartHref, checkAction = null }) {
   const t = useT();
   const router = useRouter();
   const [status, setStatus] = useState('pending');
@@ -28,7 +29,11 @@ export default function WhatsAppVerifyPanel({ code, href, maskedPhone, businessN
     if (busy.current || document.visibilityState !== 'visible') return;
     busy.current = true;
     try {
-      const result = await checkWhatsAppVerificationAction(next);
+      // "Continuer avec WhatsApp" passes its own check, which signs in and
+      // merges this device's saved homes and searches into the account.
+      const result = checkAction
+        ? await checkAction(next, { favoriteIds: getFavoriteIds(), savedSearches: getSavedSearches() })
+        : await checkWhatsAppVerificationAction(next);
       if (result.status === 'verified') {
         setStatus('verified');
         router.replace(result.href);
@@ -40,7 +45,7 @@ export default function WhatsAppVerifyPanel({ code, href, maskedPhone, businessN
     } finally {
       busy.current = false;
     }
-  }, [next, router]);
+  }, [next, router, checkAction]);
 
   useEffect(() => {
     if (status !== 'pending') return undefined;

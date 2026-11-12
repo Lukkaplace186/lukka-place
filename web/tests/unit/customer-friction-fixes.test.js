@@ -23,7 +23,9 @@ const read = (rel) => readFileSync(path.join(process.cwd(), rel), 'utf8');
 // --- sign-up ------------------------------------------------------------------
 
 test('a save (♥, alert) opens sign-up on the account card, not the move questions', () => {
-  assert.match(read('components/AuthPromptModal.js'), /params\.set\('from', 'save'\)/);
+  // Since 2026-11-12 the prompt itself signs in or opens the account with
+  // WhatsApp (no password); the sign-up page keeps its save-only start.
+  assert.match(read('components/AuthPromptModal.js'), /<WhatsAppSignInForm next=\{next\} entry=\{entry\}/);
   const page = read('app/(site)/compte/inscription/page.js');
   assert.match(page, /const fromSave = params\.from === 'save';/);
   assert.match(page, /startAtEnd=\{Boolean\(error\) \|\| fromSave\}/);

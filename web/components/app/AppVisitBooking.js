@@ -128,8 +128,12 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
           <ListingSummary listing={listing} />
         </div>
         <div className="mt-8 space-y-3">
+          {/* The moment an account is worth it: the agency's answer lands in
+              the account (visits are found by phone), so a guest is asked
+              here, with the reason — not before booking. */}
+          {loggedIn ? null : <p className="text-[0.9375rem] text-ink-70">{t('appShell.visit.followGuest')}</p>}
           <Link
-            href={loggedIn ? '/compte/client/visites' : '/compte/connexion?next=%2Fcompte%2Fclient%2Fvisites'}
+            href={loggedIn ? '/compte/client/visites' : '/compte/connexion?next=%2Fcompte%2Fclient%2Fvisites&entree=visit'}
             className="u-press flex h-12 items-center justify-center rounded-xl bg-blue text-[0.9375rem] font-semibold text-white"
           >
             {t('appShell.visit.myVisits')}

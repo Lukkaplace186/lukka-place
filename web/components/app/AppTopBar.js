@@ -10,7 +10,7 @@ import { useIsLoggedIn } from '@/lib/customerClient';
 import { useAlertsUnread } from '@/lib/useAlertsUnread';
 import UnreadBadge from '@/components/chat/UnreadBadge';
 import { cn } from '@/lib/utils';
-import { hidesAppTabs } from '@/lib/appModeRules';
+import { hidesAppTabs, isWelcomePath } from '@/lib/appModeRules';
 
 const INBOX = '/compte/client/notifications';
 
@@ -37,7 +37,7 @@ export default function AppTopBar() {
   const router = useRouter();
   const onHome = pathname === '/';
   // A listing and its booking screen have no tab bar: the way out is here.
-  const withBack = hidesAppTabs(pathname);
+  const withBack = hidesAppTabs(pathname) && !isWelcomePath(pathname);
   const upHref = pathname.endsWith('/visite')
     ? pathname.slice(0, -'/visite'.length)
     : pathname.startsWith('/messages/') ? '/messages' : '/listings';

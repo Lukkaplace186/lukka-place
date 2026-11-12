@@ -68,6 +68,9 @@ export const config = {
 // is what actually says who is mid-verification.
 const PUBLIC_COMPTE_PATHS = new Set([
   '/compte/connexion',
+  // "Continuer avec WhatsApp"'s code screen (2026-11-12): before any session,
+  // guarded by the signed attempt cookie like the verify page.
+  '/compte/connexion/whatsapp',
   '/compte/inscription',
   '/compte/inscription/verifier',
   // A customer account created on WhatsApp sets its first password here,

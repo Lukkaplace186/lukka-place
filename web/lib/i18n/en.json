@@ -885,7 +885,13 @@
       "alert": "Log in or create an account to create an alert",
       "favorite": "Log in or create an account to save this property",
       "continue": "Continue",
-      "alreadyHaveAccount": "Already have an account?"
+      "alreadyHaveAccount": "Already have an account?",
+      "favoriteKeep": "Keep your saved homes",
+      "reasons": {
+        "save": "With an account, your search follows you on every device.",
+        "alert": "With an account, we tell you as soon as a new home matches.",
+        "favorite": "With an account, your saved homes follow you everywhere, and we tell you if their price drops."
+      }
     },
     "related": {
       "similar": "Similar Properties",
@@ -7915,7 +7921,10 @@
           "login_page": "Link under login",
           "partner_invite": "Partner invitation",
           "price_guide": "Price guide",
-          "direct": "Direct / other link"
+          "direct": "Direct / other link",
+          "whatsapp": "WhatsApp sign-in",
+          "visit": "After a visit request",
+          "onboarding": "App welcome questions"
         },
         "refusals": {
           "name": "Missing name",
@@ -8581,7 +8590,24 @@
     "agentNoPasswordHint": "Joined on WhatsApp, with no password? Tap “Forgotten your password?”: a WhatsApp code lets you create one.",
     "agentLoginMetaTitle": "Agent Login — Lukka Place",
     "agentNoAccountYet": "No agent account yet?",
-    "minSixChars": "6 characters minimum."
+    "minSixChars": "6 characters minimum.",
+    "whatsappSignIn": {
+      "title": "Continue with WhatsApp",
+      "button": "Continue with WhatsApp",
+      "lead": "No password: you send a code from your WhatsApp, and that’s it.",
+      "nameLabel": "Full name",
+      "nameHint": "First time here: your name opens your account.",
+      "orPassword": "or with your password",
+      "codeTitle": "Send This Code from WhatsApp",
+      "newAccount": "Your account is created. Send this code to open it.",
+      "otherNumber": "Wrong number?",
+      "restart": "Start again",
+      "preferPassword": "Prefer your password?",
+      "errors": {
+        "name": "Enter your full name.",
+        "busy": "Too many attempts. Try again in a few minutes."
+      }
+    }
   },
   "updates": {
     "title": "Updates",
@@ -9294,7 +9320,8 @@
       "doneTitle": "Visit Requested",
       "myVisits": "See my visits",
       "backToListing": "Back to the listing",
-      "sending": "Sending…"
+      "sending": "Sending…",
+      "followGuest": "To follow the agency’s answer, sign in with WhatsApp: your visit is waiting in your account."
     },
     "filters": {
       "reset": "Reset"
@@ -9319,6 +9346,33 @@
           "a": "Save a search from the results, then turn on “Alerts” in Saved. In the app, the alert arrives as a notification."
         }
       }
+    },
+    "listingBar": {
+      "more": "More options"
+    },
+    "welcome": {
+      "metaTitle": "Welcome",
+      "title": "Welcome",
+      "skip": "Skip",
+      "lead": "Three questions to show you the right homes. You can change everything later.",
+      "purposeQuestion": "Do you want to rent or buy?",
+      "purposes": {
+        "louer": "Rent",
+        "acheter": "Buy",
+        "courte": "Short stay"
+      },
+      "budgetQuestionRent": "Your monthly rent, at most?",
+      "budgetQuestionBuy": "Your budget, at most?",
+      "anyBudget": "Any",
+      "upTo": "Up to {amount}",
+      "communesQuestion": "Which communes?",
+      "communesHint": "Up to {max}. None: every commune.",
+      "see": "See the homes",
+      "seeAll": "See all homes",
+      "alertTitle": "Shall We Tell You When a Home Matches?",
+      "alertText": "Your search is kept on this phone. With an account, we tell you as soon as a new home matches.",
+      "alertYes": "Yes, tell me",
+      "alertLater": "Later, see the homes"
     }
   }
 }

@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n/client';
 import { listingEventPayload, trackEvent } from '@/lib/analyticsClient';
 import { initialGalleryState, noteGalleryStep } from '@/lib/galleryEngagement';
 import { DETAIL_HERO_SIZES, DETAIL_SIDE_SIZES } from '@/lib/detailGallerySizes';
+import { useBackToClose } from '@/lib/useBackToClose';
 
 /** A finger travel this far (px) down the viewer closes it; sideways pages. */
 const SWIPE_CLOSE_PX = 70;
@@ -136,6 +137,10 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
     videoRef.current?.pause();
     setLightboxIndex(null);
   }, []);
+  // Back (Android's button, the iPhone edge swipe, the browser's) closes the
+  // viewer or the grid and leaves the listing where it was (lib/useBackToClose.js).
+  useBackToClose(isOpen, closeLightbox);
+  const releaseGridBack = useBackToClose(gridOpen, () => setGridOpen(false));
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -254,6 +259,9 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                 key={`${src}-${index}`}
                 type="button"
                 onClick={() => {
+                  // The viewer takes over the grid's back step; taking the
+                  // grid's entry back here would race the viewer's own.
+                  releaseGridBack();
                   setGridOpen(false);
                   setLightboxIndex(index);
                 }}

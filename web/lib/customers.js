@@ -64,7 +64,7 @@ export async function createCustomer({ phone, passwordHash, fullName }) {
 export async function getCustomerAuthById(customerId) {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, phone, full_name, token_version, otp_code_hash, otp_expires_at, phone_verified_at
+    `SELECT id, phone, full_name, token_version, otp_code_hash, otp_expires_at, phone_verified_at, created_at
      FROM customers WHERE id = $1`,
     [customerId],
   );

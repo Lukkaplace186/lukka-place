@@ -2,50 +2,49 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { trackCustomerSignup } from '@/lib/analyticsClient';
-import { SIGNUP_ENTRY_PARAM, entryForPromptTrigger } from '@/lib/signupFunnelRules';
+import { entryForPromptTrigger } from '@/lib/signupFunnelRules';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import PhoneField from './PhoneField';
-import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
-import { useLocale, useT } from '@/lib/i18n/client';
+import WhatsAppSignInForm from '@/app/(site)/compte/connexion/WhatsAppSignInForm';
+import { useT } from '@/lib/i18n/client';
 
 /*
  * Keys, not text — see components/navItems.js. They must be RESOLVED through
  * `t()` at the render site below: an earlier version interpolated the key
  * itself into the dialog heading, so a guest tapping the heart read the
  * literal string "listings.authPrompt.favorite". Caught in real mobile QA.
- * The same line also referenced an undefined `TITLES` as its fallback, which
- * a trigger outside this map would have evaluated — a ReferenceError thrown
- * during render, i.e. Next.js's "This page couldn't load" boundary on top of
- * a page that was fine a moment earlier. `TITLE_KEYS.save` is the real
- * fallback the rename left behind.
+ * `TITLE_KEYS.save` is the fallback for a trigger outside this map.
  */
 const TITLE_KEYS = {
   save: 'listings.authPrompt.save',
   alert: 'listings.authPrompt.alert',
   favorite: 'listings.authPrompt.favorite',
+  favoriteKeep: 'listings.authPrompt.favoriteKeep',
+};
+
+/** Why an account is needed for this, said at the moment it is asked (UX pass 2026-11-12). */
+const REASON_KEYS = {
+  save: 'listings.authPrompt.reasons.save',
+  alert: 'listings.authPrompt.reasons.alert',
+  favorite: 'listings.authPrompt.reasons.favorite',
+  favoriteKeep: 'listings.authPrompt.reasons.favorite',
 };
 
 /**
- * Rightmove-style auth gate for SaveSearchButton's guest path.
+ * The sign-in prompt for a guest who wants something an account is needed
+ * for: an alert, a saved search, more saved homes. Since 2026-11-12 it says
+ * WHY, then signs in or opens the account in one step with "Continuer avec
+ * WhatsApp" (app/(site)/compte/connexion/WhatsAppSignInForm.js) — a code sent
+ * from the person's own WhatsApp, no password. The password form stays one
+ * tap away.
  *
- * This app's real customer accounts are phone + password
- * (lib/customerAuth.js) — there is no email field anywhere in the schema, so
- * this asks for the same real phone number field /compte/inscription itself
- * collects, not an email address the backend has nowhere to put.
- *
- * "Continuer" hands off to the real signup page with the phone prefilled.
- * `next` (passed in by the caller) already carries both the return URL and a
- * `lkp_auth_return` marker — SaveSearchButton reads that marker back once
- * the visitor lands here again with a genuine session, and only then
- * performs the actual save. See SaveSearchButton.js's own doc comment for
- * the full round trip; this modal never saves anything itself.
+ * `next` (passed in by the caller) carries the return URL and the caller's
+ * resume marker (SaveSearchButton's `lkp_auth_return`, FavoriteButton's
+ * FAV_RETURN_PARAM); the caller performs the actual save once the visitor
+ * lands back with a genuine session. This modal never saves anything itself.
  */
 export default function AuthPromptModal({ open, onClose, trigger, next }) {
   const t = useT();
-  const router = useRouter();
-  const locale = useLocale();
   // The sign-up funnel (lib/signupFunnelRules.js): which prompt this is.
   const entry = entryForPromptTrigger(trigger);
 
@@ -54,55 +53,18 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
     if (open) trackCustomerSignup('prompt_shown', entry);
   }, [open, entry]);
 
-  // Read straight off the form rather than from controlled state: PhoneField
-  // owns two values (the typed number and the picked country) and both have
-  // to reach the signup page, or the country the visitor chose here is lost
-  // and their number gets re-guessed as a DRC one on the next screen.
-  function handleSubmit(e) {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const phone = String(data.get('phone') || '').trim();
-    const country = String(data.get('phoneCountry') || '');
-    trackCustomerSignup('prompt_open', entry);
-
-    const params = new URLSearchParams();
-    params.set('next', next);
-    params.set(SIGNUP_ENTRY_PARAM, entry);
-    // Straight to the account card: they came to save, not for the move
-    // questions (2026-11-08) — app/(site)/compte/inscription/page.js.
-    params.set('from', 'save');
-    if (phone) params.set('phone', phone);
-    if (phone && country) params.set('country', country);
-    router.push(`/compte/inscription?${params.toString()}`);
-  }
-
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="gap-5 p-6">
+      <DialogContent className="gap-3 p-6">
         <DialogTitle className="text-left font-bold text-lg leading-snug tracking-[-0.01em] text-ink">
           {t(TITLE_KEYS[trigger] || TITLE_KEYS.save)}
         </DialogTitle>
+        <p className="text-[0.9375rem] text-ink-70">{t(REASON_KEYS[trigger] || REASON_KEYS.save)}</p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <PhoneField
-            name="phone"
-            id="auth-prompt-phone"
-            locale={locale}
-            labels={phoneFieldLabels(t)}
-            autoFocus
-            required
-          />
-
-          <button
-            type="submit"
-            className="u-press u-btn-primary mt-1 rounded-md bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
-          >
-            {t('listings.authPrompt.continue')}
-          </button>
-        </form>
+        <WhatsAppSignInForm next={next} entry={entry} onSubmit={() => trackCustomerSignup('prompt_open', entry)} />
 
         <p className="text-center text-sm text-ink-45">
-          {t('listings.authPrompt.alreadyHaveAccount')}{' '}
+          {t('auth.whatsappSignIn.preferPassword')}{' '}
           <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
             {t('common.shared.signIn')}
           </Link>

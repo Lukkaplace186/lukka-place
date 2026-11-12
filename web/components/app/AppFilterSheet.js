@@ -3,6 +3,7 @@
 import { m, useDragControls } from 'motion/react';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useT } from '@/lib/i18n/client';
+import { useBackToClose } from '@/lib/useBackToClose';
 
 /**
  * The app design's "Filters" bottom sheet, around FilterModal's own fields
@@ -16,9 +17,15 @@ import { useT } from '@/lib/i18n/client';
  * Radix keeps the focus trap, Escape and the overlay; motion moves the panel.
  * Loaded through next/dynamic from FilterModal, in app mode only.
  */
-export default function AppFilterSheet({ open, onClose, onApply, onReset, applyLabel, resultPending, children }) {
+export default function AppFilterSheet({ open, onClose, onApply: applyFilters, onReset, applyLabel, resultPending, children }) {
   const t = useT();
   const dragControls = useDragControls();
+  // Android's back button / the iPhone edge swipe close the sheet, not the page.
+  const releaseBack = useBackToClose(open, onClose);
+  const onApply = () => {
+    releaseBack();
+    applyFilters?.();
+  };
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>

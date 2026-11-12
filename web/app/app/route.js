@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentChatAgentId } from '@/lib/chat';
 import { APP_MODE_COOKIE, APP_MODE_MAX_AGE } from '@/lib/appModeRules';
+import { WELCOME_COOKIE, appStartTarget } from '@/lib/welcomeRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,12 +21,17 @@ export async function GET(request) {
   const leaving = new URL(request.url).searchParams.get('web') === '1';
   let target = '/';
   if (!leaving) {
+    let isAgent = false;
     try {
-      if (await getCurrentChatAgentId()) target = '/compte/agent';
+      isAgent = Boolean(await getCurrentChatAgentId());
     } catch (err) {
       // The database briefly unreachable: open the listings rather than fail the app's launch.
       console.error(`[app] start: agent session check failed: ${err.message}`);
     }
+    // The first open asks three questions (/bienvenue, lib/welcomeRules.js)
+    // until they are answered or skipped.
+    const welcomed = request.cookies.get(WELCOME_COOKIE)?.value === '1';
+    target = appStartTarget({ isAgent, welcomed });
   }
   const response = new NextResponse(null, { status: 303, headers: { Location: target, 'Cache-Control': 'no-store' } });
   if (leaving) {

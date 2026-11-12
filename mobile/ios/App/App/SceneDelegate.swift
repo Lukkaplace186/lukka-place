@@ -1,6 +1,17 @@
 import UIKit
 import Capacitor
 
+/// Swipe from the left edge goes back, as in every iPhone app (UX pass
+/// 2026-11-12). The site keeps its own history, so the gesture walks it the
+/// way Android's back button does. Kept in this file so the Xcode project
+/// needs no new file reference.
+class LukkaBridgeViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        webView?.allowsBackForwardNavigationGestures = true
+    }
+}
+
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
@@ -8,7 +19,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = CAPBridgeViewController()
+        window?.rootViewController = LukkaBridgeViewController()
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)

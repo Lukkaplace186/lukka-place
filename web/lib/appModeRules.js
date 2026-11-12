@@ -55,5 +55,10 @@ export function activeAppTab(pathname) {
 export function hidesAppTabs(pathname) {
   const path = String(pathname || '').split(/[?#]/)[0];
   // A conversation too: its reply field holds the bottom edge.
-  return /^\/listings\/[^/]+/.test(path) || /^\/messages\/\d+/.test(path);
+  return /^\/listings\/[^/]+/.test(path) || /^\/messages\/\d+/.test(path) || isWelcomePath(path);
+}
+
+/** The first-open questions (/bienvenue): no tabs, and no back arrow either — nothing is behind them. */
+export function isWelcomePath(pathname) {
+  return String(pathname || '').split(/[?#]/)[0] === '/bienvenue';
 }

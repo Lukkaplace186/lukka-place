@@ -5199,3 +5199,52 @@ docs/claude/listing-data.md, same heading. `lib/practicalFacts.js` (pure),
   new listings never show "Frais de visite : Non indiqué"; an answer given
   before keeps its row. No visit-fee filter, by the same decision.
 - Not built (owner's choice): any other way to collect these answers.
+
+## Customer UX pass — easier from first open to after the visit (2026-11-12)
+
+`tests/unit/customer-ux-pass.test.js` pins all of it.
+
+- **One main button on a listing** (`components/app/AppListingBar.js`):
+  "Demander une visite" is the only wide button, on the right; WhatsApp is the
+  one second button; calling the agent and writing in the app sit behind "…"
+  (a Radix dropdown that opens upward, drawn only when it holds something).
+  Same contact rules and tracking as before.
+- **Sign in with WhatsApp** (`app/(site)/compte/connexion/whatsappActions.js`,
+  `WhatsAppSignInForm.js`, `/compte/connexion/whatsapp`, `lib/whatsappSignInRules.js`):
+  the number (and, for a number we do not know, the name) → the signed
+  attempt cookie (`lib/verifyAttempt.js`) → the code screen, where the person
+  sends the code from their own WhatsApp and `checkWhatsAppSignInAction`
+  opens the session once the engine matched it on that number
+  (`consumeVerifiedChallenge`). No password; a new account is created with
+  `password_hash` NULL before the proof, as a typed-number sign-up always was
+  (owner-accepted risk, 2026-11-06). Rate-limited per connection; the
+  device's saved homes and searches are merged in; CompleteRegistration only
+  for an account opened in the last hour. The login page leads with it; the
+  password form is one tap away in a `<details>` (open after a password error).
+- **An account only when needed** — this changes the earlier "a guest's heart
+  always opens the prompt" decision (FavoriteButton's header): a guest keeps
+  up to 3 homes on the device (`lib/guestSaveRules.js`); the third save is
+  kept and asks, past it the heart asks first. `AuthPromptModal` now says why
+  (`listings.authPrompt.reasons.*`) and signs in with WhatsApp in place; the
+  sign-up funnel records it under the prompt's entry (new entries `whatsapp`,
+  `visit`, `onboarding`). A visit still needs no account; its done screen asks
+  a guest to sign in to follow the answer (`entree=visit`).
+- **Back keeps your place** (`lib/useBackToClose.js`): an open overlay pushes
+  one history entry, so Android's back button (Capacitor's goBack), the
+  browser's back and the iPhone edge swipe close it instead of leaving the
+  page. Used by the app's filter sheet (its "Voir N biens" releases the entry
+  rather than racing the router) and the photo viewer and grid. iOS: the
+  native shell's `LukkaBridgeViewController` (mobile/ios/App/App/SceneDelegate.swift)
+  turns on `allowsBackForwardNavigationGestures` — needs the next app build.
+- **First-open questions** (`/bienvenue`, `components/app/AppWelcome.js`,
+  `lib/welcomeRules.js`): GET /app sends there until the `lp_welcome` cookie is
+  set (answered or "Passer"); agents never see it. Louer / Acheter / Courte
+  durée, a budget ceiling (none for short stays), up to 3 of the communes with
+  the most live listings → an ordinary /listings query, kept as the first
+  saved search on the device. Then, not before: "On vous prévient dès qu'un
+  bien correspond ?" → the sign-in prompt (alerts need an account). No tabs
+  and no back arrow on that screen.
+- Already in place before this pass, so not rebuilt: typed search like
+  "2 chambres Limete 500$" (`lib/searchParser.js`), recent searches
+  (`lib/searchHistory.js`), merging a device's homes at sign-in
+  (`mergeAnonymousData`).

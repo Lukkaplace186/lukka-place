@@ -885,7 +885,13 @@
       "alert": "Se connecter ou créer un compte pour créer une alerte",
       "favorite": "Se connecter ou créer un compte pour enregistrer ce bien en favori",
       "continue": "Continuer",
-      "alreadyHaveAccount": "Déjà un compte ?"
+      "alreadyHaveAccount": "Déjà un compte ?",
+      "favoriteKeep": "Gardez vos biens enregistrés",
+      "reasons": {
+        "save": "Avec un compte, votre recherche vous suit sur tous vos appareils.",
+        "alert": "Avec un compte, nous vous prévenons dès qu’un nouveau bien correspond.",
+        "favorite": "Avec un compte, vos biens enregistrés vous suivent partout, et nous vous prévenons s’ils baissent de prix."
+      }
     },
     "related": {
       "similar": "Biens Similaires",
@@ -7915,7 +7921,10 @@
           "login_page": "Lien sous la connexion",
           "partner_invite": "Invitation partenaire",
           "price_guide": "Guide des prix",
-          "direct": "Direct / autre lien"
+          "direct": "Direct / autre lien",
+          "whatsapp": "Connexion WhatsApp",
+          "visit": "Après une demande de visite",
+          "onboarding": "Questions de bienvenue (app)"
         },
         "refusals": {
           "name": "Nom manquant",
@@ -8581,7 +8590,24 @@
     "agentNoPasswordHint": "Inscrit sur WhatsApp, sans mot de passe ? Touchez « Mot de passe oublié » : un code WhatsApp vous permet d’en créer un.",
     "agentLoginMetaTitle": "Connexion agent — Lukka Place",
     "agentNoAccountYet": "Pas encore de compte agent ?",
-    "minSixChars": "6 caractères minimum."
+    "minSixChars": "6 caractères minimum.",
+    "whatsappSignIn": {
+      "title": "Continuer avec WhatsApp",
+      "button": "Continuer avec WhatsApp",
+      "lead": "Sans mot de passe : vous envoyez un code depuis votre WhatsApp, et c’est tout.",
+      "nameLabel": "Nom et prénom",
+      "nameHint": "Première fois ici : votre nom ouvre votre compte.",
+      "orPassword": "ou avec votre mot de passe",
+      "codeTitle": "Envoyez ce code depuis WhatsApp",
+      "newAccount": "Votre compte est créé. Envoyez ce code pour l’ouvrir.",
+      "otherNumber": "Pas le bon numéro ?",
+      "restart": "Recommencer",
+      "preferPassword": "Vous préférez votre mot de passe ?",
+      "errors": {
+        "name": "Entrez votre nom et prénom.",
+        "busy": "Trop d’essais. Réessayez dans quelques minutes."
+      }
+    }
   },
   "updates": {
     "title": "Actualités",
@@ -9294,7 +9320,8 @@
       "doneTitle": "Visite demandée",
       "myVisits": "Voir mes visites",
       "backToListing": "Retour à l’annonce",
-      "sending": "Envoi…"
+      "sending": "Envoi…",
+      "followGuest": "Pour suivre la réponse de l’agence, connectez-vous avec WhatsApp : votre visite vous attend dans votre compte."
     },
     "filters": {
       "reset": "Réinitialiser"
@@ -9319,6 +9346,33 @@
           "a": "Enregistrez une recherche depuis les résultats, puis activez « Alertes » dans Enregistrés. Dans l’application, l’alerte arrive en notification."
         }
       }
+    },
+    "listingBar": {
+      "more": "Plus d’options"
+    },
+    "welcome": {
+      "metaTitle": "Bienvenue",
+      "title": "Bienvenue",
+      "skip": "Passer",
+      "lead": "Trois questions pour vous montrer les bons biens. Vous pourrez tout changer ensuite.",
+      "purposeQuestion": "Vous voulez louer ou acheter ?",
+      "purposes": {
+        "louer": "Louer",
+        "acheter": "Acheter",
+        "courte": "Courte durée"
+      },
+      "budgetQuestionRent": "Votre loyer par mois, au plus ?",
+      "budgetQuestionBuy": "Votre budget, au plus ?",
+      "anyBudget": "Peu importe",
+      "upTo": "Jusqu’à {amount}",
+      "communesQuestion": "Quelles communes ?",
+      "communesHint": "Jusqu’à {max}. Aucune : toutes les communes.",
+      "see": "Voir les biens",
+      "seeAll": "Voir tous les biens",
+      "alertTitle": "On vous prévient dès qu’un bien correspond ?",
+      "alertText": "Votre recherche est gardée sur ce téléphone. Avec un compte, nous vous prévenons dès qu’un nouveau bien correspond.",
+      "alertYes": "Oui, me prévenir",
+      "alertLater": "Plus tard, voir les biens"
     }
   }
 }

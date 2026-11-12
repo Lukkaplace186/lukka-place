@@ -230,18 +230,32 @@ test('agents in the app: five tabs from the server, Compte holds everything else
   }
 });
 
-test('the listing bar draws WhatsApp green and chat blue (variants through cn, not a string join)', async () => {
+test('the listing bar draws WhatsApp green (variants through cn, not a string join)', async () => {
   const { cn } = await import('@/lib/utils');
   const bar = read('components/app/AppListingBar.js');
   const base = bar.match(/const ICON_BUTTON =\s*'([^']+)'/)[1];
   assert.match(bar, /className=\{cn\(ICON_BUTTON, 'border-transparent bg-green text-white'\)\}/);
-  assert.match(bar, /className=\{cn\(ICON_BUTTON, 'text-blue'\)\}/);
   assert.doesNotMatch(bar, /`\$\{ICON_BUTTON\}/, 'no plain string join left');
   const whatsapp = cn(base, 'border-transparent bg-green text-white').split(' ');
   assert.ok(whatsapp.includes('bg-green') && !whatsapp.includes('bg-surface'), 'the white background is dropped');
   assert.ok(whatsapp.includes('text-white') && !whatsapp.includes('text-ink'));
-  const chat = cn(base, 'text-blue').split(' ');
-  assert.ok(chat.includes('text-blue') && !chat.includes('text-ink'));
+});
+
+test('the listing bar has ONE main action: the visit; WhatsApp second; call and chat behind "…"', () => {
+  const bar = read('components/app/AppListingBar.js');
+  // The visit is the only wide (flex-1) control, and it always shows its full label.
+  assert.equal((bar.match(/flex-1/g) || []).length, 1);
+  assert.match(bar, /<span className="truncate">\{visitLabel\}<\/span>/);
+  assert.doesNotMatch(bar, /visitShort/);
+  // Call and chat live inside the menu, which is drawn only when it holds something.
+  const menu = bar.slice(bar.indexOf('<DropdownMenuContent'), bar.indexOf('</DropdownMenuContent>'));
+  assert.match(menu, /telHref\(listing\.agent_phone\)/);
+  assert.match(menu, /chatStartHref\(\{ propertyId: listing\.id \}\)/);
+  assert.match(bar, /const hasMore = Boolean\(listing\.agent_phone\) \|\| canMessage;/);
+  assert.match(bar, /\{hasMore \? \(/);
+  // Order in the bar: menu, WhatsApp, then the visit under the right thumb.
+  assert.ok(bar.indexOf('<DropdownMenu>') < bar.indexOf('aria-label={t(\'common.shared.whatsapp\')}'));
+  assert.ok(bar.indexOf('aria-label={t(\'common.shared.whatsapp\')}') < bar.indexOf('/visite`}'));
 });
 
 test('the /app-demo board is local only: a production build answers 404', () => {

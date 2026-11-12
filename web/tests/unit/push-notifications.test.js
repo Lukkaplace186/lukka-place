@@ -157,8 +157,8 @@ test('the app starts at /app; agents land in their space, everyone else on the l
   const config = JSON.parse(read('../../../mobile/capacitor.config.json'));
   assert.equal(config.server.url, 'https://lukkaplace.com/app');
   const start = read('../../app/app/route.js');
-  assert.match(start, /target = '\/compte\/agent'/);
   assert.match(start, /let target = '\/'/);
+  assert.match(start, /target = appStartTarget\(\{ isAgent, welcomed \}\)/);
 });
 
 // --- Phase 1: web-side customer messages go app-first -----------------------

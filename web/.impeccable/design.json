@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T00:00:00Z",
+  "title": "Design System: Lukka Place",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "neutral", "displayName": "Night Ink", "tonalRamp": ["#0b1120", "#2c3444", "#5c6679", "#7c879c", "#cbd2e0", "#e2e6ef", "#eff1f6", "#f8f9fa"] },
+      "ink-70": { "role": "neutral", "displayName": "Body Slate" },
+      "ink-45": { "role": "neutral", "displayName": "Muted Slate" },
+      "ink-35": { "role": "neutral", "displayName": "Faint Slate" },
+      "ink-25": { "role": "neutral", "displayName": "Mist" },
+      "page": { "role": "neutral", "displayName": "Cool Page" },
+      "canvas": { "role": "neutral", "displayName": "White" },
+      "surface": { "role": "neutral", "displayName": "White" },
+      "canvas-alt": { "role": "neutral", "displayName": "Chalk" },
+      "canvas-deep": { "role": "neutral", "displayName": "Mist Well" },
+      "canvas-warm": { "role": "neutral", "displayName": "Warm Stone" },
+      "line": { "role": "neutral", "displayName": "Hairline" },
+      "blue": { "role": "primary", "displayName": "Royal Action Blue", "tonalRamp": ["#0c1d50", "#16307e", "#1e3aa8", "#4761d8", "#eef2ff"] },
+      "blue-deep": { "role": "primary", "displayName": "Deep Royal" },
+      "blue-900": { "role": "primary", "displayName": "Midnight Royal" },
+      "blue-400": { "role": "primary", "displayName": "Focus Periwinkle" },
+      "blue-tint": { "role": "primary", "displayName": "Royal Wash" },
+      "brand-royal": { "role": "primary", "displayName": "Logo Royal" },
+      "brass": { "role": "secondary", "displayName": "Brass", "tonalRamp": ["#7a5619", "#a97c2f", "#f3e7ce"] },
+      "brass-deep": { "role": "secondary", "displayName": "Deep Brass" },
+      "brass-tint": { "role": "secondary", "displayName": "Brass Wash" },
+      "green": { "role": "tertiary", "displayName": "WhatsApp Green", "tonalRamp": ["#007c34", "#00963f", "#00b050", "#e6f8ee"] },
+      "green-deep": { "role": "tertiary", "displayName": "WhatsApp Green Deep" },
+      "green-ink": { "role": "tertiary", "displayName": "Leaf Ink" },
+      "green-tint": { "role": "tertiary", "displayName": "Leaf Wash" },
+      "success": { "role": "status", "displayName": "Success" },
+      "success-tint": { "role": "status", "displayName": "Success Wash" },
+      "warning": { "role": "status", "displayName": "Warning" },
+      "warning-ink": { "role": "status", "displayName": "Warning Ink" },
+      "warning-tint": { "role": "status", "displayName": "Warning Wash" },
+      "danger": { "role": "status", "displayName": "Danger" },
+      "danger-tint": { "role": "status", "displayName": "Danger Wash" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The h1 of an editorial full page; 28px on phones. Class .u-title-hero." },
+      "headline": { "displayName": "Headline", "purpose": "Every dashboard page header, one per screen; 22px on phones. Class .u-title-page." },
+      "headline-storefront": { "displayName": "Headline Storefront", "purpose": "Storefront section titles; 22px on phones. Class .u-title-storefront." },
+      "title": { "displayName": "Title", "purpose": "A band within a page or the heading over a table. Class .u-title-section." },
+      "title-card": { "displayName": "Card Title", "purpose": "The heading inside one card or panel. Class .u-title-card." },
+      "title-sub": { "displayName": "Sub-title", "purpose": "A group label above a field cluster. Class .u-title-sub." },
+      "price": { "displayName": "Price", "purpose": "Every price; never larger on a card. Class .u-price with .u-tabular." },
+      "stat": { "displayName": "Stat", "purpose": "One headline number on a stat tile; 22px on phones. Class .u-stat." },
+      "body": { "displayName": "Body", "purpose": "Descriptions and paragraphs. Class .u-body." },
+      "meta": { "displayName": "Meta", "purpose": "Secondary lines. Class .u-meta." },
+      "micro": { "displayName": "Micro", "purpose": "Dashboard workhorse: table cells, filter controls, form labels. Classes .u-micro / .u-micro-strong." },
+      "label": { "displayName": "Label", "purpose": "Uppercase micro label in Muted Slate: spec keys, kickers. Class .u-eyebrow." }
+    },
+    "shadows": [
+      { "name": "card", "value": "inset 0 0 0 1px #e2e6ef, 0 2px 8px rgba(0,0,0,0.06)", "purpose": "Every card and photo frame at rest." },
+      { "name": "card-hover", "value": "inset 0 0 0 1px #e2e6ef, 0 4px 16px rgba(0,0,0,0.08)", "purpose": "Interactive card on hover, with a 2px lift." },
+      { "name": "lift", "value": "0 1px 2px rgb(11 17 32 / 0.06), 0 8px 24px -6px rgb(11 17 32 / 0.1)", "purpose": "Popovers, dropdowns, menus." },
+      { "name": "lift-lg", "value": "0 2px 4px rgb(11 17 32 / 0.06), 0 24px 48px -12px rgb(11 17 32 / 0.18)", "purpose": "The listing preview floating over the map." },
+      { "name": "panel", "value": "0 24px 60px -24px rgba(12, 29, 80, 0.35)", "purpose": "Only the hero search panel over the home photograph." },
+      { "name": "royal", "value": "0 10px 24px -10px rgba(30, 58, 168, 0.45)", "purpose": "Primary button on hover." },
+      { "name": "focus", "value": "0 0 0 3px rgba(71, 97, 216, 0.32)", "purpose": "Form field focus ring, with a royal border." }
+    ],
+    "motion": [
+      { "name": "ease-rise", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrances: 0.22s for a small panel, 0.6s for a card." },
+      { "name": "ease-pop", "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "purpose": "A toggled icon (favourite heart), 0.4s." },
+      { "name": "control", "value": "background-color 0.18s, box-shadow 0.18s, transform 0.12s", "purpose": "Button state changes." },
+      { "name": "press", "value": "transform 0.15s ease-out, scale(0.96)", "purpose": "Tap feedback on pills and icon buttons." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "container", "value": "1600px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action on a screen.",
+      "html": "<button class=\"ds-btn-primary\">Demander une visite</button>",
+      "css": ".ds-btn-primary { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #1e3aa8; color: #fff; border: none; border-radius: 999px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color 0.18s, box-shadow 0.18s, transform 0.12s; } .ds-btn-primary:hover { background: #16307e; box-shadow: 0 10px 24px -10px rgba(30, 58, 168, 0.45); transform: translateY(-2px); } .ds-btn-primary:active { background: #0c1d50; box-shadow: none; transform: scale(0.985); } .ds-btn-primary:focus-visible { outline: 2px solid #4761d8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A real secondary action: bold ink outline that inverts on hover.",
+      "html": "<button class=\"ds-btn-secondary\">Plus de filtres</button>",
+      "css": ".ds-btn-secondary { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: transparent; color: #0b1120; border: none; box-shadow: inset 0 0 0 1.5px #0b1120; border-radius: 999px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color 0.18s, color 0.18s; } .ds-btn-secondary:hover, .ds-btn-secondary:active { background: #0b1120; color: #fff; } .ds-btn-secondary:focus-visible { outline: 2px solid #4761d8; outline-offset: 2px; }"
+    },
+    {
+      "name": "WhatsApp Button",
+      "kind": "button",
+      "refersTo": "button-whatsapp",
+      "description": "Contact through Lukka Place on WhatsApp; green is reserved for it.",
+      "html": "<button class=\"ds-btn-wa\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2z\"/></svg>WhatsApp</button>",
+      "css": ".ds-btn-wa { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 16px; background: #00b050; color: #fff; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background-color 0.18s; } .ds-btn-wa:hover { background: #00963f; } .ds-btn-wa:active { transform: scale(0.96); } .ds-btn-wa:focus-visible { outline: 2px solid #4761d8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Filter Pill",
+      "kind": "chip",
+      "refersTo": "filter-pill",
+      "description": "Search filter; active shows the chosen value on a royal wash.",
+      "html": "<div class=\"ds-pill-row\"><button class=\"ds-pill\">Type de bien <span aria-hidden=\"true\">▾</span></button><button class=\"ds-pill ds-pill-active\">2 chambres <span aria-hidden=\"true\">▾</span></button></div>",
+      "css": ".ds-pill-row { display: flex; gap: 8px; } .ds-pill { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 8px 14px; border-radius: 8px; border: 1px solid #e2e6ef; background: #fff; color: #2c3444; font-size: 13px; font-weight: 500; cursor: pointer; transition: border-color 0.15s, color 0.15s, transform 0.15s ease-out; } .ds-pill span { opacity: 0.6; font-size: 11px; } .ds-pill:hover { border-color: #cbd2e0; color: #0b1120; } .ds-pill:active { transform: scale(0.96); } .ds-pill:focus-visible { outline: 2px solid #4761d8; outline-offset: 2px; } .ds-pill-active, .ds-pill-active:hover { border-color: #1e3aa8; background: #eef2ff; color: #16307e; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "White field, hairline border, royal focus ring.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Budget max</span><input class=\"ds-input\" placeholder=\"$ 1 500\" /></label>",
+      "css": ".ds-field { display: grid; gap: 6px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; } .ds-field-label { font-size: 12px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #5c6679; } .ds-input { height: 40px; width: 240px; padding: 0 12px; border-radius: 8px; border: 1px solid #e2e6ef; background: #fff; color: #0b1120; font-size: 14px; font-variant-numeric: tabular-nums; transition: border-color 0.12s ease, box-shadow 0.12s ease; } .ds-input::placeholder { color: #cbd2e0; } .ds-input:focus { outline: none; border-color: #1e3aa8; box-shadow: 0 0 0 3px rgba(71, 97, 216, 0.32); }"
+    },
+    {
+      "name": "Listing Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Vertical results card: photo, quiet tabular price, title, place.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-card-photo\"><span class=\"ds-card-count\">1/12</span></div><div class=\"ds-card-body\"><p class=\"ds-card-price\">$ 1 200 <span>/ mois</span></p><h3 class=\"ds-card-title\">Appartement 3 chambres</h3><p class=\"ds-card-place\">Quartier, Commune</p></div></article>",
+      "css": ".ds-card { width: 280px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #fff; border-radius: 14px; overflow: hidden; box-shadow: inset 0 0 0 1px #e2e6ef, 0 2px 8px rgba(0,0,0,0.06); transition: box-shadow 0.2s ease-out, transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1); } .ds-card:hover { box-shadow: inset 0 0 0 1px #e2e6ef, 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-2px); } .ds-card-photo { position: relative; aspect-ratio: 4 / 3; background: #eff1f6; } .ds-card-count { position: absolute; right: 10px; bottom: 10px; padding: 3px 8px; border-radius: 999px; background: rgba(12, 29, 80, 0.62); color: #fff; font-size: 11px; font-variant-numeric: tabular-nums; } .ds-card-body { padding: 14px 16px 16px; } .ds-card-price { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; letter-spacing: 0.1px; color: #0b1120; font-variant-numeric: tabular-nums; } .ds-card-price span { font-size: 14px; color: #5c6679; } .ds-card-title { margin: 4px 0 2px; font-size: 17px; line-height: 1.4; font-weight: 700; color: #0b1120; } .ds-card-place { margin: 0; font-size: 14px; color: #5c6679; }"
+    },
+    {
+      "name": "Tag",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Sentence-case descriptive chip; not a status badge.",
+      "html": "<span class=\"ds-tag\">Groupe électrogène</span>",
+      "css": ".ds-tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 13px; font-weight: 500; white-space: nowrap; background: #fff; color: #2c3444; box-shadow: inset 0 0 0 1px #cbd2e0; }"
+    },
+    {
+      "name": "Header",
+      "kind": "nav",
+      "refersTo": "header",
+      "description": "Fixed white 64px bar with a hairline; no bottom tab bar.",
+      "html": "<header class=\"ds-header\"><span class=\"ds-header-brand\">Lukka Place</span><nav class=\"ds-header-nav\"><a href=\"#\">Louer</a><a href=\"#\">Acheter</a><a href=\"#\">Demandes</a></nav></header>",
+      "css": ".ds-header { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 20px; background: #fff; border-bottom: 1px solid #e2e6ef; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; } .ds-header-brand { font-size: 17px; font-weight: 700; color: #0b1120; } .ds-header-nav { display: flex; gap: 20px; } .ds-header-nav a { color: #0b1120; text-decoration: none; font-size: 14px; font-weight: 500; } .ds-header-nav a:hover { color: #16307e; } .ds-header-nav a:focus-visible { outline: 2px solid #4761d8; outline-offset: 2px; border-radius: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Prestige White, Royal Action",
+    "overview": "A white page, ink type, and one royal blue that speaks only when there is something to do. The look borrows the skeleton of the big property portals (filter pills, card anatomy, a map and results split) and makes it feel calm and credible rather than loud. Photographs of real Kinshasa properties carry the colour; the interface stays out of their way.\n\nDensity is split by surface on purpose: /listings and every dashboard (agent space, Espace Client, /admin) are dense and scannable; the home page and a listing's own page are airier. Scan fast to find, linger to decide. The same type scale, buttons and cards run across all four surfaces so the storefront, the agent portal, the Espace Client and the admin console read as one product.\n\nMost visitors use budget Android phones on slow links. That is a design constraint, not an afterthought: motion is CSS only, blur is switched off on touch screens, and every tap target reaches 44px.",
+    "keyCharacteristics": [
+      "White tiles on a cool off-white page; separation by hairline and a faint shadow, never by heavy boxes.",
+      "One family, Plus Jakarta Sans, everywhere; hierarchy by size and weight only.",
+      "Royal blue is the only action colour. Brass is a rare prestige mark, green is WhatsApp.",
+      "Prices are modest (24px, weight 500) and always tabular.",
+      "Sentence-case French titles; uppercase only for micro labels and badges."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Royal blue is the only colour that means \"act here\". If two things on a screen are blue, only one of them should be the main action.", "section": "colors" },
+      { "name": "The Fill-or-Text Rule", "body": "Every accent is measured, not guessed: blue works as fill and text; brass and green are fills, and their text versions are brass-deep and green-ink.", "section": "colors" },
+      { "name": "The Photographs Carry the Colour Rule", "body": "The interface stays ink and white so property photos are the most colourful thing on the page.", "section": "colors" },
+      { "name": "The No New Sizes Rule", "body": "Use the scale's classes; never write a new arbitrary text-[…]. One-off sizes are how the app once ended up with four typographic dialects.", "section": "typography" },
+      { "name": "The Quiet Price Rule", "body": "A price is 24px at weight 500, tabular, never bigger or blacker. A column of prices must line up.", "section": "typography" },
+      { "name": "The Sentence Case Rule", "body": "Titles are written in sentence case as the dictionary writes them; capitals are reserved for micro labels, badges and reference codes.", "section": "typography" },
+      { "name": "The 44px Rule", "body": "Every tap target is at least 44×44px. A control drawn smaller (a 40px heart over a photo) gets an invisible hit area with .u-hit.", "section": "layout" },
+      { "name": "The Hairline First Rule", "body": "A card is separated by its 1px inset hairline and a faint resting shadow, never by a visible outlined border or a big drop shadow.", "section": "elevation" },
+      { "name": "The Bright Photos Rule", "body": "Never darken a property photo to make text readable. Long text over an image uses the short bottom fade; short metadata uses a capsule; never both on the same edge.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Royal Action Blue (bg-blue + .u-btn-primary) for the one main action on a screen, and Deep Royal for links and text on tints.",
+      "Do set every price with .u-price and .u-tabular; prices are 24px, weight 500.",
+      "Do take every title and label size from the scale (.u-title-*, .u-micro, .u-eyebrow…).",
+      "Do separate cards with the hairline-plus-faint-shadow .u-card, on the cool page ground.",
+      "Do gate hover styles on (hover: hover); Android keeps :hover on the last thing tapped.",
+      "Do design at 375px first and keep every tap target at 44px.",
+      "Do show real photos of the actual property; when a fact or photo is missing, say so plainly in the interface."
+    ],
+    "donts": [
+      "Don't add a second font family or bring back a serif for titles (removed 2026-10-24).",
+      "Don't use brass as a button, or brass and green as body-size text; use brass-deep and green-ink for text.",
+      "Don't use Logo Royal (brand-royal) for buttons or links, or Focus Periwinkle for anything but focus rings.",
+      "Don't add a second ground colour or warm band to the storefront; separate homepage sections with hairlines and spacing. Warm Stone belongs to the Espace Client only.",
+      "Don't darken property photos with heavy gradients, or stack a scrim and a glass capsule on the same edge.",
+      "Don't make prices or headings huge and black: nothing on a listing card is larger than the 24px price.",
+      "Don't set titles in capitals.",
+      "Don't use backdrop blur that stays on for touch screens, or ship an animation library.",
+      "Don't use stock or stand-in photographs where a listing's own photo belongs.",
+      "Don't \"fix\" the map back to the site palette."
+    ]
+  }
+}

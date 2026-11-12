@@ -58,6 +58,13 @@ don't guess. Examples already in this codebase:
 
 ## Design system
 
+**`web/DESIGN.md` is the current description of the visual system** (tokens,
+type scale, components, do's and don'ts; written 2026-11-12 from
+`app/globals.css`, which stays the source of truth). Design tools read it.
+Update it when a token or shared component changes. Parts of this section
+predate the "WhiteBlue Royal" pass and the single-family change and are kept
+for their reasoning: the warm `#FBF9F6` canvas, bronze and DM Serif are gone.
+
 Warm luxury palette over a Zillow/Rightmove-style portal information
 architecture: the references supply the skeleton (filter pills, card anatomy,
 map/results split, desktop rail), the palette and type supply the skin.

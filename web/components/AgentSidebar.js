@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, MessageCircle, Bell } from 'lucide-react';
+import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, MessageCircle, Bell, Home, CalendarDays, User } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import { useT } from '@/lib/i18n/client';
@@ -59,7 +59,20 @@ const NAV = [
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
 ];
 
+// Inside the store app (app design, 2026-11-11): five tabs — the overview's
+// to-do list, listings, requests, the visit agenda, and Compte, where
+// everything else lives (app/compte/agent/menu). Unread messages show on
+// Compte; the desktop rail is unchanged.
+const APP_TABS = [
+  { href: '/compte/agent', shortKey: 'agent.nav.homeShort', icon: Home, exact: true },
+  { href: '/compte/agent/biens', shortKey: 'agent.nav.listingsShort', icon: Landmark, countKey: 'listings' },
+  { href: '/compte/agent/demandes', shortKey: 'agent.nav.leadsShort', icon: Mail, countKey: 'leads' },
+  { href: '/compte/agent/visites', shortKey: 'agent.nav.visitsShort', icon: CalendarDays },
+  { href: '/compte/agent/menu', shortKey: 'agent.nav.accountShort', icon: User, countKey: 'messages', match: ['/compte/agent/menu', '/compte/agent/messages', '/compte/agent/alertes', '/compte/agent/parametres', '/compte/agent/abonnement', '/compte/agent/parrainage', '/compte/agent/projets'] },
+];
+
 function isActive(pathname, item) {
+  if (item.match) return item.match.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
@@ -73,6 +86,8 @@ export default function AgentSidebar({
   completion,
   logoutAction,
   features = {},
+  // The server's lib/appMode.js answer, so the app's tabs are right on the first paint.
+  appMode = false,
 }) {
   const t = useT();
   const pathname = usePathname();
@@ -88,7 +103,7 @@ export default function AgentSidebar({
   // first client render agree and the tab appears a moment later in the app.
   const [inApp, setInApp] = useState(false);
   useEffect(() => setInApp(inNativeApp()), []);
-  const tabs = nav.filter((item) => !item.mobileAppOnly || inApp);
+  const tabs = appMode ? APP_TABS : nav.filter((item) => !item.mobileAppOnly || inApp);
 
   return (
     <>

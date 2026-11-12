@@ -1237,7 +1237,10 @@
       "messages": "Messages",
       "messagesShort": "Messages",
       "alerts": "Alertes",
-      "alertsShort": "Alertes"
+      "alertsShort": "Alertes",
+      "homeShort": "Accueil",
+      "visitsShort": "Visites",
+      "accountShort": "Compte"
     },
     "overview": {
       "title": "Vue d'ensemble",
@@ -3013,6 +3016,25 @@
       "errorConfirm": "Tapez SUPPRIMER pour confirmer la suppression.",
       "errorCommissions": "Votre compte ne peut pas être supprimé tout de suite : une commission commerciale est en cours. Écrivez-nous sur WhatsApp, nous le supprimerons pour vous.",
       "done": "Votre compte agent a été supprimé."
+    },
+    "appMenu": {
+      "title": "Compte",
+      "verified": "Agent vérifié",
+      "activity": "Mon activité",
+      "dashboard": "Tableau de bord",
+      "messages": "Messages",
+      "alerts": "Alertes",
+      "point": "Faites le point",
+      "projects": "Projets neufs",
+      "account": "Mon compte",
+      "settings": "Profil et réglages",
+      "subscription": "Abonnement",
+      "publicPage": "Ma page publique",
+      "preferences": "Préférences",
+      "language": "Langue",
+      "searchTitle": "Chercher un logement",
+      "searchText": "Parcourir, enregistrer et demander des visites",
+      "signOut": "Se déconnecter"
     }
   },
   "status": {

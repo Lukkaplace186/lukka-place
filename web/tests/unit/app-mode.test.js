@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { APP_TABS, activeAppTab, hidesAppTabs, isAppMode, isAppUserAgent } from '@/lib/appModeRules';
@@ -11,6 +11,7 @@ import { APP_TABS, activeAppTab, hidesAppTabs, isAppMode, isAppUserAgent } from 
  */
 
 const read = (rel) => readFileSync(path.join(process.cwd(), rel), 'utf8');
+read.exists = (rel) => existsSync(path.join(process.cwd(), rel));
 
 test('app mode comes from the cookie or the app user agent, nothing else', () => {
   assert.equal(isAppMode({ cookieValue: '1' }), true);
@@ -201,4 +202,30 @@ test('filters in the app: the design bottom sheet around the same fields and cou
   assert.match(read('components/FilterBar.js'), /app=\{appMode\}/);
   assert.match(read('app/(site)/listings/(search)/(results)/page.js'), /cities=\{publicCities\}\s*appMode=\{app\}/);
   for (const lang of ['fr', 'en']) assert.equal(typeof JSON.parse(read(`lib/i18n/${lang}.json`)).appShell.filters.reset, 'string');
+});
+
+test('agents in the app: five tabs from the server, Compte holds everything else', () => {
+  const layout = read('app/compte/agent/layout.js');
+  assert.match(layout, /isAppRequest\(\),\s*\]\);/);
+  assert.match(layout, /appMode=\{app\}/);
+  const sidebar = read('components/AgentSidebar.js');
+  assert.match(sidebar, /const tabs = appMode \? APP_TABS : nav\.filter/);
+  const tabs = sidebar.slice(sidebar.indexOf('const APP_TABS = ['), sidebar.indexOf('];', sidebar.indexOf('const APP_TABS = [')));
+  for (const href of ['/compte/agent', '/compte/agent/biens', '/compte/agent/demandes', '/compte/agent/visites', '/compte/agent/menu']) {
+    assert.ok(tabs.includes(`href: '${href}'`), href);
+  }
+  const menu = read('app/compte/agent/menu/page.js');
+  assert.match(menu, /const agentId = await getCurrentAgentId\(\);/, 'the session decides whose account it is');
+  assert.match(menu, /<form action=\{agentLogoutAction\}>/);
+  assert.match(menu, /VERIFIED_LEVELS\.has\(agent\.verification_level\)/, 'the verified mark only for a level the team granted');
+  // Every row links to a page that exists.
+  for (const href of [...menu.matchAll(/<Row href="([^"]+)"/g)].map((m) => m[1])) {
+    const dir = `app${href}`;
+    assert.ok(read.exists(`${dir}/page.js`), `${href} has a page`);
+  }
+  for (const lang of ['fr', 'en']) {
+    const dict = JSON.parse(read(`lib/i18n/${lang}.json`));
+    for (const key of ['homeShort', 'visitsShort', 'accountShort']) assert.equal(typeof dict.agent.nav[key], 'string', `${lang} ${key}`);
+    assert.equal(typeof dict.agent.appMenu.signOut, 'string');
+  }
 });

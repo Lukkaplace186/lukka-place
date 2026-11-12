@@ -1237,7 +1237,10 @@
       "messages": "Messages",
       "messagesShort": "Messages",
       "alerts": "Alerts",
-      "alertsShort": "Alerts"
+      "alertsShort": "Alerts",
+      "homeShort": "Home",
+      "visitsShort": "Visits",
+      "accountShort": "Account"
     },
     "overview": {
       "title": "Overview",
@@ -3013,6 +3016,25 @@
       "errorConfirm": "Type SUPPRIMER to confirm the deletion.",
       "errorCommissions": "Your account cannot be deleted right away: a sales commission is still open. Message us on WhatsApp and we will delete it for you.",
       "done": "Your agent account has been deleted."
+    },
+    "appMenu": {
+      "title": "Account",
+      "verified": "Verified agent",
+      "activity": "My Activity",
+      "dashboard": "Dashboard",
+      "messages": "Messages",
+      "alerts": "Alerts",
+      "point": "Listing check-in",
+      "projects": "New projects",
+      "account": "My Account",
+      "settings": "Profile and settings",
+      "subscription": "Subscription",
+      "publicPage": "My public page",
+      "preferences": "Preferences",
+      "language": "Language",
+      "searchTitle": "Search for a Home",
+      "searchText": "Browse, save and request visits",
+      "signOut": "Sign out"
     }
   },
   "status": {

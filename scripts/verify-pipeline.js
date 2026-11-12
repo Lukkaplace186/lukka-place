@@ -268,7 +268,7 @@ stubPackage('axios', axiosStub);
 
 // The fiche pratique's first question follows every "OK" receipt; the many
 // end-to-end checks that read the receipt as the last message predate it.
-// Off here, switched on inside §107 only.
+// Off here, switched on inside §111 only.
 process.env.FICHE_PRATIQUE = 'off';
 
 // ---------------------------------------------------------------------------
@@ -17928,24 +17928,24 @@ console.log('\n2. services/openai.js');
   });
 
   // ---------------------------------------------------------------------------
-  // §107 Fiche pratique — four one-tap questions after "OK" (2026-11-12)
+  // §111 Fiche pratique — four one-tap questions after "OK" (2026-11-12)
   // ---------------------------------------------------------------------------
   // services/practicalFacts.js: power, water, rainy-season access, visit fee,
   // asked with reply buttons after the publish receipt; only the sender may
   // answer; an answer ADDS the matching utility codes and generator / solar
   // ticks so the existing filters see it; NULL stays "not stated".
-  console.log('\n§107 Fiche pratique — questions after OK, answers on the listing');
+  console.log('\n§111 Fiche pratique — questions after OK, answers on the listing');
   {
     const practical = require('../services/practicalFacts');
     const pgService = require('../services/postgres');
     const AGENT = '243810000777';
     const sentButtons = [];
     const sentTexts = [];
-    const saved107 = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage, flag: process.env.FICHE_PRATIQUE };
+    const savedFiche = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage, flag: process.env.FICHE_PRATIQUE };
     delete process.env.FICHE_PRATIQUE; // unset = on (the default in production)
     chakra.sendInteractiveButtons = async (to, body, buttons) => { sentButtons.push({ to, body, buttons }); return {}; };
     chakra.sendWhatsAppMessage = async (to, body) => { sentTexts.push({ to, body }); return {}; };
-    const listing107 = (type, wamid) => dbService.insertListing({ ...data, property_type: type, parcelle_subtype: null }, AGENT, { wamid, rawText: 'Appartement à louer' }).id;
+    const listingFiche = (type, wamid) => dbService.insertListing({ ...data, property_type: type, parcelle_subtype: null }, AGENT, { wamid, rawText: 'Appartement à louer' }).id;
     try {
       check('a button id names the listing, the question and a known answer — anything else is not ours', () => {
         assert.deepEqual(
@@ -17969,9 +17969,9 @@ console.log('\n2. services/openai.js');
       });
 
       await checkAsync('asked after OK for a flat; not for bare land, several properties, or FICHE_PRATIQUE=off', async () => {
-        const flat = listing107('appartement', 'wamid.FICHE1');
-        const land = listing107('terrain', 'wamid.FICHE2');
-        const other = listing107('appartement', 'wamid.FICHE3');
+        const flat = listingFiche('appartement', 'wamid.FICHE1');
+        const land = listingFiche('terrain', 'wamid.FICHE2');
+        const other = listingFiche('appartement', 'wamid.FICHE3');
         sentButtons.length = 0;
         assert.equal((await practical.askAfterPublish([land], AGENT)).asked, false);
         assert.equal((await practical.askAfterPublish([flat, other], AGENT)).reason, 'several-properties');
@@ -17988,7 +17988,7 @@ console.log('\n2. services/openai.js');
       });
 
       await checkAsync('only the sender may answer; each tap saves, adds the codes and asks the next question', async () => {
-        const id = listing107('appartement', 'wamid.FICHE4');
+        const id = listingFiche('appartement', 'wamid.FICHE4');
         sentButtons.length = 0;
         const stranger = await practical.handlePracticalButtonReply({ from: '243899999999', replyId: `fiche:${id}:c:snel_groupe` });
         assert.equal(stranger.ignored, 'not-sender');
@@ -18007,7 +18007,7 @@ console.log('\n2. services/openai.js');
       });
 
       await checkAsync('the fourth answer completes the fiche once; a later tap is an update', async () => {
-        const id = listing107('appartement', 'wamid.FICHE5');
+        const id = listingFiche('appartement', 'wamid.FICHE5');
         for (const reply of ['c:snel', 'e:regideso_citerne', 'a:inonde']) {
           await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:${reply}` });
         }
@@ -18026,8 +18026,8 @@ console.log('\n2. services/openai.js');
       });
 
       await checkAsync('a building pasted as units is asked once and every unit gets the answer', async () => {
-        const a = listing107('appartement', 'wamid.FICHE6');
-        const b = listing107('appartement', 'wamid.FICHE7');
+        const a = listingFiche('appartement', 'wamid.FICHE6');
+        const b = listingFiche('appartement', 'wamid.FICHE7');
         dbService.db.prepare('UPDATE listings SET parent_building_id = ? WHERE id IN (?, ?)').run('bldg-107', a, b);
         sentButtons.length = 0;
         assert.equal((await practical.askAfterPublish([a, b], AGENT)).asked, true);
@@ -18054,10 +18054,10 @@ console.log('\n2. services/openai.js');
         }
       });
     } finally {
-      chakra.sendInteractiveButtons = saved107.buttons;
-      chakra.sendWhatsAppMessage = saved107.text;
-      if (saved107.flag === undefined) delete process.env.FICHE_PRATIQUE;
-      else process.env.FICHE_PRATIQUE = saved107.flag;
+      chakra.sendInteractiveButtons = savedFiche.buttons;
+      chakra.sendWhatsAppMessage = savedFiche.text;
+      if (savedFiche.flag === undefined) delete process.env.FICHE_PRATIQUE;
+      else process.env.FICHE_PRATIQUE = savedFiche.flag;
     }
   }
 

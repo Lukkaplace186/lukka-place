@@ -446,7 +446,7 @@ and the default — a rent with no period, or a monthly / yearly one.
 ## Fiche pratique — four one-tap questions after "OK" (2026-11-12)
 
 `services/practicalFacts.js`, `migrations/20261112_listing_practical_facts.sql`
-(web half: web/CLAUDE.md, same heading). §107 of verify-pipeline.
+(web half: web/CLAUDE.md, same heading). §111 of verify-pipeline.
 
 - **Why**: power and water are what a Kinshasa tenant asks first, and agents
   rarely write them in the advert, so the "Électricité" / "Eau" filters had

@@ -19,6 +19,11 @@ lukka_place.db
 lukka_place.db-shm
 lukka_place.db-wal
 
+# Copies of the production SQLite database (lukka_place-<timestamp>.db.gz,
+# and .partial files from an interrupted copy). They hold real customers' and
+# agents' phone numbers: never commit them.
+/backups/
+
 # Downloaded listing photos (services/mediaStorage.js)
 uploads/
 

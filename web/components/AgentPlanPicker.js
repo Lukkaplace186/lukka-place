@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowUpRight, Camera, Check, Clock3, Star } from 'lucide-react';
 import { photoPerkLines } from '@/lib/photoAllowance';
@@ -10,6 +11,7 @@ import { requestPlanChangeAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { actionFailureToast } from '@/lib/actionFailure';
 import { useT } from '@/lib/i18n/client';
+import { checkoutPath, isPayableOnline } from '@/lib/checkoutRules';
 
 const TERM_SUFFIX = { monthly: '/ mois', yearly: '/ an', lifetime: 'une fois' };
 
@@ -36,17 +38,19 @@ function priceLabel(pkg) {
  *   2. Opens WhatsApp to the team with the plan pre-filled, so the request
  *      also *arrives* rather than sitting in a queue nobody is watching.
  *
- * This platform has no payment gateway — /admin/subscriptions is a manual
- * ledger by deliberate product decision (cash, bank transfer, Mobile Money).
- * A "Payer maintenant" button would be a fabrication; a request an admin
- * genuinely acts on is the real mechanism, so that's what this is.
+ * With `checkoutEnabled` (FlexPaie configured, see the Abonnement page) a
+ * paid plan's main button is "Payer en ligne" → /compte/agent/abonnement/
+ * paiement (components/AgentCheckout.js), and the request stays underneath
+ * as a link for cash or bank transfer. Without it the request is the only
+ * mechanism, as before: a "Payer" button nothing could honour would be a
+ * fabrication.
  *
  * The WhatsApp window is opened from the click handler *before* awaiting the
  * server action: a popup opened after an await has lost the user-gesture
  * context browsers require, and is blocked. The request is still filed if
  * the popup is blocked anyway, and vice versa — neither depends on the other.
  */
-export default function AgentPlanPicker({ packages, currentPackageId, openRequestPackageIds }) {
+export default function AgentPlanPicker({ packages, currentPackageId, openRequestPackageIds, checkoutEnabled = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -169,6 +173,24 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                   <Clock3 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                   Demande en cours
                 </span>
+              ) : checkoutEnabled && isPayableOnline(pkg) ? (
+                <div className="flex flex-col items-center gap-1.5">
+                  <Link
+                    href={checkoutPath(pkg.id)}
+                    className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white"
+                  >
+                    {t('agent.plans.payOnline')}
+                    <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleRequest(pkg)}
+                    disabled={pending}
+                    className="u-micro-strong u-hit relative min-h-11 text-blue hover:underline disabled:opacity-60"
+                  >
+                    {pending && requestedId === pkg.id ? 'Envoi…' : t('agent.plans.orRequest')}
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"

@@ -1566,7 +1566,8 @@
       "placesLeft": {
         "one": "Only {count} slot left",
         "other": "Only {count} slots left"
-      }
+      },
+      "howPaymentBodyOnline": "Pay for your plan online with Mobile Money (M-Pesa, Orange Money, Airtel Money): it is activated as soon as the payment is confirmed. You can also request it from the team and pay in cash or by bank transfer."
     },
     "meta": {
       "title": "Agent Area — Lukka Place"
@@ -1763,7 +1764,9 @@
       "listingsIncluded": {
         "one": "{count} published listing",
         "other": "{count} published listings"
-      }
+      },
+      "payOnline": "Pay online",
+      "orRequest": "or ask the team"
     },
     "sold": {
       "notDeleted": "deleted: the property stays on your dashboard and can be put back online at any time.",
@@ -3035,6 +3038,73 @@
       "searchTitle": "Search for a Home",
       "searchText": "Browse, save and request visits",
       "signOut": "Sign out"
+    },
+    "checkout": {
+      "metaTitle": "Plan Payment — Agent Space — Lukka Place",
+      "title": "Payment",
+      "backToPlans": "Back to plans",
+      "eyebrow": "Agent Subscription",
+      "heading": "Upgrade to the {plan} Plan",
+      "intro": "Pay for your plan with Mobile Money. It is activated as soon as the payment is confirmed.",
+      "notOpen": "Online payment is not open yet. You can request this plan from the team on the Subscription page.",
+      "summary": "Summary",
+      "yourPlan": "Your plan",
+      "plan": "Plan",
+      "priority": "×{n} priority when new requests in your communes are assigned",
+      "yourDetails": "Your Details",
+      "agency": "Agency or agent",
+      "agencyUnknown": "Not set — you can add it in Settings.",
+      "phoneLabel": "{operator} number paying",
+      "phoneHint": "A DRC number. The receipt is sent on WhatsApp to your account number.",
+      "method": "Payment Method",
+      "howTitle": "How It Works",
+      "howBody": "After you tap Pay, a payment request arrives on your {operator} phone. Approve it with your PIN. Keep this page open: it updates by itself.",
+      "cardSoon": "Card payment is not offered yet.",
+      "total": "Total to pay",
+      "oneOff": "One-off payment · {term}",
+      "termsBefore": "I accept the",
+      "termsLink": "Lukka Place terms and conditions",
+      "termsAfter": " and the payment of {amount} for this plan.",
+      "pay": "Pay {amount}",
+      "sending": "Sending the request…",
+      "secure": "Payment is processed by FlexPaie. Lukka Place never sees your PIN.",
+      "reference": "Reference:",
+      "tryAgain": "Try again",
+      "contactTeam": "Message the team",
+      "whatsappHelp": "Bonjour, j’ai un souci avec le paiement du forfait « {plan} » (référence {ref}).",
+      "term": {
+        "monthly": "1 month",
+        "yearly": "1 year",
+        "lifetime": "lifetime"
+      },
+      "waiting": {
+        "title": "Approve on Your Phone",
+        "body": "A request for {amount} was sent to your {operator}. Enter your PIN to confirm. This page updates as soon as the payment is received."
+      },
+      "paid": {
+        "title": "Payment Received",
+        "body": "Your “{plan}” plan is active.",
+        "cta": "See my subscription"
+      },
+      "failed": {
+        "title": "The Payment Did Not Go Through",
+        "body": "No amount was approved. Check your balance and try again."
+      },
+      "timeout": {
+        "title": "Still Waiting",
+        "body": "We have no confirmation yet. If you approved on your phone, your plan will be activated as soon as the payment reaches us. Otherwise, try again."
+      },
+      "errors": {
+        "phone": "Enter a DRC Mobile Money number (e.g. 81 234 5678).",
+        "terms": "Tick the box to accept the terms.",
+        "noAgency": "Your account is not linked to an agency yet. Contact the Lukka Place team to pay for this plan.",
+        "package": "This plan cannot be paid online.",
+        "notConfigured": "Online payment is not open yet.",
+        "provider": "The payment service did not accept the request. Try again in a moment.",
+        "auth": "Your session has expired. Log in again and retry.",
+        "network": "Connection lost. Check your network and try again.",
+        "generic": "Something went wrong. Try again."
+      }
     }
   },
   "status": {

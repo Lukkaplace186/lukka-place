@@ -38,17 +38,15 @@ L'État a nommé le problème. En janvier 2026, trois ministres ont décrit un r
 
 Les premières tentatives n'ont pas abouti, mais elles ont laissé une leçon claire : on ne numérise pas des archives en désordre. C'est précisément la méthode adoptée aujourd'hui.
 
-:::tableau titre="Du registre papier au registre numérique" source="[6] [7] [8] [9] [23] [24] ; Plan foncier national : presse"
-| Date | Étape | Statut |
-|---|---|---|
-| 2014 | Congo Check : premier partenariat pour numériser le cadastre, résilié en mai 2022 [6]. | Inabouti |
-| 08/2022 | e-Foncier avec eProseed : 140 M$ annoncés et un premier titre numérique promis à la Gombe pour fin 2022 [7]. | Inabouti |
-| 12/2025 | Loi n° 25/062 : réforme de la loi foncière de 1973, promulguée fin décembre 2025 [8]. | Adoptée |
-| 06/2026 | Plan foncier national 2026-2040 : environ 1,46 Md$ selon la presse, digitalisation intégrale du cadastre en priorité. | Adopté |
-| 08/2026 | Tri des archives : 250 agents, 16 622 dossiers, 17 circonscriptions de Kinshasa, 10 jours [9]. | Réalisé |
-| 10/2026 | Numérisation du registre : première phase lancée à Maluku, N'Sele et Mont-Ngafula [23]. | En cours |
-| 11/2026 | Application MIMPA du ministère des Affaires foncières : l'information foncière dans la poche des citoyens, en phase pilote, lancement officiel le 12 novembre 2026 [24]. | Pilote |
-| 2027 → | RNTFI, le registre national, après l'équipement de 146 bureaux ; conversion des livrets parcellaires à partir de 2027 [9]. | Prochaine étape |
+:::chronologie
+2014 | Congo Check | : premier partenariat pour numériser le cadastre, résilié en mai 2022 [6]. | Inabouti | echec
+08/2022 | e-Foncier | avec eProseed : 140 M$ annoncés et un premier titre numérique promis à la Gombe pour fin 2022 [7]. | Inabouti | echec
+12/2025 | Loi n° 25/062 | : réforme de la loi foncière de 1973, promulguée fin décembre 2025 [8]. | Adoptée | fait
+06/2026 | Plan foncier national 2026-2040 | : environ 1,46 Md$ selon la presse, digitalisation intégrale du cadastre en priorité. | Adopté | fait
+08/2026 | Tri des archives | : 250 agents, 16 622 dossiers, 17 circonscriptions de Kinshasa, 10 jours [9]. | Réalisé | fait
+10/2026 | Numérisation du registre | : première phase lancée à Maluku, N'Sele et Mont-Ngafula [23]. | En cours | fait
+11/2026 | Application MIMPA | du ministère des Affaires foncières : l'information foncière dans la poche des citoyens, en phase pilote, lancement officiel le 12 novembre 2026 [24]. | Pilote | encours
+2027 → | RNTFI | , le registre national, après l'équipement de 146 bureaux ; conversion des livrets parcellaires à partir de 2027 [9]. | Prochaine étape | prochain
 :::
 
 La loi n° 25/062 donne le cadre [8] :
@@ -114,7 +112,7 @@ La numérisation n'est pas un rêve lointain. Plusieurs pays du continent ont d�
 En attendant le registre numérique, suivez ces quatre étapes avant tout paiement.
 
 :::citation auteur="Un avocat kinois" role="Actualite.cd, 6 septembre 2026 [10]"
-« Il ne faut jamais se contenter du document présenté par le vendeur. »
+Il ne faut jamais se contenter du document présenté par le vendeur.
 :::
 
 :::attention titre="En attendant le RNTFI · avant tout paiement · Conservation des titres immobiliers"
@@ -148,21 +146,18 @@ Pas encore, mais le chantier avance : en novembre 2026, les archives de Kinshasa
 Elle prévoit le géoréférencement des parcelles, la fin de la prescription acquisitive, une mercuriale des prix, le paiement des transactions par la banque, une conciliation obligatoire avant tout procès foncier et une responsabilité étendue à toute la chaîne foncière.
 :::
 
-## Folio 8 — L'engagement Lukka Place : transparence juridique et transparence des prix
-
+:::engagement surtitre="Folio 8" titre="L'engagement Lukka Place : transparence juridique et transparence des prix"
 Un titre sûr ne suffit pas si le prix reste opaque, et un prix clair ne vaut rien si le titre est contestable. La réforme foncière avance sur les deux fronts. Lukka Place apporte l'autre moitié : nous avons accès aux statistiques du marché, construites à partir des prix réels des annonces, commune par commune, et nous les publions dans notre guide des prix pour que chacun sache ce que vaut un loyer ou une parcelle avant de négocier.
 
-:::tableau
-| L'État · le titre | Lukka Place · le prix |
-|---|---|
-| Registre géoréférencé (RNTFI), mercuriale des prix, paiement bancaire. | Statistiques de prix réels par commune, guide des prix, annonces d'agents vérifiés. |
-:::
+L'État · le titre | Registre géoréférencé (RNTFI), mercuriale des prix, paiement bancaire.
+Lukka Place · le prix | Statistiques de prix réels par commune, guide des prix, annonces d'agents vérifiés.
 
 Le jour où chaque titre de Kinshasa sera vérifiable en ligne, le marché pourra enfin fonctionner sur deux certitudes : à qui appartient le bien, et ce qu'il vaut. Lukka Place y travaille côté prix dès aujourd'hui.
 
-- [Guide des prix par commune](/combien-coute)
-- [Biens à vendre](/vente)
-- [Confiez-nous votre recherche](/trouver-pour-moi)
+[Guide des prix par commune](/combien-coute)
+[Biens à vendre](/vente)
+[Confiez-nous votre recherche](/trouver-pour-moi)
+:::
 
 ## Sources
 
@@ -223,17 +218,15 @@ The State has named the problem. In January 2026, three ministers described a ne
 
 The first attempts did not succeed, but they left a clear lesson: you cannot digitize disordered archives. That is exactly the method being followed now.
 
-:::tableau titre="From the paper register to the digital register" source="[6] [7] [8] [9] [23] [24]; National Land Plan: press reports"
-| Date | Step | Status |
-|---|---|---|
-| 2014 | Congo Check: first partnership to digitize the cadastre, terminated in May 2022 [6]. | Not completed |
-| 08/2022 | e-Foncier with eProseed: US$140M announced and a first digital title promised in Gombe for end-2022 [7]. | Not completed |
-| 12/2025 | Law No. 25/062: reform of the 1973 land law, promulgated at the end of December 2025 [8]. | Enacted |
-| 06/2026 | National Land Plan 2026–2040: about US$1.46bn according to press reports, full cadastre digitization as a priority. | Adopted |
-| 08/2026 | Archive sorting: 250 officials, 16,622 files, 17 Kinshasa land districts, 10 days [9]. | Done |
-| 10/2026 | Register digitization: first phase launched in Maluku, N'Sele and Mont-Ngafula [23]. | Under way |
-| 11/2026 | MIMPA app from the Ministry of Land Affairs: land information in citizens' pockets, in pilot phase, officially launched on 12 November 2026 [24]. | Pilot |
-| 2027 → | RNTFI, the national register, once 146 offices are equipped; conversion of livrets parcellaires from 2027 [9]. | Next step |
+:::chronologie
+2014 | Congo Check | : first partnership to digitize the cadastre, terminated in May 2022 [6]. | Not completed | echec
+08/2022 | e-Foncier | with eProseed: US$140M announced and a first digital title promised in Gombe for end-2022 [7]. | Not completed | echec
+12/2025 | Law No. 25/062 | : reform of the 1973 land law, promulgated at the end of December 2025 [8]. | Enacted | fait
+06/2026 | National Land Plan 2026–2040 | : about US$1.46bn according to press reports, full cadastre digitization as a priority. | Adopted | fait
+08/2026 | Archive sorting | : 250 officials, 16,622 files, 17 Kinshasa land districts, 10 days [9]. | Done | fait
+10/2026 | Register digitization | : first phase launched in Maluku, N'Sele and Mont-Ngafula [23]. | Under way | fait
+11/2026 | MIMPA app | from the Ministry of Land Affairs: land information in citizens' pockets, in pilot phase, officially launched on 12 November 2026 [24]. | Pilot | encours
+2027 → | RNTFI | , the national register, once 146 offices are equipped; conversion of livrets parcellaires from 2027 [9]. | Next step | prochain
 :::
 
 Law No. 25/062 sets the framework [8]:
@@ -299,7 +292,7 @@ Digitization is not a distant dream. Several countries on the continent have alr
 Until the digital register exists, follow these four steps before any payment.
 
 :::citation auteur="A Kinshasa lawyer" role="Actualite.cd, 6 September 2026 (translated) [10]"
-"Never settle for the document the seller shows you."
+Never settle for the document the seller shows you.
 :::
 
 :::attention titre="Until the RNTFI exists · before any payment · Conservation des titres immobiliers"
@@ -333,21 +326,18 @@ Not yet, but the work is moving: as of November 2026, Kinshasa's archives are be
 It provides for geo-referenced plots, an end to acquisitive prescription, a reference price scale, bank payment for transactions, mandatory conciliation before any land case and liability extended to the whole land chain.
 :::
 
-## Folio 8 — The Lukka Place commitment: legal transparency and price transparency
-
+:::engagement surtitre="Folio 8" titre="The Lukka Place commitment: legal transparency and price transparency"
 A secure title is not enough if the price stays opaque, and a clear price is worth nothing if the title can be contested. The land reform moves on both fronts. Lukka Place brings the other half: we have access to market statistics, built from real listing prices, commune by commune, and we publish them in our price guide so everyone knows what a rent or a plot is worth before negotiating.
 
-:::tableau
-| The State · the title | Lukka Place · the price |
-|---|---|
-| Geo-referenced register (RNTFI), reference price scale, bank payment. | Real price statistics by commune, price guide, listings from verified agents. |
-:::
+The State · the title | Geo-referenced register (RNTFI), reference price scale, bank payment.
+Lukka Place · the price | Real price statistics by commune, price guide, listings from verified agents.
 
 The day every Kinshasa title can be checked online, the market will finally run on two certainties: who owns the property, and what it is worth. Lukka Place is working on the price side today.
 
-- [Price guide by commune](/combien-coute)
-- [Properties for sale](/vente)
-- [Let us search for you](/trouver-pour-moi)
+[Price guide by commune](/combien-coute)
+[Properties for sale](/vente)
+[Let us search for you](/trouver-pour-moi)
+:::
 
 ## Sources
 

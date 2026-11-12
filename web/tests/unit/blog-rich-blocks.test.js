@@ -131,3 +131,54 @@ test('rendering: no HTML path, motion only without reduced-motion, live blocks f
   assert.doesNotMatch(read('components/blog/ArticleBody.js'), /^import .*(LiveListings|PropertyCard)/m);
   assert.match(read('app/(site)/guides/[slug]/page.js'), /listingsBlock=\{LiveListings\}/);
 });
+
+test('chronologie: dated steps with a tone each; bad lines and unknown tones are refused', () => {
+  const [block] = parseBody([
+    ':::chronologie titre="Du papier au numérique" source="ACP [8]"',
+    '2014 | Congo Check | premier partenariat, résilié en 2022 [6]. | Inabouti | echec',
+    '12/2025 | Loi n° 25/062 | promulguée fin décembre 2025 [8]. | Adoptée | fait',
+    '11/2026 | Application MIMPA | en phase pilote [24]. | Pilote | en cours',
+    '2027 → | RNTFI | | Prochaine étape | prochain',
+    ':::',
+  ].join('\n'));
+  assert.equal(block.timeline.title, 'Du papier au numérique');
+  assert.deepEqual(block.timeline.items.map((it) => it.tone), ['failed', 'done', 'current', 'next']);
+  assert.equal(block.timeline.items[3].text, null, 'an empty text cell stays empty');
+  assert.equal(parseBody(':::chronologie\n2014 | a | b | c\n2015 | d\n:::')[0].timeline.items[0].tone, 'done', 'no tone = fait');
+  assert.match(bodyProblems(':::chronologie\n2014 | a | b | c | bleu\n2015 | d\n:::')[0], /ton inconnu/);
+  assert.match(bodyProblems(':::chronologie\n2014 | | \n2015 | d\n:::')[0], /ligne illisible/);
+  assert.match(bodyProblems(':::chronologie\n2014 | seul\n:::')[0], /au moins 2/);
+});
+
+test('engagement: paragraphs, cards and buttons in order; unsafe or excess buttons refused', () => {
+  const [block] = parseBody([
+    ':::engagement surtitre="Folio 8" titre="L’engagement Lukka Place"',
+    'Un titre sûr ne suffit pas',
+    'si le prix reste opaque.',
+    '',
+    'L’État · le titre | Registre géoréférencé.',
+    'Lukka Place · le prix | Statistiques de prix réels.',
+    '',
+    'Le jour où chaque titre sera vérifiable.',
+    '',
+    '[Guide des prix](/combien-coute)',
+    '[Biens à vendre](/vente)',
+    ':::',
+  ].join('\n'));
+  assert.equal(block.panel.eyebrow, 'Folio 8');
+  assert.deepEqual(block.panel.parts.map((p) => Object.keys(p)[0]), ['p', 'cards', 'p', 'buttons']);
+  assert.equal(block.panel.parts[0].p, 'Un titre sûr ne suffit pas si le prix reste opaque.');
+  assert.deepEqual(block.panel.parts[3].buttons[0], { text: 'Guide des prix', href: '/combien-coute' });
+  assert.match(bodyProblems(':::engagement\nTexte.\n[a](/a)\n[b](/b)\n[c](/c)\n[d](/d)\n:::')[0], /au plus 3 boutons/);
+  assert.match(bodyProblems(':::engagement\nSeule | carte\n:::')[0], /par 2/);
+  // A javascript: link is not a button — it stays text.
+  const [unsafe] = parseBody(':::engagement\n[x](javascript:alert(1))\n:::');
+  assert.equal(unsafe.panel.parts[0].p, '[x](javascript:alert(1))');
+});
+
+test('source references: [6] is a superscript in text, never a link or HTML', () => {
+  const body = read('components/blog/ArticleBody.js');
+  assert.match(body, /function WithRefs/);
+  assert.match(body, /<sup /);
+  assert.doesNotMatch(body, /dangerouslySetInnerHTML/);
+});

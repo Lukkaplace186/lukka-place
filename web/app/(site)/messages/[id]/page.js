@@ -1,3 +1,4 @@
+import { isAppRequest } from '@/lib/appMode';
 import { notFound, redirect } from 'next/navigation';
 import ChatThread from '@/components/chat/ChatThread';
 import { getChatViewer, getThread, listMessages } from '@/lib/chat';
@@ -35,6 +36,7 @@ export default async function ConversationPage({ params }) {
       initialHasMore={page?.hasMore ?? false}
       serverNow={new Date().toISOString()}
       backHref="/messages"
+      appMode={await isAppRequest()}
     />
   );
 }

@@ -54,5 +54,6 @@ export function activeAppTab(pathname) {
  */
 export function hidesAppTabs(pathname) {
   const path = String(pathname || '').split(/[?#]/)[0];
-  return /^\/listings\/[^/]+/.test(path);
+  // A conversation too: its reply field holds the bottom edge.
+  return /^\/listings\/[^/]+/.test(path) || /^\/messages\/\d+/.test(path);
 }

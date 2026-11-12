@@ -23,6 +23,8 @@ import {
   MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerProvider, MessageScrollerViewport,
 } from '@/components/ui/message-scroller';
 import { Skeleton } from '@/components/ui/skeleton';
+import AppChatList from '@/components/chat/AppChatList';
+import { useT } from '@/lib/i18n/client';
 import { Spinner } from '@/components/ui/spinner';
 
 function Panel({ title, children, className = '' }) {
@@ -52,6 +54,18 @@ export default function ComponentsShowcase({ listing, communes }) {
   const [picked, setPicked] = useState(null);
   const [extra, setExtra] = useState([]);
   const photos = listing?.photos || [];
+  const t = useT();
+  // The app's real Messagerie list, with written example lines (nothing is sent).
+  // A fixed time, so the server and the browser draw the same clock (no hydration mismatch).
+  const minutesAgo = (n) => new Date(Date.parse('2026-11-12T10:00:00Z') - n * 60000).toISOString();
+  const chatRows = [
+    { id: 1, senderRole: 'customer', kind: 'text', body: 'Bonjour, l’appartement est-il toujours disponible ?', createdAt: minutesAgo(42) },
+    { id: 'pending-a', clientId: 'a', senderRole: 'customer', kind: 'text', body: 'Il y a un parking ?', createdAt: minutesAgo(41), status: 'failed' },
+    { id: 2, senderRole: 'agent', kind: 'text', body: 'Bonjour ! Oui, toujours disponible.', createdAt: minutesAgo(30) },
+    ...(listing?.chatCard ? [{ id: 3, senderRole: 'agent', kind: 'listing', body: null, propertyId: listing.chatCard.id, listing: listing.chatCard, createdAt: minutesAgo(30) }] : []),
+    { id: 4, senderRole: 'agent', kind: 'text', body: 'Vous voulez le visiter quand ?', createdAt: minutesAgo(29) },
+    { id: 5, senderRole: 'customer', kind: 'text', body: 'Demain après-midi, c’est possible ?', createdAt: minutesAgo(5) },
+  ].map((message, i) => ({ message, divider: i === 0 ? 'Aujourd’hui' : null }));
 
   return (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -195,6 +209,23 @@ export default function ComponentsShowcase({ listing, communes }) {
             </AttachmentContent>
             <AttachmentActions><AttachmentAction aria-label="Retirer le document"><X /></AttachmentAction></AttachmentActions>
           </Attachment>
+        </div>
+      </Panel>
+
+      <Panel title="Messagerie de l’app (exemple)" className="md:col-span-2 xl:col-span-1">
+        <div className="max-h-[30rem] overflow-y-auto rounded-2xl border border-line bg-canvas-alt p-4">
+          <AppChatList
+            rows={chatRows}
+            side="customer"
+            person={{ name: 'Agence Exemple', role: 'agent' }}
+            name="Agence Exemple"
+            lastMine={chatRows[chatRows.length - 1].message}
+            otherLastReadId={5}
+            isNew={() => false}
+            onRetry={() => {}}
+            locale="fr"
+            t={t}
+          />
         </div>
       </Panel>
 

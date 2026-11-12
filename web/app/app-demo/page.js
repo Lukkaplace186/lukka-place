@@ -30,7 +30,22 @@ export default async function AppDemoPage({ searchParams }) {
   const newest = data?.[0] || null;
   const id = newest?.id ?? null;
   // The components board draws on that same listing: its own photos and place.
-  const showcaseListing = newest ? { photos: listingImages(newest).slice(0, 6), place: feedLocationLine(newest) } : null;
+  const place = newest ? feedLocationLine(newest) : null;
+  const photos = newest ? listingImages(newest).slice(0, 6) : [];
+  const showcaseListing = newest
+    ? {
+        photos,
+        place,
+        // The shape a shared listing card has in Messagerie (lib/chat.js), from the real row.
+        chatCard: {
+          id: newest.id,
+          image: photos[0] || null,
+          category: newest.category_name || null,
+          place,
+          priceLabel: Number(newest.price) > 0 ? `${Number(newest.price).toLocaleString('fr-FR')} $` : null,
+        },
+      }
+    : null;
 
   const customer = [
     { label: 'Accueil', href: '/' },

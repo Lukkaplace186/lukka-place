@@ -14,7 +14,8 @@ function Marker({ className, ...props }) {
 }
 
 function MarkerContent({ className, ...props }) {
-  return <div data-slot="marker-content" className={cn("flex items-center gap-2 rounded-full bg-canvas-alt px-3 py-1 text-[0.75rem] text-ink-45", className)} {...props} />
+  // White with a hairline: a thread's ground is canvas-alt, where a grey pill disappears.
+  return <div data-slot="marker-content" className={cn("flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-[0.75rem] text-ink-45", className)} {...props} />
 }
 
 function MarkerTyping({ className }) {

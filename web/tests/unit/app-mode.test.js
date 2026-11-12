@@ -322,3 +322,34 @@ test('the UI kit in the app screens: badges, booking alert and spinner, saved sk
   // The FAQ answers promise nothing the app does not do (no refunded deposit, no fixed amounts).
   assert.doesNotMatch(JSON.parse(read('lib/i18n/fr.json')).appShell.faq.items.costs.a, /rembours|restitu|\d+ mois/);
 });
+
+test('Messagerie in the app: same chat logic, drawn with the app components, website untouched', async () => {
+  const { groupChatRows } = await import('@/lib/chatGroups');
+  const msg = (id, senderRole, extra = {}) => ({ message: { id, senderRole, kind: 'text', body: String(id), ...extra }, divider: extra.divider || null });
+  const rows = [
+    { ...msg(1, 'customer'), divider: 'Hier' },
+    msg(2, 'customer'),
+    msg(3, 'agent'),
+    { message: { id: 4, kind: 'system', body: 'Bien retiré' }, divider: null },
+    msg(5, 'agent'),
+    { ...msg(6, 'agent'), divider: 'Aujourd’hui' },
+  ];
+  const groups = groupChatRows(rows, 'customer');
+  assert.deepEqual(groups.map((g) => (g.type === 'group' ? `${g.mine ? 'me' : 'them'}:${g.rows.length}` : `${g.type}:${g.label}`)), [
+    'divider:Hier', 'me:2', 'them:1', 'system:Bien retiré', 'them:1', 'divider:Aujourd’hui', 'them:1',
+  ], 'a system line or a new day ends a group');
+
+  const thread = read('components/chat/ChatThread.js');
+  // The app look loads on its own: the website's chat never ships motion.
+  assert.match(thread, /const AppChatList = dynamic\(\(\) => import\('\.\/AppChatList'\)\);/);
+  assert.doesNotMatch(thread, /from 'motion\/react'/);
+  assert.match(thread, /\{appMode \? \(\s*<AppChatList/);
+  assert.match(thread, /const isNew = useCallback\(\(message\) => !initialIdsRef\.current\.has\(message\.id\), \[\]\);/, 'only messages arriving while open animate');
+  assert.match(thread, /onRetry=\{deliver\}/, 'Réessayer resends through the same path');
+  assert.match(read('app/(site)/messages/[id]/page.js'), /appMode=\{await isAppRequest\(\)\}/);
+  assert.match(read('app/compte/agent/messages/[id]/page.js'), /appMode=\{await isAppRequest\(\)\}/);
+  assert.match(read('app/compte/agent/layout.js'), /\{app \? <AppMotion>\{children\}<\/AppMotion> : children\}/);
+  assert.equal(hidesAppTabs('/messages/42'), true, 'the reply field holds the bottom edge');
+  assert.equal(hidesAppTabs('/messages'), false);
+  assert.doesNotMatch(read('components/chat/AppChatList.js'), /écrit…|typing/i, 'no typing indicator the chat cannot know about');
+});

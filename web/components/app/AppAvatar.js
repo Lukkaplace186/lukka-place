@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { avatarSrc, initialsOf } from '@/lib/avatar';
 
 const SIZES = {
+  sm: { box: 'size-8', text: 'text-[0.8125rem]', badge: 'size-3.5 -bottom-0.5 -right-0.5', check: 'size-2' },
   md: { box: 'size-11', text: 'text-[1rem]', badge: 'size-4 -bottom-0.5 -right-0.5', check: 'size-2.5' },
   lg: { box: 'size-16', text: 'text-[1.5rem]', badge: 'size-5 bottom-0 right-0', check: 'size-3' },
 };
@@ -23,7 +24,7 @@ export default function AppAvatar({ name, src = null, size = 'lg', verified = fa
 
   return (
     <span className={cn('relative inline-flex flex-none', className)}>
-      <Avatar className={cn(s.box, 'ring-4 ring-surface shadow-sm')}>
+      <Avatar className={cn(s.box, size === 'sm' ? 'ring-2 ring-surface' : 'ring-4 ring-surface shadow-sm')}>
         {photo ? <AvatarImage src={photo} alt={name || ''} /> : null}
         <AvatarFallback className="bg-blue text-white" aria-label={name || undefined}>
           {initials ? (

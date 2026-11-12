@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowDown, ArrowLeft, Check, CheckCheck, Clock3, House, MoreVertical } from 'lucide-react';
 import ChatComposer from './ChatComposer';
@@ -22,6 +23,13 @@ import { CHAT_POLL, CHAT_REPORT_NOTE_MAX, CHAT_REPORT_REASONS } from '@/lib/chat
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
+import AppAvatar from '@/components/app/AppAvatar';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+// The app's look (app mode only), in its own chunk with motion: the website's
+// chat never downloads either.
+const AppChatList = dynamic(() => import('./AppChatList'));
+const AppNewMessagesPill = dynamic(() => import('./AppChatList').then((mod) => mod.AppNewMessagesPill));
 
 const NEAR_BOTTOM_PX = 120;
 
@@ -57,6 +65,8 @@ export default function ChatThread({
   backHref,
   quickReplies = [],
   shareableListings = null,
+  // Inside the store app (lib/appMode.js): the app's chat components.
+  appMode = false,
 }) {
   const t = useT();
   const locale = useLocale();
@@ -85,6 +95,9 @@ export default function ChatThread({
   const goneRef = useRef(false);
   const keepOffsetRef = useRef(null);
   const stickToBottomRef = useRef(true);
+  // What was already here when the page opened: only later messages spring in.
+  const initialIdsRef = useRef(new Set(initialMessages.map((m) => m.id)));
+  const isNew = useCallback((message) => !initialIdsRef.current.has(message.id), []);
 
   const person = initialThread.counterpart;
   const name = person.name || (person.role === 'agent' ? t('chat.agentFallback') : t('chat.customer'));
@@ -313,13 +326,25 @@ export default function ChatThread({
             aria-label={t('chat.thread.back')}
             className={cn(
               'u-press u-focus-ring grid h-11 w-11 flex-none place-items-center rounded-full text-ink transition-colors hover:bg-canvas-alt',
-              // Beside the list on a computer, the agent needs no way back.
+              // Beside the list on a computer, the agent needs no way back;
+              // in the app the top bar already carries the back arrow.
               variant === 'agent' && 'lg:hidden',
+              appMode && variant !== 'agent' && 'hidden',
             )}
           >
             <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
           </Link>
-          <ChatAvatar person={person} size="sm" t={t} />
+          {appMode ? (
+            <AppAvatar
+              name={name}
+              src={person.image}
+              size="md"
+              verified={person.role === 'agent' && Boolean(person.verified)}
+              verifiedLabel={t('chat.verified')}
+            />
+          ) : (
+            <ChatAvatar person={person} size="sm" t={t} />
+          )}
           <div className="flex min-w-0 flex-1 flex-col pl-1">
             <h1 className="truncate text-[1rem] font-bold leading-tight text-ink">{name}</h1>
             <p className="truncate text-[0.8125rem] text-ink-45">
@@ -380,6 +405,20 @@ export default function ChatThread({
               </button>
             </div>
           ) : null}
+          {appMode ? (
+            <AppChatList
+              rows={rows}
+              side={side}
+              person={person}
+              name={name}
+              lastMine={lastMine}
+              otherLastReadId={otherLastReadId}
+              isNew={isNew}
+              onRetry={deliver}
+              locale={locale}
+              t={t}
+            />
+          ) : (
           <ol className="flex flex-col gap-1.5">
             {rows.map(({ message, divider }) => (
               <Fragment key={message.clientId || message.id}>
@@ -400,8 +439,11 @@ export default function ChatThread({
               </Fragment>
             ))}
           </ol>
+          )}
         </div>
-        {showNewPill ? (
+        {appMode ? (
+          <AppNewMessagesPill show={showNewPill} onClick={() => scrollToBottom(true)} label={t('chat.thread.newMessages')} />
+        ) : showNewPill ? (
           <button
             type="button"
             onClick={() => scrollToBottom(true)}
@@ -415,13 +457,23 @@ export default function ChatThread({
 
       {/* Reply */}
       <footer className="flex-none border-t border-line bg-surface px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
-        {waitingSince ? (
+        {waitingSince && appMode ? (
+          <Alert variant="warning" className="mb-2.5 py-2.5">
+            <Clock3 />
+            <AlertDescription className="text-[0.8125rem] text-ink">{t('chat.agent.waitingBanner', { name, time: chatWaitLabel(waitingSince, now, locale) })}</AlertDescription>
+          </Alert>
+        ) : waitingSince ? (
           <p className="mb-2.5 flex items-center gap-2 rounded-lg bg-warning-tint px-3 py-2 text-[0.8125rem] text-warning-ink">
             <Clock3 strokeWidth={2} className="h-4 w-4 flex-none" aria-hidden="true" />
             {t('chat.agent.waitingBanner', { name, time: chatWaitLabel(waitingSince, now, locale) })}
           </p>
         ) : null}
-        {errorKey ? (
+        {errorKey && appMode ? (
+          <Alert variant="destructive" className="mb-2.5 py-2.5">
+            <AlertCircle />
+            <AlertDescription className="text-[0.8125rem] text-ink">{t(errorKey)}</AlertDescription>
+          </Alert>
+        ) : errorKey ? (
           <p role="alert" className="mb-2 flex items-start gap-2 text-[0.8125rem] font-semibold text-danger">
             <AlertCircle strokeWidth={ICON_STROKE_WIDTH} className="mt-px h-4 w-4 flex-none" aria-hidden="true" />
             {t(errorKey)}

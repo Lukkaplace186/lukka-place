@@ -1,3 +1,4 @@
+import AppMotion from '@/components/app/AppMotion';
 import { isAppRequest } from '@/lib/appMode';
 import { redirect } from 'next/navigation';
 import { getCurrentAgentId } from '@/lib/agentSession';
@@ -116,7 +117,8 @@ export default async function AgentDashboardLayout({ children }) {
           appMode={app}
         />
         <ToastProvider>
-          <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
+          {/* Inside the store app: motion for the app components (the chat). */}
+          <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{app ? <AppMotion>{children}</AppMotion> : children}</div>
           {/* Inside the provider: the share dialog it opens shows toasts. */}
           <SoldShareHost />
         </ToastProvider>

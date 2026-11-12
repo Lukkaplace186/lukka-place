@@ -16,7 +16,7 @@ Vérifier un titre foncier à Kinshasa demande aujourd'hui des jours de démarch
 100 DH | Maroc · depuis 2018 : pour savoir en ligne qui possède un bien et s'il est hypothéqué
 :::
 
-## Folio 1 — Le point de départ : un registre papier sous pression
+## Le point de départ : un registre papier sous pression
 
 En droit congolais, un seul document prouve la propriété d'une concession : le certificat d'enregistrement, délivré par le conservateur des titres immobiliers. Fiche parcellaire, livret de logeur et attestation du bourgmestre n'ont plus de valeur légale [1]. Beaucoup de ménages kinois n'ont pourtant que ces papiers, et ce décalage ouvre la porte aux doubles ventes.
 
@@ -34,7 +34,7 @@ Maurice | 600
 
 L'État a nommé le problème. En janvier 2026, trois ministres ont décrit un réseau, surnommé « Folio », qui falsifie les registres [4], et 62 dossiers de spoliation ont été transmis au parquet en août [5]. Reconnaître la fraude est la première étape pour la rendre impossible.
 
-## Folio 2 — Le titre foncier numérique en RDC : une loi, un plan, des archives remises en ordre
+## Le titre foncier numérique en RDC : une loi, un plan, des archives remises en ordre
 
 Les premières tentatives n'ont pas abouti, mais elles ont laissé une leçon claire : on ne numérise pas des archives en désordre. C'est précisément la méthode adoptée aujourd'hui.
 
@@ -61,7 +61,7 @@ La loi n° 25/062 donne le cadre [8] :
 La numérisation du registre a commencé à Maluku, N'Sele et Mont-Ngafula [23], et le ministère lance MIMPA, une application en phase pilote qui donne aux citoyens un accès direct à l'information foncière [24]. Un assistant du même nom explique déjà la nouvelle loi [9].
 :::
 
-## Folio 3 — Le modèle marocain : savoir qui possède quoi, en ligne
+## Le modèle marocain : savoir qui possède quoi, en ligne
 
 Le Maroc applique le système du titre foncier depuis le dahir du 12 août 1913. Depuis 2018, le certificat de propriété se délivre en ligne [12], pour un tarif fixé par décret à 100 dirhams [13]. Avant, l'obtenir pouvait prendre plusieurs semaines. Chaque certificat se lit en trois parties :
 
@@ -75,7 +75,7 @@ Le Maroc applique le système du titre foncier depuis le dahir du 12 août 1913.
 
 Le système tourne à grande échelle : l'agence foncière marocaine (ANCFCC) a délivré plus de 2,3 millions de certificats de propriété en 2024 [20], puis 2,5 millions en 2025, et créé 436 000 nouveaux titres fonciers la même année [18]. Quand le registre fait foi, il n'y a plus deux propriétaires pour un même terrain : la question « à qui appartient cette parcelle ? » a une seule réponse, vérifiable par tous.
 
-## Folio 4 — Ce que d'autres pays africains ont déjà gagné
+## Ce que d'autres pays africains ont déjà gagné
 
 La numérisation n'est pas un rêve lointain. Plusieurs pays du continent ont déjà réduit leurs délais.
 
@@ -95,7 +95,7 @@ La numérisation n'est pas un rêve lointain. Plusieurs pays du continent ont d�
 30 jours | Ghana : l'objectif d'enregistrement fixé par l'État, avec le système numérique ELIS
 :::
 
-## Folio 5 — Ce qui changera quand le registre sera en ligne
+## Ce qui changera quand le registre sera en ligne
 
 :::tableau
 | Pour qui | Demain | Aujourd'hui |
@@ -107,7 +107,7 @@ La numérisation n'est pas un rêve lointain. Plusieurs pays du continent ont d�
 | Banques | Un titre fiable peut servir de garantie : la voie s'ouvre au crédit immobilier. | Garanties difficiles à vérifier |
 :::
 
-## Folio 6 — Comment vérifier un titre foncier à Kinshasa aujourd'hui
+## Comment vérifier un titre foncier à Kinshasa aujourd'hui
 
 En attendant le registre numérique, suivez ces quatre étapes avant tout paiement.
 
@@ -124,7 +124,7 @@ Il ne faut jamais se contenter du document présenté par le vendeur.
 
 Vous cherchez un terrain ? Parcourez les parcelles à vendre [à Kinshasa](/vente/parcelles) et [à Lubumbashi](/vente/parcelles/lubumbashi), ou tous les [terrains à vendre](/vente/terrains). Vous louez plutôt ? Lisez notre [guide de la garantie locative 3+1+1](/guides/garantie-3-1-1-kinshasa).
 
-## Folio 7 — Questions fréquentes
+## Questions fréquentes
 
 :::info titre="Quel document prouve la propriété d'une parcelle à Kinshasa ?"
 Le certificat d'enregistrement, délivré par le conservateur des titres immobiliers, est le seul titre qui a valeur légale. La fiche parcellaire, le livret de logeur et l'attestation du bourgmestre ne suffisent pas.
@@ -146,7 +146,7 @@ Pas encore, mais le chantier avance : en novembre 2026, les archives de Kinshasa
 Elle prévoit le géoréférencement des parcelles, la fin de la prescription acquisitive, une mercuriale des prix, le paiement des transactions par la banque, une conciliation obligatoire avant tout procès foncier et une responsabilité étendue à toute la chaîne foncière.
 :::
 
-:::engagement surtitre="Folio 8" titre="L'engagement Lukka Place : transparence juridique et transparence des prix"
+:::engagement titre="L'engagement Lukka Place : transparence juridique et transparence des prix"
 Un titre sûr ne suffit pas si le prix reste opaque, et un prix clair ne vaut rien si le titre est contestable. La réforme foncière avance sur les deux fronts. Lukka Place apporte l'autre moitié : nous avons accès aux statistiques du marché, construites à partir des prix réels des annonces, commune par commune, et nous les publions dans notre guide des prix pour que chacun sache ce que vaut un loyer ou une parcelle avant de négocier.
 
 L'État · le titre | Registre géoréférencé (RNTFI), mercuriale des prix, paiement bancaire.
@@ -196,7 +196,7 @@ Checking a land title in Kinshasa takes days of office visits today, and even a 
 100 DH | Morocco · since 2018: to find out online who owns a property and whether it is mortgaged
 :::
 
-## Folio 1 — The starting point: a paper register under pressure
+## The starting point: a paper register under pressure
 
 Under Congolese law, only one document proves ownership of a concession: the certificat d'enregistrement, issued by the conservateur des titres immobiliers (registrar of land titles). Fiches parcellaires, livrets de logeur and attestations from the bourgmestre no longer have legal value [1]. Yet many Kinshasa households hold only these papers, and that gap opens the door to double sales.
 
@@ -214,7 +214,7 @@ Mauritius | 600
 
 The State has named the problem. In January 2026, three ministers described a network nicknamed "Folio" that falsifies registers [4], and 62 land-grabbing files went to prosecutors in August [5]. Recognising fraud is the first step to making it impossible.
 
-## Folio 2 — Digital land titles in the DRC: a law, a plan, archives put back in order
+## Digital land titles in the DRC: a law, a plan, archives put back in order
 
 The first attempts did not succeed, but they left a clear lesson: you cannot digitize disordered archives. That is exactly the method being followed now.
 
@@ -241,7 +241,7 @@ Law No. 25/062 sets the framework [8]:
 Digitization of the register has started in Maluku, N'Sele and Mont-Ngafula [23], and the ministry is launching MIMPA, an app in pilot phase that gives citizens direct access to land information [24]. An assistant of the same name already explains the new law [9].
 :::
 
-## Folio 3 — The Moroccan model: knowing who owns what, online
+## The Moroccan model: knowing who owns what, online
 
 Morocco has run a land title system since the dahir of 12 August 1913. Since 2018, the certificat de propriété (ownership certificate) has been issued online [12], at a fee set by decree at 100 dirhams [13]. Before, getting one could take several weeks. Every certificate reads in three parts:
 
@@ -255,7 +255,7 @@ Morocco has run a land title system since the dahir of 12 August 1913. Since 201
 
 The system runs at scale: Morocco's land agency (ANCFCC) issued more than 2.3 million ownership certificates in 2024 [20], then 2.5 million in 2025, and created 436,000 new land titles that year [18]. When the register is authoritative, there are no longer two owners for the same land: the question "who owns this plot?" has one answer that anyone can check.
 
-## Folio 4 — What other African countries have already gained
+## What other African countries have already gained
 
 Digitization is not a distant dream. Several countries on the continent have already cut their timelines.
 
@@ -275,7 +275,7 @@ Digitization is not a distant dream. Several countries on the continent have alr
 30 days | Ghana: the registration target set by the State, with the ELIS digital system
 :::
 
-## Folio 5 — What will change once the register is online
+## What will change once the register is online
 
 :::tableau
 | For whom | Tomorrow | Today |
@@ -287,7 +287,7 @@ Digitization is not a distant dream. Several countries on the continent have alr
 | Banks | A reliable title can serve as collateral, opening the way to mortgage lending. | Collateral hard to verify |
 :::
 
-## Folio 6 — How to check a land title in Kinshasa today
+## How to check a land title in Kinshasa today
 
 Until the digital register exists, follow these four steps before any payment.
 
@@ -304,7 +304,7 @@ Never settle for the document the seller shows you.
 
 Looking for land? Browse plots for sale [in Kinshasa](/vente/parcelles) and [in Lubumbashi](/vente/parcelles/lubumbashi), or all [land for sale](/vente/terrains). Renting instead? Read our [guide to the 3+1+1 rental deposit](/guides/garantie-3-1-1-kinshasa).
 
-## Folio 7 — Frequently asked questions
+## Frequently asked questions
 
 :::info titre="Which document proves ownership of a plot in Kinshasa?"
 The certificat d'enregistrement, issued by the registrar of land titles, is the only title with legal force. A fiche parcellaire, a livret de logeur or an attestation from the bourgmestre is not enough.
@@ -326,7 +326,7 @@ Not yet, but the work is moving: as of November 2026, Kinshasa's archives are be
 It provides for geo-referenced plots, an end to acquisitive prescription, a reference price scale, bank payment for transactions, mandatory conciliation before any land case and liability extended to the whole land chain.
 :::
 
-:::engagement surtitre="Folio 8" titre="The Lukka Place commitment: legal transparency and price transparency"
+:::engagement titre="The Lukka Place commitment: legal transparency and price transparency"
 A secure title is not enough if the price stays opaque, and a clear price is worth nothing if the title can be contested. The land reform moves on both fronts. Lukka Place brings the other half: we have access to market statistics, built from real listing prices, commune by commune, and we publish them in our price guide so everyone knows what a rent or a plot is worth before negotiating.
 
 The State · the title | Geo-referenced register (RNTFI), reference price scale, bank payment.

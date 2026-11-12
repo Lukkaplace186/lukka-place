@@ -544,7 +544,7 @@ app-only for discovery alerts. Only customers with the app are read.
 
 verify-pipeline §104; web `tests/unit/push-notifications.test.js`.
 
-## Templates approved 2026-11-11 — all switched on
+## Templates approved 2026-11-11 — all switched on (except the listing-approved one)
 
 Owner submitted the gap-analysis set (2026-11-09) plus `agent_lead_claim` and
 `point_annonces_agent`; all approved. Each was test-sent to the desk the same
@@ -563,7 +563,7 @@ variables, never throws).
 | `nouveau_message_agent` / `_client` | `CHAT_AGENT_TEMPLATE` / `CHAT_CUSTOMER_TEMPLATE` | 4 · link = thread id | `chatNotify` |
 | `bon_de_visite_client` | `VISIT_RECEIPT_TEMPLATE` | listing, date, agent · none, **no header** | `visitReceipt.sendReceipt` (template first) |
 | `avis_visite_client` | `VISIT_FEEDBACK_TEMPLATE` | first name, listing · Bien passée / Pas convaincu / Agent absent | check-in |
-| `annonce_en_ligne_v2` | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
+| ~~`annonce_en_ligne_v2`~~ **OFF 2026-11-12** | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
 | `suivi_demande_client` | `SUIVI_DEMANDE_TEMPLATE` | **first name, request** (was sent with one — fixed) · 3 quick replies | `requestFollowup` |
 | `client_vous_contacte_agent` | `CONTACT_TAP_TEMPLATE` | agent, Appeler/WhatsApp, listing · 2 quick replies | `contactTapAlert` |
 | `contact_client_verif_agent` | `VIEWING_CONTACT_CHECK_TEMPLATE` | agent, client, listing · 3 quick replies | `askAgentContactCheck` |
@@ -585,7 +585,15 @@ Tried for a few hours the same day: switching `annonce_en_ligne_v2` off and
 pointing the approval to Mes biens. The owner chose the listing page back —
 it is the page the agent shares with customers.
 
-- `LISTING_APPROVED_TEMPLATE=annonce_en_ligne_v2` is on (DYNAMIC button
+- **Switched OFF again 2026-11-12 (owner).** Its first real send (listing
+  874 to +243 816 335 150, accepted 10:51 UTC) arrived with the picture and
+  text, but the owner reports the "Voir l'annonce" button does not work,
+  while https://lukkaplace.com/listings/874 loads (200). The send carried
+  `urlButton: '874'`, so the likely fault is the button URL registered at
+  Meta (v1 404'd the same way). Agents get the session text with the link
+  again — which only arrives inside their 24 h window. Check the registered
+  URL in WhatsApp Manager before switching it back on.
+- Was: `LISTING_APPROVED_TEMPLATE=annonce_en_ligne_v2` on (DYNAMIC button
   `/listings/{{1}}`). The session text (team approval and trusted
   auto-approval, one wording in `services/listingApprovedMessage.js`) says
   "Votre annonce n° X est maintenant en ligne : …/listings/X". The app push

@@ -138,7 +138,8 @@ export default function ListingsSplitView({
             ) : null}
           </div>
         ) : null}
-        <div className="u-stagger-in-view flex flex-col gap-5">
+        {/* The app's cards settle in by themselves (AppListingCard), on every phone. */}
+        <div className={`${appMode ? '' : 'u-stagger-in-view '}flex flex-col gap-5`}>
           {/* Single column, so only the first couple of rows are ever
               actually above the fold — priority for those skips next/image's
               lazy-loading for the real LCP candidate on this page. */}

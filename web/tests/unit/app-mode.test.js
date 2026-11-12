@@ -72,10 +72,22 @@ test('in the app the home page is the design search home, on real data', () => {
   assert.match(appHome, /latestSavedSearch\(\)/);
   assert.doesNotMatch(appHome, /HomeAlertBand|ValueProposition/);
   const top = read('components/AppHomeTop.js');
-  assert.match(top, /liveCount > 0 \?/, 'no count line at 0');
+  const hero = read('components/app/AppHomeHero.js');
+  assert.match(hero, /liveCount > 0 \?/, 'no count line at 0');
+  // The website's own hero picture: the one set on /admin/cms, else the built-in photograph.
+  assert.match(appHome, /heroImage=\{heroImage\}/);
+  assert.match(hero, /image\?\.imageUrl \? <Picture src=\{image\.imageUrl\} alt=\{image\.alt \|\| ''\} \/> : <Picture src=\{heroSunlit\} alt="" blur \/>/);
   // The entrance moves, never fades: the server HTML must show the search card.
-  const rise = top.slice(top.indexOf('const rise'), top.indexOf('};', top.indexOf('const rise')));
-  assert.doesNotMatch(rise, /opacity/);
+  for (const [file, name] of [[top, 'rise'], [top, 'slide'], [top, 'settle'], [hero, 'rise']]) {
+    const block = file.slice(file.indexOf(`const ${name}`), file.indexOf('};', file.indexOf(`const ${name}`)));
+    assert.ok(block.length > 20, name);
+    assert.doesNotMatch(block, /opacity/, name);
+  }
+  // The scroll effects are off for a phone set to reduce motion.
+  assert.match(hero, /style=\{still \? undefined : \{ y: photoY, scale: photoScale \}\}/);
+  // Homes carry the screen: a rail of the newest, then the rest; brass only for a verified agent.
+  assert.match(top, /<AppRailCard listing=\{listing\} priority=\{index === 0\} \/>/);
+  assert.match(read('components/app/AppVerifiedMark.js'), /if \(!listing\?\.agent_verification_level\) return null;/);
   for (const lang of ['fr', 'en']) {
     const app = JSON.parse(read(`lib/i18n/${lang}.json`)).appShell;
     assert.match(app.home.count.other, /\{count\}/, lang);
@@ -366,4 +378,30 @@ test('Messagerie in the app: same chat logic, drawn with the app components, web
   assert.equal(hidesAppTabs('/messages/42'), true, 'the reply field holds the bottom edge');
   assert.equal(hidesAppTabs('/messages'), false);
   assert.doesNotMatch(read('components/chat/AppChatList.js'), /écrit…|typing/i, 'no typing indicator the chat cannot know about');
+});
+
+test('app results list: the search row is the top bar, photos swipe, sort sits on the count line', () => {
+  // The filter bar takes the top bar's place on a phone, list view only, and tucks away on scroll down.
+  const page = read('app/(site)/listings/(search)/(results)/page.js');
+  assert.match(page, /className=\{isMapView \? 'hidden lg:block' : app \? 'max-lg:contents' : ''\}/, 'a sticky box cannot leave its parent');
+  assert.match(page, /data-app-results=\{app && !isMapView \? '' : undefined\}/, 'the map view keeps the top bar');
+  assert.match(read('app/globals.css'), /body:has\(\[data-app-results\]\) \[data-app-top-bar\] \{\s*display: none;/);
+  assert.match(read('components/app/AppTopBar.js'), /data-app-top-bar=""/);
+  const bar = read('components/FilterBar.js');
+  assert.match(bar, /appMode && 'max-lg:top-0 max-lg:z-\[60\] max-lg:-mt-16 /);
+  assert.match(bar, /if \(!phone \|\| typing \|\| y < 160\) setTucked\(false\);/, 'never while typing, never near the top');
+  assert.match(bar, /transform: appMode && tucked \? 'translate3d\(0, -110%, 0\)' : 'translateZ\(0\)'/);
+  // The card: the listing's own photos, swiped; a real agency name or no line.
+  const card = read('components/app/AppListingCard.js');
+  assert.match(card, /<CardImageCarousel\s+images=\{images\}/);
+  assert.match(card, /\{photo \+ 1\}\/\{images\.length\}/);
+  assert.match(card, /const agency = displayableAgencyName\(listing\.agency_name\);/);
+  assert.doesNotMatch(card.slice(card.indexOf('<m.article'), card.indexOf('className=', card.indexOf('<m.article'))), /opacity/);
+  // Sort: one sheet, opened from the count line in the app and from the pill on the website.
+  assert.match(read('components/ResultsHeader.js'), /\{appMode \? \(\s*<span className="-my-3 shrink-0 lg:hidden">\s*<Suspense fallback=\{null\}>\s*<AppSortButton \/>/);
+  const floating = read('components/FloatingControlBar.js');
+  assert.match(floating, /<SortSheet open=\{sortOpen\} onOpenChange=\{setSortOpen\} \/>/);
+  assert.match(floating, /<SaveSearchButton variant="pill" tone="solid" \/>/, 'the app: two solid buttons, Carte and Alerte');
+  // "Nouveau" no longer wears the action colour.
+  assert.match(read('components/app/AppCardBadges.js'), /<Badge variant="outline" className="border-transparent shadow-sm">\s*<Sparkles/);
 });

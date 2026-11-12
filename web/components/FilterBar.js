@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CalendarClock, CalendarRange, SlidersHorizontal } from 'lucide-react';
+import { CalendarClock, CalendarRange, ChevronLeft, SlidersHorizontal } from 'lucide-react';
+import Link from '@/components/LocaleLink';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import FiltersDrawer from './FiltersDrawer';
@@ -92,20 +93,35 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // an `overHero` flag. rAF-throttled all the same, so a fast scroll can't
   // queue more than one state update per frame.
   const [condensed, setCondensed] = useState(false);
+  // The app on a phone (2026-11-12): the bar is the screen's top bar (see the
+  // wrapper below). It slides away while the list scrolls down, so photos get
+  // the whole screen, and comes back the moment the list scrolls up. Never
+  // while someone is typing in it, and never near the top of the list.
+  const [tucked, setTucked] = useState(false);
+  const lastScrollY = useRef(0);
   useEffect(() => {
     let ticking = false;
     function onScroll() {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
-        setCondensed(window.scrollY > 8);
+        const y = window.scrollY;
+        setCondensed(y > 8);
+        if (appMode) {
+          const phone = window.matchMedia('(max-width: 1023.98px)').matches;
+          const typing = document.activeElement?.tagName === 'INPUT' && formRef.current?.contains(document.activeElement);
+          if (!phone || typing || y < 160) setTucked(false);
+          else if (y > lastScrollY.current + 6) setTucked(true);
+          else if (y < lastScrollY.current - 6) setTucked(false);
+          lastScrollY.current = y;
+        }
         ticking = false;
       });
     }
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [appMode]);
 
   // Real max price, rounded up to a clean $10,000 step for a tidy slider —
   // not padded with invented headroom above it, and never below what's
@@ -394,6 +410,12 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       className={cn(
         'sticky top-16 z-40 border-b border-line transition-shadow duration-300 ease-in-out',
         condensed ? 'shadow-md' : 'shadow-sm',
+        // The app on a phone: this bar IS the top bar. It sits where
+        // AppTopBar was (which a CSS rule hides on this screen, see
+        // `[data-app-results]` in app/globals.css), pinned to the top of the
+        // page (the results page gives its wrapper `display: contents` so it
+        // can stick), and slides away with `tucked`.
+        appMode && 'max-lg:top-0 max-lg:z-[60] max-lg:-mt-16 max-lg:transition-[transform,box-shadow]',
       )}
       // Promotes this element to its own GPU compositing layer — a
       // long-standing real workaround for older iOS Safari dropping
@@ -403,7 +425,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       // generating an uncommon utility once (web/CLAUDE.md's grid-cols
       // gotcha), and this is a rendering hint worth guaranteeing rather
       // than trusting to compile.
-      style={{ transform: 'translateZ(0)', willChange: 'transform' }}
+      style={{ transform: appMode && tucked ? 'translate3d(0, -110%, 0)' : 'translateZ(0)', willChange: 'transform' }}
     >
       <div aria-hidden="true" className="absolute inset-0 bg-canvas/95 lg:backdrop-blur-md" />
       <form
@@ -413,7 +435,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
         method="get"
         className={cn(
           'relative mx-auto max-w-[1600px] px-4 transition-[padding] duration-300 ease-in-out sm:px-6 lg:px-8',
-          condensed ? 'py-1.5 lg:py-2' : 'py-2.5 lg:py-3',
+          // In the app the bar keeps its height: it leaves the screen instead of shrinking.
+          condensed && !appMode ? 'py-1.5 lg:py-2' : 'py-2.5 lg:py-3',
         )}
       >
         {hidden.map(([name, value]) =>
@@ -439,9 +462,21 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           variant="inline"
           cities={cities}
           current={defaults.searchCity || defaults.ville}
-          className="-ml-1.5 mb-1.5 lg:hidden"
+          // In the app the city sits in the row under the search box (below).
+          className={cn('-ml-1.5 mb-1.5 lg:hidden', appMode && 'hidden')}
         />
         <div className="flex w-full items-center gap-2 lg:gap-3">
+          {/* The app on a phone: back to the search home, where the logo bar's
+              arrow would be (the owner's reference results screen). */}
+          {appMode ? (
+            <Link
+              href="/"
+              aria-label={t('appShell.back')}
+              className="u-press -ml-2 -mr-1 flex h-12 w-10 flex-none items-center justify-center rounded-full text-ink active:bg-canvas-alt lg:hidden"
+            >
+              <ChevronLeft strokeWidth={2} className="h-6 w-6" aria-hidden="true" />
+            </Link>
+          ) : null}
           {/* preserveParams: this box does its own client-side navigation
               (see LocationAutocomplete) rather than participating in this
               form's hidden-input/requestSubmit machinery — picking a
@@ -487,16 +522,17 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           <button
             type="button"
             onClick={() => setFilterModalOpen(true)}
-            className={`u-press inline-flex h-12 w-32 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border-[1.5px] px-3 text-[0.9375rem] font-semibold transition-colors lg:hidden ${
+            className={`u-press relative inline-flex h-12 ${appMode ? 'w-12' : 'w-32'} shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border-[1.5px] px-3 text-[0.9375rem] font-semibold transition-colors lg:hidden ${
               mobileFilterCount > 0
                 ? 'border-blue bg-blue-tint text-blue-deep'
                 : 'border-ink-35 bg-surface text-ink'
             }`}
           >
-            <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('listings.filters.title')}
+            <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className={appMode ? 'h-5 w-5' : 'h-4 w-4'} />
+            {/* The app's button is the icon alone, as on its home screen; the word stays for screen readers. */}
+            {appMode ? <span className="sr-only">{t('listings.filters.title')}</span> : t('listings.filters.title')}
             {mobileFilterCount > 0 ? (
-              <span className="u-tabular flex h-4 min-w-4 items-center justify-center rounded-full bg-blue px-1 text-[0.625rem] font-bold text-white">
+              <span className={`u-tabular flex h-4 min-w-4 items-center justify-center rounded-full bg-blue px-1 text-[0.625rem] font-bold text-white ${appMode ? 'absolute -right-1.5 -top-1.5 h-5 min-w-5 text-[0.75rem]' : ''}`}>
                 {mobileFilterCount}
               </span>
             ) : null}
@@ -651,13 +687,22 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             into the Filtres / "Plus de filtres" sheets (AdvancedFilterFields,
             "Équipements & conditions"); they still ride in `amenities`.
             Hidden once the bar condenses on scroll, and on a sale search. */}
-        {!condensed && showLeaseTerm ? (
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_8rem] gap-2 lg:block">
+        {(appMode || !condensed) && (appMode || showLeaseTerm) ? (
+          <div className={appMode ? 'no-scrollbar mt-1.5 flex items-center gap-2 overflow-x-auto lg:mt-2 lg:block' : 'mt-2 grid grid-cols-[minmax(0,1fr)_8rem] gap-2 lg:block'}>
+            {/* The app: the city and the rental duration share one quiet row. */}
+            {appMode ? (
+              <CityPicker
+                variant="inline"
+                cities={cities}
+                current={defaults.searchCity || defaults.ville}
+                className="-ml-1.5 flex-none lg:hidden [&>span:first-child]:hidden"
+              />
+            ) : null}
             {/* Durée du bail first: longue durée is the standard, courte durée
                 is a room or flat let by the day / week (lib/leaseTerm.js).
                 Tapping the selected one clears it. */}
             {showLeaseTerm ? (
-              <div className="grid grid-cols-2 gap-2 lg:flex" role="group" aria-label={t('listings.leaseTerm.label')}>
+              <div className={appMode ? 'flex flex-none gap-2' : 'grid grid-cols-2 gap-2 lg:flex'} role="group" aria-label={t('listings.leaseTerm.label')}>
                 {/* Phone: both chips side by side in the search box's column
                     (the outer grid repeats the row above: 1fr + Filtres' 8rem),
                     so the space under Filtres stays empty (2026-11-04, owner).
@@ -673,6 +718,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                       aria-pressed={on}
                       onClick={() => apply(setLeaseTerm)(on ? '' : option.value)}
                       className={cn(
+                        appMode && 'max-lg:px-3',
                         'u-press inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-1.5 text-xs font-semibold transition-colors lg:shrink-0 lg:px-3 lg:py-0 lg:text-[0.8125rem]',
                         on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
                       )}

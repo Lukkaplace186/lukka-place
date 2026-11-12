@@ -9258,13 +9258,13 @@
       "whereCaption": "Listings online per commune, right now.",
       "shortcuts": {
         "label": "Shortcuts",
-        "searches": "Searches and alerts",
-        "searchesText": "Hear as soon as a home matches.",
+        "searches": "My alerts",
         "find": "Find it for me",
-        "findText": "Describe what you need and agencies send you homes.",
-        "prices": "What it costs",
-        "pricesText": "Rents and prices per commune."
-      }
+        "prices": "Market prices"
+      },
+      "resume": "Resume:",
+      "more": "Also Online",
+      "searchPlaceholder": "Commune or neighbourhood"
     },
     "card": {
       "photos": {

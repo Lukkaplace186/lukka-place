@@ -163,7 +163,7 @@ async function latestSavedSearch() {
  * listings. The website's marketing sections and the SEO markup are left
  * out; the tab bar replaces the footer.
  */
-async function AppHomePage({ propertyTypes, communes, total }) {
+async function AppHomePage({ propertyTypes, communes, total, heroImage }) {
   const [liveCount, savedSearch, featured] = await Promise.all([
     cachedLiveListingsCount().catch(() => 0),
     latestSavedSearch(),
@@ -177,7 +177,8 @@ async function AppHomePage({ propertyTypes, communes, total }) {
       communes={communes}
       initialCount={total}
       savedSearch={savedSearch ? { query: savedSearch.query, label: savedSearch.label } : null}
-      listings={(featured.data || []).slice(0, 6)}
+      listings={featured.data || []}
+      heroImage={heroImage}
     />
   );
 }
@@ -194,7 +195,7 @@ export default async function HomePage() {
     cachedWeeklyNewCount().catch(() => 0),
     isAppRequest(),
   ]);
-  if (app) return <AppHomePage propertyTypes={propertyTypes} communes={communes} total={total} />;
+  if (app) return <AppHomePage propertyTypes={propertyTypes} communes={communes} total={total} heroImage={heroImage} />;
   // The profiles the footer shows, so Google ties them to the site (sameAs).
   const profiles = mergeSocialLinks(await getSocialLinks(), socialProfiles());
 

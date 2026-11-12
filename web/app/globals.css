@@ -841,6 +841,15 @@
   /* 22px on a phone: at 28px a two-word French title ("Vue d'ensemble")
      plus the header's search and bell pushed the agent dashboard wider than a
      375px screen. */
+  /* The app's results list on a phone: the filter bar is the top bar there
+     (components/FilterBar.js, appMode), so the logo bar steps aside. Keyed on
+     the page's own marker, which is absent in the full-screen map view. */
+  @media (max-width: 1023.98px) {
+    body:has([data-app-results]) [data-app-top-bar] {
+      display: none;
+    }
+  }
+
   .u-title-page {
     font-family: var(--font-sans), system-ui, sans-serif;
     font-size: 1.375rem;

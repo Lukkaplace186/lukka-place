@@ -330,14 +330,14 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   else ctaLabel = t('home.search.submit');
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-line bg-surface p-4 u-shadow-panel sm:p-5">
+    <div className={`overflow-hidden bg-surface u-shadow-panel sm:p-5 ${compact ? 'rounded-card p-3.5' : 'rounded-3xl border border-line p-4'}`}>
       {/* --- 1. Intent toggle ------------------------------------------- */}
       <div
         role="tablist"
         aria-label={t('home.search.transactionType')}
         // Widths follow the labels (flex-auto), not three equal columns:
         // "Courte durée" does not fit a third of a 375px card.
-        className={`${compact ? 'mb-3' : 'mb-4'} flex w-full gap-1 rounded-2xl bg-canvas-alt p-1 sm:mb-5 sm:inline-flex sm:w-auto`}
+        className={`${compact ? 'mb-3 rounded-xl' : 'mb-4 rounded-2xl'} flex w-full gap-1 bg-canvas-alt p-1 sm:mb-5 sm:inline-flex sm:w-auto`}
       >
         {HOME_TABS.map(({ value, labelKey }) => {
           const on = homeTab === value;
@@ -366,7 +366,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
                 setCount(null);
                 setSuggested(0);
               }}
-              className={`u-press min-h-12 flex-auto whitespace-nowrap rounded-xl px-3 text-[0.9375rem] font-semibold transition-colors sm:px-6 ${
+              className={`u-press flex-auto whitespace-nowrap px-3 text-[0.9375rem] font-semibold transition-colors sm:px-6 ${compact ? 'min-h-11 rounded-lg' : 'min-h-12 rounded-xl'} ${
                 on
                   ? 'bg-surface text-ink shadow-[var(--shadow-card)]'
                   : 'text-ink-45 hover:text-ink'
@@ -415,7 +415,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             id="hero-location"
             variant="hero"
             ariaLabel={t('home.search.locationLabel')}
-            placeholder={t('home.search.heroPlaceholder')}
+            placeholder={compact ? t('appShell.home.searchPlaceholder') : t('home.search.heroPlaceholder')}
             extraParams={extraParams}
             onValueChange={onLocationChange}
             // The CTA is a full-width button on its own tier below, so this

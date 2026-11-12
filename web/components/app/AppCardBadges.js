@@ -8,7 +8,9 @@ import { useT } from '@/lib/i18n/client';
 // The same facts the website's CardBadges shows (listing status, then at
 // most one promo from cardPromoBadge: a recorded price cut or "Nouveau"),
 // drawn with the app's Badge: under offer amber, let/sold grey, a cut green,
-// new royal. A shadow lifts each off the photo behind it.
+// new white with ink text (2026-11-12: at launch most cards are new, and a
+// royal chip on each competed with the screen's real actions). A shadow lifts
+// each off the photo behind it.
 const STATUS = {
   under_offer: { key: 'listings.badges.underOffer', variant: 'warning' },
   closed: { key: 'listings.badges.closed', variant: 'secondary' },
@@ -28,7 +30,7 @@ export default function AppCardBadges({ listing }) {
         </Badge>
       ) : null}
       {promo?.kind === 'fresh' ? (
-        <Badge className="shadow-sm">
+        <Badge variant="outline" className="border-transparent shadow-sm">
           <Sparkles aria-hidden="true" />
           {t('listings.badges.fresh')}
         </Badge>

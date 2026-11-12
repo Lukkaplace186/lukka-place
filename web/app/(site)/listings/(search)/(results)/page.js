@@ -226,7 +226,14 @@ export default async function ListingsPage({ searchParams }) {
           its own compact search/filter trigger for that mode instead.
           Desktop is unaffected: the split view always shows both panes
           there regardless of isMapView. */}
-      <div className={isMapView ? 'hidden lg:block' : ''}>
+      {/* The app on a phone, list view: FilterBar is the screen's top bar.
+          `display: contents` lets it stick to the page (a sticky box cannot
+          leave its parent, and this one is only as tall as the bar), and
+          `data-app-results` is what hides AppTopBar under it (globals.css). */}
+      <div
+        className={isMapView ? 'hidden lg:block' : app ? 'max-lg:contents' : ''}
+        data-app-results={app && !isMapView ? '' : undefined}
+      >
         <FilterBar
           locations={locations}
           propertyTypes={propertyTypes}
@@ -301,6 +308,7 @@ export default async function ListingsPage({ searchParams }) {
             mapArea={Boolean(mapArea)}
             clearAreaHref={clearAreaHref}
             relaxation={relaxation}
+            appMode={app}
           />
         </div>
 

@@ -5277,3 +5277,58 @@ screenshots (Rightmove, Zoopla), colours and type from `DESIGN.md`.
   bar shows the real logo (`/brand/logo-dark.png` on the royal bar,
   `logo-light.png` elsewhere). `.u-app-serif` is still used on the welcome,
   visit-sent and account screens and the avatar initials: not changed yet.
+
+**Later the same day (owner: "looks like a cheap app"), the home was rebuilt
+so homes carry it.** This replaces the blue band, the shortcut list and the
+pills-under-the-card of the paragraph above.
+
+- `components/app/AppHomeHero.js`: the website's own hero picture
+  (`getHeroSettings()`, else `Hero/hero-sunlit.jpg`; the CMS credit shows when
+  there is one) running up under the top bar, title in `.u-title-hero` (sans,
+  owner's choice) and the live count on the sky. A royal tint on the top of
+  the sky only, for the logo and title. Scroll: the photo moves at a third of
+  the page's speed and grows a little, the title lifts away (motion
+  `useScroll`/`useTransform`; off under reduced motion).
+- `AppTopBar` is clear over the photo on `/` (white logo) and turns white
+  with a hairline past 150px of scroll; the two logos cross-fade.
+- Under the compact search card (now `rounded-card`, no outline): a quiet
+  "Reprendre : <saved search>" line when the customer has one, then
+  "Ajoutés récemment" as a sideways rail of `components/app/AppRailCard.js`
+  (the 5 newest, photo 4:3 with nothing around it, `.u-price`), three small
+  shortcut tiles, the communes as a quiet chip row, the other 3 newest as
+  `AppListingCard` ("Aussi en ligne"), then "Où chercher".
+- `AppListingCard` (also the app's results list): `rounded-card`, soft shadow
+  instead of an outline, `.u-price`. `components/app/AppVerifiedMark.js` is
+  the app's one use of brass: "Agent vérifié" on the photo only when
+  `agent_verification_level` is set, nothing otherwise.
+- Motion: one entrance (title, card, rail cards sliding in), lower sections
+  settle once as they scroll in. Transform only, never opacity, as before.
+- The active tab's icon is filled (heart, person).
+
+## App results list, from the owner's reference (2026-11-12)
+
+Phone layout of `/listings` in app mode; the website and the desktop layout
+are unchanged. `tests/unit/app-mode.test.js`, "app results list".
+
+- **The filter bar is the top bar.** Before this, FilterBar scrolled away on
+  `/listings` (a sticky box cannot leave its parent, and its wrapper is only
+  as tall as the bar), leaving the logo bar alone on screen. In the app, list
+  view, below `lg`: the page gives that wrapper `display: contents` and the
+  marker `data-app-results`; `body:has([data-app-results]) [data-app-top-bar]`
+  (globals.css) hides AppTopBar; FilterBar is `sticky top-0` with `-mt-16`
+  (it sits where the top bar was) and leads with a back arrow to `/`. The
+  full-screen map view has no marker, so its top bar and offsets are as before.
+- **It tucks away** (`tucked`): slides off while the list scrolls down, back
+  as soon as it scrolls up; never while someone types in it, never in the
+  first 160px. The app's bar keeps its height (no `condensed` shrink).
+- Row 1: back, the search box, Filtres as an icon with its count. Row 2: the
+  city picker (no "Recherche dans :" prefix) and the two duration chips.
+- **Sort is on the count line** (`components/app/AppSortButton.js`), naming
+  the order in force; it opens `components/SortSheet.js`, the one sort sheet
+  the website's floating pill also uses. The app's floating bar is two solid
+  ink buttons, Carte and Alerte (`SaveSearchButton variant="pill" tone="solid"`).
+- **AppListingCard**: the listing's own photos swipe (`CardImageCarousel`,
+  chip "2/5"), an agency line when `displayableAgencyName` accepts the name,
+  and the card settles once as it scrolls in (motion, so the list drops the
+  CSS `u-stagger-in-view` in app mode). "Nouveau" is a white chip with ink
+  text: blue stays for actions.

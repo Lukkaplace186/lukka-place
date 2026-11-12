@@ -76,7 +76,7 @@ export default function AppTabBar() {
                     <Icon
                       strokeWidth={isActive ? 2.25 : ICON_STROKE_WIDTH}
                       className="h-6 w-6"
-                      fill={isActive && tab.key === 'saved' ? 'currentColor' : 'none'}
+                      fill={isActive && tab.key !== 'search' ? 'currentColor' : 'none'}
                     />
                     {badge ? (
                       <UnreadBadge

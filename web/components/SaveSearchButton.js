@@ -67,7 +67,8 @@ const AUTH_RETURN_PARAM = 'lkp_auth_return';
  * asking again after signup would just be a second friction step for
  * nothing new).
  */
-export default function SaveSearchButton({ variant = 'default' }) {
+// `tone="solid"` (with the pill variant): the app's solid ink button beside "Carte".
+export default function SaveSearchButton({ variant = 'default', tone = 'plain' }) {
   const t = useT();
   const pathname = usePathname();
   const router = useRouter();
@@ -171,9 +172,13 @@ export default function SaveSearchButton({ variant = 'default' }) {
           onClick={handleClick}
           aria-pressed={saved}
           aria-label={saved ? t('listings.alert.created') : t('listings.alert.create')}
-          className={`u-press flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95 ${
-            saved ? 'text-blue-deep' : ''
-          }`}
+          className={
+            tone === 'solid'
+              ? 'u-press flex min-h-12 items-center gap-2 whitespace-nowrap rounded-full bg-ink px-5 text-[0.875rem] font-semibold text-white shadow-[var(--shadow-md)] ring-1 ring-white/15 active:bg-blue-900'
+              : `u-press flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95 ${
+                  saved ? 'text-blue-deep' : ''
+                }`
+          }
         >
           <AnimatedBell
             pulseKey={pulseKey}

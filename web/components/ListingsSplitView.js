@@ -5,6 +5,7 @@ import Link from '@/components/LocaleLink';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
+import AppListingCard from './app/AppListingCard';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
@@ -41,6 +42,8 @@ function buildPageHref(searchParams, page) {
  */
 export default function ListingsSplitView({
   listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null, propertyTypes = [],
+  // Inside the store app (lib/appModeRules.js): the app's own card, as on its home screen.
+  appMode = false,
 }) {
   const t = useT();
   const router = useRouter();
@@ -139,7 +142,9 @@ export default function ListingsSplitView({
           {/* Single column, so only the first couple of rows are ever
               actually above the fold — priority for those skips next/image's
               lazy-loading for the real LCP candidate on this page. */}
-          {listings.map((listing, i) => (
+          {listings.map((listing, i) => appMode ? (
+            <AppListingCard key={listing.id} listing={listing} priority={i < 2} />
+          ) : (
             <PropertyCard
               key={listing.id}
               listing={listing}
@@ -166,7 +171,9 @@ export default function ListingsSplitView({
               </p>
             ) : null}
             <div className="flex flex-col gap-5">
-              {nearby.listings.map((listing) => (
+              {nearby.listings.map((listing) => appMode ? (
+                <AppListingCard key={listing.id} listing={listing} />
+              ) : (
                 <PropertyCard
                   key={listing.id}
                   listing={listing}

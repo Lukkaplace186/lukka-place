@@ -1,70 +1,111 @@
 'use client';
 
 import Link from '@/components/IntentLink';
-import { Sparkles, BarChart3, Building2, Users } from 'lucide-react';
+import { m } from 'motion/react';
+import { Bookmark, ChevronRight, Sparkles } from 'lucide-react';
 import SearchBar from './SearchBar';
+import AppListingCard from './app/AppListingCard';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizeHref } from '@/lib/localePaths';
 
-// Keys, not text (components/navItems.js). Real pages only.
-const SHORTCUTS = [
-  { key: 'find', href: '/trouver-pour-moi', icon: Sparkles },
-  { key: 'prices', href: '/combien-coute', icon: BarChart3 },
-  { key: 'projects', href: '/projets', icon: Building2 },
-  { key: 'agencies', href: '/agents', icon: Users },
-];
+// One orchestrated entrance, the screen's only unprompted motion: the title,
+// then the line under it, then the search card settling onto the band.
+// Transform only, never opacity (the same rule as the website hero's
+// .u-hero-settle): the server HTML is what a phone on 3G shows until the
+// JavaScript arrives, and opacity 0 there would be a blank search screen.
+const rise = {
+  hidden: { y: 18 },
+  shown: (i = 0) => ({ y: 0, transition: { delay: 0.06 * i, type: 'spring', stiffness: 260, damping: 30 } }),
+};
 
 /**
- * The top of the app's home page (app mode, app/(site)/(home)/page.js): a
- * short royal band with a greeting instead of the website's hero photo, the
- * same search card, and four shortcuts. `firstName` is the signed-in
- * customer's own first word of `full_name`, else a plain "Bonjour".
+ * The app's home screen (app mode, app/(site)/(home)/page.js), from the app
+ * design's "Search home": a royal band with the serif title and the real
+ * number of live listings, the site's search card on it, "pick up where you
+ * left off" (the customer's latest saved search), then the newest listings.
+ *
+ * Every figure is real: `liveCount` is the public listing count, the saved
+ * search is the customer's own, the cards are live listings. Each part
+ * renders nothing when its data is missing.
  */
-export default function AppHomeTop({ firstName = null, propertyTypes = [], communes = [], initialCount = null, weeklyNew = 0, showProjects = true }) {
+export default function AppHomeTop({
+  liveCount = 0,
+  propertyTypes = [],
+  communes = [],
+  initialCount = null,
+  savedSearch = null,
+  listings = [],
+}) {
   const t = useT();
   const locale = useLocale();
-  const shortcuts = SHORTCUTS.filter((s) => showProjects || s.key !== 'projects');
 
   return (
     <>
-      <section className="bg-blue px-4 pb-24 pt-6 text-white">
-        <p className="text-[1.625rem] font-extrabold leading-tight tracking-tight">
-          {firstName ? t('home.app.greetingNamed', { name: firstName }) : t('home.app.greeting')}
-        </p>
-        <p className="mt-1 text-sm font-medium text-white/85">{t('home.app.subtitle')}</p>
-        {weeklyNew > 0 ? (
-          <Link
-            href={localizeHref('/listings', locale)}
-            className="u-press mt-3 inline-flex min-h-8 items-center gap-2 rounded-full bg-white/15 px-3 text-[0.8125rem] font-semibold text-white"
-          >
-            <span aria-hidden="true" className="inline-flex h-2 w-2 rounded-full bg-green" />
-            {t('home.hero.weeklyNew', { count: weeklyNew })}
-          </Link>
+      <section className="bg-blue px-5 pb-24 pt-5 text-white">
+        <m.h1 variants={rise} initial="hidden" animate="shown" custom={0} className="u-app-serif text-[2.25rem] leading-[1.05]">
+          {t('appShell.home.title')}
+        </m.h1>
+        {liveCount > 0 ? (
+          <m.p variants={rise} initial="hidden" animate="shown" custom={1} className="mt-2 text-[0.9375rem] text-white/80">
+            {t('appShell.home.count', { count: liveCount })}
+          </m.p>
         ) : null}
       </section>
 
-      <div className="relative z-20 -mt-20 px-4">
+      <m.div variants={rise} initial="hidden" animate="shown" custom={2} className="relative z-20 -mt-20 px-4">
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
-      </div>
+      </m.div>
 
-      <nav aria-label={t('home.app.shortcuts')} className="px-4 pt-5">
-        <ul className={`grid gap-2 ${shortcuts.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
-          {shortcuts.map(({ key, href, icon: Icon }) => (
-            <li key={key}>
-              <Link
-                href={localizeHref(href, locale)}
-                className="u-press flex flex-col items-center gap-1.5 rounded-xl py-2 text-center text-[0.75rem] font-semibold leading-tight text-ink active:bg-canvas-deep"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-tint text-blue">
-                  <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" />
-                </span>
-                {t(`home.app.quick.${key}`)}
+      <div className="space-y-7 px-4 pb-6 pt-7">
+        {savedSearch ? (
+          <section>
+            <h2 className="mb-2.5 text-[1.0625rem] font-bold text-ink">{t('appShell.home.continue')}</h2>
+            <Link
+              href={localizeHref(`/listings?${savedSearch.query || ''}`, locale)}
+              className="u-press flex items-center gap-3 rounded-2xl border border-line bg-surface p-3.5 active:bg-canvas-alt"
+            >
+              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-blue-tint text-blue">
+                <Bookmark strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-ink">
+                {savedSearch.label || t('appShell.home.continueFallback')}
+              </span>
+              <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 flex-none text-ink-45" />
+            </Link>
+          </section>
+        ) : null}
+
+        {listings.length ? (
+          <section>
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <h2 className="text-[1.0625rem] font-bold text-ink">{t('appShell.home.latest')}</h2>
+              <Link href={localizeHref('/listings', locale)} className="text-[0.875rem] font-semibold text-blue">
+                {t('appShell.home.seeAll')}
               </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+            </div>
+            <div className="space-y-4">
+              {listings.map((listing, index) => (
+                <AppListingCard key={listing.id} listing={listing} priority={index === 0} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <Link
+          href={localizeHref('/trouver-pour-moi', locale)}
+          className="u-press flex items-center gap-3 rounded-2xl bg-blue-tint p-4 active:bg-canvas-alt"
+        >
+          <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-blue text-white">
+            <Sparkles strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.9375rem] font-bold text-ink">{t('appShell.home.findTitle')}</span>
+            <span className="block text-[0.8125rem] text-ink-70">{t('appShell.home.findText')}</span>
+          </span>
+          <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 flex-none text-blue" />
+        </Link>
+      </div>
     </>
   );
 }

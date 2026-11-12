@@ -79,7 +79,8 @@ const numberInputClass =
  *
  * Sticks at top-16 to sit directly under the fixed h-16 Header.
  */
-export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {}, cities = [] }) {
+// `appMode`: inside the store app the filter sheet is the app design's (FilterModal `app`).
+export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {}, cities = [], appMode = false }) {
   const t = useT();
   const formRef = useRef(null);
 
@@ -715,6 +716,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           showLeaseTerm={showLeaseTerm}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}
+          app={appMode}
         />
       </form>
     </div>

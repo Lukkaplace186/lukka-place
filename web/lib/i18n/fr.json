@@ -1237,7 +1237,10 @@
       "messages": "Messages",
       "messagesShort": "Messages",
       "alerts": "Alertes",
-      "alertsShort": "Alertes"
+      "alertsShort": "Alertes",
+      "homeShort": "Accueil",
+      "visitsShort": "Visites",
+      "accountShort": "Compte"
     },
     "overview": {
       "title": "Vue d'ensemble",
@@ -3016,6 +3019,25 @@
       "errorConfirm": "Tapez SUPPRIMER pour confirmer la suppression.",
       "errorCommissions": "Votre compte ne peut pas être supprimé tout de suite : une commission commerciale est en cours. Écrivez-nous sur WhatsApp, nous le supprimerons pour vous.",
       "done": "Votre compte agent a été supprimé."
+    },
+    "appMenu": {
+      "title": "Compte",
+      "verified": "Agent vérifié",
+      "activity": "Mon activité",
+      "dashboard": "Tableau de bord",
+      "messages": "Messages",
+      "alerts": "Alertes",
+      "point": "Faites le point",
+      "projects": "Projets neufs",
+      "account": "Mon compte",
+      "settings": "Profil et réglages",
+      "subscription": "Abonnement",
+      "publicPage": "Ma page publique",
+      "preferences": "Préférences",
+      "language": "Langue",
+      "searchTitle": "Chercher un logement",
+      "searchText": "Parcourir, enregistrer et demander des visites",
+      "signOut": "Se déconnecter"
     },
     "checkout": {
       "metaTitle": "Paiement de l’abonnement — Espace agent — Lukka Place",
@@ -9156,6 +9178,94 @@
       "fromProfile": "Ce client vous a écrit depuis votre profil, sans bien précis.",
       "openedOn": "Conversation ouverte le {date}",
       "panelLabel": "Fiche du client"
+    }
+  },
+  "appShell": {
+    "tabs": {
+      "search": "Rechercher",
+      "saved": "Enregistrés",
+      "account": "Compte"
+    },
+    "bell": "Notifications",
+    "home": {
+      "title": "Trouvez le bon logement",
+      "count": {
+        "one": "{count} bien à louer et à vendre en RDC",
+        "other": "{count} biens à louer et à vendre en RDC"
+      },
+      "continue": "Reprendre où vous en étiez",
+      "continueFallback": "Votre recherche enregistrée",
+      "latest": "Ajoutés récemment",
+      "seeAll": "Tout voir",
+      "findTitle": "Pas encore trouvé ?",
+      "findText": "Décrivez ce que vous cherchez : des agences vous proposent des biens."
+    },
+    "card": {
+      "photos": {
+        "one": "{count} photo",
+        "other": "{count} photos"
+      }
+    },
+    "account": {
+      "title": "Compte",
+      "guestTitle": "Connectez-vous ou créez un compte",
+      "guestText": "Gardez vos favoris, vos recherches et vos visites sur tous vos appareils.",
+      "signIn": "Se connecter",
+      "signUp": "Créer un compte",
+      "agentPrompt": "Agent ou agence ?",
+      "agentLogin": "Espace agent",
+      "yourSpace": "Mon espace",
+      "profile": "Mon profil",
+      "visits": "Mes visites",
+      "requests": "Mes demandes",
+      "messages": "Messages",
+      "notifications": "Notifications",
+      "alerts": "Alertes de recherche",
+      "services": "Services",
+      "find": "Trouver pour moi",
+      "prices": "Prix des loyers",
+      "agencies": "Agences",
+      "preferences": "Préférences",
+      "language": "Langue",
+      "currency": "Devise",
+      "publishTitle": "Publier un bien",
+      "publishText": "Pour les agents et les agences",
+      "signOut": "Se déconnecter"
+    },
+    "saved": {
+      "title": "Enregistrés",
+      "homes": "Biens",
+      "searches": "Recherches",
+      "emptyHomesTitle": "Aucun bien enregistré",
+      "emptyHomesText": "Touchez le cœur sur une annonce pour la retrouver ici.",
+      "browse": "Voir les biens",
+      "gone": {
+        "one": "{count} bien enregistré n’est plus en ligne.",
+        "other": "{count} biens enregistrés ne sont plus en ligne."
+      },
+      "emptySearchesTitle": "Aucune recherche enregistrée",
+      "searchesHint": "Enregistrez une recherche depuis les résultats : nous vous prévenons dès qu’un bien correspond.",
+      "alerts": "Alertes",
+      "signInForAlerts": "Connectez-vous pour être prévenu des nouveaux biens."
+    },
+    "back": "Retour",
+    "visit": {
+      "title": "Demander une visite",
+      "step": "Étape {step} sur 2",
+      "chooseTitle": "Choisissez un jour et une heure",
+      "confirmNote": "L’agent confirme l’heure sur WhatsApp. Vous suivez la visite dans Mes visites.",
+      "continue": "Continuer",
+      "continueWith": "Continuer · {slot}",
+      "change": "Modifier",
+      "detailsTitle": "Vos coordonnées",
+      "detailsText": "Transmises à l’agent pour cette visite uniquement.",
+      "submit": "Demander la visite",
+      "doneTitle": "Visite demandée",
+      "myVisits": "Voir mes visites",
+      "backToListing": "Retour à l’annonce"
+    },
+    "filters": {
+      "reset": "Réinitialiser"
     }
   }
 }

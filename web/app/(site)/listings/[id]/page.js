@@ -1,3 +1,5 @@
+import AppListingBar from '@/components/app/AppListingBar';
+import { isAppRequest } from '@/lib/appMode';
 import { notFound } from 'next/navigation';
 import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
 import { listingStaticMapSrc } from '@/lib/staticMap';
@@ -131,6 +133,7 @@ async function AgentProfileLink({ agentId }) {
  * implying the results are nearby.
  */
 export default async function ListingDetailPage({ params, searchParams }) {
+  const app = await isAppRequest();
   const t = await getT();
   const { id } = await params;
   const sp = await searchParams;
@@ -432,7 +435,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
       <RecentlyViewed excludeId={listing.id} />
 
-      <MobileListingBar listing={listing} />
+      {/* Inside the store app: the app design's bar (visit first, opens the booking screen). */}
+      {app ? <AppListingBar listing={listing} /> : <MobileListingBar listing={listing} />}
     </div>
   );
 }

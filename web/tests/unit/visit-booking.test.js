@@ -136,10 +136,11 @@ test('every surface books through the one dialog, and a blocked day is refused s
   assert.match(read('components/EnquiryCard.js'), /<VisitRequestDialog propertyId=\{propertyId\} open=\{open\}/);
 
   const action = read('app/(site)/listings/[id]/actions.js');
-  // Three destinations: the agenda, an agent profile (the profile's listing
-  // sheet), else the listing. The profile path is taken from the form only
-  // when it is exactly /agents/<digits> — anchored, so never off-site.
-  assert.match(action, /returnTo === 'visites'\s*\? '\/compte\/client\/visites'\s*: \/\^\\\/agents\\\/\\d\{1,12\}\$\/\.test\(returnTo\) \? returnTo : `\/listings\/\$\{propertyId\}`/, 'agenda, an anchored /agents/<id>, or the listing');
+  // Four destinations: the agenda, the app's booking screen (2026-11-11), an
+  // agent profile (the profile's listing sheet), else the listing. The profile
+  // path is taken from the form only when it is exactly /agents/<digits> —
+  // anchored, so never off-site.
+  assert.match(action, /returnTo === 'visites'\s*\? '\/compte\/client\/visites'\s*: returnTo === 'app'\s*\? `\/listings\/\$\{propertyId\}\/visite`\s*: \/\^\\\/agents\\\/\\d\{1,12\}\$\/\.test\(returnTo\) \? returnTo : `\/listings\/\$\{propertyId\}`/, 'agenda, the app booking screen, an anchored /agents/<id>, or the listing');
   const agentPath = /^\/agents\/\d{1,12}$/;
   for (const bad of ['//evil.com', '/agents/1/../../x', 'https://evil.com/agents/1', '/agents/1?x=1', '/agents/abc']) {
     assert.ok(!agentPath.test(bad), `${bad} is not an accepted return path`);

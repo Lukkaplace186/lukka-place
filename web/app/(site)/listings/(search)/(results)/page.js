@@ -1,3 +1,4 @@
+import { isAppRequest } from '@/lib/appMode';
 import FilterBar from '@/components/FilterBar';
 import ActiveFilterChips from '@/components/ActiveFilterChips';
 import ListingsSplitView from '@/components/ListingsSplitView';
@@ -207,6 +208,8 @@ export default async function ListingsPage({ searchParams }) {
   // facet fallback is a real category name out of the database, so it is used
   // verbatim in either language.
   const t = await getT();
+  // Inside the store app: app cards, and the floating bar above the tab bar.
+  const app = await isAppRequest();
   const pluralKey = params.property_type ? PROPERTY_TYPE_PLURAL_KEYS[params.property_type] : undefined;
   const propertyTypeLabel = params.property_type
     ? (pluralKey ? t(pluralKey) : undefined) ||
@@ -230,6 +233,7 @@ export default async function ListingsPage({ searchParams }) {
           initialTotal={total}
           priceCeiling={maxPrice}
           cities={publicCities}
+          appMode={app}
           defaults={{
             ville: filters.ville,
             searchCity,
@@ -323,6 +327,7 @@ export default async function ListingsPage({ searchParams }) {
             clearAreaHref={clearAreaHref}
             nearby={nearbyExtras ? { ...nearbyExtras, listings: withNearDistance(nearbyExtras.listings), place: params.commune } : null}
             propertyTypes={propertyTypes}
+            appMode={app}
           />
         )}
       </div>
@@ -331,7 +336,7 @@ export default async function ListingsPage({ searchParams }) {
           bottom-center floating control at this exact position
           (MobileMapBar.js's "← Liste" button). Rendered on an empty
           search too: its alert is the phone's only way to ask for one. */}
-      {!isMapView ? <FloatingControlBar hasResults={count > 0} /> : null}
+      {!isMapView ? <FloatingControlBar hasResults={count > 0} aboveTabBar={app} /> : null}
     </div>
   );
 }

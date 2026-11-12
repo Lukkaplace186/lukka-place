@@ -22,6 +22,7 @@ import { agentInScope, getSalesScope } from '@/lib/salesScope';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
+import AgentAgencyControl from './AgentAgencyControl';
 import AgentDeleteButton from './AgentDeleteButton';
 import VerificationReminderButton from './VerificationReminderButton';
 import AdminVerifyAgentButton from './AdminVerifyAgentButton';
@@ -348,6 +349,14 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
               {t('admin.agentPanel.editProfile')}
             </Link>
+          ) : null}
+          {can(session?.role, 'agents.manage') && !agent.deleted_at ? (
+            <AgentAgencyControl
+              agentId={agent.id}
+              agentName={displayName}
+              currentVendorId={Number(agent.vendor_id) > 0 ? Number(agent.vendor_id) : null}
+              currentVendorName={agent.vendor_name || null}
+            />
           ) : null}
           {can(session?.role, 'agents.manage') ? <VerificationReminderButton agentId={agent.id} /> : null}
           {can(session?.role, 'agents.manage') && !agent.phone_verified_at && !agent.deleted_at ? (

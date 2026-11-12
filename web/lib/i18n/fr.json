@@ -5715,7 +5715,27 @@
       "listingsQuota": "Biens (total / quota)",
       "priorityTitle": "Priorité pour les demandes clients",
       "priorityLead": "Le niveau qui décide quelles agences reçoivent une demande en premier. L’agence voit la même carte sur son tableau de bord.",
-      "priorityFoot": "Non public : seuls l’agence et l’équipe le voient."
+      "priorityFoot": "Non public : seuls l’agence et l’équipe le voient.",
+      "agency": {
+        "current": "Agence actuelle : {name}",
+        "none": "Aucune agence pour l’instant",
+        "searchLabel": "Rattacher à l’agence",
+        "searchPlaceholder": "Nom de l’agence, nom ou numéro d’un de ses agents",
+        "searchHint": "Tapez au moins 2 caractères.",
+        "searching": "Recherche…",
+        "noResult": "Aucune agence trouvée.",
+        "agents": {
+          "one": "{count} agent",
+          "other": "{count} agents"
+        },
+        "contact": "contact : {name}",
+        "isCurrent": "agence actuelle",
+        "quotaNote": "Ses annonces compteront dans le forfait de cette agence.",
+        "confirm": "Rattacher à {name}",
+        "moved": "Agence mise à jour : {name}.",
+        "oldEmpty": "L’ancienne agence « {name} » n’a plus aucun agent. Vous pouvez la supprimer depuis sa page.",
+        "openOld": "Ouvrir l’ancienne agence"
+      }
     },
     "audit": {
       "title": "Journal d’audit",

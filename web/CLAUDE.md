@@ -174,6 +174,18 @@ Conflating any two of these is the bug that keeps recurring:
   `agents.phone` is deliberately **not** editable: it is the primary
   identifier, and changing it would silently invalidate listing attribution,
   the verification that granted the badge, and sessions.
+  - **"Changer d'agence" is on the profile too (2026-11-12)**, not only in
+    the agents list's row menu (`AgentAgencyControl.js`). An agent belongs to
+    an agency by `agents.vendor_id` → `vendors`; `agency_name` is only the
+    name they typed, so typing "JOKER AGENCY" attaches nobody. Every account
+    created alone (console, WhatsApp onboarding) gets its own vendor with its
+    own Pilot trial — Chris Lubamba (#125, vendor #1037) works for Joker
+    Agency (#1024). The dialog searches agencies server-side
+    (`searchAgenciesForAgentAction`, the Agencies list's search, 8 results)
+    instead of a `<select>` of every vendor; the move refuses a soft-deleted
+    agency, audits `from`, and when it leaves the old agency with no agents
+    the dialog links to it so the team can delete it. The listing quota
+    follows the agency's plan. `tests/unit/admin-agent-agency-control.test.js`.
 - **Duplicate detection** flags same-normalised-phone and same-email groups
   only, never name similarity. The phone normaliser folds DRC shorthand onto
   `243…` and leaves every other country's digits alone — an unconditional

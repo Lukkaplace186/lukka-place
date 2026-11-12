@@ -5715,7 +5715,27 @@
       "listingsQuota": "Listings (total / quota)",
       "priorityTitle": "Priority for Customer Requests",
       "priorityLead": "The level that decides which agencies receive a request first. The agency sees the same card on its dashboard.",
-      "priorityFoot": "Not public: only the agency and the team see it."
+      "priorityFoot": "Not public: only the agency and the team see it.",
+      "agency": {
+        "current": "Current agency: {name}",
+        "none": "No agency yet",
+        "searchLabel": "Attach to agency",
+        "searchPlaceholder": "Agency name, or the name or number of one of its agents",
+        "searchHint": "Type at least 2 characters.",
+        "searching": "Searching…",
+        "noResult": "No agency found.",
+        "agents": {
+          "one": "{count} agent",
+          "other": "{count} agents"
+        },
+        "contact": "contact: {name}",
+        "isCurrent": "current agency",
+        "quotaNote": "Their listings will count towards this agency’s plan.",
+        "confirm": "Attach to {name}",
+        "moved": "Agency updated: {name}.",
+        "oldEmpty": "The previous agency “{name}” has no agents left. You can delete it from its page.",
+        "openOld": "Open the previous agency"
+      }
     },
     "audit": {
       "title": "Audit Log",

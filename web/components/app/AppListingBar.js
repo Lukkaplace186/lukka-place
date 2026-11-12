@@ -9,7 +9,10 @@ import { canMessageListing, chatStartHref } from '@/lib/chatRules';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils';
 
+// Variants go through cn() (tailwind-merge): a plain string join kept both
+// bg-surface and bg-green, and CSS order drew WhatsApp white on white (2026-11-12).
 const ICON_BUTTON =
   'u-press u-focus-ring inline-flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-line bg-surface text-ink';
 
@@ -45,13 +48,13 @@ export default function AppListingBar({ listing }) {
             rel="noopener noreferrer"
             onClick={() => trackLeadClick(listing, routingType, 'listing_app_bar')}
             aria-label={t('common.shared.whatsapp')}
-            className={`${ICON_BUTTON} border-transparent bg-green text-white`}
+            className={cn(ICON_BUTTON, 'border-transparent bg-green text-white')}
           >
             <WhatsAppIcon className="h-5 w-5" />
           </a>
         ) : null}
         {canMessage ? (
-          <Link href={chatStartHref({ propertyId: listing.id })} aria-label={t('chat.cta.message')} className={`${ICON_BUTTON} text-blue`}>
+          <Link href={chatStartHref({ propertyId: listing.id })} aria-label={t('chat.cta.message')} className={cn(ICON_BUTTON, 'text-blue')}>
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
           </Link>
         ) : null}

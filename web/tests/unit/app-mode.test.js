@@ -229,3 +229,17 @@ test('agents in the app: five tabs from the server, Compte holds everything else
     assert.equal(typeof dict.agent.appMenu.signOut, 'string');
   }
 });
+
+test('the listing bar draws WhatsApp green and chat blue (variants through cn, not a string join)', async () => {
+  const { cn } = await import('@/lib/utils');
+  const bar = read('components/app/AppListingBar.js');
+  const base = bar.match(/const ICON_BUTTON =\s*'([^']+)'/)[1];
+  assert.match(bar, /className=\{cn\(ICON_BUTTON, 'border-transparent bg-green text-white'\)\}/);
+  assert.match(bar, /className=\{cn\(ICON_BUTTON, 'text-blue'\)\}/);
+  assert.doesNotMatch(bar, /`\$\{ICON_BUTTON\}/, 'no plain string join left');
+  const whatsapp = cn(base, 'border-transparent bg-green text-white').split(' ');
+  assert.ok(whatsapp.includes('bg-green') && !whatsapp.includes('bg-surface'), 'the white background is dropped');
+  assert.ok(whatsapp.includes('text-white') && !whatsapp.includes('text-ink'));
+  const chat = cn(base, 'text-blue').split(' ');
+  assert.ok(chat.includes('text-blue') && !chat.includes('text-ink'));
+});

@@ -2,7 +2,7 @@
 /**
  * scripts/eval-intake-models.js
  *
- * Runs the same text-only intake messages through two models and compares the
+ * Runs the same text-only intake messages through several models and compares the
  * fields that matter, so a model change for services/openai.js's intake is
  * measured, not assumed (2026-11-03: gpt-4o-mini was measured and refused).
  *
@@ -11,18 +11,30 @@
  * corrections, a multi-property paste, Lingala, commercial, short-term, and
  * messages that are not listings.
  *
- *   node scripts/eval-intake-models.js [--db <file>] [--limit 40]
- *        [--a gpt-4o] [--b gpt-4o-mini]
+ *   node scripts/eval-intake-models.js [--db <file>] [--limit 40] [--cases <file.json>]
+ *        [--models gpt-4o,claude-haiku-5-5,claude-sonnet-5-5] [--effort low]
+ *        (or the older [--a gpt-4o] [--b gpt-4o-mini])
+ *
+ * The first model is the reference; every other one is compared with it.
+ * --cases: a JSON array of {name, text} used instead of the SQLite corpus
+ * (e.g. a sample copied from production, kept outside the repo).
+ *
+ * Claude models (2026-11-11): a "claude-*" name is sent to the Anthropic API
+ * (ANTHROPIC_API_KEY) with the SAME system prompt, schema and post-processing
+ * — the OpenAI-shaped request is translated, so services/openai.js is not
+ * touched. --effort sets Claude's output_config.effort (default low).
  *
  * Costs real API calls: one per message per model. gpt-4o is ~3 US cents per
  * message (the system prompt and schema are ~13k tokens), gpt-4o-mini ~0.2.
- * Prints each disagreement, then a per-field tally.
+ * Prints each disagreement, then a per-field tally and each model's measured cost.
  */
 
 require('dotenv').config();
 const path = require('path');
 const Database = require('better-sqlite3');
-const { parseMessage, draftContextFromListing } = require('../services/openai');
+const openaiService = require('../services/openai');
+
+const { parseMessage } = openaiService;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -31,8 +43,131 @@ function arg(name, fallback) {
 
 const DB_FILE = arg('db', process.env.DB_PATH || path.join(__dirname, '..', 'lukka_place.db'));
 const LIMIT = Number(arg('limit', 40));
-const MODEL_A = arg('a', 'gpt-4o');
-const MODEL_B = arg('b', 'gpt-4o-mini');
+const MODELS = arg('models', null)
+  ? arg('models').split(',').map((m) => m.trim()).filter(Boolean)
+  : [arg('a', 'gpt-4o'), arg('b', 'gpt-4o-mini')];
+const CASES_FILE = arg('cases', null);
+const EFFORT = arg('effort', 'low');
+
+// ---------------------------------------------------------------------------
+// Claude: the OpenAI-shaped intake request, translated.
+// ---------------------------------------------------------------------------
+
+/** US$ per million tokens: [input, cache read, cache write (5 min), output]. Anthropic list prices, 2026-11-03. */
+const CLAUDE_PRICES = [
+  ['claude-haiku-5-5', [0.10, 0.01, 0.125, 0.50]],
+  ['claude-sonnet-5-5', [2, 0.10, 2.5, 10]],
+  ['claude-opus-5-5', [4, 0.20, 5, 20]],
+];
+
+let anthropic;
+function claudeClient() {
+  if (!anthropic) {
+    if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is missing — set it in .env to test Claude models');
+    // eslint-disable-next-line global-require
+    const Anthropic = require('@anthropic-ai/sdk').default;
+    anthropic = new Anthropic();
+  }
+  return anthropic;
+}
+
+function claudeContent(content) {
+  if (typeof content === 'string') return content;
+  return content.map((part) => {
+    if (part.type === 'text') return { type: 'text', text: part.text };
+    const url = part.image_url?.url || '';
+    const m = /^data:([^;]+);base64,(.*)$/s.exec(url);
+    return m
+      ? { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }
+      : { type: 'image', source: { type: 'url', url } };
+  });
+}
+
+/**
+ * OpenAI's strict schema writes a nullable enum as {type: ['string', 'null'],
+ * enum: ['a', null]}; Anthropic refuses an enum value that does not match a
+ * single declared type. Same meaning, written as anyOf.
+ */
+function claudeSchema(node) {
+  if (Array.isArray(node)) return node.map(claudeSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, claudeSchema(v)]));
+  if (Array.isArray(out.type) && out.type.includes('null') && Array.isArray(out.enum)) {
+    const { type, enum: values, ...rest } = out;
+    const types = type.filter((t) => t !== 'null');
+    return {
+      ...rest,
+      anyOf: [
+        { type: types.length === 1 ? types[0] : types, enum: values.filter((v) => v !== null) },
+        { type: 'null' },
+      ],
+    };
+  }
+  return out;
+}
+
+async function claudeCreate(params) {
+  const systems = params.messages.filter((m) => m.role === 'system').map((m) => m.content);
+  const messages = params.messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role, content: claudeContent(m.content) }));
+  // Anthropic's constrained decoding allows 16 nullable/union fields; the
+  // intake schema has 48, so it is refused (400). The schema goes into the
+  // (cached) prompt instead and the answer must be bare JSON; one that does
+  // not parse counts as a failure for that model.
+  const schemaText = JSON.stringify(claudeSchema(params.response_format.json_schema.schema));
+  const res = await claudeClient().messages.create({
+    model: params.model,
+    max_tokens: 16000,
+    // The ~13k-token prompt is identical on every call: cached like OpenAI's.
+    system: [
+      {
+        type: 'text',
+        text: `${systems[0]}\n\nFORMAT DE SORTIE : réponds uniquement par un objet JSON valide conforme à ce JSON Schema (toutes les clés présentes, null quand l'information n'est pas donnée), sans texte autour ni bloc de code :\n${schemaText}`,
+        cache_control: { type: 'ephemeral' },
+      },
+      ...systems.slice(1).map((text) => ({ type: 'text', text })),
+    ],
+    messages,
+    output_config: { effort: EFFORT },
+  });
+  const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('')
+    .trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const u = res.usage || {};
+  return {
+    model: res.model,
+    usage: {
+      prompt_tokens: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0),
+      prompt_tokens_details: { cached_tokens: u.cache_read_input_tokens || 0 },
+      completion_tokens: u.output_tokens || 0,
+      cache_write_tokens: u.cache_creation_input_tokens || 0,
+    },
+    choices: [{
+      finish_reason: res.stop_reason === 'max_tokens' ? 'length' : 'stop',
+      message: {
+        content: text,
+        refusal: res.stop_reason === 'refusal' ? (res.stop_details?.explanation || 'refused') : null,
+      },
+    }],
+  };
+}
+
+// Route claude-* through the translation; everything else is the real OpenAI call.
+if (MODELS.some((m) => m.startsWith('claude-'))) {
+  const completions = openaiService.getClient().chat.completions;
+  const original = completions.create.bind(completions);
+  completions.create = (params, opts) => (String(params.model).startsWith('claude-') ? claudeCreate(params) : original(params, opts));
+}
+
+/** Measured cost of one call, in US$ (null for a model with no price here). */
+function costOf(model, usage) {
+  const claude = CLAUDE_PRICES.find(([name]) => String(model).startsWith(name))?.[1];
+  if (!claude) return openaiService.callCost(model, usage).usd;
+  const cached = usage.prompt_tokens_details?.cached_tokens || 0;
+  const write = usage.cache_write_tokens || 0;
+  const fresh = usage.prompt_tokens - cached - write;
+  return (fresh * claude[0] + cached * claude[1] + write * claude[2] + usage.completion_tokens * claude[3]) / 1e6;
+}
 
 const FIELDS = [
   'is_listing', 'is_confirmed', 'is_correction', 'intent', 'transaction_type', 'property_type',
@@ -73,6 +208,10 @@ const HARD_CASES = [
 ];
 
 function corpus() {
+  if (CASES_FILE) {
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    return [...require(path.resolve(CASES_FILE)), ...HARD_CASES];
+  }
   let rows = [];
   try {
     const db = new Database(DB_FILE, { readonly: true, fileMustExist: true });
@@ -108,48 +247,85 @@ async function run(model, c) {
 
 (async () => {
   const cases = corpus();
-  console.log(`[eval] ${cases.length} messages, ${MODEL_A} vs ${MODEL_B}\n`);
-  const tally = Object.fromEntries(FIELDS.map((f) => [f, 0]));
-  const usage = { [MODEL_A]: { in: 0, cached: 0, out: 0 }, [MODEL_B]: { in: 0, cached: 0, out: 0 } };
-  let agreeAll = 0;
+  const [REF, ...OTHERS] = MODELS;
+  const effortNote = MODELS.some((m) => m.startsWith('claude-')) ? ` (Claude effort ${EFFORT})` : '';
+  console.log(`[eval] ${cases.length} messages, reference ${REF} vs ${OTHERS.join(', ')}${effortNote}\n`);
+  const tally = Object.fromEntries(OTHERS.map((m) => [m, {}]));
+  const agreeAll = Object.fromEntries(OTHERS.map((m) => [m, 0]));
+  const stats = Object.fromEntries(MODELS.map((m) => [m, {
+    calls: 0, failed: 0, in: 0, cached: 0, write: 0, out: 0, usd: 0, ms: 0,
+  }]));
 
   for (const c of cases) {
-    let a;
-    let b;
-    try {
-      [a, b] = await Promise.all([run(MODEL_A, c), run(MODEL_B, c)]);
-    } catch (err) {
-      console.log(`✗ ${c.name}: ${err.message}`);
+    // eslint-disable-next-line no-await-in-loop
+    const results = await Promise.all(MODELS.map((m) => run(m, c).catch((err) => ({ error: err.message }))));
+    const byModel = Object.fromEntries(MODELS.map((m, i) => [m, results[i]]));
+    for (const m of MODELS) {
+      const r = byModel[m];
+      if (r.error) {
+        stats[m].failed += 1;
+      } else {
+        const u = r._meta.usage || {};
+        stats[m].calls += 1;
+        stats[m].in += u.prompt_tokens || 0;
+        stats[m].cached += u.prompt_tokens_details?.cached_tokens || 0;
+        stats[m].write += u.cache_write_tokens || 0;
+        stats[m].out += u.completion_tokens || 0;
+        stats[m].usd += costOf(r._meta.model || m, u) || 0;
+        stats[m].ms += r.ms;
+      }
+    }
+    const ref = byModel[REF];
+    if (ref.error) {
+      console.log(`✗ ${c.name}: ${REF} failed: ${ref.error}`);
       continue;
     }
-    for (const [m, r] of [[MODEL_A, a], [MODEL_B, b]]) {
-      const u = r._meta.usage || {};
-      usage[m].in += u.prompt_tokens || 0;
-      usage[m].cached += u.prompt_tokens_details?.cached_tokens || 0;
-      usage[m].out += u.completion_tokens || 0;
-    }
-    const diffs = FIELDS.filter((f) => JSON.stringify(norm(a.extracted_data[f])) !== JSON.stringify(norm(b.extracted_data[f])));
-    const unitsA = (a.extracted_data.units || []).length;
-    const unitsB = (b.extracted_data.units || []).length;
-    if (unitsA !== unitsB) diffs.push('units.length');
-    diffs.forEach((f) => { tally[f] = (tally[f] || 0) + 1; });
-    if (!diffs.length) agreeAll += 1;
 
-    console.log(`${diffs.length ? '≠' : '='} ${c.name}${b._meta.escalatedFrom ? ' (B escalated)' : ''}`);
-    for (const f of diffs) {
-      const va = f === 'units.length' ? unitsA : a.extracted_data[f];
-      const vb = f === 'units.length' ? unitsB : b.extracted_data[f];
-      console.log(`    ${f}: ${JSON.stringify(va)}  vs  ${JSON.stringify(vb)}`);
+    const lines = [];
+    let anyDiff = false;
+    for (const m of OTHERS) {
+      const r = byModel[m];
+      if (r.error) {
+        lines.push(`    ${m} FAILED: ${r.error.slice(0, 300)}`);
+        anyDiff = true;
+        continue;
+      }
+      const diffs = FIELDS.filter((f) => JSON.stringify(norm(ref.extracted_data[f])) !== JSON.stringify(norm(r.extracted_data[f])));
+      const unitsRef = (ref.extracted_data.units || []).length;
+      const units = (r.extracted_data.units || []).length;
+      if (unitsRef !== units) diffs.push('units.length');
+      diffs.forEach((f) => { tally[m][f] = (tally[m][f] || 0) + 1; });
+      if (!diffs.length) agreeAll[m] += 1; else anyDiff = true;
+      for (const f of diffs) {
+        const vRef = f === 'units.length' ? unitsRef : ref.extracted_data[f];
+        const v = f === 'units.length' ? units : r.extracted_data[f];
+        lines.push(`    [${m}] ${f}: ${JSON.stringify(vRef)}  vs  ${JSON.stringify(v)}`);
+      }
     }
-    if (diffs.length || c.draft || !a.extracted_data.is_listing) {
-      console.log(`    A reply: ${String(a.whatsapp_reply).replace(/\s+/g, ' ').slice(0, 160)}`);
-      console.log(`    B reply: ${String(b.whatsapp_reply).replace(/\s+/g, ' ').slice(0, 160)}`);
+    console.log(`${anyDiff ? '≠' : '='} ${c.name}`);
+    lines.forEach((l) => console.log(l));
+    if (anyDiff || c.draft || !ref.extracted_data.is_listing) {
+      for (const m of MODELS) {
+        const r = byModel[m];
+        if (!r.error) console.log(`    ${m} reply: ${String(r.whatsapp_reply).replace(/\s+/g, ' ').slice(0, 160)}`);
+      }
     }
   }
 
-  console.log(`\n[eval] identical on every field: ${agreeAll}/${cases.length}`);
-  console.log('[eval] disagreements per field:', Object.fromEntries(Object.entries(tally).filter(([, n]) => n)));
-  console.log('[eval] tokens:', usage);
+  console.log('');
+  for (const m of OTHERS) {
+    console.log(`[eval] ${m}: identical to ${REF} on every field: ${agreeAll[m]}/${cases.length}`);
+    console.log(`[eval] ${m}: disagreements per field:`, tally[m]);
+  }
+  console.log('\n[eval] measured cost and speed per message:');
+  for (const m of MODELS) {
+    const st = stats[m];
+    const n = st.calls || 1;
+    const per = st.calls ? st.usd / st.calls : 0;
+    console.log(`  ${m.padEnd(20)} calls=${st.calls} failed=${st.failed} avg in=${Math.round(st.in / n)} `
+      + `(cached ${Math.round(st.cached / n)}, written ${Math.round(st.write / n)}) out=${Math.round(st.out / n)}  `
+      + `${(per * 100).toFixed(3)} c/msg  ~ $${(per * 1000 * 30).toFixed(0)}/month at 1,000/day  avg ${Math.round(st.ms / n)} ms`);
+  }
 })().catch((err) => {
   console.error(err);
   process.exit(1);

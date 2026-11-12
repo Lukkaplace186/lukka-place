@@ -70,7 +70,7 @@ function HomesTab() {
       <div className="space-y-3" aria-busy="true">
         {ids.slice(0, 3).map((id) => (
           // Shaped like the row it stands in for: photo, price, place, facts.
-          <div key={id} className="flex overflow-hidden rounded-2xl border border-line bg-surface">
+          <div key={id} className="flex overflow-hidden rounded-card bg-surface shadow-[var(--shadow-card)]">
             <Skeleton className="h-[6.5rem] w-28 rounded-none" />
             <div className="flex-1 space-y-2 p-3.5">
               <Skeleton className="h-5 w-24" />
@@ -122,7 +122,7 @@ function AccountSearch({ search }) {
   }
 
   return (
-    <li className="rounded-2xl border border-line bg-surface">
+    <li className="rounded-card bg-surface shadow-[var(--shadow-card)]">
       <Link href={`/listings?${search.query || ''}`} className="flex items-center gap-3 px-4 pb-3 pt-3.5">
         <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-bold text-ink">{search.label || t('appShell.home.continueFallback')}</span>
         <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 flex-none text-ink-45" aria-hidden="true" />
@@ -163,7 +163,7 @@ function SearchesTab({ accountSearches }) {
           ? searches.map((search) => <AccountSearch key={search.id} search={search} />)
           : searches.map((search) => (
               <li key={search.query}>
-                <Link href={search.href || `/listings?${search.query}`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3.5">
+                <Link href={search.href || `/listings?${search.query}`} className="flex items-center gap-3 rounded-card bg-surface shadow-[var(--shadow-card)] px-4 py-3.5">
                   <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-bold text-ink">{search.label}</span>
                   <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 flex-none text-ink-45" aria-hidden="true" />
                 </Link>

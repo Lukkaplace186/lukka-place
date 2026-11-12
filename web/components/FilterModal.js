@@ -117,11 +117,14 @@ export default function FilterModal({
 
   // The fields, shared by the website's full-screen sheet and the app's
   // bottom sheet below, so the two can never offer different filters.
+  // The app keeps each short choice (duration, rooms, bathrooms) on one row,
+  // swiped sideways if it must, instead of wrapping a lone pill onto a second line.
+  const oneRow = app ? 'no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 [&>*]:shrink-0' : 'flex flex-wrap gap-2';
   const fields = (
         <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">
           {showLeaseTerm ? (
             <Section label={t('listings.leaseTerm.label')}>
-              <div className="flex flex-wrap gap-2">
+              <div className={oneRow}>
                 {LEASE_TERM_OPTIONS.map((option) => (
                   <PillOption key={option.value || 'any'} size="lg" selected={leaseTerm === option.value} onClick={() => setLeaseTerm?.(option.value)}>
                     {t(option.labelKey)}
@@ -158,7 +161,7 @@ export default function FilterModal({
           </Section>
 
           <Section label={t('listings.filters.bedrooms')}>
-            <div className="flex flex-wrap gap-2">
+            <div className={oneRow}>
               <PillOption size="lg" selected={!bedsMin} onClick={() => setBedsMin?.('')}>
                 {t('listings.filters.any')}
               </PillOption>
@@ -171,7 +174,7 @@ export default function FilterModal({
           </Section>
 
           <Section label={t('listings.filters.bathrooms')}>
-            <div className="flex flex-wrap gap-2">
+            <div className={oneRow}>
               <PillOption size="lg" selected={!bathMin} onClick={() => setBathMin?.('')}>
                 {t('listings.filters.any')}
               </PillOption>

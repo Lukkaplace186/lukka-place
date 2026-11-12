@@ -11,8 +11,8 @@ const SIZES = {
 
 /**
  * The person's mark in the app (Compte screens): their own photo when one
- * really exists (an agent's upload), otherwise their initials in the app's
- * serif on royal blue, never a stock face. A white ring lifts it off the grey
+ * really exists (an agent's upload), otherwise their initials in
+ * bold on royal blue, never a stock face. A white ring lifts it off the grey
  * page. `verified` adds the green check badge — only for a verification level
  * the team granted (the caller decides); `verifiedLabel` is what a screen
  * reader hears for it.
@@ -28,7 +28,7 @@ export default function AppAvatar({ name, src = null, size = 'lg', verified = fa
         {photo ? <AvatarImage src={photo} alt={name || ''} /> : null}
         <AvatarFallback className="bg-blue text-white" aria-label={name || undefined}>
           {initials ? (
-            <span className={cn('u-app-serif leading-none', s.text)} aria-hidden="true">
+            <span className={cn('font-bold leading-none tracking-[-0.01em]', s.text)} aria-hidden="true">
               {initials}
             </span>
           ) : (

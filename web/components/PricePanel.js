@@ -37,6 +37,9 @@ export default function PricePanel({ listing }) {
             pricePeriod={pricePeriod}
             showSubtext
             subtextClassName="mt-1 block text-[0.875rem] font-normal tracking-normal text-white/75"
+            // On the royal panel the period reads white: Price's default is ink,
+            // which was dark on dark blue ("/ mois" could not be read).
+            periodClassName="ml-1 text-[0.875rem] font-normal tracking-normal text-white/80"
           />
         </span>
       </div>

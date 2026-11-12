@@ -9,7 +9,7 @@ import Footer from '@/components/Footer';
 import AppTabBar from '@/components/AppTabBar';
 import AppTopBar from '@/components/app/AppTopBar';
 import AppMotion from '@/components/app/AppMotion';
-import { appSerif } from '@/lib/appFont';
+import AppPullToRefresh from '@/components/app/AppPullToRefresh';
 import { isAppRequest } from '@/lib/appMode';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
@@ -80,11 +80,13 @@ export default async function SiteLayout({ children }) {
     <I18nProvider locale={locale} messages={messages}>
       <Chrome>
       {/* display: contents on the website: no box, so its layout is untouched. */}
-      <div className={app ? `${appSerif.variable} min-h-screen bg-canvas-alt` : 'contents'}>
+      <div className={app ? 'min-h-screen bg-canvas-alt' : 'contents'}>
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <VisitCartMount />
+        {/* The app's list screens refresh on a pull down (a WebView has no such gesture of its own). */}
+        {app ? <AppPullToRefresh /> : null}
         {app ? (
           <AppTopBar />
         ) : (

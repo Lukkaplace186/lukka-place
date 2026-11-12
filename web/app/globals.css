@@ -783,13 +783,6 @@
     text-transform: uppercase;
     font-variant-numeric: tabular-nums;
   }
-  /* The app's display serif (lib/appFont.js): wordmark and big titles in
-     app mode only. Falls back to Georgia while the font arrives. */
-  .u-app-serif {
-    font-family: var(--font-app-serif), Georgia, 'Times New Roman', serif;
-    font-weight: 400;
-    letter-spacing: -0.01em;
-  }
 
   /*
    * ---------------------------------------------------------------------
@@ -845,8 +838,23 @@
      (components/FilterBar.js, appMode), so the logo bar steps aside. Keyed on
      the page's own marker, which is absent in the full-screen map view. */
   @media (max-width: 1023.98px) {
-    body:has([data-app-results]) [data-app-top-bar] {
+    body:has([data-app-results]) [data-app-top-bar],
+    body:has([data-app-listing]) [data-app-top-bar] {
       display: none;
+    }
+  }
+
+  /* The app: a listing card's photo growing into the listing's own (and back).
+     lib/appPhotoHandoff.js; nothing runs under reduced motion. */
+  ::view-transition-group(.morph) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(.morph),
+    ::view-transition-old(.morph),
+    ::view-transition-new(.morph) {
+      animation: none;
     }
   }
 

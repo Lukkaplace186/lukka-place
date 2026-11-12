@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { ViewTransition, useRef, useState } from 'react';
 import { m } from 'motion/react';
 import { Building2, Images } from 'lucide-react';
 import Link from '@/components/LocaleLink';
@@ -13,8 +13,9 @@ import AppVerifiedMark from './AppVerifiedMark';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { listingPath } from '@/lib/listingSlug';
+import { listingPhotoTransitionName, rememberListingPhoto } from '@/lib/appPhotoHandoff';
 import { displayableAgencyName } from '@/lib/agentIdentity';
-import { feedLocationLine, listingImages, specItems, typeLabel } from '@/lib/listingView';
+import { listingImages, locationLine, specItems, typeLabel } from '@/lib/listingView';
 
 /**
  * A listing in the app (the app design's results card): the listing's own
@@ -35,8 +36,10 @@ import { feedLocationLine, listingImages, specItems, typeLabel } from '@/lib/lis
 export default function AppListingCard({ listing, priority = false }) {
   const t = useT();
   const [photo, setPhoto] = useState(0);
+  const photoBox = useRef(null);
   const images = listingImages(listing);
-  const where = feedLocationLine(listing);
+  // "Quartier, commune", the city added only outside Kinshasa (lib/placeLabel.js).
+  const where = locationLine(listing);
   const type = typeLabel(listing, t);
   const specs = specItems(listing, t).map((s) => `${s.value} ${s.label}`);
   const facts = [type, ...specs].filter(Boolean).join(' · ');
@@ -50,8 +53,15 @@ export default function AppListingCard({ listing, priority = false }) {
       transition={{ type: 'spring', stiffness: 220, damping: 28 }}
       className="overflow-hidden rounded-card bg-surface shadow-[var(--shadow-card)]"
     >
-      <div className="relative aspect-[4/3] bg-canvas-alt">
-        <Link href={listingPath(listing)} aria-label={listing.title || where || ''} className="absolute inset-0">
+      {/* Tapped, this photo grows into the listing's (lib/appPhotoHandoff.js). */}
+      <ViewTransition name={listingPhotoTransitionName(listing.id)} share="morph" default="none">
+      <div ref={photoBox} className="relative aspect-[4/3] bg-canvas-alt">
+        <Link
+          href={listingPath(listing)}
+          aria-label={listing.title || where || ''}
+          className="absolute inset-0"
+          onClick={() => rememberListingPhoto(listing.id, photoBox.current)}
+        >
           {images.length > 1 ? (
             <CardImageCarousel
               images={images}
@@ -86,7 +96,8 @@ export default function AppListingCard({ listing, priority = false }) {
           </span>
         ) : null}
       </div>
-      <Link href={listingPath(listing)} className="block px-4 pb-4 pt-3">
+      </ViewTransition>
+      <Link href={listingPath(listing)} className="block px-4 pb-4 pt-3" onClick={() => rememberListingPhoto(listing.id, photoBox.current)}>
         <div className="u-price u-tabular text-ink">
           <Price
             amount={listing.price}

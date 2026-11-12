@@ -14,7 +14,7 @@ import PhoneField from '@/components/PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { formatVisitSlot } from '@/lib/visitAgenda';
-import { feedLocationLine, listingImages } from '@/lib/listingView';
+import { listingImages, locationLine } from '@/lib/listingView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
@@ -48,9 +48,9 @@ function SubmitButton({ disabled, label, sendingLabel }) {
 }
 
 function ListingSummary({ listing }) {
-  const where = feedLocationLine(listing);
+  const where = locationLine(listing);
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3">
+    <div className="flex items-center gap-3 rounded-card bg-surface shadow-[var(--shadow-card)] p-3">
       <span className="relative h-14 w-14 flex-none overflow-hidden rounded-xl bg-canvas-alt">
         <SafeImage src={listingImages(listing)[0]} alt="" fill sizes="56px" className="object-cover" />
       </span>
@@ -106,6 +106,12 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
   }, [loggedIn]);
   const prefillKey = profile ? 'account' : 'anonymous';
 
+  // The request went out: one short buzz with the green check (Android; an
+  // iPhone WebView has no vibration without a native plugin).
+  useEffect(() => {
+    if (sent) navigator.vibrate?.(18);
+  }, [sent]);
+
   function go(next) {
     setDir(next > step ? 1 : -1);
     setStep(next);
@@ -122,7 +128,7 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
         >
           <Check strokeWidth={2.5} className="h-8 w-8" aria-hidden="true" />
         </m.span>
-        <h1 className="u-app-serif mt-6 text-[2.25rem] leading-[1.05] text-ink">{t('appShell.visit.doneTitle')}</h1>
+        <h1 className="u-title-hero mt-6 text-balance text-ink">{t('appShell.visit.doneTitle')}</h1>
         <p className="mt-3 text-[0.9375rem] text-ink-70">{t(sent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent')}</p>
         <div className="mt-6">
           <ListingSummary listing={listing} />

@@ -4,7 +4,6 @@ import { cachedFeaturedListings, cachedPopularCommunes } from '@/lib/listingsCac
 import ComponentsShowcase from './ComponentsShowcase';
 import AppMotion from '@/components/app/AppMotion';
 import { feedLocationLine, listingImages } from '@/lib/listingView';
-import { appSerif } from '@/lib/appFont';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Lukka Place — démo de l’app', robots: { index: false, follow: false } };
@@ -71,10 +70,9 @@ export default async function AppDemoPage({ searchParams }) {
     { label: 'Compte agent', href: '/compte/agent/menu', needs: 'agent' },
   ];
 
-  // The app's display serif, so the component samples draw as in the app.
   return (
     <AppMotion>
-      <div className={appSerif.variable}>
+      <div>
         <AppDemoBoard
           // ?vue=composants: the building blocks only, without the 15 phone frames.
           groups={(await searchParams)?.vue === 'composants' ? [] : [{ title: 'Clients', screens: customer }, { title: 'Agents', screens: agent }]}

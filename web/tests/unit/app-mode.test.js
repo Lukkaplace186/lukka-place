@@ -123,7 +123,12 @@ test('motion is in the app only, and respects reduced motion', () => {
   assert.match(read('components/app/AppMotion.js'), /reducedMotion="user"/);
   const pkg = JSON.parse(read('package.json'));
   assert.ok(pkg.dependencies.motion, 'motion is a dependency');
-  assert.match(read('lib/appFont.js'), /preload: false/, 'the website never downloads the serif');
+  // One family everywhere since 2026-11-12 (owner): the app's display serif and its font file are gone.
+  assert.equal(existsSync(path.join(process.cwd(), 'lib/appFont.js')), false);
+  assert.doesNotMatch(read('app/globals.css'), /u-app-serif/);
+  for (const file of ['components/app/AppWelcome.js', 'components/app/AppVisitBooking.js', 'components/app/AppAvatar.js', 'app/(site)/compte/menu/page.js']) {
+    assert.doesNotMatch(read(file), /u-app-serif/, file);
+  }
 });
 
 test('Saved in the app: the design screen, except a shared selection link', () => {
@@ -385,7 +390,7 @@ test('app results list: the search row is the top bar, photos swipe, sort sits o
   const page = read('app/(site)/listings/(search)/(results)/page.js');
   assert.match(page, /className=\{isMapView \? 'hidden lg:block' : app \? 'max-lg:contents' : ''\}/, 'a sticky box cannot leave its parent');
   assert.match(page, /data-app-results=\{app && !isMapView \? '' : undefined\}/, 'the map view keeps the top bar');
-  assert.match(read('app/globals.css'), /body:has\(\[data-app-results\]\) \[data-app-top-bar\] \{\s*display: none;/);
+  assert.match(read('app/globals.css'), /body:has\(\[data-app-results\]\) \[data-app-top-bar\],\s*body:has\(\[data-app-listing\]\) \[data-app-top-bar\] \{\s*display: none;/);
   assert.match(read('components/app/AppTopBar.js'), /data-app-top-bar=""/);
   const bar = read('components/FilterBar.js');
   assert.match(bar, /appMode && 'max-lg:top-0 max-lg:z-\[60\] max-lg:-mt-16 /);
@@ -404,4 +409,68 @@ test('app results list: the search row is the top bar, photos swipe, sort sits o
   assert.match(floating, /<SaveSearchButton variant="pill" tone="solid" \/>/, 'the app: two solid buttons, Carte and Alerte');
   // "Nouveau" no longer wears the action colour.
   assert.match(read('components/app/AppCardBadges.js'), /<Badge variant="outline" className="border-transparent shadow-sm">\s*<Sparkles/);
+});
+
+test('app listing page: photo to the top, one agent row, price in the bar, similar homes as a rail', () => {
+  const page = read('app/(site)/listings/[id]/page.js');
+  assert.match(page, /\{app \? <AppListingHeader listing=\{listing\} where=\{where\} \/> : null\}/);
+  assert.match(page, /\$\{app \? ' max-sm:-mt-16' : ''\}/, 'the photo runs under the clear bar on a phone');
+  // The bottom bar already carries the contact buttons: the app shows the agent once, and no second price panel.
+  const mobile = page.slice(page.indexOf('{app ? (\r\n              <div className="lg:hidden">\r\n                <AppAgentRow'), page.indexOf('<div id="caracteristiques"'));
+  assert.match(mobile, /<AppAgentRow listing=\{listing\} \/>/);
+  assert.match(page, /const name = displayableAgencyName\(listing\.agency_name\);/, 'never a phone-shaped name');
+  assert.match(page, /if \(app\) \{[\s\S]*?return <AppRelatedRail title=\{title\} lead=\{lead\} listings=\{related\} \/>;/);
+  const header = read('components/app/AppListingHeader.js');
+  assert.match(header, /data-app-listing=""/);
+  assert.match(header, /<Price amount=\{listing\.price\} purpose=\{listing\.purpose\} pricePeriod=\{listing\.price_period\} \/>/);
+  // The website's royal price panel: the period is readable on the blue.
+  assert.match(read('components/PricePanel.js'), /periodClassName="[^"]*text-white\/80"/);
+});
+
+test('app photo hand-off: a tapped card leaves its photo for the listing loading screen', async () => {
+  const { listingIdOfSegment, listingPhotoTransitionName, recallListingPhoto, rememberListingPhoto } = await import('@/lib/appPhotoHandoff');
+  assert.equal(listingIdOfSegment('885-appartement-1-chambre-a-louer-kasa-vubu'), '885');
+  assert.equal(listingIdOfSegment('abc'), null);
+  assert.equal(listingPhotoTransitionName(885), 'listing-photo-885');
+  const img = (left, src) => ({ currentSrc: src, getBoundingClientRect: () => ({ left, right: left + 300 }) });
+  const box = { getBoundingClientRect: () => ({ left: 0, width: 300 }), querySelectorAll: () => [img(-300, 'first.webp'), img(0, 'second.webp')] };
+  rememberListingPhoto(885, box, 1000);
+  assert.equal(recallListingPhoto('885', 2000), 'second.webp', 'the photo on screen, not the first of the strip');
+  assert.equal(recallListingPhoto(886, 2000), null, 'another listing gets nothing');
+  assert.equal(recallListingPhoto(885, 1000 + 16000), null, 'stale after 15 s');
+  rememberListingPhoto(885, null, 1000);
+  assert.equal(recallListingPhoto(885, 1500), null);
+  for (const file of ['components/app/AppListingCard.js', 'components/app/AppRailCard.js']) {
+    assert.match(read(file), /<ViewTransition name=\{listingPhotoTransitionName\(listing\.id\)\} share="morph" default="none">/, file);
+  }
+  assert.match(read('app/(site)/listings/[id]/page.js'), /transitionName=\{app \? listingPhotoTransitionName\(listing\.id\) : null\}/, 'the website gets no transition name');
+});
+
+test('app pull to refresh: list screens only, a clear downward pull only', async () => {
+  const { PULL_MAX, PULL_THRESHOLD, pullDecision, pullsToRefresh } = await import('@/lib/appPullRules');
+  for (const path of ['/', '/listings', '/favoris', '/messages', '/compte/client/visites']) assert.equal(pullsToRefresh(path), true, path);
+  for (const path of ['/listings/885-appartement', '/listings/885-x/visite', '/messages/12', '/compte/agent', '/bienvenue', null]) assert.equal(pullsToRefresh(path), false, String(path));
+  assert.equal(pullDecision({ dy: 100, scrollY: 0 }), 50);
+  assert.equal(pullDecision({ dy: 1000, scrollY: 0 }), PULL_MAX);
+  assert.ok(pullDecision({ dy: 160, scrollY: 0 }) >= PULL_THRESHOLD);
+  assert.equal(pullDecision({ dy: 100, scrollY: 4 }), null, 'the page has scrolled: not a pull');
+  assert.equal(pullDecision({ dx: 90, dy: 60, scrollY: 0 }), null, 'a sideways swipe is the photo strip\'s');
+  assert.equal(pullDecision({ dy: -20, scrollY: 0 }), null);
+  const layout = read('app/(site)/layout.js');
+  assert.match(layout, /\{app \? <AppPullToRefresh \/> : null\}/);
+  assert.match(read('components/app/AppPullToRefresh.js'), /addEventListener\('touchmove', onMove, \{ passive: true \}\)/, 'never blocks a scroll');
+});
+
+test('app loading screens and the rest of the pass: own shapes, one place line, tidy filters', () => {
+  assert.match(read('app/(site)/_shared/SiteLoading.js'), /if \(await isAppRequest\(\)\) return <AppListSkeleton /);
+  assert.match(read('app/(site)/listings/[id]/loading.js'), /if \(await isAppRequest\(\)\) return <AppListingSkeleton /);
+  // "Quartier, commune": the city only outside Kinshasa (lib/placeLabel.js), on every app card.
+  for (const file of ['AppListingCard', 'AppRailCard', 'AppSavedRow', 'AppVisitBooking']) {
+    const src = read(`components/app/${file}.js`);
+    assert.match(src, /const where = locationLine\(listing\);/, file);
+    assert.doesNotMatch(src, /feedLocationLine/, file);
+  }
+  assert.match(read('components/FilterModal.js'), /const oneRow = app \? '[^']*overflow-x-auto[^']*' : 'flex flex-wrap gap-2';/);
+  assert.match(read('components/app/AppVisitBooking.js'), /if \(sent\) navigator\.vibrate\?\.\(18\);/);
+  assert.match(read('DESIGN.md'), /### In the store app/);
 });

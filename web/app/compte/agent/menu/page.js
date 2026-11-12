@@ -43,7 +43,7 @@ function Group({ title, children }) {
   return (
     <section>
       <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{title}</h2>
-      <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">{children}</ul>
+      <ul className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-[var(--shadow-card)]">{children}</ul>
     </section>
   );
 }
@@ -102,13 +102,13 @@ export default async function AgentAppMenuPage() {
 
         <section>
           <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{t('agent.appMenu.preferences')}</h2>
-          <div className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
+          <div className="flex min-h-14 items-center justify-between gap-3 rounded-card bg-surface shadow-[var(--shadow-card)] px-4 py-3">
             <span className="text-[0.9375rem] font-medium text-ink">{t('agent.appMenu.language')}</span>
             <LanguageToggle />
           </div>
         </section>
 
-        <Link href="/" className="u-press flex items-center gap-3 rounded-2xl bg-blue-deep p-4 text-white">
+        <Link href="/" className="u-press flex items-center gap-3 rounded-card bg-blue-deep p-4 text-white">
           <Search strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6 flex-none" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             <span className="block text-[0.9375rem] font-bold">{t('agent.appMenu.searchTitle')}</span>
@@ -120,7 +120,7 @@ export default async function AgentAppMenuPage() {
         <form action={agentLogoutAction}>
           <button
             type="submit"
-            className="u-press flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-surface text-[0.9375rem] font-semibold text-danger"
+            className="u-press flex h-12 w-full items-center justify-center gap-2 rounded-card bg-surface shadow-[var(--shadow-card)] text-[0.9375rem] font-semibold text-danger"
           >
             <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
             {t('agent.appMenu.signOut')}

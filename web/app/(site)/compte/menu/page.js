@@ -39,7 +39,7 @@ function Group({ title = null, children }) {
   return (
     <section>
       {title ? <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{title}</h2> : null}
-      <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">{children}</ul>
+      <ul className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-[var(--shadow-card)]">{children}</ul>
     </section>
   );
 }
@@ -76,8 +76,8 @@ export default async function AccountMenuPage() {
           </div>
         </div>
       ) : (
-        <section className="rounded-2xl border border-line bg-surface p-5">
-          <h1 className="u-app-serif text-[1.875rem] leading-tight text-ink">{t('appShell.account.guestTitle')}</h1>
+        <section className="rounded-card bg-surface shadow-[var(--shadow-card)] p-5">
+          <h1 className="u-title-hero text-ink">{t('appShell.account.guestTitle')}</h1>
           <p className="mt-2 text-[0.9375rem] text-ink-70">{t('appShell.account.guestText')}</p>
           <div className="mt-5 space-y-2.5">
             <Link
@@ -122,7 +122,7 @@ export default async function AccountMenuPage() {
       {/* The questions the app is asked most, answered with what it really does. */}
       <section>
         <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{t('appShell.faq.title')}</h2>
-        <Accordion type="single" collapsible className="rounded-2xl border border-line bg-surface px-4">
+        <Accordion type="single" collapsible className="rounded-card bg-surface shadow-[var(--shadow-card)] px-4">
           {FAQ.map((key) => (
             <AccordionItem key={key} value={key}>
               <AccordionTrigger>{t(`appShell.faq.items.${key}.q`)}</AccordionTrigger>
@@ -134,7 +134,7 @@ export default async function AccountMenuPage() {
 
       <section>
         <h2 className="mb-2 px-1 text-[0.8125rem] font-semibold text-ink-45">{t('appShell.account.preferences')}</h2>
-        <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+        <div className="divide-y divide-line rounded-card bg-surface shadow-[var(--shadow-card)]">
           <div className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
             <span className="text-[0.9375rem] font-medium text-ink">{t('appShell.account.language')}</span>
             <LanguageToggle />
@@ -146,7 +146,7 @@ export default async function AccountMenuPage() {
         </div>
       </section>
 
-      <Link href="/compte/agent" className="u-press flex items-center gap-3 rounded-2xl bg-blue-deep p-4 text-white">
+      <Link href="/compte/agent" className="u-press flex items-center gap-3 rounded-card bg-blue-deep p-4 text-white">
         <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6 flex-none" aria-hidden="true" />
         <span className="min-w-0 flex-1">
           <span className="block text-[0.9375rem] font-bold">{t('appShell.account.publishTitle')}</span>
@@ -159,7 +159,7 @@ export default async function AccountMenuPage() {
         <form action={logoutAction}>
           <button
             type="submit"
-            className="u-press flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-surface text-[0.9375rem] font-semibold text-danger"
+            className="u-press flex h-12 w-full items-center justify-center gap-2 rounded-card bg-surface shadow-[var(--shadow-card)] text-[0.9375rem] font-semibold text-danger"
           >
             <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
             {t('appShell.account.signOut')}

@@ -58,7 +58,8 @@ export default function AppFilterSheet({ open, onClose, onApply: applyFilters, o
                 onClose();
                 onApply?.();
               }}
-              className={`u-press h-12 w-full rounded-xl bg-blue text-[0.9375rem] font-semibold text-white ${resultPending ? 'opacity-70' : ''}`}
+              aria-busy={resultPending || undefined}
+              className={`u-press h-12 w-full rounded-xl bg-blue text-[0.9375rem] font-semibold text-white`}
             >
               {applyLabel}
             </button>

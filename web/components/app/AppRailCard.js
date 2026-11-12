@@ -1,5 +1,6 @@
 'use client';
 
+import { ViewTransition, useRef } from 'react';
 import Link from '@/components/LocaleLink';
 import SafeImage from '@/components/SafeImage';
 import FavoriteButton from '@/components/FavoriteButton';
@@ -8,7 +9,8 @@ import AppCardBadges from './AppCardBadges';
 import AppVerifiedMark from './AppVerifiedMark';
 import { useT } from '@/lib/i18n/client';
 import { listingPath } from '@/lib/listingSlug';
-import { feedLocationLine, listingImages, specItems, typeLabel } from '@/lib/listingView';
+import { listingPhotoTransitionName, rememberListingPhoto } from '@/lib/appPhotoHandoff';
+import { listingImages, locationLine, specItems, typeLabel } from '@/lib/listingView';
 
 /**
  * A listing in the app home's photo rail: the listing's own first photo,
@@ -19,15 +21,24 @@ import { feedLocationLine, listingImages, specItems, typeLabel } from '@/lib/lis
 export default function AppRailCard({ listing, priority = false }) {
   const t = useT();
   const images = listingImages(listing);
-  const where = feedLocationLine(listing);
+  const photoBox = useRef(null);
+  // "Quartier, commune", the city added only outside Kinshasa (lib/placeLabel.js).
+  const where = locationLine(listing);
   const type = typeLabel(listing, t);
   const specs = specItems(listing, t).map((s) => `${s.value} ${s.label}`);
   const facts = [type, ...specs].filter(Boolean).join(' · ');
 
   return (
     <article className="w-[78vw] max-w-[20rem] flex-none snap-start">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-card bg-canvas-deep shadow-[var(--shadow-card)]">
-        <Link href={listingPath(listing)} aria-label={listing.title || where || ''} className="absolute inset-0">
+      {/* Tapped, this photo grows into the listing's (lib/appPhotoHandoff.js). */}
+      <ViewTransition name={listingPhotoTransitionName(listing.id)} share="morph" default="none">
+      <div ref={photoBox} className="relative aspect-[4/3] overflow-hidden rounded-card bg-canvas-deep shadow-[var(--shadow-card)]">
+        <Link
+          href={listingPath(listing)}
+          aria-label={listing.title || where || ''}
+          className="absolute inset-0"
+          onClick={() => rememberListingPhoto(listing.id, photoBox.current)}
+        >
           <SafeImage
             src={images[0]}
             alt=""
@@ -43,7 +54,8 @@ export default function AppRailCard({ listing, priority = false }) {
         <FavoriteButton listingId={listing.id} price={listing.price} commune={listing.commune} className="absolute right-2.5 top-2.5" />
         <AppVerifiedMark listing={listing} className="absolute bottom-2.5 left-2.5" />
       </div>
-      <Link href={listingPath(listing)} className="block pt-2.5">
+      </ViewTransition>
+      <Link href={listingPath(listing)} className="block pt-2.5" onClick={() => rememberListingPhoto(listing.id, photoBox.current)}>
         <div className="u-price u-tabular text-ink">
           <Price
             amount={listing.price}

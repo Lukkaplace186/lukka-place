@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, ViewTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
@@ -73,7 +73,13 @@ const SWIPE_CLOSE_PX = 70;
  * viewer plays it. A cover frame passed in `images` is dropped — the video
  * item stands for it.
  */
-export default function PhotoGallery({ images, videos = [], alt, mobileActions = null, verifiedAt = null, eventListing = null }) {
+// `clearBack`: in the app the photo runs under a clear top bar whose back
+// button sits top-left, so the "Annonce vérifiée" badge steps aside.
+export default function PhotoGallery({ images, videos = [], alt, mobileActions = null, verifiedAt = null, eventListing = null, clearBack = false, transitionName = null }) {
+  // The app: the phone photo carries the tapped card's view-transition name, so
+  // the card's photo grows into it (lib/appPhotoHandoff.js). No name, no wrapper.
+  const Morph = transitionName ? ViewTransition : Fragment;
+  const morphProps = transitionName ? { name: transitionName, share: 'morph', default: 'none' } : {};
   const t = useT();
   const photoShots = (images || []).filter((src) => !isVideoPoster(src));
   const videoItems = (videos || []).map((video) => ({ src: video.poster || '', video: video.url }));
@@ -199,7 +205,8 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           edge (-mx-4 cancels the page gutter), the way every app shows a
           product photo on a phone; `mobileActions` (Partager/Enregistrer)
           sit on the photo instead of on a row of their own above it. */}
-      <div className="relative -mx-4 sm:hidden">
+      <Morph {...morphProps}>
+      <div className="relative -mx-4 sm:hidden" data-listing-hero="">
         <div
           role="button"
           tabIndex={0}
@@ -218,7 +225,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
         </div>
 
         {verifiedAt ? (
-          <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
+          <span className={`pointer-events-none absolute z-10 flex flex-wrap gap-2 ${clearBack ? 'left-16 top-5' : 'left-3.5 top-3.5'}`}>
             <Badge tone="white">{t('listings.gallery.verified')}</Badge>
           </span>
         ) : null}
@@ -247,6 +254,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           </button>
         ) : null}
       </div>
+      </Morph>
 
       <Dialog open={gridOpen} onOpenChange={setGridOpen}>
         <DialogContent showCloseButton className="max-h-[78dvh] max-w-[min(96vw,40rem)] gap-0 overflow-y-auto p-3 sm:hidden">

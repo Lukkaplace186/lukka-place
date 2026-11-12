@@ -333,14 +333,25 @@ Confident and tactile: they lift on hover and give a little on press.
 
 ### Navigation
 - **Header:** fixed, white, 64px, bottom hairline; links in ink at 13–15px; account menu on the right; a hamburger sheet on mobile. Its shadow appears as the page scrolls.
-- **No bottom tab bar and no side rail.** Floating per-page action bars sit at the viewport bottom on mobile instead.
+- **No bottom tab bar and no side rail on the website.** Floating per-page action bars sit at the viewport bottom on mobile instead. The store app has its own navigation: see "In the store app" below.
 - **Icons:** `lucide-react` only, 18px at 1.75 stroke. The WhatsApp, Facebook and Instagram marks are the one exception, hand-drawn SVGs.
 
 ### Map pins (signature)
 The listings map deliberately leaves the site palette: a vivid basemap (green parks, blue water, warm roads) so Kinshasa reads as a real place. Every listing is a white speech-bubble pill showing its price (`$1.5k`); the active one turns royal blue. No clusters, no dots.
 
 ### Motion
-CSS only (no animation library), and every decorative entrance is off under reduced motion. Entrances rise 24px and fade in with a soft ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`), 0.22s for a small panel and up to 0.6s for a card; homepage rails reveal as they scroll into view, with no JavaScript. State changes take 0.12–0.2s. Keyframes animate `translate` and `scale`, never `transform`, so an entrance can't cancel a hover or press on the same element. Moments of delight are small and earned: a heart burst on save, a single shine across a confirmed visit, confetti on an agent's first milestone.
+On the website: CSS only (no animation library), and every decorative entrance is off under reduced motion. Entrances rise 24px and fade in with a soft ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`), 0.22s for a small panel and up to 0.6s for a card; homepage rails reveal as they scroll into view, with no JavaScript. State changes take 0.12–0.2s. Keyframes animate `translate` and `scale`, never `transform`, so an entrance can't cancel a hover or press on the same element. Moments of delight are small and earned: a heart burst on save, a single shine across a confirmed visit, confetti on an agent's first milestone.
+
+### In the store app
+Inside the Lukka Place app (app mode) the same tokens, type scale and components apply, with these differences. They are the app's only ones.
+- **Navigation:** a bottom tab bar (Rechercher, Enregistrés, Compte; five tabs for agents), 68px, white with a top hairline. The active tab is Royal Action Blue with a filled icon and a short bar above it that slides to the tab tapped. The top bar is 64px: clear over a photograph (home, a listing), white with a hairline once the page scrolls or on any other screen. On the results list the search row is the top bar and slides away while the list scrolls down.
+- **Ground:** every app screen sits on Chalk (`canvas-alt`); cards are white, 14px corners, the card-rest shadow, no outline.
+- **Photographs lead:** the home opens on the website's hero photograph; listings show as large photos (a sideways rail, then full-width cards whose photos swipe). A royal tint on the top of the hero's sky is the only thing drawn over a photograph.
+- **Titles** are the sans, as everywhere: `.u-title-hero` for a screen's one big title. No serif.
+- **Brass** has one use in the app: "Agent vérifié" (Deep Brass text on white) on a listing whose agent holds the verified tier.
+- **Buttons:** Royal Action Blue for the screen's one main action; the floating Carte and Alerte pair on the results list is solid Night Ink.
+- **Motion** uses the `motion` package, in app mode only (the website never loads it). One entrance per screen; the hero photo and title follow the scroll; cards settle once as they scroll in; a card's photo grows into the listing's photo. Entrances move and never fade from invisible, so the server's HTML is readable before any script runs. Scroll and entrance effects are off under reduced motion.
+- **Touch:** every target is 44px; a save and a sent visit request give a short vibration on Android; list screens refresh on a pull down.
 
 ## Do's and Don'ts
 
@@ -361,6 +372,6 @@ CSS only (no animation library), and every decorative entrance is off under redu
 - **Don't** darken property photos with heavy gradients, or stack a scrim and a glass capsule on the same edge.
 - **Don't** make prices or headings huge and black: nothing on a listing card is larger than the 24px price.
 - **Don't** set titles in capitals.
-- **Don't** use backdrop blur that stays on for touch screens, or ship an animation library.
+- **Don't** use backdrop blur that stays on for touch screens, or ship an animation library on the website (the store app loads `motion`, in app mode only).
 - **Don't** use stock or stand-in photographs where a listing's own photo belongs.
 - **Don't** "fix" the map back to the site palette.

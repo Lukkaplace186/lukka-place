@@ -6,7 +6,7 @@ import FavoriteButton from '@/components/FavoriteButton';
 import Price from '@/components/Price';
 import { useT } from '@/lib/i18n/client';
 import { listingPath } from '@/lib/listingSlug';
-import { cardPromoBadge, feedLocationLine, listingImages, specItems, typeLabel } from '@/lib/listingView';
+import { cardPromoBadge, listingImages, locationLine, specItems, typeLabel } from '@/lib/listingView';
 
 /**
  * A saved listing as one compact row (the app design's "Saved homes"): photo
@@ -16,17 +16,17 @@ import { cardPromoBadge, feedLocationLine, listingImages, specItems, typeLabel }
 export default function AppSavedRow({ listing }) {
   const t = useT();
   const image = listingImages(listing)[0];
-  const where = feedLocationLine(listing);
+  const where = locationLine(listing);
   const facts = [typeLabel(listing, t), ...specItems(listing, t).map((s) => `${s.value} ${s.label}`)].filter(Boolean).join(' · ');
   const promo = cardPromoBadge(listing);
 
   return (
-    <article className="relative flex overflow-hidden rounded-2xl border border-line bg-surface">
+    <article className="relative flex overflow-hidden rounded-card bg-surface shadow-[var(--shadow-card)]">
       <Link href={listingPath(listing)} className="relative block w-28 flex-none self-stretch bg-canvas-alt" aria-hidden="true" tabIndex={-1}>
         <SafeImage src={image} alt="" fill sizes="112px" className="object-cover" />
       </Link>
       <Link href={listingPath(listing)} className="min-w-0 flex-1 py-3 pl-3.5 pr-12">
-        <div className="u-tabular text-[1.125rem] font-extrabold leading-tight text-ink">
+        <div className="u-tabular text-[1.125rem] font-semibold leading-tight text-ink">
           <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} periodClassName="ml-1 text-[0.8125rem] font-normal text-ink" />
         </div>
         {where ? <p className="mt-1 truncate text-[0.875rem] font-semibold text-ink">{where}</p> : null}

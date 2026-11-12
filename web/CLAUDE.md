@@ -5332,3 +5332,54 @@ are unchanged. `tests/unit/app-mode.test.js`, "app results list".
   and the card settles once as it scrolls in (motion, so the list drops the
   CSS `u-stagger-in-view` in app mode). "Nouveau" is a white chip with ink
   text: blue stays for actions.
+
+## App pass 3: listing page, loading, touch, the rest of the screens (2026-11-12)
+
+App mode only unless stated. Tests: `tests/unit/app-mode.test.js` (the four
+tests added at its end).
+
+- **Listing page.** `components/app/AppListingHeader.js` replaces AppTopBar
+  there (`[data-app-listing]` hides it, as `[data-app-results]` does on the
+  list): on a phone the photo runs to the top (`max-sm:-mt-16`), the bar is
+  clear with a white back disc, then white with the price, the place and the
+  heart once the photo has scrolled away. Title block: price, what it is, the
+  place, then the rooms as icons (`SPEC_ICONS`); no blue capital label. Below
+  `lg` the app shows `AppAgentRow` (name, brass mark, link to the agent's
+  page) instead of EnquiryCard + PricePanel, since AppListingBar already
+  carries WhatsApp, chat and the visit; the similar-homes alert card follows
+  the location. "Biens similaires" is `AppRelatedRail` (AppRailCard), and the
+  history is RecentlyViewed's `strip`. `PhotoGallery clearBack` moves the
+  "Annonce vérifiée" badge clear of the back disc.
+- **Website fix:** PricePanel's "/ mois" was ink on royal blue (unreadable);
+  it passes `periodClassName` white now.
+- **The photo grows into the listing** (`lib/appPhotoHandoff.js`, React
+  `<ViewTransition>`, no config needed in this Next version): app cards and
+  the gallery's phone block share `listing-photo-<id>`. The page streams
+  behind a loading screen, so the tapped card leaves the URL of the image it
+  was showing and `AppListingSkeletonPhoto` draws it in the gallery's place
+  under the same name. Checked in Chromium: two transitions with that group
+  (card → loading photo → gallery). Does not run on browser back, and needs
+  Chromium 125+ / recent Safari; elsewhere the page simply opens.
+- **Loading screens:** `components/app/AppSkeletons.js`; SiteLoading and the
+  listing's loading.js return them when `isAppRequest()`.
+- **Pull to refresh:** `components/app/AppPullToRefresh.js` (mounted by the
+  site layout in app mode), rules in `lib/appPullRules.js`: `/`, `/listings`,
+  `/favoris`, `/messages`, `/compte/client/*`; passive listeners; a disc, the
+  page never moves; `router.refresh()`. Not tested with a real finger.
+- **Vibration:** 18 ms when a visit request is sent (Android only; an iPhone
+  WebView needs a native haptics plugin, not installed).
+- **One family:** `.u-app-serif`, `lib/appFont.js` and its font download are
+  gone; the welcome, visit-sent and account titles are `.u-title-hero`,
+  avatar initials are bold sans.
+- **Place lines** on app cards are `locationLine` ("quartier, commune", the
+  city only outside Kinshasa), not the website feed's `feedLocationLine`.
+- **Shapes:** saved rows, saved-search rows, the account and agent menus and
+  the booking's listing row are `rounded-card` with the card shadow.
+- **Filter sheet:** duration, rooms and bathrooms stay on one row (`oneRow`,
+  swiped if needed); the main button no longer dims while the count loads.
+- **Welcome:** the first question is three tiles with icons.
+- **Measured (dev image optimiser, WebP):** the hero's 640w file is 18 KB;
+  listing photos are about 25 KB at 640w and 38–45 KB at 828–1080w. First
+  screen of the home ≈ hero + two rail photos. JavaScript size was not
+  measured (needs a production build).
+- `DESIGN.md` has an "In the store app" section.

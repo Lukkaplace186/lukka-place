@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { Bell, Check } from 'lucide-react';
+import { Bell, CalendarClock, Check, House, KeyRound } from 'lucide-react';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { saveSearch } from '@/lib/favorites';
 import { buildSearchLabel } from '@/lib/searchLabel';
@@ -23,6 +23,8 @@ import {
 
 const AuthPromptModal = dynamic(() => import('@/components/AuthPromptModal'), { ssr: false });
 
+// The first question's tiles (WELCOME_PURPOSES values, lib/welcomeRules.js).
+const PURPOSE_ICONS = { louer: KeyRound, acheter: House, courte: CalendarClock };
 const CHIP = 'u-press u-focus-ring inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-4 text-[0.9375rem] font-semibold';
 const CHIP_OFF = 'bg-surface text-ink ring-1 ring-inset ring-line';
 const CHIP_ON = 'bg-blue text-white';
@@ -79,7 +81,7 @@ export default function AppWelcome({ communes = [] }) {
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-tint text-blue">
           <Bell strokeWidth={ICON_STROKE_WIDTH} className="h-7 w-7" aria-hidden="true" />
         </span>
-        <h1 className="u-app-serif mt-6 text-[2.25rem] leading-[1.05] text-ink">{t('appShell.welcome.alertTitle')}</h1>
+        <h1 className="u-title-hero mt-6 text-balance text-ink">{t('appShell.welcome.alertTitle')}</h1>
         <p className="mt-3 text-[0.9375rem] text-ink-70">{t('appShell.welcome.alertText')}</p>
         <div className="mt-auto space-y-3 pt-10">
           <button
@@ -107,7 +109,7 @@ export default function AppWelcome({ communes = [] }) {
   return (
     <div className="mx-auto max-w-lg px-5 pb-28 pt-6">
       <div className="flex items-center justify-between">
-        <h1 className="u-app-serif text-[2.25rem] leading-[1.05] text-ink">{t('appShell.welcome.title')}</h1>
+        <h1 className="u-title-hero text-balance text-ink">{t('appShell.welcome.title')}</h1>
         <button type="button" onClick={skip} className="u-focus-ring min-h-11 px-2 text-[0.9375rem] font-semibold text-ink-70">
           {t('appShell.welcome.skip')}
         </button>
@@ -116,21 +118,31 @@ export default function AppWelcome({ communes = [] }) {
 
       <fieldset className="mt-8">
         <legend className="text-[1.0625rem] font-bold text-ink">{t('appShell.welcome.purposeQuestion')}</legend>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {WELCOME_PURPOSES.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              aria-pressed={purpose === p.value}
-              onClick={() => {
-                setPurpose(p.value);
-                setBudget(undefined);
-              }}
-              className={cn(CHIP, purpose === p.value ? CHIP_ON : CHIP_OFF)}
-            >
-              {t(p.labelKey)}
-            </button>
-          ))}
+        {/* The first answer is three large tiles: it is the one choice that
+            shapes everything after it, and the screen is otherwise empty. */}
+        <div className="mt-3 grid grid-cols-3 gap-2.5">
+          {WELCOME_PURPOSES.map((p) => {
+            const on = purpose === p.value;
+            const Icon = PURPOSE_ICONS[p.value] || House;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  setPurpose(p.value);
+                  setBudget(undefined);
+                }}
+                className={cn(
+                  'u-press flex min-h-[6.25rem] flex-col justify-between rounded-card p-3 text-left shadow-[var(--shadow-card)] transition-colors',
+                  on ? 'bg-blue text-white' : 'bg-surface text-ink',
+                )}
+              >
+                <Icon strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={cn('h-6 w-6', on ? 'text-white' : 'text-ink-70')} />
+                <span className="text-[0.9375rem] font-semibold leading-tight">{t(p.labelKey)}</span>
+              </button>
+            );
+          })}
         </div>
       </fieldset>
 

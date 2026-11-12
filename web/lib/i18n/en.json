@@ -9382,6 +9382,10 @@
       "alertText": "Your search is kept on this phone. With an account, we tell you as soon as a new home matches.",
       "alertYes": "Yes, tell me",
       "alertLater": "Later, see the homes"
+    },
+    "listing": {
+      "partner": "Partner agent",
+      "team": "Lukka Place team"
     }
   }
 }

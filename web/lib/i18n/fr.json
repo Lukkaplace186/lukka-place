@@ -9382,6 +9382,10 @@
       "alertText": "Votre recherche est gardée sur ce téléphone. Avec un compte, nous vous prévenons dès qu’un nouveau bien correspond.",
       "alertYes": "Oui, me prévenir",
       "alertLater": "Plus tard, voir les biens"
+    },
+    "listing": {
+      "partner": "Agent partenaire",
+      "team": "Équipe Lukka Place"
     }
   }
 }

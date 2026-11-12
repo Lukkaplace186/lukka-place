@@ -442,3 +442,40 @@ and the default — a rent with no period, or a monthly / yearly one.
   dropped — no row held one) and the "Salle de fête" category (deleted — no
   row used it). SQLite keeps two unused toilet / shower columns.
 - The intake card prints every stated detail ("*Terrain* : 15/20 (300 m² · 3 ares)").
+
+## Fiche pratique — four one-tap questions after "OK" (2026-11-12)
+
+`services/practicalFacts.js`, `migrations/20261112_listing_practical_facts.sql`
+(web half: web/CLAUDE.md, same heading). §107 of verify-pipeline.
+
+- **Why**: power and water are what a Kinshasa tenant asks first, and agents
+  rarely write them in the advert, so the "Électricité" / "Eau" filters had
+  little to filter. A structured answer from the agent is the only way to
+  have them without inventing them (owner decision 2026-11-12).
+- **When**: right after the publish receipt on both "OK" paths in
+  routes/webhook.js, as reply buttons (session message — the agent just wrote
+  to us). One question at a time: Courant (SNEL seulement / SNEL + groupe /
+  SNEL + solaire), Eau (REGIDESO / REGIDESO + citerne / Forage ou puits),
+  Accès en saison des pluies (Bon / Difficile / Route inondée), Frais de
+  visite (Non / Oui). Each tap saves and asks the next; the fourth sends
+  "fiche enregistrée"; a later tap is "réponse mise à jour". An agent who
+  stops answering leaves the rest NULL — nothing is asked again.
+- **Not asked**: bare land (`isLandOnly`), several unrelated properties pasted
+  together, the registration path (agentOnboarding publishes on the name
+  answer), draft auto-submit, group captures, `FICHE_PRATIQUE=off`. A
+  building pasted as units is asked once and every unit gets each answer.
+- **Who may answer**: only the number that sent the listing (`listings.wa_id`).
+  Button id `fiche:<listing>:<c|e|a|f>:<value>`; anything else is not ours.
+- **Stored**: SQLite `listings.power_supply`, `water_supply`, `rainy_access`,
+  `visit_fee` (0/1), `practical_answered_at`; the same on `properties`
+  (CHECKed text, boolean, timestamptz). NULL = not answered. Values are
+  duplicated in web/lib/practicalFacts.js and the migration's CHECKs
+  (web `practical-facts.test.js` compares the three).
+- **Feeds the existing filters**: an answer ADDS the matching utility codes
+  (groupe, solaire, regideso, citerne, forage, acces_facile) and the
+  has_generator / has_solar ticks. Never removes anything; "SNEL seulement"
+  and a difficult or flooded road add nothing.
+- **Postgres**: each tap is mirrored with `updatePracticalFacts`
+  (COALESCE — never clears a value); a tap that beats the first sync is
+  retried once 20 s later and the INSERT path reads the row fresh. Tolerates
+  42703 before the migration (logged, answers kept in SQLite).

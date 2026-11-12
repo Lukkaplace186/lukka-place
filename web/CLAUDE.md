@@ -5158,3 +5158,22 @@ This replaces the 2026-10-27 "no target" decision on that page.
   `getGrowthDashboard`'s data; referral credits (`lib/referralCredits.js`)
   still require a confirmed number, an owner pricing decision not changed here.
 - Tests: `tests/unit/customer-signup-friction.test.js`.
+
+## Fiche pratique — four one-tap questions after "OK" (2026-11-12)
+
+Engine half (the WhatsApp questions, storage, the codes an answer adds):
+docs/claude/listing-data.md, same heading. `lib/practicalFacts.js` (pure),
+`components/listings/PracticalFacts.js`, `tests/unit/practical-facts.test.js`.
+
+- `SELECT_FIELDS` reads the five columns as one `practical_facts` jsonb
+  through `to_jsonb(p)` (`PRACTICAL_SQL`), so nothing 42703s before
+  `migrations/20261112_listing_practical_facts.sql` runs.
+- The listing page shows "Fiche pratique" above the utility badges only when
+  the agent answered at least one question; an unanswered one reads "Non
+  indiqué". A flooded or difficult road and a paid visit are tinted warning.
+  Captioned "Réponses de l'agence sur WhatsApp, le <date>. Vérifiez-les
+  pendant la visite." — never "vérifié".
+- The filters need nothing new: an answer adds the utility codes the
+  "Électricité" / "Eau" / "Accès" chips already match.
+- Not built yet: editing the four answers in the agent's editor (the agent
+  can re-tap a button on WhatsApp), a filter on visit fee.

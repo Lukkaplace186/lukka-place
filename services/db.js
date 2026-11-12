@@ -133,6 +133,13 @@ const EXTENDED_COLUMNS = [
   ['plot_area_m2', 'REAL'],
   ['installments_available', 'INTEGER'],
   ['installment_terms', 'TEXT'],
+  // The fiche pratique (services/practicalFacts.js): the agent's one-tap
+  // answers on WhatsApp after "OK". NULL = not answered. visit_fee 0 / 1.
+  ['power_supply', 'TEXT'],
+  ['water_supply', 'TEXT'],
+  ['rainy_access', 'TEXT'],
+  ['visit_fee', 'INTEGER'],
+  ['practical_answered_at', 'TEXT'],
   ['summary_fr', 'TEXT'],
   ['missing_fields', 'TEXT'],
   // Complete aiParser output, so no future field is ever lost to the schema.
@@ -498,6 +505,12 @@ function saveListing(listingData, senderInfo = {}) {
       // expandAndPublishListing. NULL for every ordinary listing.
       parent_building_id: toNullable(parentBuildingId),
       awaiting_sale_price_at: null,
+      // The fiche pratique is asked after "OK" (services/practicalFacts.js).
+      power_supply: null,
+      water_supply: null,
+      rainy_access: null,
+      visit_fee: null,
+      practical_answered_at: null,
     });
   } catch (err) {
     // Match only the wamid collision. A blanket INSERT OR IGNORE would also

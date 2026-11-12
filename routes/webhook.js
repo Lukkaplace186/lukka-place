@@ -68,6 +68,7 @@ const { handleStatusButtonReply } = require('../services/agentStatusCheck');
 const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleTapButtonReply } = require('../services/contactTapAlert');
 const { handleLeadButtonReply } = require('../services/leadClaims');
+const practicalFacts = require('../services/practicalFacts');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry, carriesEnquiryOpening } = require('../services/listingEnquiry');
 const customerIdentity = require('../services/customerIdentity');
@@ -891,6 +892,15 @@ async function processGroup(messages) {
       console.error(`[lead-claims] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
+    try {
+      // Fiche pratique answers (services/practicalFacts.js): `fiche:<listing>:<q>:<value>`.
+      // Only the number that sent the listing may answer.
+      const fiche = await practicalFacts.handlePracticalButtonReply({ from, replyId: buttonReplyId });
+      if (fiche.handled) return;
+    } catch (err) {
+      console.error(`[fiche] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
   }
 
   // OPS DESK — anything from OPS_WHATSAPP_NUMBER (services/opsDesk.js). It
@@ -1140,6 +1150,8 @@ async function processGroup(messages) {
       await chakra.sendWhatsAppMessage(from, publishedReply(publishedIds), {
         replyToMessageId: primaryWamid || undefined,
       });
+      // The fiche pratique's first question, after the receipt. Never throws.
+      await practicalFacts.askAfterPublish(publishedIds, from);
       console.log(`[db] listing #${pending.id} published (confirmed by ${from})`);
       console.log(`[chakra] reply sent to ${from}`);
       return;
@@ -1738,6 +1750,7 @@ async function processGroup(messages) {
       await chakra.sendWhatsAppMessage(from, publishedReply(confirmedIds), {
         replyToMessageId: primaryWamid || undefined,
       });
+      await practicalFacts.askAfterPublish(confirmedIds, from);
       console.log(`[db] listing #${pending.id} published (conversational confirmation from ${from})`);
       console.log(`[chakra] reply sent to ${from}`);
       return;

@@ -1100,6 +1100,35 @@
       "lead": "Get new properties like this one on WhatsApp.",
       "button": "Alert me about similar properties",
       "inlineLead": "Nothing quite right? Be told when a similar property is listed."
+    },
+    "practical": {
+      "title": "Practical Facts",
+      "power": "Power",
+      "water": "Water",
+      "access": "Access in the rainy season",
+      "visitFee": "Visit fee",
+      "powerValues": {
+        "snel": "SNEL only",
+        "snel_groupe": "SNEL + generator",
+        "snel_solaire": "SNEL + solar panels"
+      },
+      "waterValues": {
+        "regideso": "REGIDESO",
+        "regideso_citerne": "REGIDESO + tank",
+        "forage": "Borehole or well"
+      },
+      "accessValues": {
+        "bon": "Good",
+        "difficile": "Difficult",
+        "inonde": "The road floods"
+      },
+      "feeValues": {
+        "non": "None, the visit is free",
+        "oui": "Yes, the agency charges a fee"
+      },
+      "notStated": "Not stated",
+      "source": "The agency’s answers on WhatsApp. Check them during the visit.",
+      "sourceDated": "The agency’s answers on WhatsApp, on {date}. Check them during the visit."
     }
   },
   "enquiry": {

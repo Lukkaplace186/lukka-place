@@ -31,6 +31,7 @@ import ListingInterestLine from '@/components/listings/ListingInterestLine';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import UtilityBadges from '@/components/listings/UtilityBadges';
 import PracticalDetails from '@/components/listings/PracticalDetails';
+import PracticalFacts from '@/components/listings/PracticalFacts';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
@@ -374,6 +375,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <KeyFacts listing={listing} />
               <EntryCostsBreakdown listing={listing} />
             </section>
+
+            {/* Fiche pratique — the agent's one-tap answers on WhatsApp. */}
+            <PracticalFacts listing={listing} />
 
             {/* Power, water, security, access — as the agent declared them. */}
             <UtilityBadges utilities={listing.utilities} />

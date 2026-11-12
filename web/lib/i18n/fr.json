@@ -1100,6 +1100,35 @@
       "lead": "Recevez sur WhatsApp les nouveaux biens qui ressemblent à celui-ci.",
       "button": "M'alerter des biens similaires",
       "inlineLead": "Rien qui vous convienne ? Soyez prévenu quand un bien similaire est publié."
+    },
+    "practical": {
+      "title": "Fiche pratique",
+      "power": "Courant",
+      "water": "Eau",
+      "access": "Accès en saison des pluies",
+      "visitFee": "Frais de visite",
+      "powerValues": {
+        "snel": "SNEL seulement",
+        "snel_groupe": "SNEL + groupe électrogène",
+        "snel_solaire": "SNEL + panneaux solaires"
+      },
+      "waterValues": {
+        "regideso": "REGIDESO",
+        "regideso_citerne": "REGIDESO + citerne",
+        "forage": "Forage ou puits"
+      },
+      "accessValues": {
+        "bon": "Bon",
+        "difficile": "Difficile",
+        "inonde": "La route est inondée"
+      },
+      "feeValues": {
+        "non": "Aucun, la visite est gratuite",
+        "oui": "Oui, l’agence demande des frais"
+      },
+      "notStated": "Non indiqué",
+      "source": "Réponses de l’agence sur WhatsApp. Vérifiez-les pendant la visite.",
+      "sourceDated": "Réponses de l’agence sur WhatsApp, le {date}. Vérifiez-les pendant la visite."
     }
   },
   "enquiry": {

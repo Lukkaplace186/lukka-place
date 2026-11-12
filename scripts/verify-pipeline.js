@@ -266,6 +266,11 @@ const axiosStub = {
 };
 stubPackage('axios', axiosStub);
 
+// The fiche pratique's first question follows every "OK" receipt; the many
+// end-to-end checks that read the receipt as the last message predate it.
+// Off here, switched on inside §107 only.
+process.env.FICHE_PRATIQUE = 'off';
+
 // ---------------------------------------------------------------------------
 // Now load the project's real modules
 // ---------------------------------------------------------------------------
@@ -17921,6 +17926,140 @@ console.log('\n2. services/openai.js');
     const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_customer_test_flag.sql'), 'utf8');
     assert.match(sql, /ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false/);
   });
+
+  // ---------------------------------------------------------------------------
+  // §107 Fiche pratique — four one-tap questions after "OK" (2026-11-12)
+  // ---------------------------------------------------------------------------
+  // services/practicalFacts.js: power, water, rainy-season access, visit fee,
+  // asked with reply buttons after the publish receipt; only the sender may
+  // answer; an answer ADDS the matching utility codes and generator / solar
+  // ticks so the existing filters see it; NULL stays "not stated".
+  console.log('\n§107 Fiche pratique — questions after OK, answers on the listing');
+  {
+    const practical = require('../services/practicalFacts');
+    const pgService = require('../services/postgres');
+    const AGENT = '243810000777';
+    const sentButtons = [];
+    const sentTexts = [];
+    const saved107 = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage, flag: process.env.FICHE_PRATIQUE };
+    delete process.env.FICHE_PRATIQUE; // unset = on (the default in production)
+    chakra.sendInteractiveButtons = async (to, body, buttons) => { sentButtons.push({ to, body, buttons }); return {}; };
+    chakra.sendWhatsAppMessage = async (to, body) => { sentTexts.push({ to, body }); return {}; };
+    const listing107 = (type, wamid) => dbService.insertListing({ ...data, property_type: type, parcelle_subtype: null }, AGENT, { wamid, rawText: 'Appartement à louer' }).id;
+    try {
+      check('a button id names the listing, the question and a known answer — anything else is not ours', () => {
+        assert.deepEqual(
+          { ...practical.parseButtonId('fiche:42:c:snel_groupe'), question: undefined },
+          { listingId: 42, question: undefined, value: 'snel_groupe' },
+        );
+        assert.equal(practical.parseButtonId('fiche:42:c:groupe'), null, 'not one of the courant answers');
+        assert.equal(practical.parseButtonId('fiche:42:x:snel'), null);
+        assert.equal(practical.parseButtonId('lead:42:take'), null);
+        for (const q of practical.QUESTIONS) {
+          assert.ok(q.answers.length >= 1 && q.answers.length <= 3, `${q.field}: WhatsApp allows 3 buttons`);
+          for (const a of q.answers) assert.ok([...a.title].length <= 20, `${a.title} fits a button`);
+        }
+      });
+      check('answers imply utility codes and ticks, never a removal; "SNEL seulement" implies nothing', () => {
+        assert.deepEqual(practical.impliedFacts('power_supply', 'snel'), { utilities: [], has_generator: null, has_solar: null });
+        assert.deepEqual(practical.impliedFacts('power_supply', 'snel_groupe'), { utilities: ['groupe'], has_generator: true, has_solar: null });
+        assert.deepEqual(practical.impliedFacts('water_supply', 'regideso_citerne').utilities, ['regideso', 'citerne']);
+        assert.deepEqual(practical.impliedFacts('rainy_access', 'bon').utilities, ['acces_facile']);
+        assert.deepEqual(practical.impliedFacts('rainy_access', 'inonde').utilities, []);
+      });
+
+      await checkAsync('asked after OK for a flat; not for bare land, several properties, or FICHE_PRATIQUE=off', async () => {
+        const flat = listing107('appartement', 'wamid.FICHE1');
+        const land = listing107('terrain', 'wamid.FICHE2');
+        const other = listing107('appartement', 'wamid.FICHE3');
+        sentButtons.length = 0;
+        assert.equal((await practical.askAfterPublish([land], AGENT)).asked, false);
+        assert.equal((await practical.askAfterPublish([flat, other], AGENT)).reason, 'several-properties');
+        process.env.FICHE_PRATIQUE = 'off';
+        assert.equal((await practical.askAfterPublish([flat], AGENT)).reason, 'off');
+        delete process.env.FICHE_PRATIQUE;
+        assert.equal(sentButtons.length, 0);
+        const outcome = await practical.askAfterPublish([flat], AGENT);
+        assert.equal(outcome.asked, true);
+        assert.equal(sentButtons.length, 1);
+        assert.match(sentButtons[0].body, /fiche pratique/);
+        assert.match(sentButtons[0].body, /1 sur 4 · Le courant/);
+        assert.deepEqual(sentButtons[0].buttons.map((b) => b.id), [`fiche:${flat}:c:snel`, `fiche:${flat}:c:snel_groupe`, `fiche:${flat}:c:snel_solaire`]);
+      });
+
+      await checkAsync('only the sender may answer; each tap saves, adds the codes and asks the next question', async () => {
+        const id = listing107('appartement', 'wamid.FICHE4');
+        sentButtons.length = 0;
+        const stranger = await practical.handlePracticalButtonReply({ from: '243899999999', replyId: `fiche:${id}:c:snel_groupe` });
+        assert.equal(stranger.ignored, 'not-sender');
+        assert.equal(dbService.getListing(id).power_supply, null);
+        assert.equal(sentButtons.length, 0);
+
+        const first = await practical.handlePracticalButtonReply({ from: `+${AGENT}`, replyId: `fiche:${id}:c:snel_groupe` });
+        assert.equal(first.action, 'asked-next');
+        const row = dbService.getListing(id);
+        assert.equal(row.power_supply, 'snel_groupe');
+        assert.ok(row.utilities.includes('groupe'));
+        assert.equal(row.has_generator, 1);
+        assert.ok(row.practical_answered_at);
+        assert.equal(row.water_supply, null, 'not answered yet: still NULL');
+        assert.match(sentButtons.at(-1).body, /2 sur 4 · L'eau/);
+      });
+
+      await checkAsync('the fourth answer completes the fiche once; a later tap is an update', async () => {
+        const id = listing107('appartement', 'wamid.FICHE5');
+        for (const reply of ['c:snel', 'e:regideso_citerne', 'a:inonde']) {
+          await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:${reply}` });
+        }
+        sentTexts.length = 0;
+        const done = await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:f:non` });
+        assert.equal(done.action, 'complete');
+        assert.equal(sentTexts.at(-1).body, practical.DONE_TEXT);
+        const row = dbService.getListing(id);
+        assert.deepEqual(practical.factsOf(row), { power_supply: 'snel', water_supply: 'regideso_citerne', rainy_access: 'inonde', visit_fee: false });
+        assert.ok(!row.utilities.includes('acces_facile'), 'a flooded road adds no access code');
+        assert.ok(!row.has_generator, 'SNEL only ticks nothing');
+        const again = await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:f:oui` });
+        assert.equal(again.action, 'updated');
+        assert.equal(sentTexts.at(-1).body, practical.UPDATED_TEXT);
+        assert.equal(practical.factsOf(dbService.getListing(id)).visit_fee, true);
+      });
+
+      await checkAsync('a building pasted as units is asked once and every unit gets the answer', async () => {
+        const a = listing107('appartement', 'wamid.FICHE6');
+        const b = listing107('appartement', 'wamid.FICHE7');
+        dbService.db.prepare('UPDATE listings SET parent_building_id = ? WHERE id IN (?, ?)').run('bldg-107', a, b);
+        sentButtons.length = 0;
+        assert.equal((await practical.askAfterPublish([a, b], AGENT)).asked, true);
+        await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${a}:e:forage` });
+        assert.equal(dbService.getListing(b).water_supply, 'forage');
+        assert.ok(dbService.getListing(b).utilities.includes('forage'));
+      });
+
+      check('the Postgres write never clears a value and adds the implied codes; nothing answered writes nothing', () => {
+        assert.equal(pgService.practicalFactsValues({ id: 1 }), null);
+        const values = pgService.practicalFactsValues({ power_supply: 'snel_solaire', rainy_access: 'bon', visit_fee: 1, practical_answered_at: '2026-11-12T10:00:00.000Z' });
+        assert.deepEqual(values, ['snel_solaire', null, 'bon', true, '2026-11-12T10:00:00.000Z', ['solaire', 'acces_facile'], false, true]);
+        assert.match(pgService.PRACTICAL_FACTS_SQL, /power_supply = COALESCE\(\$1, power_supply\)/);
+        assert.match(pgService.PRACTICAL_FACTS_SQL, /has_solar = CASE WHEN \$8::boolean THEN TRUE ELSE has_solar END/);
+      });
+
+      check('the webhook routes fiche taps and asks after both OK paths; the migration is idempotent', () => {
+        const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(webhook, /practicalFacts\.handlePracticalButtonReply\(\{ from, replyId: buttonReplyId \}\)/);
+        assert.equal((webhook.match(/practicalFacts\.askAfterPublish\(/g) || []).length, 2);
+        const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_listing_practical_facts.sql'), 'utf8');
+        for (const col of ['power_supply text', 'water_supply text', 'rainy_access text', 'visit_fee boolean', 'practical_answered_at timestamptz']) {
+          assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${col}`));
+        }
+      });
+    } finally {
+      chakra.sendInteractiveButtons = saved107.buttons;
+      chakra.sendWhatsAppMessage = saved107.text;
+      if (saved107.flag === undefined) delete process.env.FICHE_PRATIQUE;
+      else process.env.FICHE_PRATIQUE = saved107.flag;
+    }
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

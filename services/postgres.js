@@ -1034,6 +1034,25 @@ async function syncListingToPostgres(row) {
           console.warn(`[postgres] detail columns missing — details for #${propertyId} not synced (run migrations/20261022_listing_details.sql)`);
         }
       }
+
+      // Fiche pratique (services/practicalFacts.js): asked after "OK", so an
+      // answer usually arrives after this INSERT and is mirrored by
+      // updatePracticalFacts. A tap that beat the sync is in SQLite only —
+      // read the row fresh so it is carried here.
+      // eslint-disable-next-line global-require
+      const fresh = (row.id && require('./db').getListing(row.id)) || row;
+      const facts = practicalFactsValues(fresh);
+      if (facts) {
+        await client.query('SAVEPOINT lukka_fiche');
+        try {
+          await client.query(PRACTICAL_FACTS_SQL, [...facts, propertyId]);
+          await client.query('RELEASE SAVEPOINT lukka_fiche');
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT lukka_fiche');
+          if (err?.code !== '42703') throw err;
+          console.warn(`[postgres] fiche pratique columns missing — answers for #${propertyId} not synced (run migrations/20261112_listing_practical_facts.sql)`);
+        }
+      }
     }
 
     const title = buildTitle(row);
@@ -1190,7 +1209,76 @@ async function syncListingToPostgres(row) {
   }
 }
 
+/**
+ * Fiche pratique answers onto a property (services/practicalFacts.js). Never
+ * clears a value (COALESCE): a column stays as it is until the agent answers
+ * it. The utility codes and generator / solar ticks the answers imply are
+ * ADDED to whatever the row already holds.
+ */
+const PRACTICAL_FACTS_SQL = `
+  UPDATE properties SET
+    power_supply = COALESCE($1, power_supply),
+    water_supply = COALESCE($2, water_supply),
+    rainy_access = COALESCE($3, rainy_access),
+    visit_fee = COALESCE($4, visit_fee),
+    practical_answered_at = COALESCE($5::timestamptz, practical_answered_at),
+    utilities = ARRAY(SELECT DISTINCT code FROM unnest(COALESCE(utilities, '{}'::text[]) || $6::text[]) AS code ORDER BY code),
+    has_generator = CASE WHEN $7::boolean THEN TRUE ELSE has_generator END,
+    has_solar = CASE WHEN $8::boolean THEN TRUE ELSE has_solar END
+  WHERE id = $9`;
+
+/** The SQL parameters (without the id) for a row's answers, or null when it has none. */
+function practicalFactsValues(row) {
+  // eslint-disable-next-line global-require
+  const practical = require('./practicalFacts');
+  const facts = practical.factsOf(row);
+  const answered = Object.entries(facts).filter(([, value]) => value !== null);
+  if (!answered.length) return null;
+  const tags = new Set();
+  let generator = false;
+  let solar = false;
+  for (const [field, value] of answered) {
+    const implied = practical.impliedFacts(field, field === 'visit_fee' ? (value ? 'oui' : 'non') : value);
+    implied.utilities.forEach((code) => tags.add(code));
+    if (implied.has_generator) generator = true;
+    if (implied.has_solar) solar = true;
+  }
+  return [
+    facts.power_supply,
+    facts.water_supply,
+    facts.rainy_access,
+    facts.visit_fee,
+    row.practical_answered_at || null,
+    normaliseUtilities([...tags]),
+    generator,
+    solar,
+  ];
+}
+
+/**
+ * Mirror a listing's fiche pratique onto its property. Logs and returns false
+ * before the migration (42703); other errors throw to the caller.
+ */
+async function updatePracticalFacts(propertyId, row) {
+  if (!isConfigured() || !propertyId) return false;
+  const values = practicalFactsValues(row);
+  if (!values) return false;
+  try {
+    await getPool().query(PRACTICAL_FACTS_SQL, [...values, propertyId]);
+    return true;
+  } catch (err) {
+    if (err?.code === '42703') {
+      console.warn(`[postgres] fiche pratique columns missing — answers for #${propertyId} not synced (run migrations/20261112_listing_practical_facts.sql)`);
+      return false;
+    }
+    throw err;
+  }
+}
+
 module.exports = {
+  updatePracticalFacts,
+  practicalFactsValues,
+  PRACTICAL_FACTS_SQL,
   markPropertyUnderOffer,
   archivePropertyAsWithdrawn,
   setListingPrice,

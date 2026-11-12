@@ -11,6 +11,7 @@ import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
 import { VIDEOS_SQL } from './listingVideos';
 import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
 import { DETAILS_SQL, PLOT_M2_SQL, plotBounds } from './listingDetails';
+import { PRACTICAL_SQL } from './practicalFacts';
 import { SIMILAR_PRICE_HIGH, SIMILAR_PRICE_LOW } from './similarSearch';
 import { CONFIRM_AFTER_DAYS, badgeConfirmationDate, formatConfirmationDate } from './listingAvailability';
 
@@ -327,6 +328,10 @@ const SELECT_FIELDS = `
   -- toilet / shower, meter, plot size, instalments — one jsonb, nulls before
   -- the engine migration.
   ${DETAILS_SQL} AS listing_details,
+  -- Fiche pratique (lib/practicalFacts.js): the agent's one-tap answers on
+  -- WhatsApp — power, water, rainy-season access, visit fee. Nulls before
+  -- the engine migration.
+  ${PRACTICAL_SQL} AS practical_facts,
   pc.description,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR},
   -- DIRECT-TO-AGENT ROUTING. The agent's number reaches a public page only

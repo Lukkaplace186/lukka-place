@@ -1,0 +1,9 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-12",
+  "note": "Owner's Facebook paste of 2026-11-12, same rules as facebook-2026-11-09.json. Left out: Vincent Dorothèe Nyami's Kalamu/Matonge parcel (280,000 $), whose post asks that it not be published on the internet, pending the owner's decision; Athanase Yangala (+243910314309), pasted as a contact with no advert.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-12-01", "appartement", 600, 2, "Ngaliema", "Macampagne", 0, "+243 892 846 672", null, "Agence Immobilière JLB", "rent"]
+  ]
+}

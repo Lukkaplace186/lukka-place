@@ -1,33 +1,27 @@
 /**
  * services/practicalFacts.js
  *
- * The "fiche pratique": four questions asked on WhatsApp right after an agent
- * sends a listing with "OK" (owner decision 2026-11-12) — power, water, access
- * in the rainy season, and whether the agency charges a visit fee. Each answer
- * is one tap on a reply button; nothing is typed, so nothing is guessed.
+ * The "fiche pratique" — power, water, access in the rainy season, visit fee —
+ * as an agent answered it on WhatsApp.
  *
- * WHY
- * ---
- * The storefront's "Électricité" and "Eau" filters had almost nothing to filter
- * on: power and water are what a Kinshasa tenant asks first, and agents rarely
- * write them in the advert. A structured answer from the agent is the only way
- * to get them without inventing them.
+ * NOTHING IS ASKED ANY MORE (owner, 2026-11-12). The questions were sent as
+ * reply buttons right after the publish receipt on "OK" for a few hours on
+ * 2026-11-12; the owner removed them the same day: after "OK" the agent gets
+ * the receipt and nothing else. Don't add a question after "OK" without the
+ * owner — every extra step puts off commissionnaires who are already hesitant.
  *
- * Rules
- * -----
- * - NULL is "not stated". An agent who stops answering leaves the rest NULL;
- *   the listing page then shows nothing for them, never a default.
- * - An answer also adds the matching utility codes (services/utilities.js) and
- *   the generator / solar ticks, so the existing filters pick it up. It only
- *   ever ADDS: "SNEL seulement" removes nothing an agent already stated.
- * - Only the number that sent the listing may answer for it.
- * - Asked after the publish receipt, fire-and-forget: a failure here never
- *   costs the agent the receipt. Not asked for bare land, for several
- *   unrelated properties pasted together (each would need its own answers),
- *   or when FICHE_PRATIQUE=off.
- * - A building pasted as several units (one parent_building_id) is asked once;
- *   each answer is written to every unit, since power, water and the road
- *   belong to the address.
+ * What remains:
+ * - A tap on a button still sitting in an agent's chat
+ *   (`fiche:<listing>:<c|e|a|f>:<value>`) is saved and acknowledged once
+ *   ("Merci, c'est noté"); no further question follows. Without this the tap
+ *   would fall through to the assistant as an unknown message.
+ * - The answers already given stay on the listing (SQLite and `properties`)
+ *   and on the listing page's "Fiche pratique" card: they are the agent's own
+ *   facts. NULL is "not stated", never a default.
+ * - An answer ADDS the matching utility codes (services/utilities.js) and the
+ *   generator / solar ticks, so the existing filters see it. Only the number
+ *   that sent the listing may answer; a building pasted as units gets the
+ *   answer on every unit.
  *
  * Values are DUPLICATED in web/lib/practicalFacts.js and in the CHECKs of
  * migrations/20261112_listing_practical_facts.sql — change all three together
@@ -37,88 +31,35 @@
 const { db, getListing } = require('./db');
 const chakra = require('./chakra');
 const { normaliseUtilities } = require('./utilities');
-const { isLandOnly } = require('./listingDetails');
 
 const POWER_SUPPLY = Object.freeze(['snel', 'snel_groupe', 'snel_solaire']);
 const WATER_SUPPLY = Object.freeze(['regideso', 'regideso_citerne', 'forage']);
 const RAINY_ACCESS = Object.freeze(['bon', 'difficile', 'inonde']);
 const VISIT_FEE = Object.freeze(['non', 'oui']);
 
-const INTRO = 'Quatre questions rapides pour la *fiche pratique* de votre annonce, une touche par réponse. '
-  + 'Les clients nous les demandent avant tout.';
+/** The button-id key of each old question → its column and accepted answers. */
+const ANSWER_KEYS = Object.freeze({
+  c: { field: 'power_supply', values: POWER_SUPPLY },
+  e: { field: 'water_supply', values: WATER_SUPPLY },
+  a: { field: 'rainy_access', values: RAINY_ACCESS },
+  f: { field: 'visit_fee', values: VISIT_FEE },
+});
 
-/**
- * In the order they are asked. `key` is the short code in a button id (ids
- * must stay short; Meta caps a reply id at 256 characters). Button titles are
- * at most 20 characters (WhatsApp's limit, checked by chakra).
- */
-const QUESTIONS = Object.freeze([
-  {
-    key: 'c',
-    field: 'power_supply',
-    text: '*1 sur 4 · Le courant ?*',
-    answers: [
-      { value: 'snel', title: 'SNEL seulement' },
-      { value: 'snel_groupe', title: 'SNEL + groupe' },
-      { value: 'snel_solaire', title: 'SNEL + solaire' },
-    ],
-  },
-  {
-    key: 'e',
-    field: 'water_supply',
-    text: "*2 sur 4 · L'eau ?*",
-    answers: [
-      { value: 'regideso', title: 'REGIDESO' },
-      { value: 'regideso_citerne', title: 'REGIDESO + citerne' },
-      { value: 'forage', title: 'Forage ou puits' },
-    ],
-  },
-  {
-    key: 'a',
-    field: 'rainy_access',
-    text: "*3 sur 4 · En saison des pluies, l'accès au bien ?*",
-    answers: [
-      { value: 'bon', title: 'Bon accès' },
-      { value: 'difficile', title: 'Difficile' },
-      { value: 'inonde', title: 'Route inondée' },
-    ],
-  },
-  {
-    key: 'f',
-    field: 'visit_fee',
-    text: '*4 sur 4 · Demandez-vous des frais de visite ?*',
-    answers: [
-      { value: 'non', title: 'Non, gratuite' },
-      { value: 'oui', title: 'Oui, payante' },
-    ],
-  },
-]);
-
-const DONE_TEXT = 'Merci ! La fiche pratique est enregistrée ✅ Elle s’affichera sur votre annonce dès sa mise en ligne.';
-const UPDATED_TEXT = 'Réponse mise à jour ✅';
+const THANKS_TEXT = 'Merci, c’est noté ✅';
 
 const ID_PATTERN = /^fiche:(\d{1,12}):([ceaf]):([a-z_]{2,20})$/;
-
-/** Kill switch, read at call time. */
-function practicalFactsEnabled() {
-  return String(process.env.FICHE_PRATIQUE || '').trim().toLowerCase() !== 'off';
-}
 
 function digits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
-function buttonId(listingId, questionKey, value) {
-  return `fiche:${listingId}:${questionKey}:${value}`;
-}
-
-/** `{ listingId, question, value }` or null for anything that is not ours or not valid. */
+/** `{ listingId, field, value }` or null for anything that is not ours or not valid. */
 function parseButtonId(replyId) {
   const match = ID_PATTERN.exec(String(replyId || ''));
   if (!match) return null;
-  const question = QUESTIONS.find((q) => q.key === match[2]);
-  if (!question || !question.answers.some((a) => a.value === match[3])) return null;
-  return { listingId: Number(match[1]), question, value: match[3] };
+  const key = ANSWER_KEYS[match[2]];
+  if (!key || !key.values.includes(match[3])) return null;
+  return { listingId: Number(match[1]), field: key.field, value: match[3] };
 }
 
 /** The value as stored: visit_fee is a boolean (0 / 1 in SQLite), the rest text. */
@@ -155,19 +96,6 @@ function factsOf(row) {
     rainy_access: RAINY_ACCESS.includes(row.rainy_access) ? row.rainy_access : null,
     visit_fee: row.visit_fee === null || row.visit_fee === undefined ? null : Boolean(row.visit_fee),
   };
-}
-
-/** The first question this row has no answer for, or null when all four are answered. */
-function nextQuestion(row) {
-  const facts = factsOf(row);
-  return QUESTIONS.find((q) => facts[q.field] === null) || null;
-}
-
-/** Whether to ask at all for this listing. */
-function shouldAsk(row) {
-  if (!practicalFactsEnabled() || !row) return false;
-  if (isLandOnly(row.property_type, row.parcelle_subtype)) return false;
-  return nextQuestion(row) !== null;
 }
 
 /** The listing ids an answer is written to: the whole building, or just this one. */
@@ -208,18 +136,13 @@ function saveAnswer(ids, field, value, now = new Date()) {
   return ids.map((id) => getListing(id)).filter(Boolean);
 }
 
-/**
- * Mirror the rows' answers onto their Postgres properties. A row not synced
- * yet is retried once a little later (the publish sync usually lands within a
- * second, an agent's tap rarely before it). Never throws.
- */
-async function mirrorToPostgres(rows, { retried = false } = {}) {
+/** Mirror the rows' answers onto their Postgres properties. Never throws. */
+async function mirrorToPostgres(rows) {
   const pg = require('./postgres');
   if (!pg.isConfigured()) return;
-  const pending = [];
   for (const row of rows) {
     if (!row.remote_property_id) {
-      pending.push(row.id);
+      console.warn(`[fiche] listing #${row.id} not synced yet — answer kept in SQLite, the publish sync carries it`);
       continue;
     }
     try {
@@ -228,52 +151,12 @@ async function mirrorToPostgres(rows, { retried = false } = {}) {
       console.error(`[fiche] mirroring listing #${row.id} to property #${row.remote_property_id} failed: ${err.message}`);
     }
   }
-  if (pending.length && !retried) {
-    const timer = setTimeout(() => {
-      const fresh = pending.map((id) => getListing(id)).filter(Boolean);
-      mirrorToPostgres(fresh, { retried: true }).catch(() => {});
-    }, 20000);
-    if (typeof timer.unref === 'function') timer.unref();
-  } else if (pending.length) {
-    console.warn(`[fiche] listing(s) ${pending.join(', ')} still not synced — answers kept in SQLite, the publish sync carries them`);
-  }
-}
-
-async function sendQuestion(to, row, question, { intro = false } = {}) {
-  const text = intro ? `${INTRO}\n\n${question.text}` : question.text;
-  const buttons = question.answers.map((a) => ({ id: buttonId(row.id, question.key, a.value), title: a.title }));
-  await chakra.sendInteractiveButtons(digits(to), text, buttons);
-  console.log(`[fiche] asked '${question.field}' for listing #${row.id} to ${to}`);
 }
 
 /**
- * After the publish receipt. `ids` are the listings the "OK" published.
- * Fire-and-forget: logs, never throws.
- */
-async function askAfterPublish(ids, to) {
-  try {
-    if (!practicalFactsEnabled()) return { asked: false, reason: 'off' };
-    const rows = (Array.isArray(ids) ? ids : []).map((id) => getListing(id)).filter(Boolean);
-    if (!rows.length) return { asked: false, reason: 'no-listing' };
-    if (rows.length > 1) {
-      const building = rows[0].parent_building_id;
-      if (!building || rows.some((r) => r.parent_building_id !== building)) {
-        return { asked: false, reason: 'several-properties' };
-      }
-    }
-    const row = rows[0];
-    if (!shouldAsk(row)) return { asked: false, reason: 'nothing-to-ask' };
-    await sendQuestion(to, row, nextQuestion(row), { intro: true });
-    return { asked: true, listingId: row.id };
-  } catch (err) {
-    console.error(`[fiche] could not ask for listings ${JSON.stringify(ids)} (to ${to}): ${err.message}`);
-    return { asked: false, reason: 'send-failed' };
-  }
-}
-
-/**
- * A tapped answer. `{ handled: false }` for any id that is not ours, so the
- * webhook moves on to the next handler.
+ * A tap on an old fiche button. `{ handled: false }` for any id that is not
+ * ours, so the webhook moves on to the next handler. Saves the answer and
+ * thanks the agent; never asks another question.
  */
 async function handlePracticalButtonReply({ from, replyId, now = new Date() }) {
   const parsed = parseButtonId(replyId);
@@ -285,23 +168,16 @@ async function handlePracticalButtonReply({ from, replyId, now = new Date() }) {
     return { handled: true, ignored: row ? 'not-sender' : 'unknown-listing' };
   }
 
-  const wasComplete = nextQuestion(row) === null;
-  const rows = saveAnswer(idsForAnswer(row), parsed.question.field, parsed.value, now);
-  console.log(`[fiche] listing #${row.id}: ${parsed.question.field} = ${parsed.value} (${rows.length} row(s))`);
+  const rows = saveAnswer(idsForAnswer(row), parsed.field, parsed.value, now);
+  console.log(`[fiche] listing #${row.id}: ${parsed.field} = ${parsed.value} (${rows.length} row(s)) — old button, nothing more asked`);
   mirrorToPostgres(rows).catch((err) => console.error(`[fiche] mirror failed: ${err.message}`));
 
-  const fresh = rows.find((r) => r.id === row.id) || row;
-  const next = nextQuestion(fresh);
   try {
-    if (next) {
-      await sendQuestion(from, fresh, next);
-      return { handled: true, action: 'asked-next', field: next.field };
-    }
-    await chakra.sendWhatsAppMessage(digits(from), wasComplete ? UPDATED_TEXT : DONE_TEXT, { previewUrl: false });
-    console.log(`[fiche] listing #${row.id} ${wasComplete ? 'answer updated' : 'fiche complete'} — told ${from}`);
-    return { handled: true, action: wasComplete ? 'updated' : 'complete' };
+    await chakra.sendWhatsAppMessage(digits(from), THANKS_TEXT, { previewUrl: false });
+    console.log(`[fiche] thanked ${from} for listing #${row.id}`);
+    return { handled: true, action: 'saved' };
   } catch (err) {
-    console.error(`[fiche] follow-up to ${from} for listing #${row.id} failed: ${err.message}`);
+    console.error(`[fiche] thanks to ${from} for listing #${row.id} failed: ${err.message}`);
     return { handled: true, action: 'saved-not-told' };
   }
 }
@@ -311,17 +187,10 @@ module.exports = {
   WATER_SUPPLY,
   RAINY_ACCESS,
   VISIT_FEE,
-  QUESTIONS,
-  DONE_TEXT,
-  UPDATED_TEXT,
-  practicalFactsEnabled,
-  buttonId,
+  THANKS_TEXT,
   parseButtonId,
   impliedFacts,
   factsOf,
-  nextQuestion,
-  shouldAsk,
   saveAnswer,
-  askAfterPublish,
   handlePracticalButtonReply,
 };

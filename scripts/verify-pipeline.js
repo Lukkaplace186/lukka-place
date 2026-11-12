@@ -17928,38 +17928,43 @@ console.log('\n2. services/openai.js');
   });
 
   // ---------------------------------------------------------------------------
-  // §111 Fiche pratique — four one-tap questions after "OK" (2026-11-12)
+  // §111 Fiche pratique — nothing asked after "OK"; old buttons still save (2026-11-12)
   // ---------------------------------------------------------------------------
-  // services/practicalFacts.js: power, water, rainy-season access, visit fee,
-  // asked with reply buttons after the publish receipt; only the sender may
-  // answer; an answer ADDS the matching utility codes and generator / solar
-  // ticks so the existing filters see it; NULL stays "not stated".
-  console.log('\n§111 Fiche pratique — questions after OK, answers on the listing');
+  // services/practicalFacts.js: the power / water / access / visit-fee
+  // questions were sent after the publish receipt for a few hours on
+  // 2026-11-12, then removed by the owner. After "OK" the agent gets the
+  // receipt only. A tap on a button already in a chat is saved (only from the
+  // sender), adds the matching utility codes, and is thanked once — no next
+  // question. NULL stays "not stated".
+  console.log('\n§111 Fiche pratique — no questions after OK, old buttons still saved');
   {
     const practical = require('../services/practicalFacts');
     const pgService = require('../services/postgres');
     const AGENT = '243810000777';
     const sentButtons = [];
     const sentTexts = [];
-    const savedFiche = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage, flag: process.env.FICHE_PRATIQUE };
-    delete process.env.FICHE_PRATIQUE; // unset = on (the default in production)
+    const savedFiche = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage };
     chakra.sendInteractiveButtons = async (to, body, buttons) => { sentButtons.push({ to, body, buttons }); return {}; };
     chakra.sendWhatsAppMessage = async (to, body) => { sentTexts.push({ to, body }); return {}; };
     const listingFiche = (type, wamid) => dbService.insertListing({ ...data, property_type: type, parcelle_subtype: null }, AGENT, { wamid, rawText: 'Appartement à louer' }).id;
     try {
-      check('a button id names the listing, the question and a known answer — anything else is not ours', () => {
-        assert.deepEqual(
-          { ...practical.parseButtonId('fiche:42:c:snel_groupe'), question: undefined },
-          { listingId: 42, question: undefined, value: 'snel_groupe' },
-        );
+      check('nothing is asked after OK: no askAfterPublish, no question list, the webhook sends the receipt only', () => {
+        assert.equal(practical.askAfterPublish, undefined);
+        assert.equal(practical.QUESTIONS, undefined);
+        const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.ok(!/askAfterPublish/.test(webhook), 'no question after either OK path');
+        assert.ok(!/sendInteractiveButtons/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'practicalFacts.js'), 'utf8')));
+      });
+
+      check('an old button id names the listing, the question and a known answer — anything else is not ours', () => {
+        assert.deepEqual(practical.parseButtonId('fiche:42:c:snel_groupe'), { listingId: 42, field: 'power_supply', value: 'snel_groupe' });
+        assert.deepEqual(practical.parseButtonId('fiche:42:f:non'), { listingId: 42, field: 'visit_fee', value: 'non' });
         assert.equal(practical.parseButtonId('fiche:42:c:groupe'), null, 'not one of the courant answers');
+        assert.equal(practical.parseButtonId('fiche:42:f:peut_etre'), null);
         assert.equal(practical.parseButtonId('fiche:42:x:snel'), null);
         assert.equal(practical.parseButtonId('lead:42:take'), null);
-        for (const q of practical.QUESTIONS) {
-          assert.ok(q.answers.length >= 1 && q.answers.length <= 3, `${q.field}: WhatsApp allows 3 buttons`);
-          for (const a of q.answers) assert.ok([...a.title].length <= 20, `${a.title} fits a button`);
-        }
       });
+
       check('answers imply utility codes and ticks, never a removal; "SNEL seulement" implies nothing', () => {
         assert.deepEqual(practical.impliedFacts('power_supply', 'snel'), { utilities: [], has_generator: null, has_solar: null });
         assert.deepEqual(practical.impliedFacts('power_supply', 'snel_groupe'), { utilities: ['groupe'], has_generator: true, has_solar: null });
@@ -17968,69 +17973,35 @@ console.log('\n2. services/openai.js');
         assert.deepEqual(practical.impliedFacts('rainy_access', 'inonde').utilities, []);
       });
 
-      await checkAsync('asked after OK for a flat; not for bare land, several properties, or FICHE_PRATIQUE=off', async () => {
-        const flat = listingFiche('appartement', 'wamid.FICHE1');
-        const land = listingFiche('terrain', 'wamid.FICHE2');
-        const other = listingFiche('appartement', 'wamid.FICHE3');
-        sentButtons.length = 0;
-        assert.equal((await practical.askAfterPublish([land], AGENT)).asked, false);
-        assert.equal((await practical.askAfterPublish([flat, other], AGENT)).reason, 'several-properties');
-        process.env.FICHE_PRATIQUE = 'off';
-        assert.equal((await practical.askAfterPublish([flat], AGENT)).reason, 'off');
-        delete process.env.FICHE_PRATIQUE;
-        assert.equal(sentButtons.length, 0);
-        const outcome = await practical.askAfterPublish([flat], AGENT);
-        assert.equal(outcome.asked, true);
-        assert.equal(sentButtons.length, 1);
-        assert.match(sentButtons[0].body, /fiche pratique/);
-        assert.match(sentButtons[0].body, /1 sur 4 · Le courant/);
-        assert.deepEqual(sentButtons[0].buttons.map((b) => b.id), [`fiche:${flat}:c:snel`, `fiche:${flat}:c:snel_groupe`, `fiche:${flat}:c:snel_solaire`]);
-      });
-
-      await checkAsync('only the sender may answer; each tap saves, adds the codes and asks the next question', async () => {
+      await checkAsync('only the sender may answer; a tap saves, adds the codes, thanks once and asks nothing more', async () => {
         const id = listingFiche('appartement', 'wamid.FICHE4');
         sentButtons.length = 0;
+        sentTexts.length = 0;
         const stranger = await practical.handlePracticalButtonReply({ from: '243899999999', replyId: `fiche:${id}:c:snel_groupe` });
         assert.equal(stranger.ignored, 'not-sender');
         assert.equal(dbService.getListing(id).power_supply, null);
-        assert.equal(sentButtons.length, 0);
+        assert.equal(sentTexts.length, 0);
 
-        const first = await practical.handlePracticalButtonReply({ from: `+${AGENT}`, replyId: `fiche:${id}:c:snel_groupe` });
-        assert.equal(first.action, 'asked-next');
+        const tap = await practical.handlePracticalButtonReply({ from: `+${AGENT}`, replyId: `fiche:${id}:c:snel_groupe` });
+        assert.equal(tap.action, 'saved');
         const row = dbService.getListing(id);
         assert.equal(row.power_supply, 'snel_groupe');
         assert.ok(row.utilities.includes('groupe'));
         assert.equal(row.has_generator, 1);
         assert.ok(row.practical_answered_at);
-        assert.equal(row.water_supply, null, 'not answered yet: still NULL');
-        assert.match(sentButtons.at(-1).body, /2 sur 4 · L'eau/);
+        assert.equal(row.water_supply, null, 'not answered: still NULL');
+        assert.equal(sentButtons.length, 0, 'no next question');
+        assert.deepEqual(sentTexts.map((m) => m.body), [practical.THANKS_TEXT]);
+
+        await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:f:non` });
+        assert.equal(practical.factsOf(dbService.getListing(id)).visit_fee, false);
+        assert.equal(sentButtons.length, 0);
       });
 
-      await checkAsync('the fourth answer completes the fiche once; a later tap is an update', async () => {
-        const id = listingFiche('appartement', 'wamid.FICHE5');
-        for (const reply of ['c:snel', 'e:regideso_citerne', 'a:inonde']) {
-          await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:${reply}` });
-        }
-        sentTexts.length = 0;
-        const done = await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:f:non` });
-        assert.equal(done.action, 'complete');
-        assert.equal(sentTexts.at(-1).body, practical.DONE_TEXT);
-        const row = dbService.getListing(id);
-        assert.deepEqual(practical.factsOf(row), { power_supply: 'snel', water_supply: 'regideso_citerne', rainy_access: 'inonde', visit_fee: false });
-        assert.ok(!row.utilities.includes('acces_facile'), 'a flooded road adds no access code');
-        assert.ok(!row.has_generator, 'SNEL only ticks nothing');
-        const again = await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:f:oui` });
-        assert.equal(again.action, 'updated');
-        assert.equal(sentTexts.at(-1).body, practical.UPDATED_TEXT);
-        assert.equal(practical.factsOf(dbService.getListing(id)).visit_fee, true);
-      });
-
-      await checkAsync('a building pasted as units is asked once and every unit gets the answer', async () => {
+      await checkAsync('a building pasted as units: a tap on one unit is written to every unit', async () => {
         const a = listingFiche('appartement', 'wamid.FICHE6');
         const b = listingFiche('appartement', 'wamid.FICHE7');
         dbService.db.prepare('UPDATE listings SET parent_building_id = ? WHERE id IN (?, ?)').run('bldg-107', a, b);
-        sentButtons.length = 0;
-        assert.equal((await practical.askAfterPublish([a, b], AGENT)).asked, true);
         await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${a}:e:forage` });
         assert.equal(dbService.getListing(b).water_supply, 'forage');
         assert.ok(dbService.getListing(b).utilities.includes('forage'));
@@ -18044,10 +18015,9 @@ console.log('\n2. services/openai.js');
         assert.match(pgService.PRACTICAL_FACTS_SQL, /has_solar = CASE WHEN \$8::boolean THEN TRUE ELSE has_solar END/);
       });
 
-      check('the webhook routes fiche taps and asks after both OK paths; the migration is idempotent', () => {
+      check('the webhook still routes old fiche taps; the migration is idempotent', () => {
         const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
         assert.match(webhook, /practicalFacts\.handlePracticalButtonReply\(\{ from, replyId: buttonReplyId \}\)/);
-        assert.equal((webhook.match(/practicalFacts\.askAfterPublish\(/g) || []).length, 2);
         const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_listing_practical_facts.sql'), 'utf8');
         for (const col of ['power_supply text', 'water_supply text', 'rainy_access text', 'visit_fee boolean', 'practical_answered_at timestamptz']) {
           assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${col}`));
@@ -18056,8 +18026,6 @@ console.log('\n2. services/openai.js');
     } finally {
       chakra.sendInteractiveButtons = savedFiche.buttons;
       chakra.sendWhatsAppMessage = savedFiche.text;
-      if (savedFiche.flag === undefined) delete process.env.FICHE_PRATIQUE;
-      else process.env.FICHE_PRATIQUE = savedFiche.flag;
     }
   }
 

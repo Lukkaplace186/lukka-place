@@ -893,7 +893,8 @@ async function processGroup(messages) {
       return;
     }
     try {
-      // Fiche pratique answers (services/practicalFacts.js): `fiche:<listing>:<q>:<value>`.
+      // Old fiche pratique buttons (services/practicalFacts.js): `fiche:<listing>:<q>:<value>`.
+      // No longer sent; a tap on one still in a chat is saved and thanked.
       // Only the number that sent the listing may answer.
       const fiche = await practicalFacts.handlePracticalButtonReply({ from, replyId: buttonReplyId });
       if (fiche.handled) return;
@@ -1150,8 +1151,8 @@ async function processGroup(messages) {
       await chakra.sendWhatsAppMessage(from, publishedReply(publishedIds), {
         replyToMessageId: primaryWamid || undefined,
       });
-      // The fiche pratique's first question, after the receipt. Never throws.
-      await practicalFacts.askAfterPublish(publishedIds, from);
+      // Nothing is asked after the receipt (owner, 2026-11-12): no fiche
+      // pratique questions, no other follow-up. See services/practicalFacts.js.
       console.log(`[db] listing #${pending.id} published (confirmed by ${from})`);
       console.log(`[chakra] reply sent to ${from}`);
       return;
@@ -1750,7 +1751,6 @@ async function processGroup(messages) {
       await chakra.sendWhatsAppMessage(from, publishedReply(confirmedIds), {
         replyToMessageId: primaryWamid || undefined,
       });
-      await practicalFacts.askAfterPublish(confirmedIds, from);
       console.log(`[db] listing #${pending.id} published (conversational confirmation from ${from})`);
       console.log(`[chakra] reply sent to ${from}`);
       return;

@@ -69,6 +69,11 @@ test('nothing answered is nothing shown; an unknown value is dropped, never gues
   assert.equal(hasPracticalFacts(practicalFactsOf({ visit_fee: false })), true, 'a free visit is an answer');
 });
 
+test('the visit fee is no longer asked, so an unanswered one is not a "Non indiqué" row', () => {
+  const rows = practicalRows(practicalFactsOf({ power_supply: 'snel', water_supply: 'regideso', rainy_access: 'bon', visit_fee: null }));
+  assert.deepEqual(rows.map((r) => r.id), ['power', 'water', 'access']);
+});
+
 test('the answer date is on the Kinshasa calendar', () => {
   assert.equal(answeredDateLabel('2026-11-12T23:30:00Z', 'fr'), '13 novembre 2026');
   assert.equal(answeredDateLabel(null), null);

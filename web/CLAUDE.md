@@ -5173,7 +5173,12 @@ This replaces the 2026-10-27 "no target" decision on that page.
   still require a confirmed number, an owner pricing decision not changed here.
 - Tests: `tests/unit/customer-signup-friction.test.js`.
 
-## Fiche pratique — four one-tap questions after "OK" (2026-11-12)
+## Fiche pratique — nothing is asked after "OK" (2026-11-12)
+
+**The WhatsApp questions were removed the day they shipped** (owner): after
+"OK" the agent gets the receipt only. The card below still shows answers
+agents gave on 2026-11-12 (or by tapping an old button), and renders nothing
+for every other listing. Don't add a question after "OK" without the owner.
 
 Engine half (the WhatsApp questions, storage, the codes an answer adds):
 docs/claude/listing-data.md, same heading. `lib/practicalFacts.js` (pure),
@@ -5189,5 +5194,8 @@ docs/claude/listing-data.md, same heading. `lib/practicalFacts.js` (pure),
   pendant la visite." — never "vérifié".
 - The filters need nothing new: an answer adds the utility codes the
   "Électricité" / "Eau" / "Accès" chips already match.
-- Not built yet: editing the four answers in the agent's editor (the agent
-  can re-tap a button on WhatsApp), a filter on visit fee.
+- **The visit fee is no longer asked** (owner, 2026-11-12, the day it
+  shipped). `practicalRows` drops the fee row when `visit_fee` is NULL, so
+  new listings never show "Frais de visite : Non indiqué"; an answer given
+  before keeps its row. No visit-fee filter, by the same decision.
+- Not built (owner's choice): any other way to collect these answers.

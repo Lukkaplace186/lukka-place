@@ -1,6 +1,7 @@
 /**
  * The fiche pratique — power, water, access in the rainy season, visit fee —
- * as the agent answered it on WhatsApp after "OK" (engine
+ * as the agent answered it on WhatsApp on 2026-11-12, the one day the
+ * questions were asked after "OK"; they no longer are (engine
  * services/practicalFacts.js). Pure: the listing page reads it, the tests pin it.
  *
  * NULL is "not answered", never "no". Shown as "Réponses de l'agence", never
@@ -50,15 +51,19 @@ export function hasPracticalFacts(facts) {
 }
 
 /**
- * The four rows of the card, in the order the agent was asked. Each carries an
+ * The rows of the card, in the order the agent was asked. Each carries an
  * i18n key for its label and one for its value; `valueKey` is null when the
  * agent did not answer that one, and the page prints "Non indiqué".
- * `tone` marks the two answers a visitor should notice: a flooded road and a
+ * `tone` marks the answers a visitor should notice: a flooded road and a
  * paid visit.
+ *
+ * The visit-fee question is no longer asked (owner, 2026-11-12), so its row
+ * appears only on a listing whose agent answered it before — never as
+ * "Non indiqué" on every new listing.
  */
 export function practicalRows(facts) {
   const f = facts || {};
-  return [
+  const rows = [
     { id: 'power', icon: 'zap', labelKey: 'listings.practical.power', valueKey: f.powerSupply ? `listings.practical.powerValues.${f.powerSupply}` : null, tone: null },
     { id: 'water', icon: 'droplets', labelKey: 'listings.practical.water', valueKey: f.waterSupply ? `listings.practical.waterValues.${f.waterSupply}` : null, tone: null },
     {
@@ -76,6 +81,7 @@ export function practicalRows(facts) {
       tone: f.visitFee === true ? 'warning' : null,
     },
   ];
+  return f.visitFee === null || f.visitFee === undefined ? rows.filter((r) => r.id !== 'fee') : rows;
 }
 
 const ANSWERED_FORMATTERS = {

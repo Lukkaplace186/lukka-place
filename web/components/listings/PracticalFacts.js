@@ -6,11 +6,12 @@ import { answeredDateLabel, hasPracticalFacts, practicalFactsOf, practicalRows }
 const ICONS = { zap: Zap, droplets: Droplets, route: Route, ticket: Ticket };
 
 /**
- * "Fiche pratique": what the agent answered on WhatsApp about power, water,
- * access in the rainy season and the visit fee (engine services/practicalFacts.js).
- * Renders nothing when the agent answered none of the four; a question left
- * unanswered reads "Non indiqué", never a default. A flooded road and a paid
- * visit are tinted so a visitor sees them before booking.
+ * "Fiche pratique": what the agent answered on WhatsApp about power, water
+ * and access in the rainy season (engine services/practicalFacts.js), plus the
+ * visit fee where an agent answered it before that question was dropped.
+ * Renders nothing when the agent answered none; a question left unanswered
+ * reads "Non indiqué", never a default. A flooded road and a paid visit are
+ * tinted so a visitor sees them before booking.
  */
 export default async function PracticalFacts({ listing }) {
   const facts = practicalFactsOf(listing?.practical_facts);

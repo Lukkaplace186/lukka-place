@@ -505,7 +505,7 @@ function saveListing(listingData, senderInfo = {}) {
       // expandAndPublishListing. NULL for every ordinary listing.
       parent_building_id: toNullable(parentBuildingId),
       awaiting_sale_price_at: null,
-      // The fiche pratique is asked after "OK" (services/practicalFacts.js).
+      // The fiche pratique (services/practicalFacts.js) — no longer asked.
       power_supply: null,
       water_supply: null,
       rainy_access: null,

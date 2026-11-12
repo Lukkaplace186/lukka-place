@@ -162,3 +162,34 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
     web's upsert and `prospectPhone`; §84 compares them). A phone that is not
     a number stops the import. Only adverts new to that import count for a
     poster, so re-importing a file inflates nothing.
+
+## Neighbourhood of each observation — `area` (2026-11-12)
+
+Stage 1 of neighbourhood price figures (owner, 2026-11-12: a commune figure
+mixes Macampagne villas with Binza flats, and Boulevard du 24 Novembre new
+builds with Ngiri-Ngiri's older homes). Nothing public changes yet; stage 2
+computes commune × area × bedrooms figures, stage 3 shows them.
+
+- `market_observations.area` (`migrations/20261112_market_observation_area.sql`):
+  the official quartier of the row's commune, or a name agents use that
+  `kinshasa_quartier_aliases.json` records with a source ("GB", "Funa",
+  "Mimosas"), in that file's spelling. `quartier` keeps the source's text.
+- `services/marketObservations.js` `areaOf`: quartier field, else place text,
+  else title, through `locations.quartierNamedIn` — exact names only. Not
+  `resolveQuartier`, whose typo match gave "Mbudi" → Mbuki and "Matonge" →
+  Matongé I, and which drops aliases that are not official quartiers (GB,
+  Funa: 77 rents on 2026-11-12).
+- Written by every engine write (collectors, `import-market-observations.js`)
+  once the column exists (checked per pool; before the migration the upsert
+  leaves it out). Web's console saves no area; the nightly collection ends
+  with `fillAreas`, which sets it on rows that have none.
+- `node scripts/backfill-market-area.js [--all] [--write]` (dry run by
+  default); `--all` re-reads every row after the alias file changes.
+- Measured on 2026-11-12 (rents the guide counts): 502 of ~1,800 carry an
+  area; the portals smartimmo (760) and immo24 give none, mediacongo and
+  imcongo some from titles. 23 commune × area × bedroom groups had 5+ adverts
+  before de-duplication. Frequent names still unrecognised: Terminus, Camp
+  Riche, Mende (Lemba), Gramalic, Chanic, Pompage, Brikin (Ngaliema),
+  Jamaïque (Kintambo), Shaba (Kasa-Vubu), Mbudi (Mont-Ngafula) — added only
+  with the owner's confirmation and a source.
+- verify-pipeline §110.

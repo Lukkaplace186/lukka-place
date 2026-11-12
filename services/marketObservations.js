@@ -236,32 +236,58 @@ function normaliseObservation(raw) {
     city,
     commune,
     quartier: clip(raw.quartier, 120),
+    area: areaOf({ commune, quartier: raw.quartier, place_text: raw.place_text, title: raw.title }),
     title: clip(raw.title, 200),
     excluded_reason: excluded,
   };
 }
 
-const COLUMNS = [
+/**
+ * The neighbourhood an advert names inside its commune, for neighbourhood
+ * price figures (2026-11-12, owner): an official quartier, or a name agents
+ * use that kinshasa_quartier_aliases.json records with a source ("GB",
+ * "Funa", "Mimosas"), in that alias file's spelling. Read from the quartier
+ * field, else the place text, else the title. Exact names only
+ * (locations.quartierNamedIn), never an edit-distance guess: resolveQuartier's
+ * typo match turned "Mbudi" into Mbuki and "Matonge" into Matongé I. NULL =
+ * not stated, or not a name we can vouch for.
+ */
+function areaOf({ commune, quartier = null, place_text: placeText = null, title = null }) {
+  if (!commune || !locations.LOCATIONS[commune]) return null;
+  for (const text of [quartier, placeText, title]) {
+    if (!text) continue;
+    const found = locations.quartierNamedIn(String(text), commune);
+    if (found) return found.quartier;
+  }
+  return null;
+}
+
+const BASE_COLUMNS = [
   'source', 'source_ref', 'source_url', 'property_id', 'posted_at', 'purpose', 'property_kind', 'beds',
   'furnished', 'price', 'currency', 'price_period', 'monthly_usd', 'price_usd', 'city', 'commune',
   'quartier', 'title', 'excluded_reason',
 ];
+const COLUMN_TYPES = {
+  source: 'text', source_ref: 'text', source_url: 'text', property_id: 'bigint', posted_at: 'timestamptz',
+  purpose: 'text', property_kind: 'text', beds: 'smallint', furnished: 'boolean', price: 'numeric', currency: 'text',
+  price_period: 'text', monthly_usd: 'numeric', price_usd: 'numeric', city: 'text', commune: 'text', quartier: 'text',
+  title: 'text', excluded_reason: 'text', area: 'text',
+};
 
 /**
  * Insert or refresh. A row seen again keeps its first_seen_at, moves
  * last_seen_at, takes the source's current figures (an advert whose price
  * changed is the new asking price) — and keeps an exclusion a team member
- * made by hand ('manual:…').
+ * made by hand ('manual:…'). `area` (migrations/20261112_market_observation_area.sql)
+ * is written only once that column exists, so collection keeps working
+ * before the migration.
  */
-const UPSERT_SQL = `
-  INSERT INTO market_observations (${COLUMNS.join(', ')}, first_seen_at, last_seen_at, updated_at)
-  SELECT ${COLUMNS.map((c) => `r.${c}`).join(', ')}, NOW(), NOW(), NOW()
-    FROM jsonb_to_recordset($1::jsonb) AS r(
-      source text, source_ref text, source_url text, property_id bigint, posted_at timestamptz,
-      purpose text, property_kind text, beds smallint, furnished boolean, price numeric, currency text,
-      price_period text, monthly_usd numeric, price_usd numeric, city text, commune text, quartier text,
-      title text, excluded_reason text)
-  ON CONFLICT (source, source_ref) DO UPDATE SET
+function upsertSql(columns) {
+  return `
+  INSERT INTO market_observations (${columns.join(', ')}, first_seen_at, last_seen_at, updated_at)
+  SELECT ${columns.map((c) => `r.${c}`).join(', ')}, NOW(), NOW(), NOW()
+    FROM jsonb_to_recordset($1::jsonb) AS r(${columns.map((c) => `${c} ${COLUMN_TYPES[c]}`).join(', ')})
+  ON CONFLICT (source, source_ref) DO UPDATE SET${columns.includes('area') ? '\n    area = EXCLUDED.area,' : ''}
     source_url = EXCLUDED.source_url,
     property_id = COALESCE(EXCLUDED.property_id, market_observations.property_id),
     posted_at = COALESCE(market_observations.posted_at, EXCLUDED.posted_at),
@@ -284,6 +310,23 @@ const UPSERT_SQL = `
     updated_at = NOW()
   RETURNING (xmax = 0) AS inserted
 `;
+}
+
+const COLUMNS = [...BASE_COLUMNS, 'area'];
+const UPSERT_SQL = upsertSql(COLUMNS);
+const UPSERT_SQL_WITHOUT_AREA = upsertSql(BASE_COLUMNS);
+
+// Remembered per pool once seen: the column is never dropped. Not remembered
+// while missing, so the migration takes effect without a restart.
+const areaColumnSeen = new WeakSet();
+async function hasAreaColumn(pool) {
+  if (areaColumnSeen.has(pool)) return true;
+  const { rows } = await pool.query(
+    "SELECT 1 FROM information_schema.columns WHERE table_name = 'market_observations' AND column_name = 'area'",
+  );
+  if (rows.length > 0) areaColumnSeen.add(pool);
+  return rows.length > 0;
+}
 
 /** Marks adverts still listed at the source (seen in a sitemap) without re-reading them. */
 const TOUCH_SQL = `
@@ -305,13 +348,54 @@ const RECORD_RUN_SQL = `
 async function storeObservations(rows, { pool = postgres.getPool() } = {}) {
   let inserted = 0;
   let updated = 0;
+  if (!rows.length) return { inserted, updated };
+  const withArea = await hasAreaColumn(pool);
+  const columns = withArea ? COLUMNS : BASE_COLUMNS;
+  const sql = withArea ? UPSERT_SQL : UPSERT_SQL_WITHOUT_AREA;
   for (let i = 0; i < rows.length; i += 200) {
-    const chunk = rows.slice(i, i + 200).map((row) => Object.fromEntries(COLUMNS.map((c) => [c, row[c] ?? null])));
+    const chunk = rows.slice(i, i + 200).map((row) => Object.fromEntries(columns.map((c) => [c, row[c] ?? null])));
     // eslint-disable-next-line no-await-in-loop
-    const { rows: result } = await pool.query(UPSERT_SQL, [JSON.stringify(chunk)]);
+    const { rows: result } = await pool.query(sql, [JSON.stringify(chunk)]);
     for (const r of result) { if (r.inserted) inserted += 1; else updated += 1; }
   }
   return { inserted, updated };
+}
+
+const AREA_CANDIDATES_SQL = `
+  SELECT id, commune, quartier, title, area FROM market_observations
+   WHERE commune IS NOT NULL AND (quartier IS NOT NULL OR title IS NOT NULL OR area IS NOT NULL)
+     AND ($1::boolean OR area IS NULL)
+   ORDER BY id`;
+const AREA_UPDATE_SQL = `
+  UPDATE market_observations o SET area = r.area
+    FROM jsonb_to_recordset($1::jsonb) AS r(id bigint, area text)
+   WHERE o.id = r.id AND o.area IS DISTINCT FROM r.area`;
+
+/**
+ * Sets `area` on rows that have none — the rows web's console saves (the
+ * "Coller des annonces" box and the manual form write no area) and rows from
+ * before the column. `all` re-reads every row, for after the alias file
+ * changes. Returns what it found; writes only with `write`. Without the
+ * column it does nothing and says so.
+ */
+async function fillAreas({ pool = postgres.getPool(), all = false, write = false } = {}) {
+  if (!(await hasAreaColumn(pool))) return { skipped: 'no area column (run migrations/20261112_market_observation_area.sql)' };
+  const { rows } = await pool.query(AREA_CANDIDATES_SQL, [Boolean(all)]);
+  const changes = [];
+  for (const row of rows) {
+    const area = areaOf(row);
+    if ((row.area || null) !== area) changes.push({ id: Number(row.id), area, before: row.area || null, commune: row.commune });
+  }
+  let written = 0;
+  if (write) {
+    for (let i = 0; i < changes.length; i += 500) {
+      const chunk = changes.slice(i, i + 500).map(({ id, area }) => ({ id, area }));
+      // eslint-disable-next-line no-await-in-loop
+      const { rowCount } = await pool.query(AREA_UPDATE_SQL, [JSON.stringify(chunk)]);
+      written += rowCount;
+    }
+  }
+  return { checked: rows.length, changed: changes.length, written, changes };
 }
 
 async function knownRefs(source, { pool = postgres.getPool() } = {}) {
@@ -389,6 +473,15 @@ async function runCollection({
       }
     }
   }
+  if (write && pool) {
+    // The console's pastes are saved without an area; give them one nightly.
+    try {
+      const filled = await fillAreas({ pool, write: true });
+      log(`areas: ${filled.skipped || `${filled.written} set on ${filled.checked} rows without one`}`);
+    } catch (err) {
+      log(`areas: FAILED ${err.message}`);
+    }
+  }
   return summary;
 }
 
@@ -458,8 +551,10 @@ module.exports = {
   excludedGroupJids,
   kindFromText,
   resolvePlace,
+  areaOf,
   normaliseObservation,
   storeObservations,
+  fillAreas,
   knownRefs,
   runCollection,
   collectionDue,

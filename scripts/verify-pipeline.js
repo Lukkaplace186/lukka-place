@@ -18338,6 +18338,78 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // §110 Market observations carry the neighbourhood they name (2026-11-12)
+  // ---------------------------------------------------------------------------
+  console.log('\n§110 market observations: area = an official quartier or a sourced alias, exact names only');
+  {
+    const market110 = require('../services/marketObservations');
+    check('areaOf reads official quartiers and the aliases agents use, in the alias file\'s spelling', () => {
+      assert.strictEqual(market110.areaOf({ commune: 'Ngaliema', quartier: 'GB' }), 'GB');
+      assert.strictEqual(market110.areaOf({ commune: 'Ngaliema', quartier: 'Binza Météo' }), 'Météo', 'an alias that is an official quartier gives the quartier');
+      assert.strictEqual(market110.areaOf({ commune: 'Limete', quartier: 'Funa' }), 'Funa', 'a two-commune name is fine once the commune is known');
+      assert.strictEqual(market110.areaOf({ commune: 'Ngaliema', quartier: 'Macampagne' }), 'Macampagne');
+    });
+    check('areaOf never guesses: no typo match, no commune, no unknown name', () => {
+      assert.strictEqual(market110.areaOf({ commune: 'Mont-Ngafula', quartier: 'Mbudi' }), 'Mbudi', 'its own name, never the typo match Mbuki');
+      assert.notStrictEqual(market110.areaOf({ commune: 'Kalamu', quartier: 'Matonge' }), 'Matongé I', 'Matonge is not one numbered quartier');
+      assert.strictEqual(market110.areaOf({ commune: null, quartier: 'GB' }), null);
+      assert.strictEqual(market110.areaOf({ commune: 'Ngaliema', quartier: 'Gramalic' }), null, 'a name no source records');
+    });
+    check('areaOf falls back to the title when the quartier field names nothing', () => {
+      assert.strictEqual(market110.areaOf({ commune: 'Limete', quartier: null, title: 'Appartement - Quartier Funa' }), 'Funa');
+      assert.strictEqual(market110.areaOf({ commune: 'Ngaliema', quartier: 'Terminus', title: 'GB: appartements à louer' }), 'GB');
+    });
+    check('normaliseObservation stores the area beside the source\'s own quartier text', () => {
+      const row = market110.normaliseObservation({ source: 'facebook', source_ref: 'fb-x', purpose: 'rent', property_kind: 'appartement', beds: 2, price: 900, commune_key: 'Ngaliema', quartier: 'Binza Météo' });
+      assert.strictEqual(row.quartier, 'Binza Météo');
+      assert.strictEqual(row.area, 'Météo');
+    });
+    await checkAsync('storeObservations writes area only once the column exists', async () => {
+      const make = (hasColumn) => {
+        const sql = [];
+        return { sql, query: async (text, params) => {
+          sql.push({ text, params });
+          if (/information_schema/.test(text)) return { rows: hasColumn ? [{ '?column?': 1 }] : [] };
+          return { rows: [{ inserted: true }] };
+        } };
+      };
+      const row = market110.normaliseObservation({ source: 'facebook', source_ref: 'fb-y', purpose: 'rent', property_kind: 'appartement', beds: 2, price: 900, commune_key: 'Ngaliema', quartier: 'GB' });
+      const without = make(false);
+      await market110.storeObservations([row], { pool: without });
+      const insert = without.sql.find((q) => /INSERT INTO market_observations/.test(q.text));
+      assert.doesNotMatch(insert.text, /\barea\b/, 'no area before the migration');
+      assert.ok(!('area' in JSON.parse(insert.params[0])[0]));
+      const withCol = make(true);
+      await market110.storeObservations([row], { pool: withCol });
+      const insert2 = withCol.sql.find((q) => /INSERT INTO market_observations/.test(q.text));
+      assert.match(insert2.text, /area = EXCLUDED\.area/);
+      assert.strictEqual(JSON.parse(insert2.params[0])[0].area, 'GB');
+    });
+    await checkAsync('fillAreas finds the area of rows saved without one and writes only with write', async () => {
+      const sql = [];
+      const pool = { query: async (text, params) => {
+        sql.push({ text, params });
+        if (/information_schema/.test(text)) return { rows: [{ '?column?': 1 }] };
+        if (/^\s*SELECT id, commune/.test(text)) {
+          return { rows: [
+            { id: '1', commune: 'Limete', quartier: 'Funa', title: null, area: null },
+            { id: '2', commune: 'Ngaliema', quartier: 'Gramalic', title: null, area: null },
+          ] };
+        }
+        return { rowCount: 1 };
+      } };
+      const dry = await market110.fillAreas({ pool });
+      assert.strictEqual(dry.changed, 1);
+      assert.deepStrictEqual(dry.changes.map((c) => [c.id, c.area]), [[1, 'Funa']]);
+      assert.ok(!sql.some((q) => /UPDATE market_observations/.test(q.text)), 'a dry run writes nothing');
+      const wet = await market110.fillAreas({ pool, write: true });
+      assert.strictEqual(wet.written, 1);
+      const update = sql.find((q) => /UPDATE market_observations/.test(q.text));
+      assert.deepStrictEqual(JSON.parse(update.params[0]), [{ id: 1, area: 'Funa' }]);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

@@ -266,11 +266,6 @@ const axiosStub = {
 };
 stubPackage('axios', axiosStub);
 
-// The fiche pratique's first question follows every "OK" receipt; the many
-// end-to-end checks that read the receipt as the last message predate it.
-// Off here, switched on inside §111 only.
-process.env.FICHE_PRATIQUE = 'off';
-
 // ---------------------------------------------------------------------------
 // Now load the project's real modules
 // ---------------------------------------------------------------------------

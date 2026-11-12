@@ -5215,7 +5215,7 @@
       "transfer": "Transfer",
       "subscriptionHistory": "Subscription History",
       "testAccount": "Test account",
-      "testAccountHint": "Its listings are excluded from market statistics, exports and reports. To take them off the site, archive them.",
+      "testAccountHint": "Demo account: not in the agents directory or search engines, receives no real customer requests, its listings are never auto-published and are excluded from market statistics, exports and reports. A listing already approved stays online: archive it to take it off the site.",
       "markedTest": "Account marked as a test account.",
       "unmarkedTest": "The account counts in market data again.",
       "testAccountUnavailable": "Unavailable until the market-data migration has been applied."
@@ -5813,6 +5813,11 @@
       "receipt": "Receipt"
     },
     "customerProfile": {
+      "testAccount": "Test account",
+      "testAccountHint": "Demo or test account: left out of sign-up counts and the sign-up funnel.",
+      "markedTest": "Account marked as a test account.",
+      "unmarkedTest": "The account counts in sign-ups again.",
+      "testAccountUnavailable": "Unavailable until migration 20261112_customer_test_flag.sql has been applied.",
       "back": "← All customers",
       "joined": "Joined {date}",
       "lastLogin": "Last login {date}",

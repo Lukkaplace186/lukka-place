@@ -214,3 +214,10 @@ test('menu carries Agences, directly under À propos, in the bar and the drawer'
   assert.equal(fr.nav.agencies, 'Agences');
   assert.equal(en.nav.agencies, 'Agencies');
 });
+
+test('test / demo agents (agents.is_test) are never listed, in the list or the commune counts', () => {
+  const list = normalizeSql(buildDirectoryQuery(parseDirectoryParams({})).sql);
+  assert.match(list, /NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
+  const counts = normalizeSql(buildCommuneCountsQuery(parseDirectoryParams({})).sql);
+  assert.match(counts, /NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
+});

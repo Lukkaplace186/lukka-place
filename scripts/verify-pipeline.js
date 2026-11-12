@@ -17903,6 +17903,25 @@ console.log('\n2. services/openai.js');
     for (const reason of ['name', 'phone', 'password', 'exists', 'ref']) assert.ok(sql.includes(`'${reason}'`), reason);
   });
 
+  // §106 Test / demo accounts (2026-11-12)
+  // ---------------------------------------------------------------------------
+  // The team's demo client, agent and admin are used to try features and record
+  // tutorials. A test agent (agents.is_test) never receives a real customer's
+  // request and its listings are never auto-approved; a test customer
+  // (customers.is_test) is a new, idempotent column. Web halves (directory,
+  // profile noindex, sign-up counts) are pinned in web's own tests.
+  console.log('\n§106 Test / demo accounts — no real requests, no auto-approval');
+  check('agent ranking skips test agents; trusted auto-approval skips their listings', () => {
+    const ranking = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
+    assert.match(ranking, /AND NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
+    const { CANDIDATES_SQL } = require('../services/trustedAutoApprove');
+    assert.match(CANDIDATES_SQL, /NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
+  });
+  check('the customer test-flag migration is idempotent', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_customer_test_flag.sql'), 'utf8');
+    assert.match(sql, /ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false/);
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

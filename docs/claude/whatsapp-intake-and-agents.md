@@ -676,3 +676,13 @@ moderation. Those two accounts and listings were left for the owner to decide.
 - The link-less storefront enquiry itself: see "Listing Enquiries from the
   Storefront's WhatsApp CTA" in `docs/claude/leads-and-enquiries.md`.
 - §97 of verify-pipeline replays both conversations.
+
+## Test and demo accounts (2026-11-12)
+
+The team keeps demo accounts (one client, one agent, one admin) to try features before rollout and to record tutorials. They are real rows, so they are flagged rather than faked:
+
+- **Agent**: `agents.is_test` ("Compte de test" on `/admin/agents/[id]`). A test agent is left out of the public directory (`web/lib/agentDirectory.js`), its profile still opens from a direct link but is `noindex`, it is never offered a real customer's request (`services/agentRanking.js` candidate pool, so the lead waves never reach it), its listings are never auto-approved (`services/trustedAutoApprove.js`), and as before its listings stay out of every market figure (`NOT_TEST_LISTING_SQL`). A listing a moderator approves by hand is still public: archive it to take it off.
+- **Customer**: `customers.is_test` (`migrations/20261112_customer_test_flag.sql`, "Compte de test" on `/admin/customers/[id]`). Left out of the growth dashboard's sign-ups and the sign-up funnel's account counts.
+- **Admin**: a normal `console_admin_users` invitation; pick the smallest role the demo needs (support for tutorials). The impersonation button on an agent or customer page shows the site as that account.
+- Every flag is read through `to_jsonb`, so code runs before its migration (nobody is a test account then).
+- A demo customer who contacts a REAL listing still alerts that real agent: in tutorials, the demo client only contacts the demo agent's listings.

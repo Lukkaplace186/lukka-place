@@ -108,17 +108,87 @@ export function parseInline(line) {
  *              1–5 bedroom medians.
  *   annonces   commune, type, transaction=location|vente — LIVE listings
  *              (three cards, the public gate); one line.
+ *   chronologie titre, source — "date | titre | texte | étiquette | ton"
+ *              lines (2 to 20), drawn as a vertical timeline; ton is fait
+ *              (green), encours (green dot, blue label), echec (red) or
+ *              prochain (dashed, blue). Titre or texte may be empty, not both.
+ *              Titre is bold, then texte; texte may open with ":" or "," —
+ *              the renderer spaces it the French or English way.
+ *   engagement surtitre, titre — a dark closing panel: paragraphs, cards
+ *              written "libellé | texte" (2 to 4, side by side) and buttons
+ *              written as a line holding only a [lien](/chemin) (1 to 3;
+ *              the first is the main one).
+ *
+ * Anywhere in text, "[6]" (a number in brackets, not a link) is drawn as a
+ * superscript reference to the article's numbered sources.
  *
  * parseBody never throws: a block it cannot read becomes {invalid}, drawn
  * as nothing in public and as a warning in the console preview, and
  * bodyProblems() lists them so saving or importing refuses the body.
  */
-export const DIRECTIVES = ['tableau', 'chiffres', 'graphique', 'astuce', 'attention', 'info', 'citation', 'prix', 'annonces', 'calculateur'];
+export const DIRECTIVES = ['tableau', 'chiffres', 'graphique', 'astuce', 'attention', 'info', 'citation', 'prix', 'annonces', 'calculateur', 'chronologie', 'engagement'];
 const ONE_LINE = new Set(['prix', 'annonces', 'calculateur']);
 /** `:::calculateur type=…` — the interactive tools an article can embed. */
 export const CALCULATORS = ['garantie'];
 const CALLOUT_TONES = { astuce: 'tip', attention: 'warning', info: 'info' };
-export const BLOCK_LIMITS = { stats: 4, chartPoints: 24, chartSeries: 3, priceCommunes: 8, tableColumns: 8, tableRows: 60 };
+export const TIMELINE_TONES = { fait: 'done', encours: 'current', echec: 'failed', prochain: 'next' };
+export const BLOCK_LIMITS = {
+  stats: 4, chartPoints: 24, chartSeries: 3, priceCommunes: 8, tableColumns: 8, tableRows: 60,
+  timelineItems: 20, panelCards: 4, panelButtons: 3,
+};
+
+/** A line that is nothing but one [text](href) link → {text, href}, else null. */
+function soleLink(line) {
+  const m = line.match(/^\[([^\]\n]{1,200})\]\(([^)\s]{1,500})\)$/);
+  if (!m) return null;
+  const href = safeHref(m[2]);
+  return href ? { text: m[1], href } : null;
+}
+
+/** `:::engagement` inner lines → ordered parts ({p} | {cards} | {buttons}), or {error}. */
+function panelParts(lines) {
+  const parts = [];
+  let paragraph = [];
+  const flushParagraph = () => {
+    if (paragraph.length) parts.push({ p: parseInline(paragraph.join(' ')) });
+    paragraph = [];
+  };
+  const pushTo = (kind, item) => {
+    const last = parts[parts.length - 1];
+    if (last && last[kind]) last[kind].push(item);
+    else parts.push({ [kind]: [item] });
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      flushParagraph();
+      continue;
+    }
+    const link = soleLink(line);
+    if (link) {
+      flushParagraph();
+      pushTo('buttons', link);
+    } else if (line.includes('|')) {
+      flushParagraph();
+      const [label, ...rest] = splitRow(line);
+      const body = rest.join(' | ').trim();
+      if (!label || !body) return { error: `carte illisible « ${line} » (attendu « libellé | texte »)` };
+      pushTo('cards', { label, text: parseInline(body) });
+    } else {
+      paragraph.push(line);
+    }
+  }
+  flushParagraph();
+  if (!parts.length) return { error: 'encadré vide' };
+  for (const part of parts) {
+    if (part.cards && (part.cards.length < 2 || part.cards.length > BLOCK_LIMITS.panelCards)) {
+      return { error: `des cartes vont par 2 à ${BLOCK_LIMITS.panelCards}` };
+    }
+  }
+  const buttons = parts.filter((x) => x.buttons).flatMap((x) => x.buttons);
+  if (buttons.length > BLOCK_LIMITS.panelButtons) return { error: `au plus ${BLOCK_LIMITS.panelButtons} boutons` };
+  return { parts };
+}
 
 /** `clé="a b" x=y` → { clé: 'a b', x: 'y' }. */
 export function parseAttributes(text) {
@@ -266,6 +336,24 @@ function directiveBlock(name, attrs, inner) {
       if (!CALCULATORS.includes(kind)) return invalid(name, `type=${CALCULATORS.join(' ou ')}`);
       return { calculator: { kind } };
     }
+    case 'chronologie': {
+      const items = [];
+      for (const line of content) {
+        const [date, itemTitle = '', body = '', label = '', toneWord = ''] = splitRow(line.trim());
+        const tone = toneWord ? TIMELINE_TONES[foldName(toneWord).replace(/[^a-z]/g, '')] : 'done';
+        if (!date || (!itemTitle && !body)) return invalid(name, `ligne illisible « ${line.trim()} » (attendu « date | titre | texte | étiquette | ton »)`);
+        if (!tone) return invalid(name, `ton inconnu « ${toneWord} » (${Object.keys(TIMELINE_TONES).join(', ')})`);
+        items.push({ date, title: itemTitle || null, text: body ? parseInline(body) : null, label: label || null, tone });
+      }
+      if (items.length < 2) return invalid(name, 'au moins 2 lignes');
+      if (items.length > BLOCK_LIMITS.timelineItems) return invalid(name, `au plus ${BLOCK_LIMITS.timelineItems} lignes`);
+      return { timeline: { title, source, items } };
+    }
+    case 'engagement': {
+      const panel = panelParts(inner);
+      if (panel.error) return invalid(name, panel.error);
+      return { panel: { eyebrow: attrs.surtitre || null, title, parts: panel.parts } };
+    }
     default:
       return invalid(name, 'bloc inconnu');
   }
@@ -382,6 +470,10 @@ function wordsOf(b) {
   if (b.callout) return [b.callout.title, ...b.callout.blocks.map(wordsOf)].join(' ');
   if (b.quote) return blockText(b.quote.text);
   if (b.calculator || b.prices || b.listings) return '';
+  if (b.timeline) return b.timeline.items.map((it) => `${it.title || ''} ${blockText(it.text)}`).join(' ');
+  if (b.panel) {
+    return [b.panel.title, ...b.panel.parts.map((part) => (part.p ? blockText(part.p) : (part.cards || part.buttons).map((c) => `${c.label || ''} ${blockText(c.text)}`).join(' ')))].join(' ');
+  }
   return blockText(b.h2 || b.p || b.ul || b.ol);
 }
 

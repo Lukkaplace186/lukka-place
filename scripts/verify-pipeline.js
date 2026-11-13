@@ -18426,6 +18426,27 @@ console.log('\n2. services/openai.js');
     assert.ok(!/ALTER TABLE vendors/.test(sql111), 'vendors (Laravel\'s) is never altered');
   });
 
+  // ---------------------------------------------------------------------------
+  // §112 A contact CSV joins the one agent-prospect list (2026-11-13)
+  // ---------------------------------------------------------------------------
+  console.log('\n§112 import-prospects-csv: one row per number, DRC mobiles only, nothing guessed');
+  check('readContacts merges a number written twice and keeps the first name', () => {
+    const { readContacts } = require('./import-prospects-csv');
+    const csv = 'Phone Number,Customer Name\r\n+243812304479,Congo immo\r\n+243 812 304 479,Congo Immo bis\r\n0899161536,Junior\r\n';
+    const { entries, skipped } = readContacts(csv);
+    assert.strictEqual(entries.length, 2);
+    assert.deepStrictEqual(entries[0], { phone: '243812304479', name: 'Congo immo', names: ['Congo immo', 'Congo Immo bis'] });
+    assert.strictEqual(entries[1].phone, '243899161536', 'a local 08… number becomes 243…');
+    assert.strictEqual(skipped.length, 0);
+  });
+  check('readContacts skips what is not a DRC mobile instead of correcting it', () => {
+    const { readContacts } = require('./import-prospects-csv');
+    const { entries, skipped } = readContacts('Phone Number,Customer Name\n+,Facebook agents\n+242830581941,A\n+243085990055,B\n+248316663134,C\n');
+    assert.strictEqual(entries.length, 0);
+    assert.deepStrictEqual(skipped.map((s) => s.written), ['+', '+242830581941', '+243085990055', '+248316663134']);
+  });
+
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

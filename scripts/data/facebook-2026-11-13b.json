@@ -1,0 +1,26 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-13",
+  "note": "Second paste of 2026-11-13, presented as Lubumbashi adverts; six are in fact Kinshasa (Honore Mponda's Kasa-Vubu flats, Arthur Senju's Lingwala flat and Macampagne villa, Temps kairos's Huilerie flat, Grâce Wags's Limete flat, Decho Lomboto's Debonhomme flats). Lubumbashi places are resolved only through drc_locations.json: 'Golf Météo 2' names the official quartier Météo of the commune Lubumbashi; Golf, Centre-Ville, Plateau 1/2 and Biayi Angela are not confirmed names there (Golf and Centre-Ville are 'pending' in drc_quartier_aliases.json, awaiting a local agent's confirmation), so those rows keep no commune; 'Centre-Ville' is left out of the two city-centre rows because it is a confirmed Likasi name and would file them in Likasi: their prices are stored but count in no guide until the names are confirmed. Left out: Temps kairos's 700 $ Huilerie flat (fb-2026-11-09-59/67). Decho Lomboto's '3ème Rue Debonhomme' names no commune here.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-13b-01", "maison", 3500, 4, null, null, 6, "+243995077993", "Kenny Dopp", null, "rent"],
+    ["fb-2026-11-13b-02", "appartement", 750, 2, "Kasa-Vubu", null, 9, "0819656738", "Honore Mponda", "Best Immo Lubumbashi", "rent"],
+    ["fb-2026-11-13b-03", "maison", 550, 2, null, "Plateau 2", 6, "0984005538", "Junior Kabwimbe", null, "rent"],
+    ["fb-2026-11-13b-04", "maison", 850, 3, null, "Golf Faustin", 0, "+243978098620", null, "Gomez Immo", "rent"],
+    ["fb-2026-11-13b-05", null, 600000, null, null, "Golf Les Battants", 10, "097 433 1373", "Ir Hangan Kazung Grace", "Grâce Immo Services", "sale"],
+    ["fb-2026-11-13b-06", "appartement", 900, 2, "Lingwala", null, 10, "+243977596206", "Arthur Senju", null, "rent"],
+    ["fb-2026-11-13b-07", "maison", 260000, 4, null, "Golf Tshamalale", 54, "0835460524", null, "Immo Dorvan", "sale"],
+    ["fb-2026-11-13b-08", "terrain", 1200000, null, null, null, 33, "+243991230084", null, "Marc Immo sarl", "sale"],
+    ["fb-2026-11-13b-09", "maison", 280, 2, null, "Biayi Angela", 36, "0984005538", "Junior Kabwimbe", null, "rent"],
+    ["fb-2026-11-13b-10", "maison", 350, 2, "Lubumbashi", "Golf Météo 2", 263, "+243978098620", null, "Gomez Immo", "rent"],
+    ["fb-2026-11-13b-11", "appartement", 500, 3, null, "Golf Tshamalale", 2, "0971 400 453", null, "Biashara Global Corporation", "rent"],
+    ["fb-2026-11-13b-12", "appartement", 450, 1, "Kinshasa", null, 73, "+243 98 11 22 534", null, "Temps kairos", "rent"],
+    ["fb-2026-11-13b-13", "immeuble", 400000, null, null, "Golf Plateau 1", 74, "+243978098620", null, "Gomez Immo", "sale"],
+    ["fb-2026-11-13b-14", "appartement", 300, 2, null, "Debonhomme", 25, "0808024763", "Decho Lomboto", null, "rent"],
+    ["fb-2026-11-13b-15", "maison", 2000, 2, null, "Golf Le Battant", 44, "+243978098620", null, "Gomez Immo", "rent"],
+    ["fb-2026-11-13b-16", "villa", 3000, 3, "Ngaliema", "Macampagne", 10, "+243977596206", "Arthur Senju", null, "rent"],
+    ["fb-2026-11-13b-17", "appartement", 850, 1, "Limete", "Résidentiel", 14, "0994472507", "Grâce Wags", null, "rent"],
+    ["fb-2026-11-13b-18", "maison", 800, 3, null, "Plateau 1", 38, "+243808942673", null, "Best Immo", "rent"]
+  ]
+}

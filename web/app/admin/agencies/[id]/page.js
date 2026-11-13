@@ -14,7 +14,9 @@ import { getAdminSession } from '@/lib/adminSession';
 import { agencyInScope, getSalesScope } from '@/lib/salesScope';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
-import { ErrorNote, Stat, formatKinshasa } from '../../LeadRoutingUI';
+import { Chip, ErrorNote, Stat, formatKinshasa } from '../../LeadRoutingUI';
+import { isPartnerAgency } from '@/lib/partnerAgencies';
+import PartnerToggle from './PartnerToggle';
 import EntityTimeline from '../../EntityTimeline';
 import Pagination from '../../table/Pagination';
 import AgentsTable from '../../agents/AgentsTable';
@@ -44,6 +46,8 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
   const branchParam = firstParam(raw.branch);
   const branchFilter = branchParam === 'none' || /^\d+$/.test(branchParam || '') ? branchParam : undefined;
   const canManageBranches = can(session?.role, 'agents.manage');
+  // null before migrations/20261113_partner_agencies.sql: no chip, no toggle.
+  const partner = await isPartnerAgency(agency.id).catch(() => null);
 
   const [agentsResult, vendorsResult, billingResult, idsResult, notesResult, historyResult, branchesResult, unassignedResult, locationsResult] = await Promise.allSettled([
     listAgentsForAdmin({ vendorId: agency.id, branchId: branchFilter, withBranch: true, sort: 'listings', limit, offset, repId: scope ? scope.repId : null }),
@@ -68,8 +72,16 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           {t('admin.agencies.back')}
         </Link>
-        <h1 className="normal-case u-title-page mt-2 text-ink">{agency.name}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="normal-case u-title-page text-ink">{agency.name}</h1>
+          {partner ? <Chip tone="blue">{t('admin.agencies.partner.chip')}</Chip> : null}
+        </div>
         {can(session?.role, 'agents.manage') ? <RenameAgencyForm vendorId={agency.id} name={agency.name} /> : null}
+        {partner !== null && can(session?.role, 'agents.manage') ? (
+          <div className="mt-2">
+            <PartnerToggle vendorId={agency.id} partner={partner} />
+          </div>
+        ) : null}
         <p className="u-micro mt-1 text-ink-45">
           {[agency.email, agency.phone ? `+${String(agency.phone).replace(/\D/g, '')}` : null, `#${agency.id}`].filter(Boolean).join(' · ')}
         </p>

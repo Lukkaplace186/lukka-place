@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { firstParam, parseCursor, parsePage, buildHref } from '@/lib/adminPagination';
-import { FILTERABLE_FLAGS, MODERATION_SORTS, getModerationCounts, listModerationQueue } from '@/lib/moderationQueue';
+import { FILTERABLE_FLAGS, MODERATION_SORTS, PARTNER_FILTERS, getModerationCounts, listModerationQueue } from '@/lib/moderationQueue';
+import { getPartnerModerationCounts, listPartnerAgencies } from '@/lib/partnerAgencies';
 import { MODERATION_QUEUE_STATUSES, QUALITY_FLAG_LABEL_KEYS } from '@/lib/moderation';
 import { queueSummary } from '@/lib/moderationRow';
 import { getListingSources } from '@/lib/adminApi';
@@ -51,6 +52,8 @@ export default async function AdminListingsPage({ searchParams }) {
     purpose: ['rent', 'sale'].includes(firstParam(raw.purpose)) ? firstParam(raw.purpose) : undefined,
     flag: FILTERABLE_FLAGS.includes(firstParam(raw.flag)) ? firstParam(raw.flag) : undefined,
     sort: MODERATION_SORTS.includes(firstParam(raw.sort)) ? firstParam(raw.sort) : undefined,
+    // Partner agencies' listings apart (lib/partnerAgencies.js).
+    partner: PARTNER_FILTERS.includes(firstParam(raw.partner)) ? firstParam(raw.partner) : undefined,
     // Where the team posted it (team_social_posts): live listings only.
     social: status === 'approved' && SOCIAL_FILTERS.includes(firstParam(raw.social)) ? firstParam(raw.social) : undefined,
     notIn: status === 'approved' && TEAM_SOCIAL_TARGETS.some((target) => target.key === firstParam(raw.notIn)) ? firstParam(raw.notIn) : undefined,
@@ -62,16 +65,20 @@ export default async function AdminListingsPage({ searchParams }) {
   const renderedAt = renderTime();
   // The pending tab's summary line and its "À vérifier / Prêtes" split read the
   // whole pending queue (it stays small), whatever page or filter is shown.
-  const filtered = Boolean(filters.q || filters.commune || filters.purpose || filters.flag || filters.sort);
+  const filtered = Boolean(filters.q || filters.commune || filters.purpose || filters.flag || filters.sort || filters.partner);
   // The red "N annonces en ligne en double chez le même agent" banner was
   // removed on the owner's request (2026-11-10). The same list stays one
   // filter away: Approuvé + signal "Déjà publiée par le même agent".
-  const [queueResult, countsResult, locations, pendingResult] = await Promise.allSettled([
+  const [queueResult, countsResult, locations, pendingResult, partnersResult, partnerCountsResult] = await Promise.allSettled([
     listModerationQueue({ ...filters, status, limit, offset, cursor: parseCursor(raw) }),
     getModerationCounts(),
     getLocationHierarchySafe(),
     status === 'pending' ? listModerationQueue({ status: 'pending', limit: 100 }) : Promise.resolve(null),
+    listPartnerAgencies(),
+    getPartnerModerationCounts(),
   ]);
+  const partners = partnersResult.status === 'fulfilled' ? partnersResult.value : [];
+  const partnerCounts = partnerCountsResult.status === 'fulfilled' ? partnerCountsResult.value : null;
   const queue = queueResult.status === 'fulfilled' ? queueResult.value : null;
   const counts = countsResult.status === 'fulfilled' ? countsResult.value : {};
   const communes = locations.status === 'fulfilled' ? locations.value.communes || [] : [];
@@ -134,6 +141,38 @@ export default async function AdminListingsPage({ searchParams }) {
           </Link>
         ))}
       </div>
+
+      {/* Partner agencies (lib/partnerAgencies.js): their listings apart, on every tab. */}
+      {partners.length ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="u-micro-strong text-ink-45">{t('admin.moderation.partners.label')}</span>
+          {[
+            { value: '', label: t('admin.moderation.partners.all') },
+            {
+              value: 'only',
+              label: t('admin.moderation.partners.only', { names: partners.map((agency) => agency.name).join(', ') }),
+              count: partnerCounts ? partnerCounts[status] : null,
+            },
+            { value: 'none', label: t('admin.moderation.partners.none') },
+          ].map((option) => {
+            const active = (filters.partner || '') === option.value;
+            return (
+              <Link
+                key={option.value || 'all'}
+                href={buildHref('/admin/listings', params, { partner: option.value })}
+                scroll={false}
+                aria-current={active ? 'page' : undefined}
+                className={`u-micro-strong inline-flex items-center gap-1.5 rounded-full border px-3 py-1 ${
+                  active ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-blue'
+                }`}
+              >
+                {option.label}
+                {option.count != null ? <span className="u-tabular text-ink-45">{option.count}</span> : null}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
 
       {summary && summary.total > 0 ? (
         <QueueSummary summary={summary} canModerate={can(session?.role, 'listings.moderate')} />

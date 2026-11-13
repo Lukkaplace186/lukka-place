@@ -193,6 +193,20 @@ Conflating any two of these is the bug that keeps recurring:
     agency, audits `from`, and when it leaves the old agency with no agents
     the dialog links to it so the team can delete it. The listing quota
     follows the agency's plan. `tests/unit/admin-agent-agency-control.test.js`.
+- **Partner agencies (2026-11-13, owner: JOKER AGENCY first, others later).**
+  `partner_agencies` (one row per `vendors.id`, engine
+  `migrations/20261113_partner_agencies.sql`, RLS on, no anon grants; a new
+  table because `vendors` is Laravel's), `lib/partnerAgencies.js`. Marked on
+  the agency page ("Marquer comme partenaire", `agents.manage`, audited
+  `agency.partner_on/off`). On `/admin/listings` a row of chips under the
+  tabs — Toutes / Partenaires · <names> (count for the tab) / Hors
+  partenaires — sets `?partner=only|none` on every tab, kept across tab
+  changes; each partner listing carries a blue "Agence partenaire" chip in
+  the agent cell, and the CSV export gains `partner_agency` (last column).
+  Console only: nothing public changes. Every read checks the table exists
+  first, so the code is safe before the migration (no chips, no toggle).
+  "Partenaires" in the sidebar is the growth/referral programme, a different
+  thing. `tests/unit/admin-partner-agencies.test.js`, verify-pipeline §111.
 - **Duplicate detection** flags same-normalised-phone and same-email groups
   only, never name similarity. The phone normaliser folds DRC shorthand onto
   `243…` and leaves every other country's digits alone — an unconditional

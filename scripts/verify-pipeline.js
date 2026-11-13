@@ -18413,6 +18413,19 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §111 Partner agencies (2026-11-13)
+  // ---------------------------------------------------------------------------
+  console.log('\n§111 partner agencies: a console-only table, idempotent, closed to the anon key');
+  check('migrations/20261113_partner_agencies.sql creates partner_agencies once, with RLS and no anon grants', () => {
+    const sql111 = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261113_partner_agencies.sql'), 'utf8');
+    assert.ok(/CREATE TABLE IF NOT EXISTS partner_agencies/.test(sql111));
+    assert.ok(/vendor_id\s+bigint PRIMARY KEY/.test(sql111), 'one row per agency');
+    assert.ok(/ENABLE ROW LEVEL SECURITY/.test(sql111));
+    assert.ok(/REVOKE ALL ON partner_agencies FROM anon, authenticated/.test(sql111));
+    assert.ok(!/ALTER TABLE vendors/.test(sql111), 'vendors (Laravel\'s) is never altered');
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

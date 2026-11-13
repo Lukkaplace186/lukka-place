@@ -4913,7 +4913,8 @@
         },
         "vsMedian": "{ratio}× the median",
         "duplicateLabel": "Possible duplicate · {whose}",
-        "nameLooksLikeSentence": "Name looks like a sentence"
+        "nameLooksLikeSentence": "Name looks like a sentence",
+        "partnerAgency": "Partner agency"
       },
       "decidedBy": "Decided by {name}",
       "decidedByUnknown": "Decided with the shared password",
@@ -5003,6 +5004,12 @@
           "other": "Review the {count} skipped"
         },
         "backToQueue": "Back to listings"
+      },
+      "partners": {
+        "label": "Partner agencies:",
+        "all": "All listings",
+        "only": "Partners · {names}",
+        "none": "Not partners"
       }
     },
     "subscriptions": {
@@ -5685,7 +5692,16 @@
       "renameSave": "Save",
       "renameInvalid": "Enter a real agency name (at least 2 characters, not a number).",
       "renamed": "Name saved for {count} agent(s) of the agency.",
-      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”."
+      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”.",
+      "partner": {
+        "chip": "Partner agency",
+        "mark": "Mark as partner",
+        "remove": "Remove from partners",
+        "hint": "Its listings are grouped and badged “Partner agency” in approvals. Nothing changes on the public site.",
+        "marked": "Agency marked as a partner.",
+        "unmarked": "Agency removed from partners.",
+        "unavailable": "Partner agencies are not switched on yet (migration not run)."
+      }
     },
     "agentProfile": {
       "tabs": "Agent sections",

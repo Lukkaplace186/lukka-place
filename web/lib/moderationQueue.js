@@ -7,6 +7,7 @@ import { monthlyEquivalent } from './leaseTerm';
 import { SOCIAL_FILTER_SQL, hasTeamSocialPosts } from './teamSocialPosts';
 import { TARGET_KEY_PATTERN } from './teamSocialTargets';
 import { photoSet } from './listingCompare';
+import { hasPartnerAgencies, partnerSql } from './partnerAgencies';
 
 /**
  * The listing moderation queue — one server page at a time, with quality flags.
@@ -182,7 +183,10 @@ export const COMMUNE_OF_P = `(
   LIMIT 1
 )`;
 
-function buildBase({ status, q, commune, purpose, agentId, social, notIn, availabilityChecks = false, teamSocial = false }, params) {
+/** `?partner=` on the approval queue: only partner agencies' listings, or none of them. */
+export const PARTNER_FILTERS = ['only', 'none'];
+
+function buildBase({ status, q, commune, purpose, agentId, social, notIn, partner, availabilityChecks = false, teamSocial = false, partners = false }, params) {
   // Soft-deleted listings (lib/adminSoftDelete.js) leave every tab.
   const where = [STATUS_WHERE[status] || STATUS_WHERE.pending, 'p.deleted_at IS NULL'];
   const term = String(q || '').trim();
@@ -221,6 +225,9 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
     params.push(notIn);
     where.push(`NOT EXISTS (SELECT 1 FROM team_social_posts tsp WHERE tsp.property_id = p.id AND tsp.target_key = $${params.length})`);
   }
+  // Partner agencies (lib/partnerAgencies.js): ignored until the table exists.
+  if (partners && partner === 'only') where.push(partnerSql('a'));
+  if (partners && partner === 'none') where.push(`NOT ${partnerSql('a')}`);
   params.push(EXTRACTION_FAILURE_MARKERS.map((marker) => `%${marker}%`));
   const markersParam = params.length;
 
@@ -240,7 +247,8 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
              -- typed during onboarding). The agency is shown on its own line.
              NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), '') AS agent_name,
              NULLIF(TRIM(a.agency_name), '') AS agent_agency,
-             a.created_at AS agent_created_at
+             a.created_at AS agent_created_at,
+             ${partners ? partnerSql('a') : 'false'} AS agent_partner
       FROM properties p
       LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
       LEFT JOIN agents a ON a.id = p.agent_id
@@ -346,6 +354,7 @@ function toRow(row, medians) {
     agentId: row.agent_id == null ? null : Number(row.agent_id),
     agentName: row.agent_name,
     agentAgency: row.agent_agency || null,
+    agentPartner: Boolean(row.agent_partner),
     agentPhone: row.agent_phone,
     agentVerified: Boolean(row.agent_verified),
     agentCreatedAt: row.agent_created_at ? new Date(row.agent_created_at).toISOString() : null,
@@ -385,15 +394,19 @@ function toRow(row, medians) {
  *          agentId?: number, social?: string, notIn?: string, sort?: string, limit?: number, offset?: number}} [options]
  */
 export async function listModerationQueue({
-  status = 'pending', q, commune, purpose, flag, agentId, social, notIn, sort, limit = 25, offset = 0, cursor = null,
+  status = 'pending', q, commune, purpose, flag, agentId, social, notIn, partner, sort, limit = 25, offset = 0, cursor = null,
 } = {}) {
   const resolvedStatus = MODERATION_QUEUE_STATUSES.includes(status) ? status : 'pending';
   const params = [];
-  const [availabilityChecks, teamSocial] = await Promise.all([
+  const [availabilityChecks, teamSocial, partners] = await Promise.all([
     hasAvailabilityChecks(),
     social || notIn ? hasTeamSocialPosts() : false,
+    hasPartnerAgencies(),
   ]);
-  const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId, social, notIn, availabilityChecks, teamSocial }, params);
+  const cte = buildBase({
+    status: resolvedStatus, q, commune, purpose, agentId, social, notIn,
+    partner: PARTNER_FILTERS.includes(partner) ? partner : undefined, availabilityChecks, teamSocial, partners,
+  }, params);
   const flagWhere = FLAG_SQL[flag] ? `WHERE ${FLAG_SQL[flag]}` : '';
   const resolvedSort = SORTS[sort] ? sort : resolvedStatus === 'pending' ? 'oldest' : 'newest';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);

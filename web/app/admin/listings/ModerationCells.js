@@ -164,6 +164,8 @@ export function AgentCell({ row, t, now, size = 'sm' }) {
           </a>
         ) : null}
         <div className="mt-1 flex flex-wrap gap-1">
+          {/* A partner agency (lib/partnerAgencies.js), JOKER AGENCY first. */}
+          {row.agentPartner ? <Chip tone="blue">{t('admin.moderation.row.partnerAgency')}</Chip> : null}
           {nameLooksLikeSentence(row.agentName) ? <Chip tone="danger">{t('admin.moderation.row.nameLooksLikeSentence')}</Chip> : null}
           {!row.agentVerified ? <Chip tone="warning">{t('admin.moderation.row.unverifiedNumber')}</Chip> : null}
           {facts.newAccount ? (

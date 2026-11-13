@@ -4913,7 +4913,8 @@
         },
         "vsMedian": "{ratio}× la médiane",
         "duplicateLabel": "Doublon possible · {whose}",
-        "nameLooksLikeSentence": "Le nom ressemble à une phrase"
+        "nameLooksLikeSentence": "Le nom ressemble à une phrase",
+        "partnerAgency": "Agence partenaire"
       },
       "decidedBy": "Décidé par {name}",
       "decidedByUnknown": "Décidé avec le mot de passe partagé",
@@ -5003,6 +5004,12 @@
           "other": "Revoir les {count} passées"
         },
         "backToQueue": "Retour aux annonces"
+      },
+      "partners": {
+        "label": "Agences partenaires :",
+        "all": "Toutes les annonces",
+        "only": "Partenaires · {names}",
+        "none": "Hors partenaires"
       }
     },
     "subscriptions": {
@@ -5685,7 +5692,16 @@
       "renameSave": "Enregistrer",
       "renameInvalid": "Saisissez un vrai nom d’agence (2 caractères au moins, pas un numéro).",
       "renamed": "Nom enregistré pour {count} agent(s) de l’agence.",
-      "renamedButLogin": "Nom enregistré pour {count} agent(s). La console affiche encore l’identifiant « {login} » de l’ancien back-office."
+      "renamedButLogin": "Nom enregistré pour {count} agent(s). La console affiche encore l’identifiant « {login} » de l’ancien back-office.",
+      "partner": {
+        "chip": "Agence partenaire",
+        "mark": "Marquer comme partenaire",
+        "remove": "Retirer des partenaires",
+        "hint": "Ses annonces sont regroupées et signalées « Agence partenaire » dans les approbations. Rien ne change sur le site public.",
+        "marked": "Agence marquée comme partenaire.",
+        "unmarked": "Agence retirée des partenaires.",
+        "unavailable": "Les agences partenaires ne sont pas encore activées (migration à lancer)."
+      }
     },
     "agentProfile": {
       "tabs": "Sections de l’agent",

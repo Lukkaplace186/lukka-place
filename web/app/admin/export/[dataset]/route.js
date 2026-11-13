@@ -93,13 +93,14 @@ const DATASETS = {
   listings: {
     permission: 'data.export',
     fetch: (p) => collect(({ limit, offset, cursor }) => listModerationQueue({
-      status: p.get('status') || 'pending', q: p.get('q'), commune: p.get('commune'), purpose: p.get('purpose'), flag: p.get('flag'), sort: p.get('sort'), limit, offset, cursor,
+      status: p.get('status') || 'pending', q: p.get('q'), commune: p.get('commune'), purpose: p.get('purpose'), flag: p.get('flag'), partner: p.get('partner'), sort: p.get('sort'), limit, offset, cursor,
     })),
     columns: [
       ['id', (r) => r.id], ['title', (r) => r.title], ['reference', (r) => r.reference], ['price', (r) => r.price], ['purpose', (r) => r.purpose],
       ['commune', (r) => r.commune], ['agent_id', (r) => r.agentId], ['agent', (r) => r.agentName], ['agent_verified', (r) => r.agentVerified],
       ['photos', (r) => r.photoCount], ['flags', (r) => r.flags.join('|')], ['created_at', (r) => r.createdAt],
       ['moderated_at', (r) => r.moderatedAt], ['moderated_by', (r) => r.moderatedByName], ['reason', (r) => r.moderationReasonCode],
+      ['partner_agency', (r) => r.agentPartner],
     ],
   },
   agencies: {

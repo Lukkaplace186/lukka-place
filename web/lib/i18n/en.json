@@ -859,7 +859,8 @@
         "bedsValue": {
           "one": "{count}+ bed",
           "other": "{count}+ bed"
-        }
+        },
+        "parking": "Parking"
       }
     },
     "alertModal": {
@@ -9458,6 +9459,24 @@
       "readKind": "Guides and news",
       "readLink": "Read the article",
       "alertCta": "Tell me about new homes in {commune}"
+    },
+    "map": {
+      "inZone": {
+        "zero": "No home in your zone",
+        "one": "{count} home in your zone",
+        "other": "{count} homes in your zone"
+      },
+      "onMap": {
+        "zero": "No home on the map",
+        "one": "{count} home on the map",
+        "other": "{count} homes on the map"
+      },
+      "list": "List",
+      "seeAll": {
+        "one": "See the home in the list",
+        "other": "See all {count} homes in the list"
+      },
+      "failed": "The homes could not be loaded. Try again, or open the list."
     }
   }
 }

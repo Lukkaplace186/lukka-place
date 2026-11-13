@@ -5463,3 +5463,15 @@ only the homes inside it. `lib/mapZone.js` (pure), `components/MapZoneDraw.js`,
 - Not built from the same mock-up: the bottom sheet listing the zone's homes
   (the existing "Voir N biens" / "Liste" controls show them) and the
   power / water / parking chips on the map.
+
+**Map chips and result sheet (same day).** `MapQuickFilters` gains three
+one-tap chips after Prix / Chambres / Type: Électricité, Eau, Parking
+(`QUICK_AMENITIES`; the filter sheet's own keys, in the same `amenities`
+param, `toggleAmenityParam` in lib/mapQuickFilters.js). In the app the phone
+map's "Voir N biens / Liste" pills give way to `components/app/AppMapSheet.js`
+(`resultSheet={appMode}`, loaded with next/dynamic): one line over the map —
+"N biens dans votre zone" with a zone, "N biens sur la carte" without — that
+opens into the first 12 homes as `AppSavedRow`s. Its ids are the map's own
+(`onVisibleIdsChange`), read through `/api/listings?ids=` only once opened;
+it floats above Google's attribution line and steps aside while a pin's card
+is open. Not built: the sheet's sort and the "above the median rent" line.

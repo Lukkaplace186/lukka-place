@@ -2,13 +2,41 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BedDouble, Building2, ChevronDown, Wallet } from 'lucide-react';
+import { BedDouble, Building2, ChevronDown, Wallet, CarFront, Droplets, Zap } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
-import { MAP_BED_STEPS, MAP_PRICE_STEPS, mapFilterHref } from '@/lib/mapQuickFilters';
+import { MAP_BED_STEPS, MAP_PRICE_STEPS, mapFilterHref, toggleAmenityParam } from '@/lib/mapQuickFilters';
 import { facetLabel } from '@/lib/commercialSpaces';
+
+// The amenities offered as one-tap chips on the map (2026-11-13, the owner's
+// app design): the two services people ask about first, and parking. Same
+// keys as the filter sheet's (lib/utilityTags.js UTILITY_FILTERS, and
+// AdvancedFilterFields' parking), carried in the same `amenities` param.
+export const QUICK_AMENITIES = [
+  { key: 'electricite', icon: Zap, labelKey: 'listings.utilityFilters.electricite' },
+  { key: 'eau', icon: Droplets, labelKey: 'listings.utilityFilters.eau' },
+  { key: 'parking', icon: CarFront, labelKey: 'listings.map.quick.parking' },
+];
+
+// On or off: no sheet behind it, so no chevron.
+function ToggleChip({ active, icon: Icon, children, onClick }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'u-press u-lift pointer-events-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[0.8125rem] font-semibold',
+        active ? 'bg-ink text-white' : 'bg-surface text-ink',
+      )}
+    >
+      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
+      {children}
+    </button>
+  );
+}
 
 function Chip({ active, icon: Icon, children, onClick }) {
   return (
@@ -69,6 +97,8 @@ export default function MapQuickFilters({ params = {}, propertyTypes = [] }) {
     router.push(mapFilterHref(window.location.search, key, value), { scroll: false });
   }
 
+  const amenityKeys = String(params.amenities || '').split(',').filter(Boolean);
+
   const sheets = {
     price: {
       title: t('listings.map.quick.priceTitle'),
@@ -105,6 +135,16 @@ export default function MapQuickFilters({ params = {}, propertyTypes = [] }) {
             {typeLabel || t('listings.map.quick.type')}
           </Chip>
         ) : null}
+        {QUICK_AMENITIES.map(({ key, icon, labelKey }) => (
+          <ToggleChip
+            key={key}
+            active={amenityKeys.includes(key)}
+            icon={icon}
+            onClick={() => router.push(mapFilterHref(window.location.search, 'amenities', toggleAmenityParam(params.amenities, key)), { scroll: false })}
+          >
+            {t(labelKey)}
+          </ToggleChip>
+        ))}
       </div>
 
       <Sheet open={Boolean(sheet)} onOpenChange={(next) => !next && setOpen(null)}>

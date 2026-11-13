@@ -10,6 +10,8 @@ import dynamic from 'next/dynamic';
 const mapPlaceholder = () => <div className="h-full w-full bg-canvas-alt" />;
 const PropertyMap = dynamic(() => import('./PropertyMap'), { ssr: false, loading: mapPlaceholder });
 const ListingsMap = dynamic(() => import('./ListingsMap'), { ssr: false, loading: mapPlaceholder });
+// App only, and only on a phone's map: never part of the website's bundle.
+const AppMapSheet = dynamic(() => import('./app/AppMapSheet'), { ssr: false });
 const BuildingUnitsDrawer = dynamic(() => import('./BuildingUnitsDrawer'), { ssr: false });
 const MapListingPreview = dynamic(() => import('./MapListingPreview'), { ssr: false });
 const MapCardCarousel = dynamic(() => import('./MapCardCarousel'), { ssr: false });
@@ -41,6 +43,8 @@ const MapCardCarousel = dynamic(() => import('./MapCardCarousel'), { ssr: false 
 export default function ResponsiveMapPane({
   listings, filterParams, isMapView, hoveredId, onMarkerHover, className, maxZoom, listingPreview = true, onPreviewChange,
   onAreaChange, onInViewChange, openCardsRequest = 0, zoneDraw = false,
+  // The app's result sheet over the phone map (components/app/AppMapSheet.js).
+  resultSheet = false,
 }) {
   const [shouldRender, setShouldRender] = useState(false);
   // Phone /listings map: a pin opens swipeable cards (MapCardCarousel)
@@ -138,6 +142,11 @@ export default function ResponsiveMapPane({
 
   return (
     <div className={`relative ${className || ''}`}>
+      {/* The homes on screen, as a sheet: the app's, on a phone, and out of the
+          way while a pin's own card is open. */}
+      {resultSheet && shouldRender && isPhone && isMapView && !previewOpen ? (
+        <AppMapSheet ids={visibleIds} zone={Boolean(filterParams?.zone)} />
+      ) : null}
       {shouldRender ? (
         <>
           {filterParams ? (

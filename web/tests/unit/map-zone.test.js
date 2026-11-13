@@ -86,3 +86,26 @@ test('the drawing layer takes the touch, never scrolls the page, and the pencil 
     for (const key of ['hint', 'cancel', 'clear', 'draw', 'redraw']) assert.ok(dict.listings.zone[key], key);
   }
 });
+
+test('map chips and result sheet: one-tap amenities, and a sheet that lists only what the map shows', async () => {
+  const { mapFilterHref, toggleAmenityParam } = await import('@/lib/mapQuickFilters');
+  assert.equal(toggleAmenityParam('', 'eau'), 'eau');
+  assert.equal(toggleAmenityParam('eau', 'parking'), 'eau,parking');
+  assert.equal(toggleAmenityParam('eau,parking', 'eau'), 'parking');
+  assert.equal(toggleAmenityParam('eau', 'eau'), '', 'the last one off removes the filter');
+  assert.equal(mapFilterHref('?view=map&amenities=eau', 'amenities', ''), '/listings?view=map');
+  const chips = read('components/MapQuickFilters.js');
+  for (const key of ['electricite', 'eau', 'parking']) assert.ok(chips.includes(`key: '${key}'`), key);
+  assert.match(chips, /aria-pressed=\{active\}/);
+  const sheet = read('components/app/AppMapSheet.js');
+  assert.match(sheet, /if \(!open \|\| !key \|\| rows\.key === key\) return undefined;/, 'a closed sheet reads nothing');
+  assert.match(sheet, /bottom-7/, 'above the map attribution line');
+  const pane = read('components/ResponsiveMapPane.js');
+  assert.match(pane, /resultSheet && shouldRender && isPhone && isMapView && !previewOpen \? \(\s*<AppMapSheet ids=\{visibleIds\} zone=\{Boolean\(filterParams\?\.zone\)\} \/>/);
+  assert.match(read('components/ListingsSplitView.js'), /isMapView && !previewOpen && !appMode \? <MobileMapBar/, 'the website keeps its pills');
+  for (const dict of [fr, en]) {
+    assert.match(dict.appShell.map.inZone.other, /\{count\}/);
+    assert.match(dict.appShell.map.onMap.other, /\{count\}/);
+    assert.ok(dict.listings.map.quick.parking);
+  }
+});

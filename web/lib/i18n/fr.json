@@ -859,7 +859,8 @@
         "bedsValue": {
           "one": "{count} ch.+",
           "other": "{count} ch.+"
-        }
+        },
+        "parking": "Parking"
       }
     },
     "alertModal": {
@@ -9458,6 +9459,24 @@
       "readKind": "Guides et actualités",
       "readLink": "Lire l’article",
       "alertCta": "Être prévenu des nouveaux biens à {commune}"
+    },
+    "map": {
+      "inZone": {
+        "zero": "Aucun bien dans votre zone",
+        "one": "{count} bien dans votre zone",
+        "other": "{count} biens dans votre zone"
+      },
+      "onMap": {
+        "zero": "Aucun bien sur la carte",
+        "one": "{count} bien sur la carte",
+        "other": "{count} biens sur la carte"
+      },
+      "list": "Liste",
+      "seeAll": {
+        "one": "Voir le bien dans la liste",
+        "other": "Voir les {count} biens dans la liste"
+      },
+      "failed": "Les biens n’ont pas pu être chargés. Réessayez, ou ouvrez la liste."
     }
   }
 }

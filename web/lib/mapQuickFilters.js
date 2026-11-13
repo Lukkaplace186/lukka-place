@@ -13,3 +13,9 @@ export function mapFilterHref(search, key, value) {
   params.delete('page');
   return `/listings?${params.toString()}`;
 }
+
+/** The `amenities` param with one key switched on or off ('' = none left): the map's one-tap chips. */
+export function toggleAmenityParam(current, key) {
+  const keys = String(current || '').split(',').filter(Boolean);
+  return (keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]).join(',');
+}

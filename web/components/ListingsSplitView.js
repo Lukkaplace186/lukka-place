@@ -270,6 +270,7 @@ export default function ListingsSplitView({
               openCardsRequest={cardsRequest}
               // Inside the store app: the pencil that draws a zone on the map.
               zoneDraw={appMode}
+              resultSheet={appMode}
               className="h-full w-full"
             />
           </div>
@@ -279,7 +280,8 @@ export default function ListingsSplitView({
               <MobileMapChrome params={params} propertyTypes={propertyTypes} />
             </div>
           ) : null}
-          {isMapView && !previewOpen ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
+          {/* The app shows the homes in its own sheet (AppMapSheet, in the map pane). */}
+          {isMapView && !previewOpen && !appMode ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
         </div>
       </div>
     </div>

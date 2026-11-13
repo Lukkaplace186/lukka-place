@@ -1,0 +1,25 @@
+{
+  "source": "facebook",
+  "entered": "2026-11-13",
+  "note": "Owner's Facebook paste of 2026-11-13, same rules as facebook-2026-11-09.json. Left out as the same property already imported: Immovie Muayi Succe's Lingwala building (fb-2026-11-11-06), agence immobilière dm's Bandalungwa/Adoula parcel (fb-2026-11-11c-06), JLB's 1,800 $ GB flat (Honore Mponda's fb-2026-11-09b-06), Irene Bobila's Ngaba 150 $ flat (fb-2026-11-09c-05), Kinshasa Immo's CPA 500 $ flat (Immo Rasold's fb-2026-11-11c-03, same number), Benjamin Kashala's Macampagne parcel (fb-2026-11-11-26), Martin Bushake's Macampagne lots (fb-2026-11-11-20), Bcp Car's UNIKIN studio (fb-2026-11-11-03). Joas Djoys Nkawa / Nkawa Joas's Nathan Immo flat was pasted twice: one row. Héritier Limbaya's two Ndjili homes and Immovie Muayi Succe's two Mont-Ngafula lots are one row each. No commune where the advert names none or only a landmark (Route Universitaire, Kin Marché Saïo/UPAC). Nkasa immobilier's parcel is in the city of Boma (Saïco), not a Kinshasa commune: commune left empty. Fol immo's Kimwenza-road parcel is filed in Makala as the advert states. The Brikin parcel and KLF's Limete flats have no author or date in the paste.",
+  "columns": ["slug", "kind", "price", "beds", "commune", "quartier", "daysAgo", "phone", "name", "agency", "purpose"],
+  "rows": [
+    ["fb-2026-11-13-01", "appartement", 550, 2, "Ngaliema", "Mimosas", 0, "+243 892 846 672", null, "Agence Immobilière JLB", "rent"],
+    ["fb-2026-11-13-02", "maison", 350, 4, "Ndjili", null, 0, "+243813200339", "Héritier Limbaya", null, "rent"],
+    ["fb-2026-11-13-03", "appartement", 200, 2, "Ndjili", null, 0, "+243813200339", "Héritier Limbaya", null, "rent"],
+    ["fb-2026-11-13-04", "maison", 20000, null, "Ngaliema", "Brikin", null, "0824089488", null, null, "sale"],
+    ["fb-2026-11-13-05", "appartement", 500, 2, "Limete", "Industriel", null, "0985814336", null, "KLF Entreprise Immobilier", "rent"],
+    ["fb-2026-11-13-06", "appartement", 400, 2, "Limete", "Industriel", null, "0985814336", null, "KLF Entreprise Immobilier", "rent"],
+    ["fb-2026-11-13-07", "maison", 1500, 4, "Mont-Ngafula", "CPA", 0, "0858391218", "Ekuba Ekuba Congo", null, "rent"],
+    ["fb-2026-11-13-08", "appartement", 700, 2, null, null, 0, "0827870524", "Heritier Perol", null, "rent"],
+    ["fb-2026-11-13-09", "appartement", 350, 2, null, null, 0, "0830742799", "Joas Djoys Nkawa", "Nathan Immo", "rent"],
+    ["fb-2026-11-13-10", "appartement", 500, 3, "Lemba", "Salongo", 1, "+243 822373024", "Fifi Nunga", "Flouve Property Prime", "rent"],
+    ["fb-2026-11-13-11", "maison", 45000, null, "Masina", null, 1, "0972 168 206", null, "Groupe Renack Realty", "sale"],
+    ["fb-2026-11-13-12", "appartement", 600, 1, "Lingwala", null, 8, "0812355777", "Christ Dominique", null, "rent"],
+    ["fb-2026-11-13-13", "terrain", 45000, null, "Makala", null, 3, "+243 819 915 033", null, "Fol immo", "sale"],
+    ["fb-2026-11-13-14", "maison", 11000, 2, null, null, 0, "+243 904 434 800", null, "Nkasa immobilier", "sale"],
+    ["fb-2026-11-13-15", "appartement", 650, 3, "Ngaliema", "Binza", 2, "+243 892 846 672", null, "Agence Immobilière JLB", "rent"],
+    ["fb-2026-11-13-16", "terrain", 26000, null, "Mont-Ngafula", null, 0, "0892716152", "Immovie Muayi Succe", null, "sale"],
+    ["fb-2026-11-13-17", "maison", 35000, 3, "Mont-Ngafula", null, 0, "0892716152", "Immovie Muayi Succe", null, "sale"]
+  ]
+}

@@ -52,6 +52,14 @@ test('a finger path is thinned to a few corners; a tap or a slip is not a shape'
   const corners = simplifyScreenPath(circle);
   assert.ok(corners.length >= 6 && corners.length <= MAX_ZONE_POINTS, `corners: ${corners.length}`);
   for (const c of corners) assert.ok(Math.abs(Math.hypot(c.x - 100, c.y - 100) - 60) < 1, 'corners are points of the path itself');
+  // A loop that ends exactly where it began (and one a hair off) is still a shape.
+  for (const end of [0, 0.3]) {
+    const closed = Array.from({ length: 41 }, (_, i) => ({ x: 200 + 75 * Math.cos((i / 40) * 2 * Math.PI), y: 300 + 75 * Math.sin((i / 40) * 2 * Math.PI) + (i === 40 ? end : 0) }));
+    const loop = simplifyScreenPath(closed);
+    assert.ok(loop && loop.length >= 6 && loop.length <= MAX_ZONE_POINTS, `closed loop (end off by ${end}px): ${loop?.length}`);
+    const xs = loop.map((p) => p.x);
+    assert.ok(Math.max(...xs) - Math.min(...xs) > 120, 'it keeps the loop’s width');
+  }
   assert.equal(simplifyScreenPath([{ x: 10, y: 10 }, { x: 12, y: 11 }, { x: 11, y: 13 }]), null, 'a tap');
   assert.equal(simplifyScreenPath([{ x: 0, y: 0 }, { x: 200, y: 4 }, { x: 400, y: 0 }]), null, 'a flat stroke has no inside');
   assert.equal(simplifyScreenPath([]), null);

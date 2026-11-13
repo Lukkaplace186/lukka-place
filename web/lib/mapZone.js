@@ -87,11 +87,17 @@ function thin(points, tolerance) {
     const b = points[last];
     const dx = b.x - a.x;
     const dy = b.y - a.y;
-    const length = Math.hypot(dx, dy) || 1;
+    const length = Math.hypot(dx, dy);
     let worst = 0;
     let index = -1;
     for (let i = first + 1; i < last; i += 1) {
-      const distance = Math.abs(dy * points[i].x - dx * points[i].y + b.x * a.y - b.y * a.x) / length;
+      // A closed stroke ends where it began: there is no line between the two
+      // ends to measure from, so the distance is from that one point. (Found
+      // on the live map 2026-11-13: an exactly closed loop was thinned to
+      // nothing and "was not a shape".)
+      const distance = length < 0.5
+        ? Math.hypot(points[i].x - a.x, points[i].y - a.y)
+        : Math.abs(dy * points[i].x - dx * points[i].y + b.x * a.y - b.y * a.x) / length;
       if (distance > worst) {
         worst = distance;
         index = i;

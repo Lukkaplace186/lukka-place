@@ -8073,6 +8073,7 @@
       "statSigned": "Inscrits",
       "filterOpen": "En cours",
       "filterAll": "Tous",
+      "filterAgents": "Déjà agents Lukka Place",
       "searchPlaceholder": "Nom, agence, numéro, note…",
       "search": "Rechercher",
       "export": "Exporter (CSV)",

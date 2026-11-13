@@ -8,7 +8,7 @@ import {
 } from '@/lib/marketProspectRules';
 import { validateManualObservation } from '@/lib/marketObservationRules';
 import {
-  UPSERT_PROSPECT_SQL, buildProspectListQuery, saveMarketPasteBatch, updateProspect,
+  UPSERT_PROSPECT_SQL, AGENT_PROSPECTS_COUNT_SQL, buildProspectListQuery, saveMarketPasteBatch, updateProspect,
 } from '@/lib/marketProspects';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
 import en from '@/lib/i18n/en.json' with { type: 'json' };
@@ -117,6 +117,18 @@ test('the list query is parameterised and the default shows prospects still wort
   assert.ok(!sql.includes('0812'));
   assert.ok(params.includes('%0812%'));
   assert.ok(params.some((p) => p === "%0812 '\\%%"));
+});
+
+test('the "already agents" tab lists prospects with a live account, whatever their status', () => {
+  const { sql, params } = buildProspectListQuery({ status: 'agents', limit: 50 });
+  const flat = squash(sql);
+  const from = flat.indexOf('FROM market_prospects mp');
+  const where = flat.slice(flat.indexOf('WHERE', from));
+  assert.ok(where.startsWith('WHERE EXISTS'), where.slice(0, 80));
+  assert.ok(where.includes('FROM agents a') && where.includes('= mp.phone') && where.includes("->> 'deleted_at') IS NULL"));
+  assert.doesNotMatch(where.slice(0, where.indexOf('ORDER BY')), /mp\.status (IN|=)/, 'not limited to one follow-up status');
+  assert.deepEqual(params, [50, 0]);
+  assert.match(squash(AGENT_PROSPECTS_COUNT_SQL), /COUNT\(\*\)::int AS n FROM market_prospects mp WHERE EXISTS/);
 });
 
 test('a follow-up is validated before it is written', async () => {

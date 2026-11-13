@@ -253,7 +253,7 @@ export async function respondToViewingRequest(id, { agentId, status, requestedTi
  * @param {{leadId: number, propertyId?: number, requestedTime?: string}} options
  * @returns {Promise<{viewingRequest: Object}>}
  */
-export async function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null }) {
+export async function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null, visitMode = null }) {
   return engineFetch('/admin/viewing-requests', {
     method: 'POST',
     body: JSON.stringify({
@@ -261,6 +261,8 @@ export async function createViewingRequest({ leadId, propertyId, requestedTime, 
       property_id: propertyId,
       requested_time: requestedTime,
       ...(preferredSlotAt ? { preferred_slot_at: preferredSlotAt } : {}),
+      // 'video' = a WhatsApp video call (engine db.normalizeVisitMode); absent = on site.
+      ...(visitMode ? { visit_mode: visitMode } : {}),
     }),
   });
 }

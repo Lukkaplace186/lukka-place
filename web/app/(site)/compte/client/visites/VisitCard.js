@@ -135,7 +135,11 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
         <BandIcon strokeWidth={ICON_STROKE_WIDTH} className={cn('h-6 w-6 flex-none', look.iconTone, celebrate && 'u-pop')} aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className="u-tabular truncate text-base font-extrabold text-ink">{band.main}</p>
-          <p className={cn('text-[0.78125rem] font-semibold', look.note)}>{band.note}</p>
+          <p className={cn('text-[0.78125rem] font-semibold', look.note)}>
+            {band.note}
+            {/* A WhatsApp video call, not a visit on site (engine visit_mode). */}
+            {visit.mode === 'video' ? ` · ${t('account.agenda.video')}` : null}
+          </p>
         </div>
         {countdown ? (
           <span className="u-tabular shrink-0 rounded-full bg-success px-2.5 py-1 text-[0.75rem] font-extrabold text-white shadow-sm">

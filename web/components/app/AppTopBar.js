@@ -14,7 +14,8 @@ import UnreadBadge from '@/components/chat/UnreadBadge';
 import { cn } from '@/lib/utils';
 import { hidesAppTabs, isWelcomePath } from '@/lib/appModeRules';
 
-const INBOX = '/compte/client/notifications';
+// The bell opens Activité, the tab that holds every alert (2026-11-13).
+const INBOX = '/activite';
 
 /**
  * The app's top bar (app mode, app/(site)/layout.js), in place of the

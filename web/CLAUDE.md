@@ -5383,3 +5383,48 @@ tests added at its end).
   screen of the home ≈ hero + two rail photos. JavaScript size was not
   measured (needs a production build).
 - `DESIGN.md` has an "In the store app" section.
+
+## App pass 4: Activité tab, commune guide, video visit, fiche pratique tiles (2026-11-13)
+
+From the owner's six app mock-ups. Tests: `tests/unit/app-mode.test.js`
+(its last three tests), `practical-facts.test.js`, engine verify §112.
+
+- **Activité** (`app/(site)/activite/page.js`, `lib/appActivityRules.js`):
+  a fourth tab (Rechercher, Enregistrés, Activité, Compte). The visit that
+  needs the customer first leads, on a royal card with four steps (Demandée,
+  Confirmée, Visite, Votre avis); under it, the notifications inbox by Kinshasa
+  day. Nothing new is stored: visits are `getCustomerInquiries` +
+  `groupCustomerVisits`, the feed is `listNotifications`, rows open through
+  `/compte/client/notifications/<id>`. The card's buttons open "Mes visites",
+  where answering and changing the time already live. Signed out it explains
+  and offers sign-in; it never redirects. The bell opens it; the tab carries
+  the unread-alerts badge. `activeAppTab` puts the inbox and the visits pages
+  under it.
+- **Commune guide** (`app/(site)/commune/[slug]/page.js`,
+  `lib/communeGuideRules.js`, `components/app/AppGuideHeader.js`): one of
+  Kinshasa's 24 communes (`communeFromSlug`, else 404). Photo of a live
+  listing there (none when no listing has one), live count, median rents for
+  1–3 bedrooms from `getPriceGuides` (absent below its minimum sample, each
+  linking to `/combien-coute/<slug>`), quartiers with counts
+  (`getListingStats`), a rail of what is online, two articles, and one fixed
+  button: `QueryAlertButton` on `commune=<name>`. Not indexed (the indexed
+  commune page is `/location/<commune>`). No tab bar there. Reached from the
+  home screen's commune chips (`guideSlug`, computed on the server so the
+  home does not ship the quartier data file).
+- **Video visit** (`lib/visitModeRules.js`, AppVisitBooking, the visit
+  action): "Sur place / En vidéo" on the app's booking screen. A video
+  request posts `visit_mode=video`; the action appends
+  "(appel vidéo WhatsApp)" to `requested_time` — the phrase every engine alert
+  already prints, so no new template — and sends `visit_mode` to the engine,
+  which stores it on the viewing request (root docs/claude/viewings.md). The
+  customer's cards (Activité, Mes visites) and the agent's request card say
+  it. The picked hour is also shown on the phone's own clock when that differs
+  from the listing's (`deviceTimeNote`), for customers abroad. The website's
+  visit dialog is unchanged (on site only).
+- **Fiche pratique** in the app: `PracticalFacts app` draws the answers as
+  two-up tiles. It still renders only for a listing whose agent answered —
+  the WhatsApp questions were removed on 2026-11-12, so few listings have it.
+- **Not built** from the same mock-ups, and why: the map's drawn zone and
+  result sheet (Google Maps refuses `localhost`, so it cannot be developed or
+  checked in the preview), and the agents' guided camera (the store build
+  declares no camera permission; it needs a new app build first).

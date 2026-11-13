@@ -3355,14 +3355,26 @@ function declineLeadMatch({ matchId, channel = 'whatsapp' }) {
  * @param {string} [data.requestedTime] Free text — see the column comment above.
  * @returns {Object} The new viewing_requests row.
  */
-function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null, batchId = null } = {}) {
+/**
+ * How the customer asked to see the home: NULL is a visit on site (every
+ * request before 2026-11-13, and the default), 'video' a WhatsApp video call
+ * with the agent (the app's "En vidéo"). Anything else is not a mode we know
+ * and is stored as NULL, never guessed.
+ */
+const VISIT_MODES = Object.freeze(['video']);
+function normalizeVisitMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  return VISIT_MODES.includes(mode) ? mode : null;
+}
+
+function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null, batchId = null, visitMode = null } = {}) {
   if (!leadId) throw new Error('createViewingRequest requires leadId');
   const info = db
     .prepare(
-      `INSERT INTO viewing_requests (lead_id, property_id, requested_time, preferred_slot_at, batch_id)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO viewing_requests (lead_id, property_id, requested_time, preferred_slot_at, batch_id, visit_mode)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .run(leadId, toNullable(propertyId), toNullable(requestedTime), toNullable(preferredSlotAt), toNullable(batchId));
+    .run(leadId, toNullable(propertyId), toNullable(requestedTime), toNullable(preferredSlotAt), toNullable(batchId), normalizeVisitMode(visitMode));
   return db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(Number(info.lastInsertRowid));
 }
 
@@ -3406,6 +3418,9 @@ function getViewingRequest(id) {
  * we already messaged this particular request". See services/scheduler.js.
  */
 const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
+  // 'video' when the customer asked for a WhatsApp video call instead of a
+  // visit on site (web app, 2026-11-13); NULL = on site. See normalizeVisitMode.
+  ['visit_mode', 'TEXT'],
   ['decline_reason', 'TEXT'],
   ['scheduled_at', 'TEXT'],
   ['sla_alerted_at', 'TEXT'],
@@ -5055,6 +5070,8 @@ module.exports = {
   countAgentProposalsSince,
   MAX_PITCHES_PER_LEAD,
   createViewingRequest,
+  normalizeVisitMode,
+  VISIT_MODES,
   getViewingRequest,
   getViewingRequestWithLead,
   listViewingRequestsForCustomer,

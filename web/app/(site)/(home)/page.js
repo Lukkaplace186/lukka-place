@@ -17,6 +17,7 @@ import { getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
 import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { mergeSocialLinks, seoMetadata } from '@/lib/siteSettingsRules';
 import AppHomeTop from '@/components/AppHomeTop';
+import { communeFromSlug, communeSlug } from '@/lib/seoPages';
 import { isAppRequest } from '@/lib/appMode';
 import { getCurrentCustomerId, listSavedSearches } from '@/lib/customers';
 
@@ -174,7 +175,8 @@ async function AppHomePage({ propertyTypes, communes, total, heroImage }) {
     <AppHomeTop
       liveCount={liveCount}
       propertyTypes={propertyTypes}
-      communes={communes}
+      // Each of Kinshasa's 24 communes carries the slug of its guide (/commune/<slug>).
+      communes={communes.map((c) => ({ ...c, guideSlug: communeFromSlug(communeSlug(c.commune)) === c.commune ? communeSlug(c.commune) : null }))}
       initialCount={total}
       savedSearch={savedSearch ? { query: savedSearch.query, label: savedSearch.label } : null}
       listings={featured.data || []}

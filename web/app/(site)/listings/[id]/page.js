@@ -458,7 +458,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
             </section>
 
             {/* Fiche pratique — the agent's one-tap answers on WhatsApp. */}
-            <PracticalFacts listing={listing} />
+            <PracticalFacts listing={listing} app={app} />
 
             {/* Power, water, security, access — as the agent declared them. */}
             <UtilityBadges utilities={listing.utilities} />

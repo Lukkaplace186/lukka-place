@@ -4,7 +4,9 @@ import { useEffect, useId, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from '@/components/LocaleLink';
 import { AnimatePresence, m } from 'motion/react';
-import { CalendarClock, Check, ChevronLeft, CircleAlert } from 'lucide-react';
+import { CalendarClock, Check, ChevronLeft, CircleAlert, Video } from 'lucide-react';
+import AppSegmented from './AppSegmented';
+import { deviceTimeNote } from '@/lib/visitModeRules';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import SafeImage from '@/components/SafeImage';
@@ -75,15 +77,25 @@ function ListingSummary({ listing }) {
  * details; the action answers back here (`return_to=app`) with `sent`
  * ('1' agent, 'team' Lukka Place's desk) or an `error` key.
  *
- * Not in the design and deliberately: a video-call choice (not offered by
- * Lukka Place) and "add to calendar" (the time is a request until the agent
- * confirms it).
+ * "Sur place / En vidéo" (owner, 2026-11-13): a video visit is the same
+ * request with `visit_mode=video` — the agent calls the customer on WhatsApp
+ * video at the agreed time. For someone abroad, the picked hour is also said
+ * on their own phone's clock (deviceTimeNote), since the calendar is the
+ * listing's.
+ *
+ * Not in the design and deliberately: "add to calendar" (the time is a
+ * request until the agent confirms it).
  */
-export default function AppVisitBooking({ listing, sent = null, error = null }) {
+export default function AppVisitBooking({ listing, sent = null, error = null, sentVideo = false }) {
   const t = useT();
   const locale = useLocale();
   const uid = useId();
   const [slot, setSlot] = useState(null);
+  // 'onsite' | 'video' — how the customer wants to see the home.
+  const [mode, setMode] = useState('onsite');
+  const video = mode === 'video';
+  // The same instant on this phone's clock, only when it differs from the listing's.
+  const ownTime = slot ? deviceTimeNote(slot, locale) : null;
   // An error comes back as a fresh page, so the slot has to be picked again:
   // always open on step 1, with the error shown above it.
   const [step, setStep] = useState(1);
@@ -128,8 +140,9 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
         >
           <Check strokeWidth={2.5} className="h-8 w-8" aria-hidden="true" />
         </m.span>
-        <h1 className="u-title-hero mt-6 text-balance text-ink">{t('appShell.visit.doneTitle')}</h1>
+        <h1 className="u-title-hero mt-6 text-balance text-ink">{t(sentVideo ? 'appShell.visit.doneTitleVideo' : 'appShell.visit.doneTitle')}</h1>
         <p className="mt-3 text-[0.9375rem] text-ink-70">{t(sent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent')}</p>
+        {sentVideo ? <p className="mt-2 text-[0.9375rem] text-ink-70">{t('appShell.visit.videoAfter')}</p> : null}
         <div className="mt-6">
           <ListingSummary listing={listing} />
         </div>
@@ -155,10 +168,11 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
   return (
     <form action={bound} className="mx-auto max-w-lg">
       <input type="hidden" name="return_to" value="app" />
+      <input type="hidden" name="visit_mode" value={video ? 'video' : ''} />
 
       <div className="border-b border-line bg-surface px-4 pb-3 pt-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h1 className="text-[1.25rem] font-bold text-ink">{t('appShell.visit.title')}</h1>
+          <h1 className="text-[1.25rem] font-bold text-ink">{t(video ? 'appShell.visit.titleVideo' : 'appShell.visit.title')}</h1>
           <span className="u-tabular text-[0.8125rem] text-ink-45">{t('appShell.visit.step', { step })}</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-1.5" aria-hidden="true">
@@ -168,6 +182,19 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
       </div>
 
       <div className="px-4 pb-32 pt-4">
+        {/* On site, or a WhatsApp video call: chosen first, it shapes the rest. */}
+        <div className="mb-4">
+          <AppSegmented
+            id={`${uid}mode`}
+            label={t('appShell.visit.modeLabel')}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'onsite', label: t('appShell.visit.modeOnsite') },
+              { value: 'video', label: t('appShell.visit.modeVideo') },
+            ]}
+          />
+        </div>
         <ListingSummary listing={listing} />
 
         {error ? (
@@ -181,7 +208,17 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
         <div hidden={step !== 1} className="mt-5">
           <h2 className="mb-3 text-[1.0625rem] font-bold text-ink">{t('appShell.visit.chooseTitle')}</h2>
           <VisitSlotPicker propertyId={listing.id} name="preferred_slot_at" value={slot} onChange={setSlot} idPrefix={`${uid}slot`} />
-          <p className="mt-4 text-[0.8125rem] text-ink-45">{t('appShell.visit.confirmNote')}</p>
+          {ownTime ? <p className="u-tabular mt-3 text-[0.875rem] font-medium text-ink-70">{t('appShell.visit.ownTime', { time: ownTime })}</p> : null}
+          {video ? (
+            <div className="mt-4 rounded-card bg-canvas-deep p-4">
+              <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-ink">
+                <Video strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 flex-none text-ink-70" aria-hidden="true" />
+                {t('appShell.visit.videoHowTitle')}
+              </p>
+              <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-70">{t('appShell.visit.videoHowText')}</p>
+            </div>
+          ) : null}
+          <p className="mt-4 text-[0.8125rem] text-ink-45">{t(video ? 'appShell.visit.confirmNoteVideo' : 'appShell.visit.confirmNote')}</p>
         </div>
 
         <AnimatePresence initial={false} custom={dir} mode="popLayout">
@@ -254,7 +291,7 @@ export default function AppVisitBooking({ listing, sent = null, error = null }) 
               {slot ? t('appShell.visit.continueWith', { slot: formatVisitSlot(slot, locale) }) : t('appShell.visit.continue')}
             </button>
           ) : (
-            <SubmitButton disabled={!slot} label={t('appShell.visit.submit')} sendingLabel={t('appShell.visit.sending')} />
+            <SubmitButton disabled={!slot} label={t(video ? 'appShell.visit.submitVideo' : 'appShell.visit.submit')} sendingLabel={t('appShell.visit.sending')} />
           )}
         </div>
       </div>

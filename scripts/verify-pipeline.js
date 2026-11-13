@@ -18024,6 +18024,41 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §112 Video visits — the request remembers how the customer wants to see the home (2026-11-13)
+  // ---------------------------------------------------------------------------
+  // The app's booking screen offers "Sur place / En vidéo". A video visit is
+  // an ordinary viewing request with visit_mode = 'video': the agent calls the
+  // customer on WhatsApp video at the agreed time. The web action also writes
+  // "(appel vidéo WhatsApp)" into requested_time, which every alert already
+  // prints, so the agent reads it on the first message. NULL = on site.
+  console.log('\n§112 Video visits — visit_mode on the viewing request');
+  {
+    const videoLead = dbService.createLead({ wa_id: '243900000112', source: 'listing-visit-request', requirements_summary: 'Demande de visite en vidéo' });
+    check('a request stores visit_mode "video"; nothing stated stays NULL (on site)', () => {
+      const video = dbService.createViewingRequest({ leadId: videoLead.id, requestedTime: 'vendredi 13 novembre à 14h (appel vidéo WhatsApp)', visitMode: 'video' });
+      assert.equal(video.visit_mode, 'video');
+      assert.match(video.requested_time, /appel vidéo WhatsApp/, 'the phrase every alert prints carries it');
+      const onSite = dbService.createViewingRequest({ leadId: videoLead.id, requestedTime: 'samedi à 10h' });
+      assert.equal(onSite.visit_mode, null);
+    });
+    check('an unknown mode is never stored: NULL, not a guess', () => {
+      for (const odd of ['zoom', 'VIDEO ', '', 1, null, undefined]) {
+        const row = dbService.createViewingRequest({ leadId: videoLead.id, requestedTime: 'lundi', visitMode: odd });
+        assert.equal(row.visit_mode, dbService.normalizeVisitMode(odd));
+      }
+      assert.equal(dbService.normalizeVisitMode('zoom'), null);
+      assert.equal(dbService.normalizeVisitMode('VIDEO '), 'video');
+      assert.deepEqual([...dbService.VISIT_MODES], ['video']);
+    });
+    check('the column is in the idempotent ALTER list, and POST /admin/viewing-requests passes it through', () => {
+      const dbSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'db.js'), 'utf8');
+      assert.match(dbSource, /VIEWING_REQUESTS_EXTENDED_COLUMNS = \[[\s\S]{0,400}\['visit_mode', 'TEXT'\]/);
+      const admin = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(admin, /visit_mode: visitMode,/);
+      assert.match(admin, /db\.createViewingRequest\(\{ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt, visitMode \}\)/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

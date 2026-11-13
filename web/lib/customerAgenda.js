@@ -57,6 +57,8 @@ export function groupCustomerVisits(inquiries = [], now = new Date()) {
         receiptSentAt: viewing.visit_receipt_sent_at || null,
         checkinResponse: viewing.checkin_response || null,
         agentRating: viewing.agent_rating ?? null,
+        // 'video' = a WhatsApp video call (engine visit_mode); null = on site.
+        mode: viewing.visit_mode === 'video' ? 'video' : null,
       };
       const at = toTime(when.at);
       const closed = CLOSED_STATUSES.includes(viewing.status) || viewing.status === 'COMPLETED';

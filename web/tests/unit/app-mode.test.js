@@ -22,14 +22,17 @@ test('app mode comes from the cookie or the app user agent, nothing else', () =>
 });
 
 test('each path lights the right tab (Search, Saved, Account — the app design)', () => {
-  assert.deepEqual(APP_TABS.map((tab) => tab.key), ['search', 'saved', 'account']);
+  assert.deepEqual(APP_TABS.map((tab) => tab.key), ['search', 'saved', 'activity', 'account']);
   assert.equal(activeAppTab('/'), 'search');
   assert.equal(activeAppTab('/listings?commune=Gombe'), 'search');
   assert.equal(activeAppTab('/favoris'), 'saved');
   assert.equal(activeAppTab('/compte/client/favoris'), 'saved');
   assert.equal(activeAppTab('/compte/client/alertes'), 'saved');
   assert.equal(activeAppTab('/compte/menu'), 'account');
-  assert.equal(activeAppTab('/compte/client/notifications/12'), 'account');
+  assert.equal(activeAppTab('/compte/client/notifications/12'), 'activity');
+  assert.equal(activeAppTab('/activite'), 'activity');
+  assert.equal(activeAppTab('/compte/client/visites'), 'activity');
+  assert.equal(activeAppTab('/commune/lingwala'), 'search');
   assert.equal(activeAppTab('/compte/connexion'), 'account');
   assert.equal(activeAppTab('/a-propos'), null);
 });
@@ -101,7 +104,7 @@ test('unread app alerts sit on the top bar bell, unread messages on the Account 
   assert.match(top, /compte\/connexion\?next=/, 'signed out, the bell asks to sign in first');
   const bar = read('components/AppTabBar.js');
   assert.match(bar, /useChatUnread\('customer', \{ enabled: loggedIn \}\)/);
-  assert.match(bar, /tab\.key === 'account' \? unreadMessages : 0/);
+  assert.match(bar, /tab\.key === 'account' \? unreadMessages : tab\.key === 'activity' \? unreadAlerts : 0/);
   assert.match(bar, /layoutId="app-tab-active"/, 'the active marker slides between tabs');
   // The counts are read before the listing page's early return (hooks order).
   assert.ok(bar.indexOf('useChatUnread(') < bar.indexOf('if (hidesAppTabs(pathname) || mapView) return null'));
@@ -473,4 +476,83 @@ test('app loading screens and the rest of the pass: own shapes, one place line, 
   assert.match(read('components/FilterModal.js'), /const oneRow = app \? '[^']*overflow-x-auto[^']*' : 'flex flex-wrap gap-2';/);
   assert.match(read('components/app/AppVisitBooking.js'), /if \(sent\) navigator\.vibrate\?\.\(18\);/);
   assert.match(read('DESIGN.md'), /### In the store app/);
+});
+
+test('Activité tab: the visit that needs the customer leads, the feed is cut into Kinshasa days', async () => {
+  const { groupByDay, leadVisit, visitSteps } = await import('@/lib/appActivityRules');
+  const groups = { today: [{ id: 2 }], tomorrow: [{ id: 3 }], upcoming: [], unscheduled: [{ id: 4 }], past: [{ id: 9 }] };
+  assert.equal(leadVisit(groups, [{ id: 7 }]).id, 7, 'an agent waiting for an answer comes first');
+  assert.equal(leadVisit(groups).id, 2);
+  assert.equal(leadVisit({ today: [], tomorrow: [], upcoming: [], unscheduled: [], past: [{ id: 9 }] }), null, 'a past visit is history, not news');
+  assert.equal(leadVisit(null), null);
+  assert.deepEqual(visitSteps({ tone: 'pending' }).map((s) => s.state), ['done', 'current', 'upcoming', 'upcoming']);
+  assert.deepEqual(visitSteps({ tone: 'confirmed' }).map((s) => s.state), ['done', 'done', 'current', 'upcoming']);
+  assert.deepEqual(visitSteps({ tone: 'done' }).map((s) => s.state), ['done', 'done', 'done', 'current']);
+  assert.deepEqual(visitSteps({ tone: 'done', checkinResponse: 'GOOD' }).map((s) => s.state), ['done', 'done', 'done', 'done']);
+  const now = new Date('2026-11-13T10:00:00+01:00');
+  const days = groupByDay([
+    { id: 1, createdAt: '2026-11-13T08:00:00+01:00' },
+    { id: 2, createdAt: '2026-11-13T00:30:00+01:00' },
+    { id: 3, createdAt: '2026-11-12T23:30:00+01:00' },
+    { id: 4, createdAt: '2026-11-10T09:00:00+01:00' },
+  ], now);
+  assert.deepEqual(days.map((d) => [d.day, d.items.map((i) => i.id)]), [['today', [1, 2]], ['yesterday', [3]], ['2026-11-10', [4]]]);
+  // The page never redirects a signed-out customer (a tab has to open) and stores nothing new.
+  const page = read('app/(site)/activite/page.js');
+  assert.doesNotMatch(page, /redirect\(/);
+  assert.match(page, /listNotifications\('customer', session\.customerId\)/);
+  assert.match(page, /href=\{`\/compte\/client\/notifications\/\$\{item\.id\}`\}/, 'opening a row marks it read, as in the inbox');
+  const bar = read('components/AppTabBar.js');
+  assert.match(bar, /grid-cols-4/);
+  assert.match(bar, /tab\.key === 'activity' \? unreadAlerts : 0/);
+  for (const lang of ['fr', 'en']) {
+    const app = JSON.parse(read(`lib/i18n/${lang}.json`)).appShell;
+    assert.equal(typeof app.tabs.activity, 'string');
+    for (const key of ['requested', 'confirmed', 'visit', 'feedback']) assert.equal(typeof app.activity.steps[key], 'string', `${lang} ${key}`);
+  }
+});
+
+test('commune guide: one of the official 24, medians only where the price guide has them', async () => {
+  const { communeGuideMedians, communeGuideQuery, GUIDE_BEDS } = await import('@/lib/communeGuideRules');
+  const guides = [
+    { commune: 'Lingwala', beds: 2, median: 750, listings: 56, slug: '2-chambres-lingwala' },
+    { commune: 'Lingwala', beds: 1, median: 500, listings: 22, slug: '1-chambre-lingwala' },
+    { commune: 'Lingwala', beds: 4, median: 2000, listings: 9, slug: '4-chambres-lingwala' },
+    { commune: 'Gombe', beds: 3, median: 3000, listings: 40, slug: '3-chambres-gombe' },
+  ];
+  assert.deepEqual(GUIDE_BEDS, [1, 2, 3]);
+  assert.deepEqual(communeGuideMedians(guides, 'Lingwala').map((m) => [m.beds, m.median, m.listings]), [[1, 500, 22], [2, 750, 56]], 'no 3-bedroom row: absent, never estimated');
+  assert.deepEqual(communeGuideMedians(guides, 'Limete'), []);
+  assert.deepEqual(communeGuideMedians(null, 'Lingwala'), []);
+  assert.equal(communeGuideQuery('Kasa-Vubu'), 'commune=Kasa-Vubu');
+  const page = read('app/(site)/commune/[slug]/page.js');
+  assert.match(page, /const commune = communeFromSlug\(slug\);\s*if \(!commune\) notFound\(\);/, 'an unknown place is a 404, never a guess');
+  assert.match(page, /robots: \{ index: false, follow: true \}/, 'the indexed commune page stays /location/<commune>');
+  assert.match(page, /const photo = listings\.map\(\(listing\) => listingImages\(listing\)\[0\]\)\.find\(Boolean\) \|\| null;/, 'a live listing own photo, or none');
+  assert.equal(hidesAppTabs('/commune/lingwala'), true, 'its alert button holds the bottom edge');
+  assert.match(read('app/(site)/(home)/page.js'), /guideSlug: communeFromSlug\(communeSlug\(c\.commune\)\) === c\.commune \? communeSlug\(c\.commune\) : null/);
+});
+
+test('video visit: the mode is posted, said in the phrase the agent reads, and shown to both sides', async () => {
+  const { VIDEO_PHRASE, deviceTimeNote, requestedTimeWithMode, visitModeOf } = await import('@/lib/visitModeRules');
+  assert.equal(visitModeOf('video'), 'video');
+  for (const odd of ['', 'zoom', null, undefined, 'onsite']) assert.equal(visitModeOf(odd), null, String(odd));
+  assert.equal(requestedTimeWithMode('vendredi 13 novembre à 14h', 'video'), `vendredi 13 novembre à 14h ${VIDEO_PHRASE}`);
+  assert.equal(requestedTimeWithMode('vendredi 13 novembre à 14h', null), 'vendredi 13 novembre à 14h');
+  assert.equal(requestedTimeWithMode(`lundi à 10h ${VIDEO_PHRASE}`, 'video'), `lundi à 10h ${VIDEO_PHRASE}`, 'never twice');
+  // 14:00 in Kinshasa (UTC+1) is 13:00 in London (UTC+0); a phone on Kinshasa time gets no note.
+  const slot = '2026-11-13T13:00:00.000Z';
+  assert.equal(deviceTimeNote(slot, 'fr', { deviceOffsetMinutes: 0 }), '13 h');
+  assert.equal(deviceTimeNote(slot, 'en', { deviceOffsetMinutes: 0 }), '13:00');
+  assert.equal(deviceTimeNote(slot, 'fr', { deviceOffsetMinutes: 60 }), null);
+  assert.equal(deviceTimeNote('not a date'), null);
+  const action = read('app/(site)/listings/[id]/actions.js');
+  assert.match(action, /const visitMode = visitModeOf\(formData\.get\('visit_mode'\)\);/);
+  assert.match(action, /createViewingRequest\(\{ leadId: lead\.id, propertyId: listing\.id, requestedTime, preferredSlotAt: picked\?\.iso \|\| null, visitMode \}\)/);
+  assert.match(read('lib/adminApi.js'), /\.\.\.\(visitMode \? \{ visit_mode: visitMode \} : \{\}\)/);
+  const booking = read('components/app/AppVisitBooking.js');
+  assert.match(booking, /<input type="hidden" name="visit_mode" value=\{video \? 'video' : ''\} \/>/);
+  assert.match(read('lib/customerAgenda.js'), /mode: viewing\.visit_mode === 'video' \? 'video' : null,/);
+  assert.match(read('components/AgentVisitRequestCard.js'), /viewingRequest\.visit_mode === 'video'/);
+  assert.match(read('components/listings/PracticalFacts.js'), /export default async function PracticalFacts\(\{ listing, app = false \}\)/);
 });

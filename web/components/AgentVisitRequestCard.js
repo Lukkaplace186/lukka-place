@@ -237,7 +237,11 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           <SlotIcon strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden="true" />
           <span className="min-w-0">
             <span className="block">{slotText}</span>
-            <span className="block text-xs font-semibold text-ink-45">{slotCaption}</span>
+            <span className="block text-xs font-semibold text-ink-45">
+              {slotCaption}
+              {/* The customer asked for a WhatsApp video call, not a visit on site (visit_mode). */}
+              {viewingRequest.visit_mode === 'video' ? ` · ${t('agent.visits.videoCall')}` : null}
+            </span>
           </span>
         </p>
         {target && (

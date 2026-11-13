@@ -28,5 +28,6 @@ export default async function VisitBookingPage({ params, searchParams }) {
   if (!listing) notFound();
   const sent = SENT.has(String(query?.visit_sent)) ? String(query.visit_sent) : null;
   const error = ERRORS.has(String(query?.visit_error)) ? String(query.visit_error) : null;
-  return <AppVisitBooking listing={listing} sent={sent} error={error} />;
+  // `mode=video` rides back with `visit_sent` so the confirmation names the call.
+  return <AppVisitBooking listing={listing} sent={sent} error={error} sentVideo={Boolean(sent) && query?.mode === 'video'} />;
 }

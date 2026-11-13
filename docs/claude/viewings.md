@@ -739,3 +739,20 @@ never chased.
   Pas convaincu / Agent absent = visit_feedback_good|bad|noshow), inside it the
   session buttons as before. Unset → unchanged. Drafted as `avis_visite_client`.
 - §90 of verify-pipeline.
+
+## Video visits — `visit_mode` on the viewing request (2026-11-13)
+
+The app's booking screen offers "Sur place / En vidéo" (owner's app design). A
+video visit is an ordinary viewing request with `viewing_requests.visit_mode =
+'video'` (SQLite, in `VIEWING_REQUESTS_EXTENDED_COLUMNS`; NULL = on site, which
+is every request before this date). `db.normalizeVisitMode` accepts only the
+modes in `VISIT_MODES`; anything else is stored as NULL, never guessed.
+`POST /admin/viewing-requests` takes `visit_mode`.
+
+No message was rewritten: the web action appends "(appel vidéo WhatsApp)" to
+`requested_time`, the phrase the agent alert, its template parameter, the desk
+copy and the reminders already print. After an agent proposes another time,
+`requested_time` is the agent's proposal and no longer carries the words; the
+dashboard card and the customer's cards read `visit_mode` instead. The batch
+endpoint ("Mes visites", several listings) does not take a mode: on site.
+verify-pipeline §112.

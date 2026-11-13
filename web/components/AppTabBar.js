@@ -3,16 +3,17 @@
 import Link from '@/components/IntentLink';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { m } from 'motion/react';
-import { Search, Heart, User } from 'lucide-react';
+import { Activity, Search, Heart, User } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { frenchPathOf, localizeHref } from '@/lib/localePaths';
 import { useChatUnread } from '@/lib/useChatUnread';
+import { useAlertsUnread } from '@/lib/useAlertsUnread';
 import { APP_TABS, activeAppTab, hidesAppTabs } from '@/lib/appModeRules';
 import UnreadBadge from './chat/UnreadBadge';
 import { useIsLoggedIn } from '@/lib/customerClient';
 
-const ICONS = { search: Search, saved: Heart, account: User };
+const ICONS = { search: Search, saved: Heart, activity: Activity, account: User };
 
 /**
  * The app's bottom tab bar (app mode only, app/(site)/layout.js): Search,
@@ -27,8 +28,8 @@ const ICONS = { search: Search, saved: Heart, account: User };
  * Hidden on a listing page and on the results' full-screen map, which both
  * have their own bottom bar. Rendered inside <Suspense> (useSearchParams).
  *
- * Badge: unread chat messages on Account, where Messages lives (signed-in
- * customers only).
+ * Badges: unread chat messages on Account, where Messages lives, and unread
+ * app alerts on Activity (signed-in customers only).
  */
 export default function AppTabBar() {
   const rawPathname = usePathname() || '/';
@@ -38,6 +39,7 @@ export default function AppTabBar() {
   const t = useT();
   // Hooks before the early return: the listing page hides the bar, not the counts.
   const unreadMessages = useChatUnread('customer', { enabled: loggedIn });
+  const unreadAlerts = useAlertsUnread({ side: 'customer', loadNow: true, enabled: loggedIn });
   // The results' full-screen map (?view=map) has its own bottom control ("Liste").
   const mapView = useSearchParams()?.get('view') === 'map';
   if (hidesAppTabs(pathname) || mapView) return null;
@@ -50,18 +52,18 @@ export default function AppTabBar() {
         aria-label={t('nav.appTabs')}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
       >
-        <ul className="mx-auto grid h-[4.25rem] max-w-lg grid-cols-3">
+        <ul className="mx-auto grid h-[4.25rem] max-w-lg grid-cols-4">
           {APP_TABS.map((tab) => {
             const Icon = ICONS[tab.key];
             const isActive = active === tab.key;
-            const badge = tab.key === 'account' ? unreadMessages : 0;
+            const badge = tab.key === 'account' ? unreadMessages : tab.key === 'activity' ? unreadAlerts : 0;
             return (
               <li key={tab.key} className="relative">
                 {isActive ? (
                   <m.span
                     layoutId="app-tab-active"
                     aria-hidden="true"
-                    className="absolute inset-x-8 top-0 h-[3px] rounded-b-full bg-blue"
+                    className="absolute inset-x-6 top-0 h-[3px] rounded-b-full bg-blue"
                     transition={{ type: 'spring', stiffness: 520, damping: 40 }}
                   />
                 ) : null}
@@ -76,7 +78,7 @@ export default function AppTabBar() {
                     <Icon
                       strokeWidth={isActive ? 2.25 : ICON_STROKE_WIDTH}
                       className="h-6 w-6"
-                      fill={isActive && tab.key !== 'search' ? 'currentColor' : 'none'}
+                      fill={isActive && (tab.key === 'saved' || tab.key === 'account') ? 'currentColor' : 'none'}
                     />
                     {badge ? (
                       <UnreadBadge

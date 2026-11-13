@@ -91,5 +91,5 @@ test('the public listing row reads the fiche through to_jsonb, so it cannot 4270
 
 test('the listing page draws the card', () => {
   const page = read('app/(site)/listings/[id]/page.js');
-  assert.match(page, /<PracticalFacts listing=\{listing\} \/>/);
+  assert.match(page, /<PracticalFacts listing=\{listing\} app=\{app\} \/>/);
 });

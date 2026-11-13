@@ -130,13 +130,14 @@ export default function AppHomeTop({
         </nav>
 
         {/* The popular communes: real names with listings behind them
-            (cachedPopularCommunes), one tap opens that commune's results. */}
+            (cachedPopularCommunes). One of Kinshasa's 24 opens its guide
+            (/commune/<slug>); a commune of another city opens its results. */}
         {communes.length > 0 ? (
           <nav aria-label={t('home.search.popularCommunes')} className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-            {communes.map(({ commune }) => (
+            {communes.map(({ commune, guideSlug }) => (
               <Link
                 key={commune}
-                href={localizeHref(`/listings?commune=${encodeURIComponent(commune)}`, locale)}
+                href={localizeHref(guideSlug ? `/commune/${guideSlug}` : `/listings?commune=${encodeURIComponent(commune)}`, locale)}
                 className="u-hit relative flex h-9 shrink-0 items-center rounded-full bg-canvas-deep px-3.5 text-[0.8125rem] font-medium text-ink-70 active:text-ink"
               >
                 {commune}

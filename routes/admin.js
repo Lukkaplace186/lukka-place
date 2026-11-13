@@ -919,6 +919,8 @@ router.patch('/leads/:id', (req, res) => {
 router.post('/viewing-requests', (req, res) => {
   const {
     lead_id: leadId, property_id: propertyId, requested_time: requestedTime, preferred_slot_at: preferredSlotRaw,
+    // 'video' = a WhatsApp video call instead of a visit on site (db.normalizeVisitMode).
+    visit_mode: visitMode,
   } = req.body || {};
   const numericLeadId = Number.parseInt(leadId, 10);
   if (!Number.isFinite(numericLeadId) || !db.getLead(numericLeadId)) {
@@ -934,7 +936,7 @@ router.post('/viewing-requests', (req, res) => {
   }
 
   try {
-    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt });
+    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt, visitMode });
     // The lead IS a visit request now. Without this the web form's leads sat at
     // NEW forever, and the customer's own account could not show them as visits.
     db.markLeadViewingRequested(numericLeadId);

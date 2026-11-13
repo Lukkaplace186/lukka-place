@@ -1503,7 +1503,8 @@
       "noSlot": "No time given",
       "slotAgreed": "Confirmed · Kinshasa time",
       "slotPicked": "Time picked by the customer · Kinshasa time",
-      "slotInWords": "Asked for by the customer, in their words"
+      "slotInWords": "Asked for by the customer, in their words",
+      "videoCall": "WhatsApp video call requested"
     },
     "settings": {
       "title": "Settings",
@@ -3719,7 +3720,8 @@
         "tomorrow": "Tomorrow",
         "days": "In {count} days"
       },
-      "meetWith": "Your visit with"
+      "meetWith": "Your visit with",
+      "video": "By WhatsApp video"
     },
     "home": {
       "metaTitle": "Home — Lukka Place Customer Area",
@@ -9239,7 +9241,8 @@
     "tabs": {
       "search": "Search",
       "saved": "Saved",
-      "account": "Account"
+      "account": "Account",
+      "activity": "Activity"
     },
     "bell": "Notifications",
     "home": {
@@ -9330,7 +9333,18 @@
       "myVisits": "See my visits",
       "backToListing": "Back to the listing",
       "sending": "Sending…",
-      "followGuest": "To follow the agency’s answer, sign in with WhatsApp: your visit is waiting in your account."
+      "followGuest": "To follow the agency’s answer, sign in with WhatsApp: your visit is waiting in your account.",
+      "titleVideo": "Request a Video Visit",
+      "modeLabel": "Type of visit",
+      "modeOnsite": "In person",
+      "modeVideo": "By video",
+      "ownTime": "That is {time} on your phone’s clock.",
+      "videoHowTitle": "How the Call Works",
+      "videoHowText": "The agency calls you on WhatsApp video, on the number you give. Ask them to turn on a tap and switch on the light: that is what a photo does not show.",
+      "confirmNoteVideo": "The agent confirms the time of the call on WhatsApp. You follow the request in My visits.",
+      "submitVideo": "Request the video call",
+      "doneTitleVideo": "Video Call Requested",
+      "videoAfter": "At the agreed time, the agency calls you on WhatsApp video."
     },
     "filters": {
       "reset": "Reset"
@@ -9386,6 +9400,57 @@
     "listing": {
       "partner": "Partner agent",
       "team": "Lukka Place team"
+    },
+    "activity": {
+      "title": "Activity",
+      "guestTitle": "Your Visits and Alerts Arrive Here",
+      "guestText": "Sign in to follow your visit requests, the agencies’ answers and the new homes that match your searches.",
+      "visitLabel": "Your visit",
+      "visitAnswer": "The agent is waiting for your answer",
+      "timeToConfirm": "Time to be confirmed",
+      "steps": {
+        "requested": "Requested",
+        "confirmed": "Confirmed",
+        "visit": "Visit",
+        "feedback": "Your review"
+      },
+      "seeVisit": "See the visit",
+      "answer": "Answer",
+      "allVisits": "All my visits",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "visitLabelVideo": "Your video visit"
+    },
+    "commune": {
+      "online": {
+        "one": "{count} home online",
+        "other": "{count} homes online"
+      },
+      "city": "Kinshasa",
+      "empty": "No home online in {commune} for now.",
+      "mediansTitle": "Median Rents",
+      "beds": {
+        "one": "{count} bedroom",
+        "other": "{count} bedrooms"
+      },
+      "sample": {
+        "one": "{count} listing",
+        "other": "{count} listings"
+      },
+      "mediansNote": "Per month, from the listings Lukka Place has recorded, here and elsewhere.",
+      "mediansLink": "See the full price guide",
+      "quartiersTitle": "Neighbourhoods",
+      "allQuartiers": "All neighbourhoods",
+      "quartiersNote": "The neighbourhoods with homes online right now, with their number.",
+      "nowTitle": "Right Now",
+      "seeAll": {
+        "one": "See the home",
+        "other": "See all {count}"
+      },
+      "readTitle": "Read Before You Sign",
+      "readKind": "Guides and news",
+      "readLink": "Read the article",
+      "alertCta": "Tell me about new homes in {commune}"
     }
   }
 }

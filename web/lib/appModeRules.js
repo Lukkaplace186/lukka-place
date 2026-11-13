@@ -25,14 +25,16 @@ export function isAppMode({ cookieValue, userAgent } = {}) {
 }
 
 /**
- * The tab bar's three tabs (the app design, 2026-11-11: Search, Saved,
- * Account; notifications are the bell in the top bar), as French paths —
+ * The tab bar's four tabs: Search, Saved, Activity (2026-11-13, the owner's
+ * app design: the customer's visits and every alert the app sent them, at
+ * /activite) and Account, as French paths —
  * localizeHref turns them into the reader's language. Keys, not text: see
  * components/navItems.js.
  */
 export const APP_TABS = [
   { key: 'search', href: '/', labelKey: 'appShell.tabs.search' },
   { key: 'saved', href: '/favoris', labelKey: 'appShell.tabs.saved' },
+  { key: 'activity', href: '/activite', labelKey: 'appShell.tabs.activity' },
   { key: 'account', href: '/compte/menu', labelKey: 'appShell.tabs.account' },
 ];
 
@@ -44,6 +46,10 @@ export function activeAppTab(pathname) {
   const path = String(pathname || '/').split(/[?#]/)[0];
   if (path === '/' || path === '/listings' || path.startsWith('/listings/')) return 'search';
   if (path === '/favoris' || path.startsWith('/compte/client/favoris') || path.startsWith('/compte/client/alertes')) return 'saved';
+  // The commune guide belongs to searching.
+  if (path.startsWith('/commune/')) return 'search';
+  // Activity: its own screen, and the two it opens (the inbox, the visits).
+  if (path === '/activite' || path.startsWith('/compte/client/notifications') || path.startsWith('/compte/client/visites')) return 'activity';
   if (path.startsWith('/compte')) return 'account';
   return null;
 }
@@ -55,7 +61,8 @@ export function activeAppTab(pathname) {
 export function hidesAppTabs(pathname) {
   const path = String(pathname || '').split(/[?#]/)[0];
   // A conversation too: its reply field holds the bottom edge.
-  return /^\/listings\/[^/]+/.test(path) || /^\/messages\/\d+/.test(path) || isWelcomePath(path);
+  // The commune guide as well: its one action ("Être prévenu…") holds the bottom edge.
+  return /^\/listings\/[^/]+/.test(path) || /^\/messages\/\d+/.test(path) || /^\/commune\/[^/]+/.test(path) || isWelcomePath(path);
 }
 
 /** The first-open questions (/bienvenue): no tabs, and no back arrow either — nothing is behind them. */

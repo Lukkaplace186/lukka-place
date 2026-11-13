@@ -1503,7 +1503,8 @@
       "noSlot": "Créneau non précisé",
       "slotAgreed": "Confirmée · heure de Kinshasa",
       "slotPicked": "Créneau choisi par le client · heure de Kinshasa",
-      "slotInWords": "Demandé par le client, en ses mots"
+      "slotInWords": "Demandé par le client, en ses mots",
+      "videoCall": "Appel vidéo WhatsApp demandé"
     },
     "settings": {
       "title": "Paramètres",
@@ -3719,7 +3720,8 @@
         "tomorrow": "Demain",
         "days": "Dans {count} jours"
       },
-      "meetWith": "Votre visite avec"
+      "meetWith": "Votre visite avec",
+      "video": "En vidéo sur WhatsApp"
     },
     "home": {
       "metaTitle": "Accueil — Espace client Lukka Place",
@@ -9239,7 +9241,8 @@
     "tabs": {
       "search": "Rechercher",
       "saved": "Enregistrés",
-      "account": "Compte"
+      "account": "Compte",
+      "activity": "Activité"
     },
     "bell": "Notifications",
     "home": {
@@ -9330,7 +9333,18 @@
       "myVisits": "Voir mes visites",
       "backToListing": "Retour à l’annonce",
       "sending": "Envoi…",
-      "followGuest": "Pour suivre la réponse de l’agence, connectez-vous avec WhatsApp : votre visite vous attend dans votre compte."
+      "followGuest": "Pour suivre la réponse de l’agence, connectez-vous avec WhatsApp : votre visite vous attend dans votre compte.",
+      "titleVideo": "Demander une visite en vidéo",
+      "modeLabel": "Type de visite",
+      "modeOnsite": "Sur place",
+      "modeVideo": "En vidéo",
+      "ownTime": "Soit {time} à l’heure de votre téléphone.",
+      "videoHowTitle": "Comment se passe l’appel",
+      "videoHowText": "L’agence vous appelle en vidéo sur WhatsApp, au numéro que vous indiquez. Demandez-lui d’ouvrir un robinet et d’allumer la lumière : c’est ce que la photo ne montre pas.",
+      "confirmNoteVideo": "L’agent confirme l’heure de l’appel sur WhatsApp. Vous suivez la demande dans Mes visites.",
+      "submitVideo": "Demander l’appel vidéo",
+      "doneTitleVideo": "Appel vidéo demandé",
+      "videoAfter": "À l’heure convenue, l’agence vous appelle en vidéo sur WhatsApp."
     },
     "filters": {
       "reset": "Réinitialiser"
@@ -9386,6 +9400,57 @@
     "listing": {
       "partner": "Agent partenaire",
       "team": "Équipe Lukka Place"
+    },
+    "activity": {
+      "title": "Activité",
+      "guestTitle": "Vos visites et vos alertes arrivent ici",
+      "guestText": "Connectez-vous pour suivre vos demandes de visite, les réponses des agences et les nouveaux biens qui correspondent à vos recherches.",
+      "visitLabel": "Votre visite",
+      "visitAnswer": "L’agent attend votre réponse",
+      "timeToConfirm": "Heure à confirmer",
+      "steps": {
+        "requested": "Demandée",
+        "confirmed": "Confirmée",
+        "visit": "Visite",
+        "feedback": "Votre avis"
+      },
+      "seeVisit": "Voir la visite",
+      "answer": "Répondre",
+      "allVisits": "Toutes mes visites",
+      "today": "Aujourd’hui",
+      "yesterday": "Hier",
+      "visitLabelVideo": "Votre visite en vidéo"
+    },
+    "commune": {
+      "online": {
+        "one": "{count} bien en ligne",
+        "other": "{count} biens en ligne"
+      },
+      "city": "Kinshasa",
+      "empty": "Aucun bien en ligne à {commune} pour l’instant.",
+      "mediansTitle": "Loyers médians",
+      "beds": {
+        "one": "{count} chambre",
+        "other": "{count} chambres"
+      },
+      "sample": {
+        "one": "{count} annonce",
+        "other": "{count} annonces"
+      },
+      "mediansNote": "Par mois, d’après les annonces relevées par Lukka Place, ici et ailleurs.",
+      "mediansLink": "Voir le guide complet des prix",
+      "quartiersTitle": "Quartiers",
+      "allQuartiers": "Tous les quartiers",
+      "quartiersNote": "Les quartiers qui ont des biens en ligne en ce moment, avec leur nombre.",
+      "nowTitle": "En ce moment",
+      "seeAll": {
+        "one": "Voir le bien",
+        "other": "Voir les {count}"
+      },
+      "readTitle": "À lire avant de signer",
+      "readKind": "Guides et actualités",
+      "readLink": "Lire l’article",
+      "alertCta": "Être prévenu des nouveaux biens à {commune}"
     }
   }
 }

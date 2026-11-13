@@ -5,7 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
 import {
+  articleFromGuide,
   articleFromPost,
+  articleIntro,
   mergeArticles,
   parseBody,
   parseCategory,
@@ -109,6 +111,28 @@ test('articles: English only when complete, a post replaces the guide with its s
   assert.equal(parseCategory('actualite'), 'actualite');
   assert.equal(parseCategory('x'), null);
   assert.ok(readingMinutes(mergeArticles(GUIDES, [], 'fr')[0].blocks) >= 1);
+});
+
+test('a code guide may carry a cover from public/guides, never another address', () => {
+  const guide = GUIDES.find((g) => g.slug === 'garantie-3-1-1-kinshasa');
+  assert.equal(articleFromGuide(guide, 'fr').coverUrl, '/guides/garantie-3-1-1-kinshasa.jpg');
+  assert.ok(articleFromGuide(guide, 'fr').coverAlt.length > 0);
+  assert.notEqual(articleFromGuide(guide, 'en').coverAlt, articleFromGuide(guide, 'fr').coverAlt);
+  for (const cover of ['https://elsewhere.example/a.jpg', '/uploads/a.jpg', '/guides/../a.jpg', 'garantie.jpg']) {
+    assert.equal(articleFromGuide({ ...guide, cover }).coverUrl, null, cover);
+  }
+  assert.equal(articleFromGuide({ ...guide, cover: undefined }).coverUrl, null);
+});
+
+test('card intro: the opening paragraphs up to the first heading, plain text, cut at a word', () => {
+  const blocks = parseBody(['Premier paragraphe avec un [lien](/location).', '', 'Deuxième paragraphe.', '', '## Titre', '', 'Après le titre.'].join('\n'));
+  assert.equal(articleIntro(blocks), ['Premier paragraphe avec un lien.', '', 'Deuxième paragraphe.'].join('\n'));
+  assert.equal(articleIntro([{ h2: 'Titre' }, { p: 'Texte' }]), 'Texte');
+  assert.equal(articleIntro([]), '');
+  const long = articleIntro([{ p: 'mot '.repeat(200) }], 100);
+  assert.ok(long.length <= 101, long);
+  assert.match(long, /mot…$/);
+  assert.ok(articleIntro(GUIDES[0].body).length > 0);
 });
 
 test('SQL: public reads apply the publication filter; a missing table is no posts', async () => {

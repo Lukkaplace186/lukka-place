@@ -12,6 +12,7 @@ import { getListings } from '@/lib/listings';
 import { cityOfCommune } from '@/lib/cities';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
 import { SITE_URL } from '@/lib/constants';
+import { getFeatureFlags } from '@/lib/siteSettings';
 import { getLocale, getT } from '@/lib/i18n/server';
 
 const RELATED_LISTINGS = 3;
@@ -63,7 +64,10 @@ export default async function GuidePage({ params }) {
   const article = await getPublicArticle(slug, locale);
   if (!article) notFound();
 
-  const [listings, all] = await Promise.all([relatedListings(article), listPublicArticles(locale)]);
+  const [listings, all, { publicBlog }] = await Promise.all([relatedListings(article), listPublicArticles(locale), getFeatureFlags()]);
+  // The index this article sits in, named as that page names itself: "Guides & Actualités"
+  // once the blog is on (a news item must not be filed under "Guides").
+  const indexLabel = publicBlog ? t('guides.blogBreadcrumb') : t('guides.breadcrumb');
   const others = all.filter((a) => a.slug !== article.slug).slice(0, 4);
   const base = SITE_URL.replace(/\/+$/, '');
   const url = `${base}/guides/${article.slug}`;
@@ -78,7 +82,7 @@ export default async function GuidePage({ params }) {
       title={article.title}
       breadcrumb={[
         { label: t('breadcrumb.home'), href: '/' },
-        { label: t('guides.breadcrumb'), href: '/guides' },
+        { label: indexLabel, href: '/guides' },
         { label: article.title },
       ]}
     >
@@ -103,7 +107,7 @@ export default async function GuidePage({ params }) {
               '@type': 'BreadcrumbList',
               itemListElement: [
                 { '@type': 'ListItem', position: 1, name: t('breadcrumb.home'), item: base },
-                { '@type': 'ListItem', position: 2, name: t('guides.breadcrumb'), item: `${base}/guides` },
+                { '@type': 'ListItem', position: 2, name: indexLabel, item: `${base}/guides` },
                 { '@type': 'ListItem', position: 3, name: article.title, item: url },
               ],
             },
@@ -117,9 +121,12 @@ export default async function GuidePage({ params }) {
           {t('guides.readingTime', { minutes: readingMinutes(article.blocks) })}
           {locale === 'en' && article.lang === 'fr' ? ` · ${t('guides.frenchOnly')}` : ''}
         </p>
+        {/* Covers are drawn for the /guides card (GuideCards): the top of the picture is
+            left clear for the title written over it there. Here the title is above, so the
+            band is wider and leans to the lower part, where the picture's subject sits. */}
         {article.coverUrl ? (
-          <div className="relative -mx-4 aspect-[16/9] overflow-hidden bg-canvas-alt sm:mx-0 sm:rounded-xl">
-            <Image src={article.coverUrl} alt={article.coverAlt} fill priority sizes="(min-width: 768px) 720px, 100vw" className="object-cover" />
+          <div className="relative -mx-4 aspect-[5/2] overflow-hidden bg-canvas-alt sm:mx-0 sm:rounded-xl">
+            <Image src={article.coverUrl} alt={article.coverAlt} fill priority sizes="(min-width: 768px) 720px, 100vw" className="object-cover object-[50%_92%]" />
           </div>
         ) : null}
         <ArticleBody blocks={article.blocks} listingsBlock={LiveListings} />

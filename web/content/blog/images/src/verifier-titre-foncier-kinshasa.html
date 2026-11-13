@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="ground.css">
+<script src="ground.js"></script>
+</head>
+<body>
+<svg class="sheet" viewBox="0 0 3840 2160" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const svg = document.querySelector('svg.sheet');
+ground(svg);
+const rand = rng(20251231);
+const r = (a = 1) => (rand() * 2 - 1) * a;
+
+const BONE = '#9a6a2c', EXACT = '#1e3aa8', VERMILION = '#d14b2f';
+
+// The observed band: 9 columns × 4 rows of parcels, centred low.
+const X0 = 1040, X1 = 2800, Y0 = 1020, Y1 = 1780, COLS = 9, ROWS = 4, GUT = 26;
+const PX = (X1 - X0) / COLS, PY = (Y1 - Y0) / ROWS;
+// Loose parcels keep a gutter; exact ones close it and share their edges, one register.
+const exactAt = (c) => Math.pow(smooth(0.1, 0.9, c / (COLS - 1)), 1.15);
+const gutFor = (c) => (c < 0 ? GUT : c >= COLS ? 0 : GUT * (1 - exactAt(c)));
+
+function quad(c, row, amount, rot) {
+  const g = gutFor(c);
+  const x = X0 + c * PX + g / 2, y = Y0 + row * PY + g / 2, w = PX - g, h = PY - g;
+  const cx = x + w / 2, cy = y + h / 2;
+  const a = (rot * Math.PI) / 180;
+  return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(([px, py]) => {
+    const jx = px + r(19) * amount, jy = py + r(16) * amount;
+    const dx = jx - cx, dy = jy - cy;
+    return [cx + dx * Math.cos(a) - dy * Math.sin(a), cy + dx * Math.sin(a) + dy * Math.cos(a)];
+  });
+}
+const d = (pts) => `M${pts.map((p) => p.map((v) => v.toFixed(1)).join(' ')).join(' L')} Z`;
+
+// Faint continuation beyond the band, so the wide card reads as one sheet.
+const ghost = el('g', {}, svg);
+for (let row = 0; row < ROWS; row++) {
+  for (let c = -5; c < 0; c++) {
+    const pts = quad(c, row, 1.3, r(4));
+    el('path', { d: d(pts), fill: 'none', stroke: BONE, 'stroke-width': 5, 'stroke-linejoin': 'round', opacity: (0.15 * (1 + c / 6)).toFixed(3) }, ghost);
+  }
+  for (let c = COLS; c < COLS + 5; c++) {
+    const pts = quad(c, row, 0, 0);
+    el('path', { d: d(pts), fill: 'none', stroke: EXACT, 'stroke-width': 4, opacity: (0.16 * (1 - (c - COLS) / 6)).toFixed(3) }, ghost);
+  }
+}
+
+// The band itself.
+const band = el('g', {}, svg);
+const stakes = el('g', {}, svg);
+for (let c = 0; c < COLS; c++) {
+  const t = c / (COLS - 1);
+  const exact = exactAt(c);
+  const loose = 1 - exact;
+  // Ink changes over about one column, so the field reads as two kinds of record, not a grey between them.
+  const color = mixColor(BONE, EXACT, smooth(0.3, 0.7, exact));
+  for (let row = 0; row < ROWS; row++) {
+    const pts = quad(c, row, loose, r(3.2) * loose);
+    // Hand-drawn: a second, slightly displaced pass of ink.
+    if (loose > 0.05) {
+      const echo = pts.map(([x, y]) => [x + r(4) * loose, y + r(4) * loose]);
+      el('path', { d: d(echo), fill: 'none', stroke: color, 'stroke-width': 3.5, 'stroke-linejoin': 'round', opacity: (0.45 * loose).toFixed(3) }, band);
+    }
+    el('path', {
+      d: d(pts), fill: color, 'fill-opacity': (0.07 * (1 - exact) + 0.035 * exact).toFixed(3),
+      stroke: color, 'stroke-width': mix(8.5, 5, exact).toFixed(2), 'stroke-linejoin': loose > 0.05 ? 'round' : 'miter',
+    }, band);
+    if (exact > 0.35) {
+      for (const [x, y] of pts) el('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: (13 * smooth(0.35, 1, exact)).toFixed(2), fill: color }, stakes);
+    }
+  }
+}
+
+// The double sale: one parcel drawn twice over its neighbours.
+{
+  const x = X0 + 1 * PX + PX * 0.48, y = Y0 + 1 * PY + PY * 0.42, w = PX - GUT, h = PY - GUT;
+  const pts = [[x - 4, y + 6], [x + w + 26, y - 12], [x + w + 30, y + h + 10], [x - 10, y + h + 18]].map(([a, b]) => [a + r(5), b + r(5)]);
+  el('path', { d: d(pts), fill: 'url(#hatch)', stroke: VERMILION, 'stroke-width': 8.5, 'stroke-dasharray': '20 13', 'stroke-linejoin': 'round' }, svg);
+}
+
+// The parcel the register now answers for: one cell, washed and marked.
+{
+  const c = 7, row = 1, g = gutFor(c);
+  const x = X0 + c * PX + g / 2, y = Y0 + row * PY + g / 2, w = PX - g, h = PY - g;
+  el('rect', { x, y, width: w, height: h, fill: EXACT, 'fill-opacity': 0.14 }, svg);
+  const cx = x + w / 2, cy = y + h / 2;
+  const mark = el('g', { stroke: '#0c1d50', 'stroke-width': 4.5, fill: 'none' }, svg);
+  el('circle', { cx, cy, r: 26 }, mark);
+  el('line', { x1: cx - 48, y1: cy, x2: cx - 32, y2: cy }, mark);
+  el('line', { x1: cx + 32, y1: cy, x2: cx + 48, y2: cy }, mark);
+  el('line', { x1: cx, y1: cy - 48, x2: cx, y2: cy - 32 }, mark);
+  el('line', { x1: cx, y1: cy + 32, x2: cx, y2: cy + 48 }, mark);
+  el('circle', { cx, cy, r: 5, fill: '#0c1d50', stroke: 'none' }, mark);
+}
+
+// Scale under the band: ticks per half column, words only at its two ends.
+{
+  const y = 1846;
+  const scale = el('g', {}, svg);
+  for (let i = 0; i <= COLS * 2; i++) {
+    const x = X0 + (i * PX) / 2;
+    const t = i / (COLS * 2);
+    el('line', { x1: x, y1: y, x2: x, y2: y + (i % 2 ? 12 : 26), stroke: mixColor(BONE, EXACT, smooth(0.3, 0.7, exactAt(t * (COLS - 1)))), 'stroke-width': 3.5, opacity: 0.75 }, scale);
+  }
+  const grad = el('linearGradient', { id: 'rule', x1: X0, x2: X1, y1: 0, y2: 0, gradientUnits: 'userSpaceOnUse' }, svg.querySelector('defs'));
+  el('stop', { offset: 0, 'stop-color': BONE }, grad);
+  el('stop', { offset: 1, 'stop-color': EXACT }, grad);
+  el('line', { x1: X0, y1: y, x2: X1, y2: y, stroke: 'url(#rule)', 'stroke-width': 3.5, opacity: 0.75 }, scale);
+  label(svg, 'PAPIER', X0, y + 84, { color: BONE, size: 46, opacity: 0.85 });
+  const right = label(svg, 'NUMÉRIQUE', X1, y + 84, { color: EXACT, size: 46, anchor: 'end', opacity: 0.85 });
+  right.setAttribute('dx', '0.32em');
+}
+
+// Two folio marks above the band.
+label(svg, 'VOL. —  FOLIO —', X0, Y0 - 52, { color: BONE, size: 46, opacity: 0.75 });
+const coord = label(svg, 'RNTFI  ·  4.32°S  15.31°E', X1, Y0 - 52, { color: EXACT, size: 46, anchor: 'end', opacity: 0.85 });
+coord.setAttribute('dx', '0.32em');
+</script>
+</body></html>

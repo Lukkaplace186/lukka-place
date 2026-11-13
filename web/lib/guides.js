@@ -21,6 +21,10 @@
  * Blocks: the lib/blogRules.js block shapes — { h2 } | { p } | { ul } |
  * { ol } | { stats } | { table } | { callout } | { calculator }. Text is a
  * plain string or inline segments ({ text, href }); no HTML anywhere.
+ *
+ * Cover (optional): `cover` is a file in public/guides/ (3840×2160, drawn for
+ * the /guides cards, see content/blog/images/src), `coverAlt` describes it;
+ * an English version may carry its own `coverAlt`.
  */
 
 const LAW_URL = 'https://legalrdc.com/wp-content/uploads/2020/04/Loi_baux_non_professionnels.pdf';
@@ -37,6 +41,8 @@ export const GUIDES = [
     published: '2026-11-11',
     updated: '2026-11-11',
     cta: { href: '/location', label: 'Voir les logements à louer' },
+    cover: '/guides/garantie-3-1-1-kinshasa.jpg',
+    coverAlt: 'Cinq enveloppes alignées : trois bleues, une dorée et une violette, avec une clé de maison.',
     body: [
       { p: 'Avant même la première nuit, un locataire à Kinshasa verse souvent cinq mois de loyer, parfois treize. La ligne « Garantie : 3 + 1 + 1 » d’une annonce décide souvent plus du budget que le loyer lui-même. Entrez votre loyer dans le calculateur ci-dessous pour voir le montant exact, poste par poste, et le comparer au plafond fixé par la loi de 2015 sur les baux.' },
       { stats: {
@@ -116,6 +122,7 @@ export const GUIDES = [
       { p: 'Ce guide explique la loi ; il ne remplace pas l’avis d’un juriste pour un litige.' },
     ],
     en: {
+      coverAlt: 'Five envelopes in a row: three blue, one gold and one purple, with a house key.',
       title: 'The “3 + 1 + 1” Deposit: What Landlords Ask and What the Law Allows',
       description:
         'Deposit, advance, commission: work out what you pay on entry, compare it with the 2015 lease law’s ceiling, and learn how to negotiate.',

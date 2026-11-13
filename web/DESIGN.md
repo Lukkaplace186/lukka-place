@@ -340,7 +340,7 @@ Confident and tactile: they lift on hover and give a little on press.
 The listings map deliberately leaves the site palette: a vivid basemap (green parks, blue water, warm roads) so Kinshasa reads as a real place. Every listing is a white speech-bubble pill showing its price (`$1.5k`); the active one turns royal blue. No clusters, no dots.
 
 ### Motion
-On the website: CSS only (no animation library), and every decorative entrance is off under reduced motion. Entrances rise 24px and fade in with a soft ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`), 0.22s for a small panel and up to 0.6s for a card; homepage rails reveal as they scroll into view, with no JavaScript. State changes take 0.12–0.2s. Keyframes animate `translate` and `scale`, never `transform`, so an entrance can't cancel a hover or press on the same element. Moments of delight are small and earned: a heart burst on save, a single shine across a confirmed visit, confetti on an agent's first milestone.
+On the website: CSS only (no animation library) except the /guides cards, which open like App Store "Today" cards with Motion, loaded on that page only; every decorative entrance is off under reduced motion. Entrances rise 24px and fade in with a soft ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`), 0.22s for a small panel and up to 0.6s for a card; homepage rails reveal as they scroll into view, with no JavaScript. State changes take 0.12–0.2s. Keyframes animate `translate` and `scale`, never `transform`, so an entrance can't cancel a hover or press on the same element. Moments of delight are small and earned: a heart burst on save, a single shine across a confirmed visit, confetti on an agent's first milestone.
 
 ### In the store app
 Inside the Lukka Place app (app mode) the same tokens, type scale and components apply, with these differences. They are the app's only ones.
@@ -372,6 +372,6 @@ Inside the Lukka Place app (app mode) the same tokens, type scale and components
 - **Don't** darken property photos with heavy gradients, or stack a scrim and a glass capsule on the same edge.
 - **Don't** make prices or headings huge and black: nothing on a listing card is larger than the 24px price.
 - **Don't** set titles in capitals.
-- **Don't** use backdrop blur that stays on for touch screens, or ship an animation library on the website (the store app loads `motion`, in app mode only).
+- **Don't** use backdrop blur that stays on for touch screens, or ship an animation library on the website beyond the /guides cards (the store app loads `motion`, in app mode only).
 - **Don't** use stock or stand-in photographs where a listing's own photo belongs.
 - **Don't** "fix" the map back to the site palette.

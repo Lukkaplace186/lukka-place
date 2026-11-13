@@ -395,6 +395,33 @@ export function readingMinutes(blocks) {
   return Math.max(1, Math.round(words / 200));
 }
 
+/**
+ * The article's opening, as plain text, for the /guides card that pops open:
+ * its paragraphs up to the first heading, cut at a word near `max`
+ * characters. Never a sentence the article doesn't start with.
+ */
+export function articleIntro(blocks, max = 420) {
+  const parts = [];
+  let length = 0;
+  for (const b of blocks || []) {
+    if (b.h2 && parts.length) break;
+    if (!b.p) continue;
+    // A paragraph is a string or inline segments ("voir [ce guide](/x)."), joined as written.
+    const s = (Array.isArray(b.p) ? b.p.map((seg) => (typeof seg === 'string' ? seg : seg.text || '')).join('') : String(b.p))
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!s) continue;
+    parts.push(s);
+    length += s.length;
+    if (length >= max) break;
+  }
+  const joined = parts.join('\n\n');
+  if (joined.length <= max) return joined;
+  const cut = joined.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
+}
+
 function text(value, max) {
   const s = String(value ?? '').trim();
   return s.length > max ? null : s;
@@ -539,8 +566,9 @@ export function articleFromGuide(guide, locale = 'fr') {
     title: en ? en.title : guide.title,
     summary: en ? en.description : guide.description,
     blocks: en ? en.body : guide.body,
-    coverUrl: null,
-    coverAlt: '',
+    // A file under public/guides/ only, so a typo cannot point a card anywhere else.
+    coverUrl: typeof guide.cover === 'string' && /^\/guides\/[\w.-]+\.(jpe?g|png|webp)$/.test(guide.cover) ? guide.cover : null,
+    coverAlt: (en && en.coverAlt) || guide.coverAlt || '',
     publishedAt: new Date(`${guide.published}T08:00:00+01:00`).toISOString(),
     updatedAt: new Date(`${guide.updated}T08:00:00+01:00`).toISOString(),
     listings: null,

@@ -86,6 +86,19 @@ test('framer-motion is gone from the bundle and the dependency list', () => {
   assert.deepEqual(offenders, []);
 });
 
+test('on the website, motion loads on /guides only, through LazyMotion', () => {
+  // The store app has its own motion (app-mode.test.js). On the website, the
+  // guides cards are the one exception, and only the guides index renders them.
+  const pages = [...sourceFiles('app'), ...sourceFiles('components')]
+    .filter((file) => /from ['"]@\/components\/blog\/GuideCards['"]/.test(read(file)))
+    .map((file) => file.replace(/\\/g, '/').replace(/^.*?(components|app)\//, '$1/'));
+  assert.deepEqual(pages, ['app/(site)/guides/(index)/page.js']);
+  const cards = read('components/blog/GuideCards.js');
+  assert.match(cards, /<LazyMotion features=\{loadFeatures\} strict>/);
+  assert.match(cards, /import\('\.\/guideCardFeatures'\)/);
+  assert.doesNotMatch(cards, /\bmotion\.[a-z]+/, 'm.* components only, so LazyMotion keeps the bundle small');
+});
+
 test('images: one quality, and a cache long enough for content-addressed photos', () => {
   assert.deepEqual(nextConfig.images.qualities, [75]);
   assert.ok(nextConfig.images.minimumCacheTTL >= 60 * 60 * 24 * 30);

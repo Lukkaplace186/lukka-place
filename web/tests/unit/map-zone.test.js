@@ -119,3 +119,49 @@ test('map chips and result sheet: one-tap amenities, and a sheet that lists only
     assert.ok(dict.listings.map.quick.parking);
   }
 });
+
+test('the zone line follows the drawing: a solid brand-blue line, enough corners to trace it', () => {
+  assert.ok(MAX_ZONE_POINTS >= 48, 'enough corners for the line to read as what was drawn');
+  const draw = read('components/MapZoneDraw.js');
+  assert.match(draw, /const ZONE_BLUE = '#1E3AA8';/, 'the action blue, repeated as a hex for Google');
+  assert.match(draw, /strokeColor: ZONE_BLUE,\s*strokeOpacity: 1,\s*strokeWeight: 3\.5,/, 'a solid line on the map');
+  assert.doesNotMatch(draw, /strokeDasharray|repeat: '/, 'no dashes, on the map or while drawing');
+  // A wobbly stroke keeps its wobble: the corners kept are points of the stroke itself.
+  const wobbly = Array.from({ length: 240 }, (_, i) => {
+    const a = (i / 240) * 2 * Math.PI;
+    const radius = 90 + 14 * Math.sin(6 * a);
+    return { x: 200 + radius * Math.cos(a), y: 300 + radius * Math.sin(a) };
+  });
+  const corners = simplifyScreenPath(wobbly);
+  assert.ok(corners.length > 24 && corners.length <= MAX_ZONE_POINTS, `corners: ${corners.length}`);
+  for (const c of corners) assert.ok(wobbly.some((p) => p.x === c.x && p.y === c.y));
+});
+
+test('app home: the rental market in figures and the card slot fed by guides and news', async () => {
+  const { PROMO_MAX, promoItemsFromArticles } = await import('@/lib/appPromoRules');
+  const labels = { guide: 'Guide', news: 'Actualité' };
+  const items = promoItemsFromArticles([
+    { slug: 'titre-foncier', title: 'Vérifier un titre foncier', category: 'guide', coverUrl: 'https://example.org/a.jpg' },
+    { slug: 'loi', title: 'La loi expliquée', category: 'actualite', coverUrl: null },
+    { slug: '', title: 'Sans adresse' },
+    { slug: 'x', title: '' },
+    { slug: 'http', title: 'Image non sûre', category: 'guide', coverUrl: 'http://example.org/b.jpg' },
+  ], labels);
+  assert.deepEqual(items, [
+    { href: '/guides/titre-foncier', title: 'Vérifier un titre foncier', kicker: 'Guide', imageUrl: 'https://example.org/a.jpg' },
+    { href: '/guides/loi', title: 'La loi expliquée', kicker: 'Actualité', imageUrl: null },
+    { href: '/guides/http', title: 'Image non sûre', kicker: 'Guide', imageUrl: null },
+  ]);
+  assert.equal(promoItemsFromArticles(Array.from({ length: 20 }, (_, i) => ({ slug: `a${i}`, title: `T${i}` })), labels).length, PROMO_MAX);
+  assert.deepEqual(promoItemsFromArticles(null), []);
+  // The slot knows nothing about articles: the feed can change without touching it.
+  const slot = read('components/app/AppPromoCarousel.js');
+  assert.doesNotMatch(slot, /blog|article\./i);
+  assert.match(slot, /if \(!items\.length\) return null;/);
+  const home = read('components/AppHomeTop.js');
+  assert.match(home, /<HomeMarketExplorer communes=\{market\} note=\{t\('home\.market\.note'\)\} \/>/, 'the website’s own block and figures');
+  assert.match(home, /\{market\.length \? \(/, 'nothing when the price guide has no commune to speak for');
+  const page = read('app/(site)/(home)/page.js');
+  assert.match(page, /marketCommunes\(guides, \{ label: communeLabel, keep: \(commune\) => cityOfCommune\(commune\) === DEFAULT_CITY \}\)/);
+  for (const dict of [fr, en]) for (const key of ['marketAll', 'promoTitle', 'promoGuide', 'promoNews']) assert.ok(dict.appShell.home[key], key);
+});

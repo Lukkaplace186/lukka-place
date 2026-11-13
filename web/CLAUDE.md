@@ -5475,3 +5475,5 @@ opens into the first 12 homes as `AppSavedRow`s. Its ids are the map's own
 (`onVisibleIdsChange`), read through `/api/listings?ids=` only once opened;
 it floats above Google's attribution line and steps aside while a pin's card
 is open. Not built: the sheet's sort and the "above the median rent" line.
+
+**App home: market figures and the card slot (2026-11-13).** Under the listings rail the app home shows the website's own `HomeMarketExplorer` (same `marketCommunes(getPriceGuides())` feed and 60-second copy as HomeMarketBand), then `components/app/AppPromoCarousel.js`: a card slot fed by `lib/appPromoRules.js` `promoItemsFromArticles` (the latest guides and news; a card without a cover draws no picture). The slot takes plain `{ href, title, kicker, imageUrl }` items so its feed can become partner agencies later without a layout change. **The zone's line** is now solid brand blue, 3.5px, and keeps up to 64 corners (`MAX_ZONE_POINTS`) so it follows what was drawn.

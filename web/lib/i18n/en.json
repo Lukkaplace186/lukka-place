@@ -9275,7 +9275,11 @@
       },
       "resume": "Resume:",
       "more": "Also Online",
-      "searchPlaceholder": "Commune or neighbourhood"
+      "searchPlaceholder": "Commune or neighbourhood",
+      "marketAll": "All prices",
+      "promoTitle": "Guides and News",
+      "promoGuide": "Guide",
+      "promoNews": "News"
     },
     "card": {
       "photos": {

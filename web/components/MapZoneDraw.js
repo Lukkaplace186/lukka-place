@@ -31,8 +31,8 @@ function toLatLng(map, x, y) {
  * the map: the path is drawn as it goes, and on release it is thinned to a
  * few corners (lib/mapZone.js), turned into places on the ground and handed
  * to `onZone`. A tap or a slip is not a shape and changes nothing. The zone
- * in force (`zone`, from the URL) is drawn on the map itself as a dashed
- * outline with a faint fill, and "Effacer la zone" removes it.
+ * in force (`zone`, from the URL) is drawn on the map itself as a solid blue
+ * line with a faint fill, and "Effacer la zone" removes it.
  *
  * Nothing here filters listings: the zone goes into the URL (ListingsMap) and
  * the server narrows the search to it.
@@ -70,9 +70,12 @@ export default function MapZoneDraw({ map, zone = null, onZone, enabled = false 
       map,
       path: ring,
       clickable: false,
-      strokeOpacity: 0,
+      // A solid line in the brand blue, on the path that was drawn (owner,
+      // 2026-11-13): the dashed outline read as a suggestion, not as the zone.
+      strokeColor: ZONE_BLUE,
+      strokeOpacity: 1,
+      strokeWeight: 3.5,
       zIndex: 2,
-      icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: ZONE_BLUE, scale: 2.5 }, offset: '0', repeat: '11px' }],
     });
     shapesRef.current = [fill, outline];
     return () => {
@@ -158,10 +161,9 @@ export default function MapZoneDraw({ map, zone = null, onZone, enabled = false 
                 points={path.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="none"
                 stroke={ZONE_BLUE}
-                strokeWidth="3"
+                strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray="2 8"
               />
             </svg>
           ) : null}

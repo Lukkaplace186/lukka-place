@@ -17,6 +17,13 @@ import { getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
 import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { mergeSocialLinks, seoMetadata } from '@/lib/siteSettingsRules';
 import AppHomeTop from '@/components/AppHomeTop';
+import { getPriceGuides } from '@/lib/browseFeatures';
+import { marketCommunes } from '@/lib/homeMarket';
+import { listPublicArticles } from '@/lib/blog';
+import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
+import { memo } from '@/lib/memo';
+import { getLocale } from '@/lib/i18n/server';
+import { promoItemsFromArticles } from '@/lib/appPromoRules';
 import { communeFromSlug, communeSlug } from '@/lib/seoPages';
 import { isAppRequest } from '@/lib/appMode';
 import { getCurrentCustomerId, listSavedSearches } from '@/lib/customers';
@@ -165,12 +172,21 @@ async function latestSavedSearch() {
  * out; the tab bar replaces the footer.
  */
 async function AppHomePage({ propertyTypes, communes, total, heroImage }) {
-  const [liveCount, savedSearch, featured] = await Promise.all([
+  const t = await getT();
+  const locale = await getLocale();
+  const [liveCount, savedSearch, featured, guides, articles] = await Promise.all([
     cachedLiveListingsCount().catch(() => 0),
     latestSavedSearch(),
     // The same newest-first 60-second copy "Sélection de la semaine" reads.
     cachedFeaturedListings().catch(() => ({ data: [] })),
+    // The website's "Le marché locatif en chiffres" (HomeMarketBand), same
+    // 60-second copy and the same rule: Kinshasa's communes the price guide
+    // can speak for.
+    memo('home-market:v2', 60_000, () => getPriceGuides()).catch(() => []),
+    // The card slot's feed today: Lukka Place's own guides and news.
+    listPublicArticles(locale).catch(() => []),
   ]);
+  const market = marketCommunes(guides, { label: communeLabel, keep: (commune) => cityOfCommune(commune) === DEFAULT_CITY });
   return (
     <AppHomeTop
       liveCount={liveCount}
@@ -181,6 +197,8 @@ async function AppHomePage({ propertyTypes, communes, total, heroImage }) {
       savedSearch={savedSearch ? { query: savedSearch.query, label: savedSearch.label } : null}
       listings={featured.data || []}
       heroImage={heroImage}
+      market={market}
+      promo={promoItemsFromArticles(articles, { guide: t('appShell.home.promoGuide'), news: t('appShell.home.promoNews') })}
     />
   );
 }

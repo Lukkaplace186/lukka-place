@@ -7,6 +7,8 @@ import SearchBar from './SearchBar';
 import AppHomeHero from './app/AppHomeHero';
 import AppListingCard from './app/AppListingCard';
 import AppRailCard from './app/AppRailCard';
+import AppPromoCarousel from './app/AppPromoCarousel';
+import HomeMarketExplorer from './HomeMarketExplorer';
 import { ChartBars, ChartContainer } from './ui/chart';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -60,6 +62,10 @@ export default function AppHomeTop({
   savedSearch = null,
   listings = [],
   heroImage = null,
+  // "Le marché locatif en chiffres": the website's own figures (HomeMarketBand).
+  market = [],
+  // The card slot's items (today the latest guides and news).
+  promo = [],
 }) {
   const t = useT();
   const locale = useLocale();
@@ -114,7 +120,29 @@ export default function AppHomeTop({
         </section>
       ) : null}
 
-      <div className="space-y-8 px-4 pb-6 pt-7">
+      {/* The rental market in figures (owner, 2026-11-13): the website's own
+          block — commune pills, the median, the middle half of the listings,
+          the 1-to-4-bedroom bars, and the way to the full guide. */}
+      {market.length ? (
+        <section className="px-4 pt-8">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className={SECTION_TITLE}>{t('home.market.title')}</h2>
+            <Link href={localizeHref('/combien-coute', locale)} className="u-hit relative flex-none text-[0.875rem] font-semibold text-blue-deep">
+              {t('appShell.home.marketAll')}
+            </Link>
+          </div>
+          <HomeMarketExplorer communes={market} note={t('home.market.note')} />
+        </section>
+      ) : null}
+
+      {/* The card slot: Lukka Place's guides and news today, partner agencies later. */}
+      {promo.length ? (
+        <div className="pt-8">
+          <AppPromoCarousel title={t('appShell.home.promoTitle')} moreHref="/guides" moreLabel={t('appShell.home.seeAll')} items={promo} />
+        </div>
+      ) : null}
+
+      <div className="space-y-8 px-4 pb-6 pt-8">
         {/* Shortcuts, always there: three small tiles. */}
         <nav aria-label={t('appShell.home.shortcuts.label')} className="grid grid-cols-3 gap-2.5">
           {shortcuts.map(({ href, Icon, label }) => (

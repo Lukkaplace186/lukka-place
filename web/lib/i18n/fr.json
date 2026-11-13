@@ -9275,7 +9275,11 @@
       },
       "resume": "Reprendre :",
       "more": "Aussi en ligne",
-      "searchPlaceholder": "Commune ou quartier"
+      "searchPlaceholder": "Commune ou quartier",
+      "marketAll": "Tous les prix",
+      "promoTitle": "Guides et actualités",
+      "promoGuide": "Guide",
+      "promoNews": "Actualité"
     },
     "card": {
       "photos": {

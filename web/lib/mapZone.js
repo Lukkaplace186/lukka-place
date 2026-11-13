@@ -14,8 +14,10 @@
 export const ZONE_DRAW_PUBLIC = true;
 
 export const ZONE_PARAM = 'zone';
-/** A finger's path is thinned to at most this many corners. */
-export const MAX_ZONE_POINTS = 24;
+/** A finger's path is thinned to at most this many corners: enough for the
+ *  line on the map to follow what was drawn (owner, 2026-11-13: "the actual
+ *  line of the drawn area"), few enough for the URL. */
+export const MAX_ZONE_POINTS = 64;
 const MIN_ZONE_POINTS = 3;
 
 const valid = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
@@ -122,7 +124,8 @@ export function simplifyScreenPath(path, { max = MAX_ZONE_POINTS, minSize = 28 }
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   if (Math.max(...xs) - Math.min(...xs) < minSize || Math.max(...ys) - Math.min(...ys) < minSize) return null;
-  let tolerance = 2;
+  // 1.5px: the kept corners stay on the stroke, so the line reads as the drawing.
+  let tolerance = 1.5;
   let out = thin(points, tolerance);
   while (out.length > max && tolerance < 200) {
     tolerance *= 1.5;

@@ -1,4 +1,5 @@
 import { parseBounds } from './mapViewport';
+import { ZONE_PARAM, parseZone, zoneBounds } from './mapZone';
 
 /**
  * Maps /listings-style query params onto lib/listings.js's `getListings()`
@@ -9,6 +10,10 @@ import { parseBounds } from './mapViewport';
  * @param {URLSearchParams|Record<string,string>} searchParamsLike
  */
 export function parseListingsSearchParams(searchParamsLike) {
+  // A zone drawn on the map (lib/mapZone.js): the shape, or null.
+  const zone = parseZone(
+    typeof searchParamsLike?.get === 'function' ? searchParamsLike.get(ZONE_PARAM) : searchParamsLike?.[ZONE_PARAM],
+  );
   const get = (key) =>
     typeof searchParamsLike.get === 'function' ? searchParamsLike.get(key) : searchParamsLike[key];
 
@@ -82,6 +87,10 @@ export function parseListingsSearchParams(searchParamsLike) {
     // the map counts "dans cette zone" — see getListings. A half-specified or
     // malformed box is ignored here rather than widening or failing the page;
     // /api/listings/map is the endpoint that answers such a box with a 400.
-    bounds: parseBounds(searchParamsLike).bounds || null,
+    // With a drawn zone the list's area is the zone's own box, whatever part
+    // of the map is on screen (on a phone the URL's box follows every pan):
+    // the list shows the whole zone, and getMapMarkers narrows it to the shape.
+    bounds: zone ? zoneBounds(zone) : parseBounds(searchParamsLike).bounds || null,
+    zone,
   };
 }

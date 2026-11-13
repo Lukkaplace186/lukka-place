@@ -5428,3 +5428,35 @@ From the owner's six app mock-ups. Tests: `tests/unit/app-mode.test.js`
   result sheet (Google Maps refuses `localhost`, so it cannot be developed or
   checked in the preview), and the agents' guided camera (the store build
   declares no camera permission; it needs a new app build first).
+
+## A zone drawn on the map (2026-11-13)
+
+The owner's app design: draw a shape on the listings map with a finger and see
+only the homes inside it. `lib/mapZone.js` (pure), `components/MapZoneDraw.js`,
+`tests/unit/map-zone.test.js`.
+
+- **In the URL**: `zone=lat,lng;lat,lng;…` (3 to 24 corners, 5 decimals). A
+  malformed value is no zone at all. Drawing also sets the map's box
+  (`sw_lat`…) to the zone's own; clearing removes both.
+- **One definition of "inside"**: `parseListingsSearchParams` returns `zone`
+  and, with a zone, `bounds` = the zone's box (on a phone the URL's box follows
+  every pan, so the list would otherwise show zone ∩ screen). `getMapMarkers`
+  keeps only listings whose OWN coordinates are inside the shape
+  (`pointInZone`); one placed at its commune's centre for want of coordinates
+  is left out, never claimed. The list page gets its ids from that same read,
+  so pins, the count and the list agree.
+- **Drawing**: the pencil (bottom right) puts a `touch-none` layer over the
+  map; the path is thinned (`simplifyScreenPath`, Douglas–Peucker), turned
+  into places with the map's projection, and handed to ListingsMap's
+  `setZone`, which writes the URL (`router.replace`) and frames the zone. A
+  tap or a flat stroke is not a shape. The zone in force is a dashed Google
+  polyline with a faint fill; the blue is `--blue` repeated as a hex, since
+  Google's shapes cannot read CSS variables.
+- **App only** (`zoneDraw={appMode}` from ListingsSplitView).
+- **Cannot be developed locally**: the Maps key refuses `localhost`. The rules
+  and the server filter are tested locally; the drawing itself is checked on
+  the live site. While that is being done the pencil shows only where
+  `localStorage.lp_zone === '1'` (`ZONE_DRAW_PUBLIC` in lib/mapZone.js).
+- Not built from the same mock-up: the bottom sheet listing the zone's homes
+  (the existing "Voir N biens" / "Liste" controls show them) and the
+  power / water / parking chips on the map.

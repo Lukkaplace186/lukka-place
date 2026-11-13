@@ -3,6 +3,7 @@ import { getPool } from './db';
 import { COMMUNE_CENTROIDS } from './geocoding';
 import { landmarkPoint, NEAR_DEFAULT_RADIUS } from './landmarks';
 import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPosition } from './mapViewport';
+import { pointInZone } from './mapZone';
 import { DEFAULT_CITY, cityEnvelope, searchCityOf } from './cities';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { keywordTokens } from './searchKeywords';
@@ -1456,6 +1457,7 @@ function withoutLocationFilters(options) {
  * @returns {Promise<{markers: Object[], approximate: number, unlocated: number, unlocatedIds: Array<string|number>, truncated: boolean}>}
  */
 export async function getMapMarkers(options = {}, bounds = null) {
+  const zone = Array.isArray(options.zone) && options.zone.length >= 3 ? options.zone : null;
   const { whereClause, params } = buildFilters(bounds ? withoutLocationFilters(options) : options);
   const conditions = [whereClause];
   const values = [...params];
@@ -1492,6 +1494,11 @@ export async function getMapMarkers(options = {}, bounds = null) {
       continue;
     }
     if (bounds && !boundsContain(bounds, position)) continue;
+    // A zone drawn on the map (options.zone, lib/mapZone.js): only listings
+    // whose own coordinates fall inside the shape. One placed at its commune's
+    // centre for want of coordinates is not known to be inside, so it is left
+    // out rather than claimed.
+    if (zone && (position.approximate || !pointInZone(zone, position))) continue;
     if (position.approximate) approximate += 1;
 
     markers.push({

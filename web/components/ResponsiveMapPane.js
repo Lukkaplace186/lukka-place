@@ -40,7 +40,7 @@ const MapCardCarousel = dynamic(() => import('./MapCardCarousel'), { ssr: false 
  */
 export default function ResponsiveMapPane({
   listings, filterParams, isMapView, hoveredId, onMarkerHover, className, maxZoom, listingPreview = true, onPreviewChange,
-  onAreaChange, onInViewChange, openCardsRequest = 0,
+  onAreaChange, onInViewChange, openCardsRequest = 0, zoneDraw = false,
 }) {
   const [shouldRender, setShouldRender] = useState(false);
   // Phone /listings map: a pin opens swipeable cards (MapCardCarousel)
@@ -153,6 +153,7 @@ export default function ResponsiveMapPane({
               onVisibleIdsChange={setVisibleIds}
               revealId={revealId}
               onNearChange={setNear}
+              zoneDraw={zoneDraw}
             />
           ) : (
             <PropertyMap

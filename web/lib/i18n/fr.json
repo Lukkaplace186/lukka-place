@@ -1135,6 +1135,13 @@
       "notStated": "Non indiqué",
       "source": "Réponses de l’agence sur WhatsApp. Vérifiez-les pendant la visite.",
       "sourceDated": "Réponses de l’agence sur WhatsApp, le {date}. Vérifiez-les pendant la visite."
+    },
+    "zone": {
+      "hint": "Dessinez votre zone avec le doigt",
+      "cancel": "Annuler le dessin",
+      "clear": "Effacer la zone",
+      "draw": "Dessiner une zone",
+      "redraw": "Redessiner la zone"
     }
   },
   "enquiry": {

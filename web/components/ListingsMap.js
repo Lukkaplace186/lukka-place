@@ -4,6 +4,8 @@ import Link from '@/components/LocaleLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LocateFixed, Loader2, X } from 'lucide-react';
+import MapZoneDraw from './MapZoneDraw';
+import { ZONE_PARAM, parseZone, zoneBounds, zoneToParam } from '@/lib/mapZone';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { placeResolvedListings } from '@/lib/geocoding';
 import { compactPrice, priceZIndex } from '@/lib/mapIcons';
@@ -266,6 +268,8 @@ function fitTo(map, bounds, { exact = false, home = KINSHASA_DEFAULT_VIEW } = {}
 export default function ListingsMap({
   params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onInViewChange,
   onVisibleIdsChange, revealId, onNearChange,
+  // The app's "draw a zone" pencil (components/MapZoneDraw.js).
+  zoneDraw = false,
 }) {
   const t = useT();
   const router = useRouter();
@@ -311,6 +315,25 @@ export default function ListingsMap({
   // Whether the URL currently carries a map area. Only its removal matters
   // here ("Effacer la zone"): the map then goes back to the searched place.
   const hasUrlArea = useMemo(() => Boolean(parseBounds(params).bounds), [params]);
+  // The zone drawn by hand, read back from the URL (lib/mapZone.js).
+  const urlZoneParam = typeof params?.get === 'function' ? params.get(ZONE_PARAM) : params?.[ZONE_PARAM];
+  const urlZone = useMemo(() => parseZone(urlZoneParam), [urlZoneParam]);
+  // Drawing or clearing a zone goes through the URL: the pins, the count and
+  // the list all read it from there. The map's box is set to the zone's own,
+  // and the map frames the zone.
+  const setZone = useCallback((points) => {
+    const url = new URL(window.location.href);
+    if (points) {
+      url.searchParams.set(ZONE_PARAM, zoneToParam(points));
+      for (const [key, value] of Object.entries(boundsToQuery(zoneBounds(points)))) url.searchParams.set(key, value);
+    } else {
+      url.searchParams.delete(ZONE_PARAM);
+      for (const key of ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng']) url.searchParams.delete(key);
+    }
+    url.searchParams.delete('page');
+    router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: false });
+    if (points && mapRef.current) fitTo(mapRef.current, padBounds(zoneBounds(points), 0.15));
+  }, [router]);
   const hadUrlAreaRef = useRef(hasUrlArea);
 
   useEffect(() => {
@@ -855,6 +878,10 @@ export default function ListingsMap({
       )}
 
       <div ref={elementRef} className="h-full w-full" />
+
+      {status === 'ready' ? (
+        <MapZoneDraw map={mapReady ? mapRef.current : null} zone={urlZone} onZone={setZone} enabled={zoneDraw} />
+      ) : null}
 
       {status === 'ready' ? (
         // A text-only counter pill, top-centre. Only the pill takes pointer

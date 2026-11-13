@@ -1135,6 +1135,13 @@
       "notStated": "Not stated",
       "source": "The agency’s answers on WhatsApp. Check them during the visit.",
       "sourceDated": "The agency’s answers on WhatsApp, on {date}. Check them during the visit."
+    },
+    "zone": {
+      "hint": "Draw your zone with a finger",
+      "cancel": "Cancel drawing",
+      "clear": "Clear the zone",
+      "draw": "Draw a zone",
+      "redraw": "Redraw the zone"
     }
   },
   "enquiry": {

@@ -115,7 +115,7 @@ test('articles: English only when complete, a post replaces the guide with its s
 
 test('a code guide may carry a cover from public/guides, never another address', () => {
   const guide = GUIDES.find((g) => g.slug === 'garantie-3-1-1-kinshasa');
-  assert.equal(articleFromGuide(guide, 'fr').coverUrl, '/guides/garantie-3-1-1-kinshasa.jpg');
+  assert.equal(articleFromGuide(guide, 'fr').coverUrl, '/guides/garantie-3-1-1-kinshasa-v2.jpg');
   assert.ok(articleFromGuide(guide, 'fr').coverAlt.length > 0);
   assert.notEqual(articleFromGuide(guide, 'en').coverAlt, articleFromGuide(guide, 'fr').coverAlt);
   for (const cover of ['https://elsewhere.example/a.jpg', '/uploads/a.jpg', '/guides/../a.jpg', 'garantie.jpg']) {

@@ -41,7 +41,7 @@ export const GUIDES = [
     published: '2026-11-11',
     updated: '2026-11-11',
     cta: { href: '/location', label: 'Voir les logements à louer' },
-    cover: '/guides/garantie-3-1-1-kinshasa.jpg',
+    cover: '/guides/garantie-3-1-1-kinshasa-v2.jpg',
     coverAlt: 'Cinq enveloppes alignées : trois bleues, une dorée et une violette, avec une clé de maison.',
     body: [
       { p: 'Avant même la première nuit, un locataire à Kinshasa verse souvent cinq mois de loyer, parfois treize. La ligne « Garantie : 3 + 1 + 1 » d’une annonce décide souvent plus du budget que le loyer lui-même. Entrez votre loyer dans le calculateur ci-dessous pour voir le montant exact, poste par poste, et le comparer au plafond fixé par la loi de 2015 sur les baux.' },

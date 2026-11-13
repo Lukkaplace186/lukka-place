@@ -121,12 +121,10 @@ export default async function GuidePage({ params }) {
           {t('guides.readingTime', { minutes: readingMinutes(article.blocks) })}
           {locale === 'en' && article.lang === 'fr' ? ` · ${t('guides.frenchOnly')}` : ''}
         </p>
-        {/* Covers are drawn for the /guides card (GuideCards): the top of the picture is
-            left clear for the title written over it there. Here the title is above, so the
-            band is wider and leans to the lower part, where the picture's subject sits. */}
+        {/* The cover whole, at its own 16:9, as the /guides cards show it. */}
         {article.coverUrl ? (
-          <div className="relative -mx-4 aspect-[5/2] overflow-hidden bg-canvas-alt sm:mx-0 sm:rounded-xl">
-            <Image src={article.coverUrl} alt={article.coverAlt} fill priority sizes="(min-width: 768px) 720px, 100vw" className="object-cover object-[50%_92%]" />
+          <div className="relative -mx-4 aspect-[16/9] overflow-hidden bg-canvas-alt sm:mx-0 sm:rounded-xl">
+            <Image src={article.coverUrl} alt={article.coverAlt} fill priority sizes="(min-width: 768px) 720px, 100vw" className="object-cover" />
           </div>
         ) : null}
         <ArticleBody blocks={article.blocks} listingsBlock={LiveListings} />

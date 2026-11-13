@@ -10,12 +10,12 @@ import { cn } from '@/lib/utils';
 
 const loadFeatures = () => import('./guideCardFeatures').then((mod) => mod.default);
 
-// The card's photo keeps the SAME pixel size closed and open (the open card's
-// width × header height), and the closed tile only shows a window of it. That
-// is what lets the photo travel with the card without stretching: a layout
-// animation is a transform, and a box that changes shape distorts what is in it.
-// The title box keeps one width for the same reason. CSS variables, so the
-// tile and the open card read the same numbers at every breakpoint.
+// A layout animation is a transform, and a box that changes shape distorts what
+// is in it. So a cover keeps its own 16:9 shape closed and open (the card's
+// width × 9/16, under the title): it only scales, evenly, and is never cropped.
+// Without a cover, the blue ground keeps one pixel size (--gc-w × --gc-h) and
+// the tile shows a window of it. The title box keeps one width for the same
+// reason. CSS variables, so the tile and the open card read the same numbers.
 const SIZES = '[--gc-w:100vw] [--gc-h:90vw] [--gc-title:calc(100vw-72px)] sm:[--gc-w:45rem] sm:[--gc-h:24rem] sm:[--gc-title:19rem]';
 const RADIUS = 20;
 const SPRING = { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 };
@@ -89,7 +89,7 @@ export default function GuideCards({ articles, labels }) {
       <MotionConfig reducedMotion="user" transition={SPRING}>
         <ul className={cn('grid gap-4 sm:grid-cols-2 sm:gap-5', SIZES)}>
           {articles.map((a, i) => (
-            <li key={a.slug} className={i === 0 ? 'sm:col-span-2' : undefined}>
+            <li key={a.slug}>
               <Link
                 ref={(el) => {
                   if (el) tileRefs.current.set(a.slug, el);
@@ -121,13 +121,13 @@ function Tile({ article: a, priority }) {
       style={{ borderRadius: RADIUS }}
       className={cn(
         'relative h-full w-full overflow-hidden shadow-[0_1px_2px_rgb(12_29_80/0.08),0_8px_24px_-12px_rgb(12_29_80/0.35)]',
-        a.coverUrl ? 'bg-white ring-1 ring-inset ring-[rgb(12_29_80/0.08)]' : 'bg-[var(--blue-900)]',
+        a.coverUrl ? 'bg-white ring-1 ring-[rgb(12_29_80/0.08)]' : 'bg-[var(--blue-900)]',
       )}
     >
-      <Media article={a} priority={priority} />
+      <Media article={a} priority={priority} className={a.coverUrl ? 'absolute inset-x-0 bottom-0 aspect-[16/9]' : undefined} />
       <Heading article={a} />
-      {/* A cover is the picture under the title, like the App Store; without one the
-          summary fills the card. The open card always shows it. */}
+      {/* A cover is the picture under the title; without one the summary fills the
+          card. The open card always shows it. */}
       {a.summary && !a.coverUrl ? (
         <m.div layout="position" className="absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.62)_0%,rgb(0_0_0/0.38)_55%,rgb(0_0_0/0)_100%)] p-5 pt-14">
           <p lang={a.lang} className="line-clamp-2 text-[0.875rem] leading-snug text-white/90">
@@ -187,10 +187,17 @@ function OpenCard({ article: a, labels, phone, onClose }) {
           className="pointer-events-auto relative flex h-full w-full flex-col overflow-hidden bg-surface sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:max-w-[45rem]"
         >
           <m.div layoutScroll className="flex-1 overflow-y-auto overscroll-contain">
-            <div className={cn('relative h-[var(--gc-h)] w-full shrink-0 overflow-hidden', a.coverUrl ? 'bg-white' : 'bg-[var(--blue-900)]')}>
-              <Media article={a} />
-              <Heading article={a} />
-            </div>
+            {a.coverUrl ? (
+              <div className="bg-white">
+                <Heading article={a} className="relative ml-5 mt-6 sm:ml-8 sm:mt-7" />
+                <Media article={a} className="relative mt-3 aspect-[16/9] w-full" />
+              </div>
+            ) : (
+              <div className="relative h-[var(--gc-h)] w-full shrink-0 overflow-hidden bg-[var(--blue-900)]">
+                <Media article={a} />
+                <Heading article={a} />
+              </div>
+            )}
             <m.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0, transition: { delay: 0.12, duration: 0.3, ease: [0.16, 1, 0.3, 1] } }}
@@ -237,13 +244,17 @@ function OpenCard({ article: a, labels, phone, onClose }) {
   );
 }
 
-/** The photo (or the brand-blue ground when the article has none), same size open and closed. */
-function Media({ article: a, priority = false }) {
+/**
+ * The cover in the 16:9 box the caller gives it (shown whole), or, without a
+ * cover, the brand-blue ground at one fixed size, centred.
+ */
+function Media({ article: a, priority = false, className }) {
+  const fixed = !a.coverUrl;
   return (
     <m.div
       layoutId={`gc-media-${a.slug}`}
-      className="absolute top-0 h-[var(--gc-h)] w-[var(--gc-w)]"
-      style={{ left: 'calc(50% - var(--gc-w) / 2)' }}
+      className={fixed ? 'absolute top-0 h-[var(--gc-h)] w-[var(--gc-w)]' : className}
+      style={fixed ? { left: 'calc(50% - var(--gc-w) / 2)' } : undefined}
     >
       {a.coverUrl ? (
         <Image src={a.coverUrl} alt={a.coverAlt || ''} fill sizes={IMAGE_SIZES} priority={priority} className="object-cover" />
@@ -253,26 +264,16 @@ function Media({ article: a, priority = false }) {
           className="absolute inset-0 bg-[radial-gradient(120%_90%_at_15%_0%,var(--blue-400)_0%,var(--blue)_45%,var(--blue-900)_100%)]"
         />
       )}
-      {/* Keeps the title readable. Covers are drawn on white (content/blog/images/src), so
-          over a cover the title is ink on a white fade, which also holds on any photo; the
-          blue ground without a cover keeps a white title on a dark fade. The tile's summary
-          carries its own gradient, so the open card shows the picture's lower half untouched. */}
-      <div
-        aria-hidden="true"
-        className={cn(
-          'absolute inset-0',
-          a.coverUrl
-            ? 'bg-[linear-gradient(to_bottom,rgb(255_255_255/0.88)_0%,rgb(255_255_255/0.6)_22%,rgb(255_255_255/0)_42%)]'
-            : 'bg-[linear-gradient(to_bottom,rgb(0_0_0/0.42)_0%,rgb(0_0_0/0)_40%)]',
-        )}
-      />
+      {/* The white title over the blue ground gets a dark fade; a cover sits under its
+          title, so nothing is drawn over the picture. */}
+      {fixed ? <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(to_bottom,rgb(0_0_0/0.42)_0%,rgb(0_0_0/0)_40%)]" /> : null}
     </m.div>
   );
 }
 
-function Heading({ article: a }) {
+function Heading({ article: a, className = 'absolute left-5 top-5' }) {
   return (
-    <m.div layoutId={`gc-head-${a.slug}`} className={cn('absolute left-5 top-5 w-[var(--gc-title)]', a.coverUrl ? 'text-ink' : 'text-white')}>
+    <m.div layoutId={`gc-head-${a.slug}`} className={cn(className, 'w-[var(--gc-title)]', a.coverUrl ? 'text-ink' : 'text-white')}>
       {a.eyebrow ? (
         <p className={cn('text-[0.6875rem] font-semibold uppercase tracking-[0.1em]', a.coverUrl ? 'text-blue-deep' : 'text-white/80')}>{a.eyebrow}</p>
       ) : null}

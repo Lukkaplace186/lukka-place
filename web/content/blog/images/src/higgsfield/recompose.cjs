@@ -1,7 +1,8 @@
 // Shrinks a generated still life onto a matching white 3840×2160 canvas so its objects sit in
 // the band the /guides cards keep visible: centred, at most `span` of the width, low in the frame.
-// usage: node recompose.cjs <in.png> <out.png> [span=0.6] [centerY=0.66]
-// Used: titre foncier 0.46 / 0.66; 3 + 1 + 1 0.495 / 0.63 (owner: envelopes a bit bigger, 2026-11-13).
+// usage: [MAX_SCALE=1.25] node recompose.cjs <in.png> <out.png> [span=0.6] [centerY=0.66]
+// Used (2026-11-13; the cards show the whole 16:9 picture under the title): titre foncier
+// 0.84 / 0.53; 3 + 1 + 1 0.84 / 0.5 with MAX_SCALE=1.25 (its envelopes came back at 68 % width).
 const sharp = require('sharp');
 
 (async () => {
@@ -30,7 +31,7 @@ const sharp = require('sharp');
   }
   const bg = sum.map((v) => Math.round(v / n));
 
-  const k = Math.min(1, (SPAN * W) / (x1 - x0));
+  const k = Math.min(Number(process.env.MAX_SCALE || 1), (SPAN * W) / (x1 - x0));
   const sw = Math.round(info.width * k), sh = Math.round(info.height * k);
   const cx = ((x0 + x1) / 2) * k, cy = ((y0 + y1) / 2) * k;
   const left = Math.round(W / 2 - cx), top = Math.round(H * CY - cy);
@@ -44,10 +45,17 @@ const sharp = require('sharp');
   const alpha = await sharp(mask).resize(sw, sh).extractChannel(0).toBuffer();
   const scaled = await sharp(lifted).resize(sw, sh).joinChannel(alpha).png().toBuffer();
 
-  await sharp({ create: { width: W, height: H, channels: 3, background: { r: bg[0], g: bg[1], b: bg[2] } } })
-    .composite([{ input: scaled, left, top }])
-    .png()
-    .toFile(output);
+  if (sw >= W && sh >= H) {
+    // Enlarged past the canvas (MAX_SCALE > 1): crop the frame, kept inside the picture.
+    const cl = Math.min(0, Math.max(W - sw, left)), ct = Math.min(0, Math.max(H - sh, top));
+    await sharp(lifted).resize(sw, sh).extract({ left: -cl, top: -ct, width: W, height: H }).png().toFile(output);
+    console.log(`cropped at ${-cl},${-ct} (objects now centred at y ${(((cy + ct) / H) * 100).toFixed(0)}%)`);
+  } else {
+    await sharp({ create: { width: W, height: H, channels: 3, background: { r: bg[0], g: bg[1], b: bg[2] } } })
+      .composite([{ input: scaled, left, top }])
+      .png()
+      .toFile(output);
+  }
   const pct = (v, t) => `${((v / t) * 100).toFixed(0)}%`;
   console.log(`${input}: objects x ${pct(x0, info.width)}–${pct(x1, info.width)} y ${pct(y0, info.height)}–${pct(y1, info.height)} → scale ${k.toFixed(2)}, ` +
     `now x ${pct(left + x0 * k, W)}–${pct(left + x1 * k, W)} y ${pct(top + y0 * k, H)}–${pct(top + y1 * k, H)}, bg rgb(${bg})`);

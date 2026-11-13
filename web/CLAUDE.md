@@ -5455,8 +5455,11 @@ only the homes inside it. `lib/mapZone.js` (pure), `components/MapZoneDraw.js`,
 - **App only** (`zoneDraw={appMode}` from ListingsSplitView).
 - **Cannot be developed locally**: the Maps key refuses `localhost`. The rules
   and the server filter are tested locally; the drawing itself is checked on
-  the live site. While that is being done the pencil shows only where
-  `localStorage.lp_zone === '1'` (`ZONE_DRAW_PUBLIC` in lib/mapZone.js).
+  the live site: done 2026-11-13 with scripted pointer strokes (a circle gave
+  a 24-corner zone, 262 pins became 8, all inside; "Effacer la zone" restored
+  them). `ZONE_DRAW_PUBLIC` in lib/mapZone.js is true since; false hides the
+  pencil again except where `localStorage.lp_zone === '1'`. Not yet drawn
+  with a real finger.
 - Not built from the same mock-up: the bottom sheet listing the zone's homes
   (the existing "Voir N biens" / "Liste" controls show them) and the
   power / water / parking chips on the map.

@@ -75,13 +75,13 @@ test('with a zone, the list covers the whole zone and the listings read narrows 
   assert.match(read('components/ListingsSplitView.js'), /zoneDraw=\{appMode\}/, 'the pencil is the app’s');
 });
 
-test('the drawing layer takes the touch, never scrolls the page, and the pencil is private until checked on phones', () => {
+test('the drawing layer takes the touch, never scrolls the page, and the pencil can be made private again', () => {
   const draw = read('components/MapZoneDraw.js');
   assert.match(draw, /touch-none/);
   assert.match(draw, /const corners = simplifyScreenPath\(pathRef\.current\);/);
   assert.match(draw, /if \(!enabled \|\| !allowed \|\| !map\) return null;/);
   assert.match(draw, /window\.localStorage\.getItem\('lp_zone'\) === '1'/);
-  assert.equal(typeof ZONE_DRAW_PUBLIC, 'boolean');
+  assert.equal(ZONE_DRAW_PUBLIC, true, 'checked on the live map 2026-11-13: shown to everyone in the app');
   for (const dict of [fr, en]) {
     for (const key of ['hint', 'cancel', 'clear', 'draw', 'redraw']) assert.ok(dict.listings.zone[key], key);
   }

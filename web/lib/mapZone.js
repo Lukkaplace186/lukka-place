@@ -8,9 +8,10 @@
 // bounding box: the list beside the map already knows how to show "the
 // listings in this area", and the shape then narrows that area.
 
-/** Until the drawing has been checked on real phones, the pencil shows only
- *  where `localStorage.lp_zone === '1'` (components/MapZoneDraw.js). */
-export const ZONE_DRAW_PUBLIC = false;
+/** The pencil is shown to everyone in the app since the drawing was checked on
+ *  the live map (2026-11-13). Set to false to hide it again except where
+ *  `localStorage.lp_zone === '1'` (components/MapZoneDraw.js). */
+export const ZONE_DRAW_PUBLIC = true;
 
 export const ZONE_PARAM = 'zone';
 /** A finger's path is thinned to at most this many corners. */

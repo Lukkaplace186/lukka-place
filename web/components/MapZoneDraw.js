@@ -104,7 +104,13 @@ export default function MapZoneDraw({ map, zone = null, onZone, enabled = false 
   function onDown(event) {
     if (event.button > 0) return;
     activeRef.current = true;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Keep the stroke even if the finger leaves the layer; a pointer the
+    // browser will not capture still draws, so a refusal is not an error.
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* not capturable */
+    }
     pathRef.current = [pointOf(event)];
     setPath(pathRef.current);
   }

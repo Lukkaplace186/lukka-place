@@ -71,7 +71,9 @@ test('with a zone, the list covers the whole zone and the listings read narrows 
   // The map writes the zone and its box into the URL, and clears both together.
   const map = read('components/ListingsMap.js');
   assert.match(map, /url\.searchParams\.set\(ZONE_PARAM, zoneToParam\(points\)\);/);
-  assert.match(map, /<MapZoneDraw map=\{mapReady \? mapRef\.current : null\} zone=\{urlZone\} onZone=\{setZone\} enabled=\{zoneDraw\} \/>/);
+  assert.match(map, /<MapZoneDraw map=\{mapReady \? mapInstance : null\} zone=\{urlZone\} onZone=\{setZone\} enabled=\{zoneDraw\} \/>/);
+  // The map can be rebuilt after a filter change: the drawing layer gets the current one.
+  assert.match(map, /mapRef\.current = map;\s*setMapInstance\(map\);/);
   assert.match(read('components/ListingsSplitView.js'), /zoneDraw=\{appMode\}/, 'the pencil is the app’s');
 });
 

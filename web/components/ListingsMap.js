@@ -290,6 +290,10 @@ export default function ListingsMap({
 
   const [status, setStatus] = useState(() => (MAPS_API_KEY ? 'loading' : 'error'));
   const [mapReady, setMapReady] = useState(false);
+  // The Google map itself, as state: the effect below can build a new one
+  // (its callbacks change identity on some filter changes), and whatever draws
+  // on the map (MapZoneDraw) must be handed the current one, not the first.
+  const [mapInstance, setMapInstance] = useState(null);
   const [locating, setLocating] = useState(false);
   const [notice, setNotice] = useState(null);
   // The words dropped from a search that matched nothing anywhere, and the
@@ -615,6 +619,7 @@ export default function ListingsMap({
         // before any marker is fetched (see `positioning` below).
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...homeViewRef.current });
         mapRef.current = map;
+        setMapInstance(map);
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
           onClick: (pin) => {
@@ -880,7 +885,7 @@ export default function ListingsMap({
       <div ref={elementRef} className="h-full w-full" />
 
       {status === 'ready' ? (
-        <MapZoneDraw map={mapReady ? mapRef.current : null} zone={urlZone} onZone={setZone} enabled={zoneDraw} />
+        <MapZoneDraw map={mapReady ? mapInstance : null} zone={urlZone} onZone={setZone} enabled={zoneDraw} />
       ) : null}
 
       {status === 'ready' ? (

@@ -27,6 +27,8 @@ import {
   createListing,
   attachListingPhotos,
   updateListing,
+  getListingLocationText,
+  locationTextChanged,
   updateListingPrice,
   setListingGallery,
   deleteListing,
@@ -53,6 +55,7 @@ import {
   parseAgentListingText,
   alertPendingListing,
   answerLeadMatch,
+  geocodeListing,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { SITE_URL } from '@/lib/constants';
@@ -473,6 +476,10 @@ export async function createListingAction(validCommunes, validCategories, formDa
     photo_count: uploadedCount,
     agent_name: agentDisplayName(agent),
   });
+
+  // Place it on the map with the same name-checked lookup a WhatsApp listing
+  // gets at publish (engine services/geocoding.js). Not awaited.
+  void geocodeListing(propertyId);
 
   return { ok: true, propertyId, photoWarning: uploadedCount < photos.length };
 }
@@ -1079,6 +1086,9 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     if (photoProblem) return photoProblem;
   }
 
+  // What the listing is placed from, before the edit (null if not theirs).
+  const locationBefore = await getListingLocationText(agentId, propertyId).catch(() => null);
+
   let owned;
   try {
     owned = await updateListing(agentId, propertyId, {
@@ -1091,6 +1101,12 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     throw err;
   }
   if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
+
+  // A new quartier / reference / commune is a new place: look it up again.
+  // Otherwise only a listing with no point yet is looked up. Not awaited.
+  void geocodeListing(propertyId, {
+    replace: locationTextChanged(locationBefore, { quartier, reference, commune }),
+  });
 
   // Kinshasa utility codes — only when the agent touched them; unknown codes
   // are dropped (lib/utilityTags.js), and a missing column never fails the edit.

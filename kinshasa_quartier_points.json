@@ -230,7 +230,11 @@
   "Kintambo|tshinkela": null,
   "Kintambo|wenze": null,
   "Kisenso|17 mai": null,
-  "Kisenso|amba": null,
+  "Kisenso|amba": {
+   "lat": -4.42053,
+   "lng": 15.336536,
+   "how": "neighborhood"
+  },
   "Kisenso|bikanga": {
    "lat": -4.410255,
    "lng": 15.354092,
@@ -270,7 +274,12 @@
   },
   "Kisenso|regideso": null,
   "Kisenso|revolution": null,
-  "Lemba|camp bumba": null,
+  "Lemba|camp bumba": {
+   "lat": -4.397268,
+   "lng": 15.331041,
+   "how": "cluster",
+   "size": 3
+  },
   "Lemba|camp kabila": null,
   "Lemba|commercial": null,
   "Lemba|echangeur": {
@@ -332,7 +341,12 @@
   "Limete|mayulu": null,
   "Limete|mbamu": null,
   "Limete|mfumu mvula": null,
-  "Limete|mombele": null,
+  "Limete|mombele": {
+   "lat": -4.35961,
+   "lng": 15.327117,
+   "how": "cluster",
+   "size": 3
+  },
   "Limete|mososo": null,
   "Limete|ndanu": {
    "lat": -4.369491,
@@ -523,7 +537,11 @@
   "Nsele|kikimi": null,
   "Nsele|kindobo": null,
   "Nsele|maba": null,
-  "Nsele|mangenge": null,
+  "Nsele|mangenge": {
+   "lat": -4.432211,
+   "lng": 15.518863,
+   "how": "neighborhood"
+  },
   "Nsele|mibu": null,
   "Nsele|mikala i": null,
   "Nsele|mikala ii": null,
@@ -581,7 +599,12 @@
   "Ngaliema|kinkenda": null,
   "Ngaliema|kinsuka pecheurs": null,
   "Ngaliema|lonzo": null,
-  "Ngaliema|lubudi": null,
+  "Ngaliema|lubudi": {
+   "lat": -4.36224,
+   "lng": 15.244613,
+   "how": "cluster",
+   "size": 3
+  },
   "Ngaliema|lukunga": {
    "lat": -4.362833,
    "lng": 15.216266,
@@ -792,5 +815,6 @@
   "Gombe|huileries": null,
   "Lingwala|24 novembre": null
  },
- "checked_at": "2026-10-24"
+ "checked_at": "2026-10-24",
+ "retried_at": "2026-11-14"
 }

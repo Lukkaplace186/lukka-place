@@ -1755,9 +1755,10 @@ Migration `migrations/20260922_agent_quick_replies.sql` (new table only).
   anchors are ids on Paramètres and in `AgentListingEditor`, pinned by the
   test). Consequences:
   - `no_map_pin` fires only when coordinates are missing AND quartier is
-    blank. Nothing on the web write path geocodes (only the engine's publish
-    sync and its backfill script), so a pin nag with a quartier already set
-    would be unfixable.
+    blank. A quartier the lookup cannot place is still not something the
+    agent can fix, so it is not nagged. (Since 2026-11-14 the web forms do
+    geocode — `geocodeListing`, see "Map: web listings located, commune
+    bubbles" below — but a quartier with no checked point stays unplaced.)
   - `missing_deposit` is rental-only and means `deposit_months IS NULL`
     (0 is a stated value).
   - `no_communes` needs BOTH primary and serviced empty — the matcher scores
@@ -5210,3 +5211,27 @@ Owner decision: the results scroll endlessly, no "Page 1 / 32". `lib/listingsFee
   signal. In the in-app test browser neither IntersectionObserver nor scroll
   events run without painted frames: test loading with a dispatched `scroll`
   event, not by scrolling and waiting.
+
+## Map: web listings located, commune bubbles (2026-11-14)
+
+From the owner's phone screenshots: prices formed rings around communes.
+307 of 592 public listings had no stored point, so `/listings` drew them on
+their commune's centre and `placeResolvedListings` fanned them onto one ring
+(89 in Limete, ~1 km across). Engine half: docs/claude/map-and-geocoding.md,
+same heading. Tests: `tests/unit/commune-bubbles.test.js`, verify-pipeline §113.
+
+- **Web forms now get a point.** `lib/adminApi.js` `geocodeListing(id,
+  { replace })` → engine `POST /admin/properties/:id/geocode` (the
+  name-checked lookup WhatsApp listings get at publish). Called without
+  waiting after agent create, agent edit (`replace` when quartier,
+  reference or commune changed — `getListingLocationText` /
+  `locationTextChanged`, lib/agentListings.js), admin create, and admin edit
+  (fill only: the admin's editor owns coordinates). Project units are never
+  touched. 114 of the 307 came from these forms.
+- **Listings that only know their commune are one bubble** (owner choice
+  over a filled-disc scatter): `lib/communeBubbles.js` groups 2+ approximate
+  markers per commune into one navy, stemless pill at the centre — "89 biens
+  · Limete", z-index under every located pin — that opens
+  `BuildingUnitsDrawer` (headed by the commune, "emplacement précis non
+  indiqué", quartier on each row). A single one keeps its price pin. This
+  is the one exception to "every listing shows its price on the map".

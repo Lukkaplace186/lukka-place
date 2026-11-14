@@ -7,6 +7,7 @@ import { recordAudit } from '@/lib/adminAudit';
 import { adminUpdateListing, adminSetListingVisible, adminSetListingDetails, getListingForAdmin } from '@/lib/adminListings';
 import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { setListingGallery } from '@/lib/agentListings';
+import { geocodeListing } from '@/lib/adminApi';
 import { getT } from '@/lib/i18n/server';
 import { normaliseArea } from '@/lib/listingView';
 
@@ -127,6 +128,10 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       throw err;
     }
     if (!updated) return { ok: false, error: t('errors.listingNotFound') };
+
+    // The admin owns the coordinates here (the editor writes them): only a
+    // listing left with none is looked up. Not awaited.
+    void geocodeListing(propertyId);
 
     // Practical details (lib/listingDetails.js): the editor always sends the
     // whole fieldset, gated again on the category and purpose just saved.

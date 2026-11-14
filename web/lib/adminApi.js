@@ -920,6 +920,25 @@ export async function alertPendingListing(listing) {
 }
 
 /**
+ * Ask the engine to place a listing typed on the web on the map (engine
+ * POST /admin/properties/:id/geocode — the same name-checked lookup WhatsApp
+ * listings get at publish). `replace` when its quartier, reference or commune
+ * changed; otherwise only a missing point is filled. Not awaited by callers
+ * and never throws: a listing with no point stays on its commune, as before.
+ */
+export async function geocodeListing(propertyId, { replace = false } = {}) {
+  try {
+    return await engineFetch(`/admin/properties/${Number(propertyId)}/geocode`, {
+      method: 'POST',
+      body: JSON.stringify({ replace: replace === true }),
+    });
+  } catch (err) {
+    console.error(`[adminApi] geocode #${propertyId} failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * Change a listing's asking price through the engine, which writes Postgres
  * AND its own SQLite row in one step (engine services/postgres.js
  * setListingPrice), so a later WhatsApp correction cannot re-sync the old

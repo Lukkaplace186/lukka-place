@@ -357,6 +357,33 @@ export async function getOwnListingForEdit(agentId, propertyId) {
 }
 
 /**
+ * What a listing is placed FROM — quartier, reference, commune — read before
+ * an edit, so the edit can tell whether its map point must be looked up
+ * again (engine POST /admin/properties/:id/geocode with `replace`). Same
+ * ownership rule as every read here. Null when not this agent's.
+ */
+export async function getListingLocationText(agentId, propertyId) {
+  const { rows } = await getPool().query(
+    `SELECT p.quartier, p.reference,
+            (SELECT ac.name FROM property_amenities pa
+               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
+              LIMIT 1) AS commune
+       FROM properties p
+      WHERE p.id = $2 AND p.agent_id = $3`,
+    [CONTENT_LANGUAGE_ID, propertyId, agentId],
+  );
+  return rows[0] || null;
+}
+
+/** Did the text a listing is placed from change? Case and spacing don't count. */
+export function locationTextChanged(before, after) {
+  if (!before) return false;
+  const norm = (v) => String(v ?? '').trim().toLowerCase();
+  return ['quartier', 'reference', 'commune'].some((key) => norm(before[key]) !== norm(after?.[key]));
+}
+
+/**
  * The native editor's write path. Ownership is enforced in the UPDATE's own
  * WHERE clause (AND agent_id = $n), not merely by the caller having loaded
  * the row first.

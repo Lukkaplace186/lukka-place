@@ -58,6 +58,13 @@ const { listingApprovedText, approvedTemplateUrlButton } = require('../services/
 
 const router = express.Router();
 
+// Demo accounts (services/demoAccounts.js): a request acting for a demo
+// customer or agent runs in a demo context, so nothing it triggers can
+// WhatsApp a real person (the desk, an agency, a listing's agent).
+const demoAccounts = require('../services/demoAccounts');
+
+router.use(demoAccounts.demoContextMiddleware);
+
 // ---------------------------------------------------------------------------
 // Conversations
 // ---------------------------------------------------------------------------
@@ -330,6 +337,30 @@ router.post('/moderation-alert', async (req, res) => {
     source: 'site',
   });
   return res.json({ success: true, ...result });
+});
+
+// A listing written by the web forms (agent dashboard, admin console) never
+// passes through syncListingToPostgres, so it was never located: locate it
+// from its stored row (services/geocoding.js geocodeStoredProperty). `replace`
+// when its quartier / reference / commune changed. Web calls it without
+// waiting; a failure only leaves the listing on its commune, as before.
+router.post('/properties/:id/geocode', async (req, res) => {
+  const propertyId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ success: false, error: 'invalid property id' });
+  }
+  const pg = require('../services/postgres');
+  if (!pg.isConfigured()) return res.status(503).json({ success: false, error: 'Postgres is not configured' });
+  try {
+    const result = await require('../services/geocoding').geocodeStoredProperty(pg.getPool(), propertyId, {
+      replace: req.body?.replace === true,
+    });
+    console.log(`[geocoding] property #${propertyId} (web): ${result.status}${result.query ? ` via "${result.query}"` : ''}`);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[geocoding] property #${propertyId} (web) failed: ${err.message}`);
+    return res.status(502).json({ success: false, error: err.message });
+  }
 });
 
 // Demand report — what customers asked for, by commune × transaction ×

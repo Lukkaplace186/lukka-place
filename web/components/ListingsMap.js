@@ -11,6 +11,7 @@ import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
+import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
 import { useCountUp } from '@/lib/useCountUp';
@@ -144,6 +145,7 @@ function toBounds(latLngBounds) {
 }
 
 function labelFor(group) {
+  if (group.isCommune) return communeBubbleLabel(group);
   if (group.isBuilding) return buildingPinLabel(group, (value) => compactPrice(value, 'sale'));
   const listing = group.representative;
   return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
@@ -152,7 +154,9 @@ function labelFor(group) {
 function zIndexFor(group) {
   // Higher prices in front, so where two tags overlap the pricier one stays
   // readable. A building stands for several listings, so it sits one above
-  // its own most expensive unit's price.
+  // its own most expensive unit's price. A commune bubble sits under every
+  // located pin: it is the least precise thing on the map.
+  if (group.isCommune) return 0;
   return group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(group.representative.price);
 }
 
@@ -385,10 +389,13 @@ export default function ListingsMap({
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
 
-    // Same three passes PropertyMap uses: group units of one building, fan
-    // listings sharing a base point onto a ring (privacy jitter included),
-    // then the screen-space de-overlap net.
-    const groups = groupListingsByBuilding(markers);
+    // Listings that only know their commune become one bubble per commune at
+    // its centre (lib/communeBubbles.js) instead of a ring of made-up spots.
+    // The rest take the same three passes PropertyMap uses: group units of
+    // one building, fan listings sharing a base point onto a ring (privacy
+    // jitter included), then the screen-space de-overlap net.
+    const { bubbles, rest } = splitCommuneBubbles(markers);
+    const groups = [...bubbles, ...groupListingsByBuilding(rest)];
     const bases = groups.map((group) => {
       const r = group.representative;
       return {
@@ -399,8 +406,9 @@ export default function ListingsMap({
           lng: r.lng,
           source: r.approximate ? 'commune_fallback' : 'existing',
           precise: !r.approximate,
-          // Every unit of a developer's building shares its exact pin.
-          exact: group.listings.every((l) => l.exact),
+          // Every unit of a developer's building shares its exact pin; a
+          // commune bubble sits on the commune's centre, unjittered.
+          exact: Boolean(group.isCommune) || group.listings.every((l) => l.exact),
         },
       };
     });
@@ -423,8 +431,9 @@ export default function ListingsMap({
         lat: position.lat,
         lng: position.lng,
         label: labelFor(group),
-        title: group.isBuilding ? (group.buildingName || r.title) : r.title,
+        title: group.isCommune ? group.communeName : group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
+        commune: Boolean(group.isCommune),
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,

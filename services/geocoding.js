@@ -82,7 +82,11 @@ function isLandmarkReference(reference) {
 }
 
 /** "GB / Hôtel Diplomate", "Mimosas, Camp Docteur" → its separate terms. */
-const TERM_SPLIT = /\s*(?:[/|;()[\]–—,]|\s-\s)\s*/;
+/**
+ * Also on the word "référence" / "réf" agents put between a street and a
+ * landmark: "1ère rue industrielle référence la police" is two terms.
+ */
+const TERM_SPLIT = /\s*(?:[/|;()[\]–—,]|\s-\s|\s+r[ée]f(?:[ée]rence)?\b\.?\s*:?)\s*/iu;
 
 function splitLocationText(text) {
   return String(text ?? '')
@@ -261,8 +265,15 @@ const NAME_STOPWORDS = new Set([
 ]);
 const NAME_SYNONYMS = { av: 'avenue', ave: 'avenue', bd: 'boulevard', blvd: 'boulevard', st: 'saint', ste: 'sainte' };
 
+/** "1ère", "1 ère", "premier", "7éme", "7ème" → "1e", "7e": streets are numbered. */
+function foldOrdinals(text) {
+  return locations.normaliseText(String(text ?? '').replace(/ᵉ/g, 'e'))
+    .replace(/\bpremiere?\b/g, '1e')
+    .replace(/\b(\d{1,2})\s*(?:i?eme|em|ere|er|e)\b/g, '$1e');
+}
+
 function nameTokens(text) {
-  return locations.placeKey(String(text ?? '').replace(/ᵉ/g, 'e'))
+  return locations.placeKey(foldOrdinals(text))
     .split(' ')
     .filter(Boolean)
     .map((token) => NAME_SYNONYMS[token] || token);
@@ -273,7 +284,10 @@ function nameMatches(term, displayName) {
   const wanted = nameTokens(term).filter((token) => !NAME_STOPWORDS.has(token));
   if (wanted.length === 0) return false;
   const have = nameTokens(displayName);
-  if (wanted.every((token) => have.includes(token))) return true;
+  // A word of 6+ letters also matches its longer form: "Industriel" is the
+  // quartier, "1ère rue Industrielle" a street in it.
+  const carries = (token) => have.some((h) => h === token || (token.length >= 6 && h.startsWith(token)));
+  if (wanted.every(carries)) return true;
   // An agent's long repère names the place and more ("SUPER MARCHÉ GALAXY DE
   // SUKA MUR MBINZA OZONE" for "Super Marché Galaxy Ozone"): every identifying
   // word of a name of three or more such words is in the term. Two is too
@@ -574,7 +588,39 @@ async function storeListingCoordinates(db, propertyId, row, { apiKey = process.e
   return { status: 'geocoded', lat: point.lat, lng: point.lng, query: point.query };
 }
 
+const CONTENT_LANGUAGE_ID = 20;
+
+/**
+ * Locate a listing that is already in Postgres, from its own row: the web
+ * forms (agent dashboard, admin) create and edit listings without going
+ * through syncListingToPostgres, so until 2026-11-14 none of them was ever
+ * located — 114 of the 307 public listings drawn on a commune centre.
+ * `replace` (a location field changed) clears the old point first; without it
+ * a stored point is kept. A project unit keeps its building's exact point.
+ */
+async function geocodeStoredProperty(db, propertyId, { replace = false, ...options } = {}) {
+  const { rows } = await db.query(
+    `SELECT p.id, p.quartier, p.reference, p.latitude, p.longitude,
+            (to_jsonb(p) ->> 'development_id') AS development_id,
+            (SELECT ac.name FROM property_amenities pa
+               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $2
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
+              LIMIT 1) AS commune,
+            (SELECT cc.name FROM property_city_contents cc WHERE cc.city_id = p.city_id LIMIT 1) AS city
+       FROM properties p WHERE p.id = $1`,
+    [propertyId, CONTENT_LANGUAGE_ID],
+  );
+  const row = rows[0];
+  if (!row) return { status: 'skipped' };
+  if (row.development_id) return { status: 'kept' };
+  if (replace && hasCoordinates(row)) {
+    await db.query('UPDATE properties SET latitude = NULL, longitude = NULL WHERE id = $1', [propertyId]);
+  }
+  return storeListingCoordinates(db, propertyId, row, options);
+}
+
 module.exports = {
+  geocodeStoredProperty,
   isLandmarkReference,
   splitLocationText,
   locationTerms,

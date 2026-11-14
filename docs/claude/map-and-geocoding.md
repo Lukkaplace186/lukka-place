@@ -29,3 +29,26 @@ Real Google Maps rendering on `/listings` (`?view=map`, toggle button next to So
 - **Publish-time geocoding** (`services/geocoding.js`): after COMMIT, `syncListingToPostgres` fills blank `latitude`/`longitude` with the same landmark rule and precision check as the client cascade (a commune outline is refused, a key/quota refusal throws rather than cascading). Needs `GOOGLE_MAPS_SERVER_KEY` (IP-restricted; requests go out over IPv4 because the VPS is dual-stack). Never overwrites an existing coordinate; a correction that changes quartier, commune tag or landmark reference clears the old one first. Backfill: `node scripts/backfill-listing-coordinates.js [--write]`. §30 of verify-pipeline.
 - **Markers** (2026-09-23, "sleek map" pass): on `/listings`, HTML speech-bubble pills drawn by one `google.maps.OverlayView` (`web/lib/mapPinLayer.js`, styles `.lkp-pin` in `app/globals.css`) — the site font, CSS transitions, no Map ID, and off the deprecated `google.maps.Marker`. White with charcoal text and a stem whose tip is the coordinate; the active one (hovered card / open preview) royal blue; listings this browser opened (`lib/recentlyViewed.js`) or tapped greyed; `verified_at` a small check. **Every listing always shows its price**: no clustering, and the overlap-to-dot collapse tried the same day was removed on product direction ("the blue dots … I don't understand it"). Labels are the map's own format, `$750` / `$1.5k` / `$185k` / `$1.2M` (`compactPrice`), no "/m", "/an" kept for yearly rents. The detail page (2026-09-28) loads by itself near the viewport (Data Saver keeps the tap) and shows the one listing: with stored coordinates `ListingPinMap` at zoom 14 shows only a pale 500 m approximate-zone circle and a "Zone approximative" chip — no pin, symbol, label or price (2026-10-23, owner's choice; a navy point and then an irregular zone with a white type badge came before it); a comparison with nearby similar listings was tried and reverted on 2026-09-28; without coordinates `PropertyMap`'s SVG `google.maps.Marker` tags (`lib/mapIcons.js`), same white/blue. Also: `cameraControl` off, "Autour de moi" (geolocation on tap, refused outside `KINSHASA_PROVINCE_ENVELOPE`), a 60s per-tab cache of marker answers, and the top pill is text only (no ⓘ) and hidden on a phone once settled — "Voir N biens" carries the count. Stacking: active on top, then higher price in front. Co-located pins are separated by the fan described above.
 - **Known environment limitation, not a code bug**: this session's sandboxed test browser has no real GPU (WebGL reports available but the renderer is unaccelerated software — `"WebKit WebGL"` with no hardware string), which makes Google's Maps JS API silently fall back to `StaticMapService.GetMapImage` (a static, non-interactive image) instead of the normal vector-tile renderer, so full interactive rendering (pan/zoom/cluster click/InfoWindow) could not be visually confirmed in that pane. What **was** confirmed directly: all 8 real listings resolve to real coordinates (`console.log` per listing — 7 geocoded, 1 via the commune-fallback fix above, 0 unresolved), `google.maps.Marker` instances are genuinely created (its deprecation warning only fires on real construction), no JS errors anywhere in the pipeline, and lint is clean. **Verify the actual interactive experience (pan/zoom/clusters/popup clicks) in a real desktop browser** — it should Just Work there; the static-image fallback is specific to unaccelerated/headless environments.
+
+## Map: web listings located, commune bubbles (2026-11-14)
+
+Rings of prices around communes on `/listings` (owner, phone screenshots):
+307 of 592 public listings had no point and were fanned around their
+commune's centre. Two causes, and the web half: web/CLAUDE.md, same heading.
+
+- **The web forms never geocoded** (114 of the 307). `POST
+  /admin/properties/:id/geocode` (routes/admin.js, requireApiKey) runs
+  `geocoding.geocodeStoredProperty`: reads quartier, reference, commune and
+  city from the Postgres row, keeps a project unit's exact point, clears the
+  stored point first only with `replace: true`, then the same
+  `storeListingCoordinates` the publish sync uses.
+- **WhatsApp text the lookup could not read** (193). `splitLocationText`
+  also splits on "référence" / "réf" ("1ère rue industrielle référence la
+  police"); `nameTokens` folds ordinals ("1ère", "1 ère", "première",
+  "7éme" → "1e", "7e"); a term word of 6+ letters matches its longer form
+  ("Industriel" ↔ "Industrielle"). `scripts/geocode-quartiers.js
+  --retry-null=<file>` re-looks up only the table's null names: 5 more
+  (87 of 415). "Industriel" itself stays null on purpose — its name matches
+  spread over ~4 km (1ère to 18ème rue), so no single point is honest; those
+  listings place when their text names a street or a landmark.
+- §113.

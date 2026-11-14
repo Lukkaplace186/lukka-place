@@ -33,7 +33,10 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
 
   const units = orderedUnits(group);
   const bedrooms = buildingBedroomsLabel(group);
-  const heading = group.buildingName || group.representative?.address || 'Immeuble';
+  // A commune bubble (lib/communeBubbles.js) lists listings that only know
+  // their commune: same panel, worded as an area rather than a building.
+  const commune = group.isCommune ? group.communeName : null;
+  const heading = commune || group.buildingName || group.representative?.address || 'Immeuble';
   // A developer's building (lib/projectUnits.js) links back to its project page.
   const project = group.listings.find((l) => l.project)?.project || null;
 
@@ -47,10 +50,16 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-slate-900">{heading}</h2>
-            <p className="mt-0.5 text-sm text-slate-600">
-              {group.unitCount} unités disponibles
-              {bedrooms ? ` · ${bedrooms}` : ''}
-            </p>
+            {commune ? (
+              <p className="mt-0.5 text-sm text-slate-600">
+                {group.unitCount} {group.unitCount > 1 ? 'biens' : 'bien'} à {commune} · emplacement précis non indiqué
+              </p>
+            ) : (
+              <p className="mt-0.5 text-sm text-slate-600">
+                {group.unitCount} unités disponibles
+                {bedrooms ? ` · ${bedrooms}` : ''}
+              </p>
+            )}
             {project ? (
               <Link href={`/projets/${project.slug}`} className="mt-1 inline-block text-sm font-semibold text-blue-deep hover:underline">
                 Voir le projet →
@@ -84,6 +93,7 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
                 </p>
                 <p className="mt-0.5 truncate text-xs text-slate-600">
                   {[
+                    commune ? unit.quartier || null : null,
                     unit.unit_label || null,
                     unit.unit_floor != null ? (Number(unit.unit_floor) === 0 ? 'RDC' : Number(unit.unit_floor) === 1 ? '1er ét.' : `${unit.unit_floor}e ét.`) : null,
                     Number(unit.beds) > 0 ? `${unit.beds} ch.` : null,

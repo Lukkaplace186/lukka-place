@@ -16,6 +16,7 @@ import { getT } from '@/lib/i18n/server';
 import { normaliseArea } from '@/lib/listingView';
 import { NO_PHOTO_URL } from '@/lib/constants';
 import { approveListingAction } from './actions';
+import { geocodeListing } from '@/lib/adminApi';
 
 const PHOTO_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const PHOTO_MIME = Object.keys(PHOTO_TYPES);
@@ -154,6 +155,9 @@ export async function adminCreateListingAction(formData) {
   } catch (err) {
     console.error(`[admin/listings] photo upload failed for new listing #${propertyId}: ${err.message}`);
   }
+
+  // Place it on the map (engine name-checked lookup). Not awaited.
+  void geocodeListing(propertyId);
 
   await recordAudit(session, {
     action: 'listing.create',

@@ -18446,6 +18446,74 @@ console.log('\n2. services/openai.js');
     assert.deepStrictEqual(skipped.map((s) => s.written), ['+', '+242830581941', '+243085990055', '+248316663134']);
   });
 
+  // §113 Listings typed on the web are placed too; streets and "référence" read (2026-11-14)
+  // ---------------------------------------------------------------------------
+  // 307 of 592 public listings had no point and sat on their commune's centre
+  // (89 in Limete): 114 came from the web forms, which never geocoded, and
+  // "Industriel" / "1ère rue industrielle référence la police" never matched.
+  console.log('\n§113 Web listings are geocoded; ordinal streets, "Industrielle" and "référence" are read');
+  {
+    const geo113 = require('../services/geocoding');
+    check('"référence" between a street and a landmark splits them; a word that only starts with "réf" does not', () => {
+      assert.deepStrictEqual(geo113.splitLocationText('1ere rue industrielle référence la police'), ['1ere rue industrielle', 'la police']);
+      assert.deepStrictEqual(geo113.splitLocationText('Macampagne reference haute tension'), ['Macampagne', 'haute tension']);
+      assert.deepStrictEqual(geo113.splitLocationText('Refuge Kintambo'), ['Refuge Kintambo']);
+    });
+    check('numbered streets and longer word forms match; a different street number or a near-name does not', () => {
+      assert.strictEqual(geo113.nameMatches('1ere rue industrielle', '1ère rue Industrielle Limété, forgeron'), true);
+      assert.strictEqual(geo113.nameMatches('7eme rue industrielle', '7 éme rue industrielle'), true);
+      assert.strictEqual(geo113.nameMatches('premiere rue funa', '1ère rue Funa'), true);
+      assert.strictEqual(geo113.nameMatches('Industriel', 'LIMETE INDUSTRIEL'), true);
+      assert.strictEqual(geo113.nameMatches('Industriel', 'Maintenance Industrielle'), true);
+      assert.strictEqual(geo113.nameMatches('3ème rue', '13e rue'), false);
+      assert.strictEqual(geo113.nameMatches('Mushi', 'ISIPA Mushie'), false, 'under 6 letters a prefix is not a match');
+    });
+
+    function fakePg113(row) {
+      const statements = [];
+      return {
+        statements,
+        async query(sql, params) {
+          statements.push({ sql, params });
+          if (/FROM properties p WHERE p\.id = \$1/.test(sql)) return { rows: row ? [row] : [] };
+          if (/^SELECT latitude, longitude FROM properties/.test(sql)) {
+            const cleared = statements.some((s) => /SET latitude = NULL/.test(s.sql));
+            return { rows: [cleared ? { latitude: null, longitude: null } : { latitude: row.latitude, longitude: row.longitude }] };
+          }
+          return { rows: [], rowCount: 1 };
+        },
+      };
+    }
+    await checkAsync('a web listing is read from its own row and placed; a changed place clears the old point first', async () => {
+      const db = fakePg113({ id: 9, quartier: 'Righini', reference: null, commune: 'Lemba', latitude: '-4.30', longitude: '15.30', development_id: null });
+      const places = async () => ({ places: [] });
+      const google = async (url) => {
+        const address = new URL(url).searchParams.get('address');
+        if (address === 'Righini, Lemba, Kinshasa, RD Congo') {
+          return { status: 'OK', results: [{ geometry: { location: { lat: -4.401, lng: 15.312 }, location_type: 'GEOMETRIC_CENTER' }, types: ['neighborhood', 'political'] }] };
+        }
+        return { status: 'ZERO_RESULTS', results: [] };
+      };
+      const kept = await geo113.geocodeStoredProperty(db, 9, { apiKey: 'k', request: google, placesRequest: places });
+      assert.strictEqual(kept.status, 'kept', 'without replace a stored point stays');
+      const replaced = await geo113.geocodeStoredProperty(db, 9, { replace: true, apiKey: 'k', request: google, placesRequest: places, ignoreTable: true });
+      assert.ok(db.statements.some((s) => /SET latitude = NULL, longitude = NULL WHERE id = \$1/.test(s.sql)));
+      assert.strictEqual(replaced.status, 'geocoded');
+      assert.deepStrictEqual([replaced.lat, replaced.lng], [-4.401, 15.312]);
+    });
+    await checkAsync('a project unit keeps its building\'s exact point, even on replace', async () => {
+      const db = fakePg113({ id: 10, quartier: 'Gombe', commune: 'Gombe', latitude: '-4.3', longitude: '15.3', development_id: '4' });
+      const result = await geo113.geocodeStoredProperty(db, 10, { replace: true, apiKey: 'k' });
+      assert.strictEqual(result.status, 'kept');
+      assert.ok(!db.statements.some((s) => /UPDATE/.test(s.sql)));
+    });
+    check('POST /admin/properties/:id/geocode exists behind the admin router', () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(src, /router\.post\('\/properties\/:id\/geocode'/);
+      assert.match(src, /replace: req\.body\?\.replace === true/);
+    });
+  }
+
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

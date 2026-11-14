@@ -34,6 +34,8 @@ async function main() {
   const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7) || null;
   const recheck = (process.argv.find((a) => a.startsWith('--recheck=')) || '').slice(10) || null;
   if (recheck) return recheckFile(recheck, apiKey);
+  const retry = (process.argv.find((a) => a.startsWith('--retry-null=')) || '').slice(13) || null;
+  if (retry) return retryNulls(retry, apiKey);
 
   const names = new Map(); // key -> {commune, name}
   for (const commune of cities.communesOfCity(cities.DEFAULT_CITY)) {
@@ -70,6 +72,41 @@ async function main() {
   };
   process.stdout.write(`${JSON.stringify(out, null, 1)}\n`);
   console.error(`\n${names.size} names: ${tally.neighborhood} neighbourhood, ${tally.cluster} cluster, ${tally.none} none`);
+}
+
+/**
+ * --retry-null=<file>: look up again only the names the file holds as null
+ * (after the matching rules change), keep every point already there.
+ * 2026-11-14: "Industriel" vs "Industrielle", ordinal streets.
+ */
+async function retryNulls(file, apiKey) {
+  const built = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^[^{]*/, ''));
+  const display = new Map();
+  for (const commune of cities.communesOfCity(cities.DEFAULT_CITY)) {
+    for (const quartier of LOCATIONS[commune] || []) display.set(pointKey(commune, quartier), quartier);
+  }
+  for (const alias of aliasData.aliases) {
+    for (const commune of alias.communes) display.set(pointKey(commune, alias.name), alias.name);
+  }
+  let found = 0;
+  for (const [key, point] of Object.entries(built.points)) {
+    if (point) continue;
+    const commune = key.split('|')[0];
+    const name = display.get(key);
+    if (!name) continue;
+    const row = { commune, quartier: name };
+    const box = await areaBox(row, { apiKey });
+    const hit = await lookupPlaceTerm(name, row, { apiKey }, box);
+    if (hit) {
+      built.points[key] = { lat: Number(hit.lat.toFixed(6)), lng: Number(hit.lng.toFixed(6)), how: hit.how, ...(hit.size ? { size: hit.size } : {}) };
+      found += 1;
+      console.error(`${key}: ${hit.how}${hit.size ? ` ×${hit.size}` : ''} (${hit.lat.toFixed(5)}, ${hit.lng.toFixed(5)})`);
+    }
+    await sleep(60);
+  }
+  built.retried_at = new Date().toISOString().slice(0, 10);
+  process.stdout.write(`${JSON.stringify(built, null, 1)}\n`);
+  console.error(`${found} more point(s)`);
 }
 
 async function recheckFile(file, apiKey) {

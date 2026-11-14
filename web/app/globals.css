@@ -1380,6 +1380,15 @@
   color: var(--blue);
 }
 .lkp-pin[data-building='true'] { --lkp-fg: var(--blue-deep, #0c1d50); }
+/* "89 biens · Limete" (lib/communeBubbles.js): listings that only know their
+   commune. Filled navy and no stem — it marks an area, not a spot. */
+.lkp-pin[data-commune='true'] {
+  --lkp-bg: var(--blue-deep, #0c1d50);
+  --lkp-fg: #fff;
+  --lkp-edge: var(--blue-deep, #0c1d50);
+}
+.lkp-pin[data-commune='true'] .lkp-pin__body::before,
+.lkp-pin[data-commune='true'] .lkp-pin__body::after { display: none; }
 .lkp-pin[data-visited='true'] {
   --lkp-bg: #eef0f3;
   --lkp-fg: #6b7284;

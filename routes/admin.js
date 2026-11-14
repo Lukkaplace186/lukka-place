@@ -58,13 +58,6 @@ const { listingApprovedText, approvedTemplateUrlButton } = require('../services/
 
 const router = express.Router();
 
-// Demo accounts (services/demoAccounts.js): a request acting for a demo
-// customer or agent runs in a demo context, so nothing it triggers can
-// WhatsApp a real person (the desk, an agency, a listing's agent).
-const demoAccounts = require('../services/demoAccounts');
-
-router.use(demoAccounts.demoContextMiddleware);
-
 // ---------------------------------------------------------------------------
 // Conversations
 // ---------------------------------------------------------------------------

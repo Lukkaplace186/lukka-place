@@ -4618,11 +4618,16 @@ tap takes, and fewer bytes. `tests/unit/navigation-speed.test.js` pins it.
 - **The similar-listings rail streams** (`RelatedSection` in
   `listings/[id]/page.js`, Suspense): pgvector + fallback queries no longer
   hold the gallery and price.
-- **Photos are AVIF first** (`images.formats`): with Next's own AVIF quality
-  mapping, 35–45% smaller than WebP on live photos (640w 48 → 29 KB, 1080w
-  87 → 59 KB), ~0.1–0.2 s more encoding once per variant. After deploying,
-  run `node scripts/warm-image-cache.js` on the VPS (it already asks for
-  image/avif) — every AVIF variant starts cold.
+- **Photos are WebP only again (2026-11-14).** AVIF first (from here,
+  2026-11-06, 35–45% smaller) left every photo a phone had not cached grey
+  on iPhone ("pictures don't load from page 2"): Next encodes AVIF through
+  sharp's default 4:4:4 chroma — AV1 High profile, read in the file's av1C
+  box — which iOS Safari does not decode, and SafeImage's `noimage.jpg`
+  fallback is a `/_next/image` URL too, so it came back as the same AVIF.
+  Next 16 has no chroma option. `public/sw.js` drops any AVIF it meets (its
+  own cache, or the HTTP cache's 30-day copy → refetched with
+  `cache: 'reload'`). After deploying, run `node scripts/warm-image-cache.js`
+  on the VPS (WebP variants of photos added since 11-06 start cold).
 - **Static map, built, OFF**: `lib/staticMap.js` draws the detail page's
   zone as one Static Maps image (same styles, zoom 14, the same jittered
   point and 500 m circle) — one ~50 KB request instead of the Maps JS chain.

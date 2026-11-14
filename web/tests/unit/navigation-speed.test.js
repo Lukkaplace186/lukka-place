@@ -92,10 +92,44 @@ test('the header and footer prefetch on intent, not as soon as they are on scree
   assert.match(link, /prefetch=\{prefetch === false \? false : active \? \(prefetch \?\? null\) : false\}/);
 });
 
-test('photos are served as AVIF first, WebP otherwise', async () => {
+test('photos are served as WebP, never AVIF (iOS Safari cannot decode Next\'s 4:4:4 AVIF)', async () => {
   const { default: config } = await import('../../next.config.mjs');
-  assert.deepEqual(config.images.formats, ['image/avif', 'image/webp']);
+  assert.deepEqual(config.images.formats, ['image/webp']);
   assert.deepEqual(config.images.qualities, [75]);
+});
+
+test('the service worker drops AVIF copies cached while AVIF was served', async () => {
+  const vm = await import('node:vm');
+  const src = read('public/sw.js');
+  const handlers = {};
+  const store = new Map();
+  const calls = [];
+  const res = (type) => ({ status: 200, headers: { get: () => type }, clone() { return this; } });
+  const cache = {
+    match: async (r) => store.get(r.url),
+    put: async (r, v) => { store.set(r.url, v); },
+    delete: async (r) => store.delete(r.url),
+    keys: async () => [...store.keys()].map((url) => ({ url })),
+  };
+  class FakeRequest {
+    constructor(input, init = {}) { this.url = input.url || input; this.method = 'GET'; this.mode = 'no-cors'; this.cache = init.cache || input.cache || 'default'; }
+  }
+  const ctx = {
+    self: { location: { origin: 'https://lukkaplace.com' }, addEventListener: (n, h) => { handlers[n] = h; } },
+    caches: { open: async () => cache, keys: async () => [], match: async () => undefined },
+    // The HTTP cache still answers AVIF; only a reload reaches the server's WebP.
+    fetch: async (r) => { calls.push(r.cache || 'default'); return res(r.cache === 'reload' ? 'image/webp' : 'image/avif'); },
+    Request: FakeRequest, URL, Response: { error: () => null },
+  };
+  vm.runInNewContext(src, ctx);
+  const url = 'https://lukkaplace.com/_next/image?url=x&w=828&q=75';
+  store.set(url, res('image/avif'));
+  let answer;
+  handlers.fetch({ request: new FakeRequest(url), respondWith: (p) => { answer = p; }, waitUntil: () => {} });
+  const response = await answer;
+  assert.equal(response.headers.get('content-type'), 'image/webp');
+  assert.deepEqual(calls, ['default', 'reload']);
+  assert.equal(store.get(url).headers.get('content-type'), 'image/webp');
 });
 
 test('the hover upgrade is switched on (Next ignores unstable_dynamicOnHover without it)', async () => {

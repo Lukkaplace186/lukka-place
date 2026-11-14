@@ -77,6 +77,9 @@ export default function ListingsFeed({
   initialNext = null,
   place = null,
   renderCard,
+  // The scroll-driven entrance on the exact list; off for cards that animate
+  // themselves (the store app's AppListingCard).
+  stagger = true,
 }) {
   const t = useT();
   const [more, setMore] = useState([]);
@@ -211,7 +214,7 @@ export default function ListingsFeed({
 
   return (
     <div onClickCapture={() => saveRef.current?.()}>
-      <div className="u-stagger-in-view flex flex-col gap-5">
+      <div className={`${stagger ? 'u-stagger-in-view ' : ''}flex flex-col gap-5`}>
         {exact.map((listing, i) => renderCard(listing, i))}
       </div>
 

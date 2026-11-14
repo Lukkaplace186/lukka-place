@@ -6,7 +6,9 @@ import NewSinceLastVisit from '@/components/NewSinceLastVisit';
 import ListingsEmptyState from '@/components/ListingsEmptyState';
 import FloatingControlBar from '@/components/FloatingControlBar';
 import SearchTracker from '@/components/SearchTracker';
-import { getListings, getNearbyExtras, THIN_RESULTS_MAX } from '@/lib/listings';
+import { getListings } from '@/lib/listings';
+import { completeExactBatch } from '@/lib/listingsFeed';
+import { FEED_PAGE_SIZE } from '@/lib/listingsFeedCursor';
 import {
   cachedCommuneShowcase,
   cachedPopularCommunes,
@@ -96,7 +98,7 @@ export default async function ListingsPage({ searchParams }) {
   const params = await searchParams;
 
   const page = Math.max(Number.parseInt(params.page, 10) || 1, 1);
-  const limit = 12;
+  const limit = FEED_PAGE_SIZE;
   const offset = (page - 1) * limit;
 
   const filters = { ...parseListingsSearchParams(params), sort: params.sort };
@@ -143,16 +145,18 @@ export default async function ListingsPage({ searchParams }) {
       ? rows.map((row) => ({ ...row, near_distance_km: listingDistanceKm(row, nearPoint), near_label: params.near }))
       : rows;
 
-  // A place search with only one or two exact results also shows the nearest
-  // others beneath them (lib/listings.js getNearbyExtras). Not on the map
-  // area, not on later pages, not when the results are already a fallback.
-  const nearbyExtras =
-    page === 1 && !mapArea && !relaxation && total > 0 && total <= THIN_RESULTS_MAX && filters.commune
-      ? await getNearbyExtras(filters, data.map((l) => l.id)).catch((err) => {
-          console.error(`[listings] nearby extras unavailable: ${err.message}`);
-          return null;
-        })
-      : null;
+  // The endless feed (lib/listingsFeed.js): where the next batch starts, and
+  // — when the exact results run out in this first batch — the first nearby
+  // listings under them. A failure there only ends the feed early.
+  const feed = await completeExactBatch(
+    filters,
+    { total, count, mapArea, relaxation, locationRelaxed, radiusExpanded },
+    offset,
+    limit,
+  ).catch((err) => {
+    console.error(`[listings] feed continuation unavailable: ${err.message}`);
+    return { similar: null, next: null };
+  });
 
   const popularCommunes = communeCounts.slice(0, 6);
   const nearbyCommunes = communesByDistance(communeCounts, params.commune);
@@ -198,7 +202,6 @@ export default async function ListingsPage({ searchParams }) {
   const { locations } = hierarchy;
   const communes = hierarchy.communes.length > 0 ? hierarchy.communes : showcase.map((c) => c.commune);
 
-  const totalPages = Math.max(Math.ceil(total / limit), 1);
   // The results are the map's visible area (the visitor moved the map). The
   // location filters are still in the URL — clearing the area returns to them.
   const clearAreaHref = mapArea ? hrefWithoutKeys(params, [...MAP_BOUNDS_PARAMS, 'page']) : null;
@@ -316,12 +319,12 @@ export default async function ListingsPage({ searchParams }) {
             listings={withNearDistance(data)}
             isMapView={isMapView}
             page={page}
-            totalPages={totalPages}
             params={params}
             popularCommunes={popularCommunes}
             communes={communes}
             clearAreaHref={clearAreaHref}
-            nearby={nearbyExtras ? { ...nearbyExtras, listings: withNearDistance(nearbyExtras.listings), place: params.commune } : null}
+            similar={feed.similar ? { ...feed.similar, listings: withNearDistance(feed.similar.listings) } : null}
+            nextCursor={feed.next}
             propertyTypes={propertyTypes}
           />
         )}

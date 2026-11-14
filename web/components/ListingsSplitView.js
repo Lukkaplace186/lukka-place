@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from '@/components/LocaleLink';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, MapPinned } from 'lucide-react';
+import { ChevronLeft, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
+import ListingsFeed from './ListingsFeed';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
@@ -15,8 +16,26 @@ import { useT } from '@/lib/i18n/client';
 
 function buildPageHref(searchParams, page) {
   const params = new URLSearchParams(searchParams);
-  params.set('page', String(page));
-  return `/listings?${params.toString()}`;
+  if (page > 1) params.set('page', String(page));
+  else params.delete('page');
+  const qs = params.toString();
+  return qs ? `/listings?${qs}` : '/listings';
+}
+
+/**
+ * The search the feed extends, as a query string: every filter, without the
+ * page (the feed's cursor replaces it) or the map/list view (switching views
+ * is the same search, so it must not restart the feed).
+ */
+function feedQueryString(searchParams) {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams || {})) {
+    if (key === 'page' || key === 'view' || key === 'cursor') continue;
+    for (const v of Array.isArray(value) ? value : [value]) {
+      if (typeof v === 'string' && v !== '') qs.append(key, v);
+    }
+  }
+  return qs.toString();
 }
 
 /**
@@ -40,9 +59,11 @@ function buildPageHref(searchParams, page) {
  * stopped 1.5rem short of the bottom.
  */
 export default function ListingsSplitView({
-  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null, propertyTypes = [],
+  listings, isMapView, page, params, popularCommunes, communes, clearAreaHref = null, similar = null, nextCursor = null, propertyTypes = [],
 }) {
   const t = useT();
+  const queryString = feedQueryString(params);
+  const feedKey = `${queryString}#${page}`;
   const router = useRouter();
   // How many listings the map counts in view — the mobile Liste button says it.
   const [inView, setInView] = useState(null);
@@ -135,70 +156,41 @@ export default function ListingsSplitView({
             ) : null}
           </div>
         ) : null}
-        <div className="u-stagger-in-view flex flex-col gap-5">
-          {/* Single column, so only the first couple of rows are ever
-              actually above the fold — priority for those skips next/image's
-              lazy-loading for the real LCP candidate on this page. */}
-          {listings.map((listing, i) => (
+        {/* Endless feed (components/ListingsFeed.js, lib/listingsFeed.js):
+            the exact results, then — for a place search — the nearby ones
+            under their own heading. Keyed on the search, so a new search
+            starts over while the map beside it stays mounted. */}
+        {page > 1 ? (
+          // Reached from a "Voir plus" link without JavaScript, or an old
+          // shared ?page= link: a way back to the start of the list.
+          <Link href={buildPageHref(params, 1)} className={`${pagerLink} mb-4`}>
+            <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            {t('common.actions.previous')}
+          </Link>
+        ) : null}
+        <ListingsFeed
+          key={feedKey}
+          feedKey={feedKey}
+          queryString={queryString}
+          initialListings={listings}
+          initialSimilar={similar}
+          initialNext={nextCursor}
+          place={params.commune || null}
+          renderCard={(listing, i) => (
             <PropertyCard
               key={listing.id}
               listing={listing}
               layout="horizontal"
-              priority={i < 2}
+              // Single column, so only the first couple of rows are ever
+              // above the fold — priority for those skips next/image's
+              // lazy-loading for the real LCP candidate on this page.
+              priority={page === 1 && i < 2}
               isHovered={hoveredId === listing.id}
               onHoverStart={() => setHoveredId(listing.id)}
               onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
             />
-          ))}
-        </div>
-
-        {/* Only one or two exact results: the nearest others, below and
-            labelled, never mixed into the exact list (app/(site)/listings/
-            page.js, lib/listings.js getNearbyExtras). */}
-        {nearby?.listings?.length ? (
-          <section className="mt-8" aria-labelledby="nearby-extras-title">
-            <p id="nearby-extras-title" className="u-eyebrow mb-1">
-              {t('listings.results.nearbyExtrasTitle', { place: nearby.place })}
-            </p>
-            {nearby.places?.length ? (
-              <p className="mb-3 text-[0.8125rem] text-ink-45">
-                {nearby.places.map(({ commune, km }) => `${commune} (${km} km)`).join(', ')}
-              </p>
-            ) : null}
-            <div className="flex flex-col gap-5">
-              {nearby.listings.map((listing) => (
-                <PropertyCard
-                  key={listing.id}
-                  listing={listing}
-                  layout="horizontal"
-                  isHovered={hoveredId === listing.id}
-                  onHoverStart={() => setHoveredId(listing.id)}
-                  onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {totalPages > 1 ? (
-          <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Pagination">
-            {page > 1 ? (
-              <Link href={buildPageHref(params, page - 1)} className={pagerLink}>
-                <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                {t('common.actions.previous')}
-              </Link>
-            ) : null}
-            <span className="u-tabular px-2 text-[0.8125rem] text-ink-45">
-              Page {page} / {totalPages}
-            </span>
-            {page < totalPages ? (
-              <Link href={buildPageHref(params, page + 1)} className={pagerLink}>
-                {t('common.actions.next')}
-                <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              </Link>
-            ) : null}
-          </nav>
-        ) : null}
+          )}
+        />
 
         <div className="mt-12">
           <SidebarInsights popularCommunes={popularCommunes} allCommunes={communes} />

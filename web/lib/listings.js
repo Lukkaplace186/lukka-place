@@ -891,12 +891,47 @@ const COMPLETENESS_SCORE = `(
  */
 export const UP_TO_DATE_TIER_SQL = `(CASE WHEN ${UP_TO_DATE_SQL} THEN 0 ELSE 1 END)`;
 
+/**
+ * The listing's last sign of life: when it went public, or the agent's last
+ * availability confirmation if that is later. Not `updated_at`, which moves
+ * on any write to the row and would float a listing nobody looked at.
+ */
+export const LAST_ACTIVITY_SQL = `GREATEST(${PUBLISHED_AT_EXPR}, COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, ${PUBLISHED_AT_EXPR}))`;
+
+const HAS_REAL_PHOTO_SQL = `(CASE WHEN COALESCE(p.featured_image, '') <> '' AND p.featured_image NOT ILIKE '%noimage%' THEN 0 ELSE 1 END)`;
+
+/**
+ * The default order ("pertinence", owner decision 2026-11-14, for the endless
+ * /listings feed): what was asked for, then what is current.
+ *
+ *   1. the exact bedroom count before more rooms (a "2 chambres" search is
+ *      "2 or more" in SQL, but a 2-bedroom flat answers it best);
+ *   2. up to date (confirmed or published within CONFIRM_AFTER_DAYS) before
+ *      stale;
+ *   3. a real photo before none (a photo-less card reads as a scam);
+ *   4. most recent activity first (LAST_ACTIVITY_SQL);
+ *   5. completeness, then id — a total order, so OFFSET pages never repeat
+ *      or skip a listing between two loads of the feed.
+ *
+ * The place is not in the order: it is a filter. Listings beyond it come
+ * after the exact ones, nearest commune first — see getNearbyContinuation.
+ */
 const SORT_COLUMNS = {
-  complete: `${UP_TO_DATE_TIER_SQL} ASC, ${COMPLETENESS_SCORE} DESC, p.created_at DESC`,
-  newest: 'p.created_at DESC',
-  price_asc: 'p.price ASC',
-  price_desc: 'p.price DESC',
+  complete: `${UP_TO_DATE_TIER_SQL} ASC, ${HAS_REAL_PHOTO_SQL} ASC, ${LAST_ACTIVITY_SQL} DESC, ${COMPLETENESS_SCORE} DESC, p.id DESC`,
+  newest: 'p.created_at DESC, p.id DESC',
+  price_asc: 'p.price ASC, p.id DESC',
+  price_desc: 'p.price DESC, p.id DESC',
 };
+
+/** ORDER BY for a search: the chosen sort, led by the exact bedroom count on the default one. */
+export function orderByFor(options = {}) {
+  const sort = SORT_COLUMNS[options.sort] ? options.sort : 'complete';
+  const beds = Number.parseInt(options.bedsMin, 10);
+  const bedsFirst = sort === 'complete' && Number.isFinite(beds) && beds > 0
+    ? `(CASE WHEN p.beds = ${beds} THEN 0 ELSE 1 END) ASC, `
+    : '';
+  return `${bedsFirst}${SORT_COLUMNS[sort]}`;
+}
 
 /**
  * Paginated, filtered public listings.
@@ -956,7 +991,7 @@ export async function getListings(options = {}) {
   const parsedOffset = Number.parseInt(options.offset, 10);
   const offset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
 
-  const orderBy = SORT_COLUMNS[options.sort] || SORT_COLUMNS.complete;
+  const orderBy = orderByFor(options);
 
   const pool = getPool();
 
@@ -1177,6 +1212,112 @@ export async function getNearbyExtras(options, excludeIds = []) {
   const order = new Map(ids.map((id, i) => [id, i]));
   rows.sort((a, b) => order.get(Number(a.id)) - order.get(Number(b.id)));
   return { listings: rows, places: near.places };
+}
+
+/** How many nearby listings can follow an exhausted place search. */
+const CONTINUATION_MAX = 240;
+
+/**
+ * Whether a search's exact results may be followed by nearby ones in the
+ * endless feed: a commune was searched, and the results are the exact answer
+ * to it (not a map area, a fallback, a widened radius, a landmark distance,
+ * an id list, a reference or one agent's portfolio).
+ */
+export function canContinueNearby(options = {}, result = {}) {
+  return (
+    communeListOf(options).length > 0 &&
+    !result.mapArea &&
+    !result.relaxation &&
+    !result.locationRelaxed &&
+    !result.radiusExpanded &&
+    !options.radius &&
+    !options.near &&
+    !options.bounds &&
+    !Array.isArray(options.ids) &&
+    !options.reference &&
+    !Number.isFinite(Number.parseInt(options.agentId, 10))
+  );
+}
+
+/**
+ * The listings within NEARBY_MAX_KM of the searched commune(s) that the exact
+ * search did NOT return, for every other filter asked (type, rooms, budget,
+ * purpose…), grouped commune by commune, nearest commune first. A searched
+ * quartier's own commune is the nearest group (0 km). Positions are the map's
+ * (stored point, else the commune centroid); a listing with no position is
+ * left out, never guessed. A listing with no commune tag is its own group at
+ * its own distance.
+ *
+ * @returns {Promise<{ids: number[], ranks: number[], places: Array<{commune: string, km: number}>}|null>}
+ */
+async function nearbyContinuationIds(options) {
+  const origins = communeListOf(options)
+    .map((commune) => ({ commune, ...COMMUNE_CENTROIDS[commune] }))
+    .filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lng));
+  if (origins.length === 0) return null;
+
+  const exact = buildFilters(options);
+  const [{ markers }, { rows: exactRows }] = await Promise.all([
+    getMapMarkers(withoutLocationFilters(options), null),
+    getPool().query(`SELECT p.id ${FROM_JOINS} WHERE ${exact.whereClause}`, exact.params),
+  ]);
+  const exactIds = new Set(exactRows.map((r) => Number(r.id)));
+  const fromOrigins = (point) => Math.min(...origins.map((o) => distanceKm(o, point)));
+
+  const groups = new Map(); // key -> { km, commune }
+  const scored = [];
+  for (const marker of markers) {
+    const id = Number(marker.id);
+    if (exactIds.has(id)) continue;
+    const km = fromOrigins(marker);
+    if (!Number.isFinite(km) || km > NEARBY_MAX_KM) continue;
+    const centroid = marker.commune ? COMMUNE_CENTROIDS[marker.commune] : null;
+    const key = centroid ? `c:${marker.commune}` : `l:${id}`;
+    if (!groups.has(key)) groups.set(key, { km: centroid ? fromOrigins(centroid) : km, commune: centroid ? marker.commune : null });
+    scored.push({ id, key });
+  }
+  if (scored.length === 0) return null;
+
+  const order = [...groups.entries()].sort((a, b) => a[1].km - b[1].km || a[0].localeCompare(b[0]));
+  const rankOf = new Map(order.map(([key], i) => [key, i]));
+  scored.sort((a, b) => rankOf.get(a.key) - rankOf.get(b.key) || b.id - a.id);
+  const kept = scored.slice(0, CONTINUATION_MAX);
+
+  // The communes the continuation is in, nearest first, for its heading
+  // ("Bandalungwa (2 km), Kintambo (3 km)"): centroid to centroid, whole km.
+  const originNames = new Set(origins.map((o) => o.commune));
+  const places = [];
+  for (const [, group] of order) {
+    if (!group.commune || originNames.has(group.commune)) continue;
+    places.push({ commune: group.commune, km: Math.max(1, Math.round(group.km)) });
+    if (places.length === 3) break;
+  }
+
+  return { ids: kept.map((s) => s.id), ranks: kept.map((s) => rankOf.get(s.key)), places };
+}
+
+/**
+ * One page of the endless feed's second part: listings near the searched
+ * place that the exact search did not return, nearest commune first and, in
+ * each commune, the search's own order (orderByFor). Same public gate as
+ * every read (buildFilters puts APPROVED_FILTER first).
+ *
+ * @returns {Promise<{data: Object[], total: number, places: Array<{commune: string, km: number}>}>}
+ */
+export async function getNearbyContinuation(options, { offset = 0, limit = LISTINGS_LIMIT_DEFAULT } = {}) {
+  const near = await nearbyContinuationIds(options);
+  if (!near) return { data: [], total: 0, places: [] };
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || LISTINGS_LIMIT_DEFAULT, 1), LISTINGS_LIMIT_MAX);
+  const safeOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+  const f = buildFilters({ ...withoutLocationFilters(options), ids: near.ids });
+  const n = f.params.length;
+  const { rows } = await getPool().query(
+    `SELECT ${SELECT_FIELDS} ${FROM_JOINS} WHERE ${f.whereClause}
+     ORDER BY ($${n + 1}::int[])[array_position($${n + 2}::int[], p.id)] ASC, ${orderByFor(options)}
+     LIMIT $${n + 3} OFFSET $${n + 4}`,
+    [...f.params, near.ranks, near.ids, safeLimit, safeOffset],
+  );
+  return { data: withAvailabilityBadges(rows), total: near.ids.length, places: near.places };
 }
 
 /**

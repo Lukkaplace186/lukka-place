@@ -5175,3 +5175,38 @@ This replaces the 2026-10-27 "no target" decision on that page.
   `getGrowthDashboard`'s data; referral credits (`lib/referralCredits.js`)
   still require a confirmed number, an owner pricing decision not changed here.
 - Tests: `tests/unit/customer-signup-friction.test.js`.
+
+## Endless /listings feed (2026-11-14)
+
+Owner decision: the results scroll endlessly, no "Page 1 / 32". `lib/listingsFeed.js`
+(rules), `lib/listingsFeedCursor.js` (pure cursor), `GET /api/listings/feed`,
+`components/ListingsFeed.js`. `tests/unit/listings-feed.test.js`.
+
+- **Two parts, never mixed.** First the exact answer to the search, 12 at a
+  time; then, only for a commune/quartier search, the same search in the
+  communes around it (`getNearbyContinuation`: within 15 km, grouped commune by
+  commune, nearest commune first, under the "Aussi à proximité de …" heading
+  with the communes and distances). "2 chambres à Kintambo" lists every
+  Kintambo match before Bandalungwa, then Ngaliema (Ma Campagne). It replaced
+  the six-card "aussi à proximité" row (`getNearbyExtras` is kept, unused by the
+  page). No continuation on a map area, a relaxed/fallback result, a km radius,
+  a landmark, an id list, a reference or an agent's portfolio
+  (`canContinueNearby`).
+- **Default order** (`orderByFor`, "complete"): exact bedroom count before more
+  rooms, up to date (confirmed/published within 14 days) before stale, real
+  photo before none, most recent activity (`LAST_ACTIVITY_SQL`: publication or
+  the agent's last availability confirmation — never `updated_at`), then
+  completeness. Every sort ends in `p.id DESC`: a total order, so OFFSET batches
+  never repeat or skip a card. The sort dropdown's label is unchanged.
+- **The browser**: the first batch is server-rendered (LCP, SEO); the next
+  batch is asked 1,200 px before the bottom (IntersectionObserver plus a
+  scroll check for browsers without it). "Voir plus" under the list is a real
+  `?page=N` link for crawlers and no-JS (that page starts at its offset and
+  shows "Précédent" back to the start). Nothing loads in phone map view.
+- **Back from a listing** restores the loaded batches and the scroll position:
+  a tap in the feed stores them in sessionStorage with a `leftAt` mark, and the
+  same search mounting within 30 minutes puts them back once. The router's
+  popstate is not observable from the component, which is why the tap is the
+  signal. In the in-app test browser neither IntersectionObserver nor scroll
+  events run without painted frames: test loading with a dispatched `scroll`
+  event, not by scrolling and waiting.

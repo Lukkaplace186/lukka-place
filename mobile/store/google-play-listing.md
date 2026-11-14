@@ -11,12 +11,32 @@ Images in this folder:
   emulator once logged in — listings, a listing page, the map, the agent
   space, the notifications page.
 
-Policy links:
-- Privacy policy: https://lukkaplace.com/confidentialite
-- Account deletion (Play "Data deletion" URL): https://lukkaplace.com/confidentialite#suppression
+## Legal requirements (mandatory for approval)
 
-Category: **House & Home** (Maison et habitat). Contact e-mail and phone:
-the owner's choice in Play Console.
+Both stores reject an app without these. The values are the ones the website
+publishes (`web/lib/legal/contact.js`); paste them as written.
+
+| Asked for | Value | Where it goes |
+|---|---|---|
+| Privacy policy URL | https://lukkaplace.com/confidentialite | Play Console › App content › Privacy policy. App Store Connect › App Information › Privacy Policy URL. |
+| Support URL | https://lukkaplace.com/contact | App Store Connect › version page › Support URL. Play Console › Store settings › Website. |
+| Contact e-mail | info@lukkaplace.com | Play Console › Store settings › Email address (shown on the listing). App Store Connect › App Review Information › Email. |
+| Contact phone (optional on Play, asked by App Review) | +243 846 962 654 | Play Console › Store settings › Phone. App Store Connect › App Review Information › Phone. |
+| Account deletion URL | https://lukkaplace.com/confidentialite#suppression | Play Console › App content › Data safety › Data deletion. |
+| Terms of use (optional) | https://lukkaplace.com/conditions | App Store Connect › License Agreement, only if a custom one is wanted. |
+
+- The privacy policy covers the phone number, the name, device information
+  (device type, IP address, the notification identifier), who the data is
+  shared with, and deletion. It is the same page in French and in English
+  (the language follows the visitor).
+- Inside the app, the policy, the terms and the support page are three small
+  links at the bottom of the Compte tab (customers and agents), and the
+  policy is one tap from the support page. Apple checks that the policy can
+  be reached in the app (guideline 5.1.1).
+- The policy is written in plain words from what the code does, not by a
+  lawyer. Have it read by one before relying on it in a dispute.
+
+Category: **House & Home** (Maison et habitat).
 
 ---
 

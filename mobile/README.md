@@ -152,7 +152,13 @@ wording, no export-encryption question), icons and splash, and
 - **Privacy**: privacy-policy URL `https://lukkaplace.com/confidentialite`
   (app and notification sections added 2026-11-11). The app collects the
   phone number, name, listing photos, and a device token for notifications;
-  no location, no contacts.
+  no location, no contacts. Rewritten as a full policy 2026-11-14 (company,
+  device information, sharing, retention, rights, children).
+- **Support**: support URL `https://lukkaplace.com/contact`, contact e-mail
+  `info@lukkaplace.com`. All the values to paste are in
+  `store/google-play-listing.md`, "Legal requirements". In the app they are
+  the three small links at the bottom of the Compte tab
+  (`web/components/app/AppLegalLinks.js`).
 - **Test account**: give reviewers a test agent login (phone + password).
 
 ## Testing a push before the stores

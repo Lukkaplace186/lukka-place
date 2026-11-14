@@ -13,6 +13,7 @@ import { countUnreadNotifications } from '@/lib/pushNotifications';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { agentLogoutAction } from '../actions';
 import AppAvatar from '@/components/app/AppAvatar';
+import AppLegalLinks from '@/components/app/AppLegalLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +127,8 @@ export default async function AgentAppMenuPage() {
             {t('agent.appMenu.signOut')}
           </button>
         </form>
+
+        <AppLegalLinks />
       </div>
     </div>
   );

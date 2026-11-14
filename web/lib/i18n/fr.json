@@ -484,7 +484,14 @@
     "title": "Parlons de votre projet",
     "lead": "WhatsApp est le moyen le plus rapide de nous joindre — une question sur une annonce, un bien à soumettre, ou toute autre demande.",
     "whatsappCta": "Écrire sur WhatsApp",
-    "unavailable": "Le numéro WhatsApp de contact n'est pas encore configuré sur cette installation."
+    "unavailable": "Le numéro WhatsApp de contact n'est pas encore configuré sur cette installation.",
+    "emailCta": "Écrire par e-mail",
+    "emailLine": "Notre adresse : {email}",
+    "accountTitle": "Compte et données",
+    "accountText": "Pour le site comme pour l’application Lukka Place (Android et iPhone).",
+    "linkDelete": "Supprimer mon compte",
+    "linkPrivacy": "Politique de confidentialité",
+    "linkTerms": "Conditions d’utilisation"
   },
   "breadcrumb": {
     "home": "Accueil",
@@ -9483,6 +9490,12 @@
         "other": "Voir les {count} biens dans la liste"
       },
       "failed": "Les biens n’ont pas pu être chargés. Réessayez, ou ouvrez la liste."
+    },
+    "legal": {
+      "label": "Aide et informations légales",
+      "help": "Aide et contact",
+      "privacy": "Confidentialité",
+      "terms": "Conditions d’utilisation"
     }
   }
 }

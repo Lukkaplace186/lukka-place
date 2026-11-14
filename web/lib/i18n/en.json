@@ -484,7 +484,14 @@
     "title": "Let's Talk About Your Project",
     "lead": "WhatsApp is the fastest way to reach us — a question about a listing, a property to submit, or any other enquiry.",
     "whatsappCta": "Message us on WhatsApp",
-    "unavailable": "The contact WhatsApp number has not been configured on this installation yet."
+    "unavailable": "The contact WhatsApp number has not been configured on this installation yet.",
+    "emailCta": "Email us",
+    "emailLine": "Our address: {email}",
+    "accountTitle": "Account and Data",
+    "accountText": "For the website and for the Lukka Place app (Android and iPhone).",
+    "linkDelete": "Delete my account",
+    "linkPrivacy": "Privacy policy",
+    "linkTerms": "Terms of use"
   },
   "breadcrumb": {
     "home": "Home",
@@ -9483,6 +9490,12 @@
         "other": "See all {count} homes in the list"
       },
       "failed": "The homes could not be loaded. Try again, or open the list."
+    },
+    "legal": {
+      "label": "Help and legal information",
+      "help": "Help and contact",
+      "privacy": "Privacy",
+      "terms": "Terms of use"
     }
   }
 }

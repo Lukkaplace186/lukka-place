@@ -10,6 +10,7 @@ import { getPortalCounts, getPortalCustomer } from '@/lib/customerPortal';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { logoutAction } from '../actions';
 import AppAvatar from '@/components/app/AppAvatar';
+import AppLegalLinks from '@/components/app/AppLegalLinks';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const FAQ = ['visit', 'whatsapp', 'costs', 'alerts'];
@@ -166,6 +167,9 @@ export default async function AccountMenuPage() {
           </button>
         </form>
       ) : null}
+
+      {/* Help, privacy policy, terms: the stores check they can be reached in the app. */}
+      <AppLegalLinks />
     </div>
     </div>
   );

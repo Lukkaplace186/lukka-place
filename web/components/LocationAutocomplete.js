@@ -8,6 +8,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
 import { searchGazetteer, findLocationMention } from '@/lib/gazetteer';
+import { withoutPlacePrefixes } from '@/lib/searchKeywords';
 import { useT } from '@/lib/i18n/client';
 
 const PROPERTY_TYPE_LABEL_KEYS = {
@@ -533,7 +534,9 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     // "St Luc". As `near` it decides where the map opens and centres a km
     // radius for the list (lib/landmarks.js).
     if (result.type === 'landmark') params.set('near', result.label);
-    if (parsed.keywords && result.type !== 'landmark' && !dropKeywords) params.set('q', parsed.keywords);
+    // The letters typed to find the place are not words to search for.
+    const leftover = withoutPlacePrefixes(parsed.keywords, result.label, result.commune);
+    if (leftover && result.type !== 'landmark' && !dropKeywords) params.set('q', leftover);
 
     setOpen(false);
     router.push(`/listings?${params.toString()}`);
@@ -869,7 +872,15 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                         role="option"
                         aria-selected={active}
                         onMouseDown={(e) => e.preventDefault()}
-                        onMouseEnter={() => setActiveIndex(i)}
+                        // Hover highlights the row for a MOUSE only. On an
+                        // iPhone a tap sends the hover events first, and when
+                        // a hover handler changes the page Safari treats the
+                        // tap as a hover and never sends the click: the row
+                        // lit up and nothing happened (2026-11-14, "Kintambo
+                        // does not click"). A finger gets no hover state.
+                        onPointerEnter={(e) => {
+                          if (e.pointerType === 'mouse') setActiveIndex(i);
+                        }}
                         onClick={() => navigateTo(result)}
                         className={cn(
                           'flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9375rem] sm:min-h-0 sm:text-[0.875rem] transition-colors',

@@ -91,6 +91,30 @@ export function keywordTokens(text) {
 }
 
 /**
+ * The leftover words once a place suggestion was picked, minus the letters
+ * typed to find it: "Ki" -> Kintambo leaves nothing, "Kintambo piscine" keeps
+ * "piscine". A word is dropped when it starts a word of the picked place's
+ * name or its commune (accent- and case-folded). Picking "Kintambo" after
+ * typing "Ki" used to search `commune=Kintambo&q=ki`.
+ *
+ * @param {string} keywords      leftover text (parseSearchQuery's `keywords`)
+ * @param {...string} placeNames the picked label, its commune
+ * @returns {string} what is left, '' when nothing
+ */
+export function withoutPlacePrefixes(keywords, ...placeNames) {
+  const placeWords = placeNames
+    .flatMap((name) => foldAccents(name).split(/[^\p{L}\p{N}]+/u))
+    .filter(Boolean);
+  return String(keywords || '')
+    .split(/\s+/)
+    .filter((word) => {
+      const folded = foldAccents(word).replace(/[^\p{L}\p{N}]+/gu, '');
+      return folded && !placeWords.some((p) => p.startsWith(folded));
+    })
+    .join(' ');
+}
+
+/**
  * The leftover text a visitor sees in the URL: the kept words, in order, with
  * their own spelling ("meublé", not "meuble") — only the filler is gone.
  */

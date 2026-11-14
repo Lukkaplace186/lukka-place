@@ -9,6 +9,7 @@ import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
 import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
+import DemoBanner from '@/components/DemoBanner';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { getI18n } from '@/lib/i18n/server';
@@ -84,6 +85,7 @@ export default async function SiteLayout({ children }) {
           <Footer />
         </SiteShell>
         <ImpersonationBanner />
+        <DemoBanner />
         {/* Meta / TikTok pixels, and the consent banner in Europe (lib/adTrackingRules.js). */}
         <AdTracking metaPixelId={growth.metaPixelId} tiktokPixelId={growth.tiktokPixelId} />
         {/* Our own page_view on every page but a listing's (that one sends its own). */}

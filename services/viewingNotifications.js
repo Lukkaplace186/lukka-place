@@ -606,6 +606,14 @@ async function notifyViewingRequest({
   // An admin-chosen agent stands in for the listing's own one.
   if (listing && agentOverride) listing = withAgent(listing, agentOverride);
 
+  // A demo customer (services/demoAccounts.js) visits with the paired demo
+  // agent, never the listing's real one, and the desk gets no copy.
+  if (listing && !agentOverride && require('./demoAccounts').isDemoPhone(lead?.wa_id)) {
+    const demoAgent = await require('./demoAccounts').pairedAgentContact(lead.wa_id);
+    listing = withAgent(listing, demoAgent);
+    notifyOpsCopy = false;
+  }
+
   // Same gate as services/postgres.js's resolveAgentId and
   // agentOnboarding's identifySender, for the same reason: an unverified
   // number is a claim somebody typed, not a confirmed destination. Plus the
@@ -771,6 +779,17 @@ async function reassignViewing(viewingRequestId, agentId) {
   }
   const blocker = agent ? propertyRepository.directRoutingBlocker(agent) : 'agent introuvable';
   if (blocker) return { ok: false, reason: blocker };
+
+  // Demo accounts never cross over: a demo customer's visit stays with the
+  // paired demo agent, and a real customer's never goes to a demo agent.
+  const demoAccounts = require('./demoAccounts');
+  const demoLead = demoAccounts.isDemoPhone(request.lead_wa_id);
+  if (demoLead || demoAccounts.isDemoPhone(agent.agent_phone)) {
+    const pair = demoLead ? await demoAccounts.getPairByPhone(request.lead_wa_id) : null;
+    if (!pair || pair.agentId !== Number(agent.agent_id)) {
+      return { ok: false, reason: 'compte démo : une visite démo reste avec son agent démo' };
+    }
+  }
 
   dbService.reassignViewingRequest(request.id, agent.agent_id);
   const updated = dbService.getViewingRequestWithLead(request.id);

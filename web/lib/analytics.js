@@ -153,7 +153,10 @@ export async function getAgentFavoritesCount(propertyIds) {
   if (!propertyIds?.length) return 0;
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT count(*)::int AS total FROM customer_favorites WHERE property_id = ANY($1::bigint[])`,
+    // A demo customer's saves (lib/demoAccounts.js) are not an agent's audience.
+    `SELECT count(*)::int AS total FROM customer_favorites f
+      WHERE f.property_id = ANY($1::bigint[])
+        AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.id = f.customer_id AND c.phone LIKE '2430000%')`,
     [propertyIds],
   );
   return rows[0].total;

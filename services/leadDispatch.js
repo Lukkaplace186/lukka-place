@@ -49,6 +49,7 @@ const { rankAgentsForRequest } = require('./agentRanking');
 const { leadCommunes } = require('./leadCommunes');
 const { neighbouringCommunes } = require('./communeNeighbours');
 const agentPriority = require('./agentPriority');
+const demoAccounts = require('./demoAccounts');
 
 /**
  * Templates, both read at call time and unset by default (an unapproved name
@@ -461,6 +462,12 @@ async function dispatchNextWave(lead, {
   }
   if (row.dispatch_closed_at && !force) return { dispatched: 0, notified: 0, failed: 0, skipped: 'closed' };
 
+  // A demo customer's request (services/demoAccounts.js) goes to the paired
+  // demo agent only: no wave of real agencies, no desk.
+  if (demoAccounts.isDemoPhone(row.wa_id)) {
+    return demoAccounts.runInDemo({ phone: row.wa_id }, () => dispatchDemoLead(row));
+  }
+
   const communes = leadCommunes(row);
   if (communes.length === 0) {
     console.log(`[dispatch] lead #${row.id} has no commune — desk told, no agency`);
@@ -532,6 +539,65 @@ async function dispatchNextWave(lead, {
     `[dispatch] lead #${row.id} (${communes.join(', ')}) wave ${nextWave} -> ${wave.length} agency(ies): ${notified} sent, ${failed} failed`,
   );
   return { dispatched: wave.length, notified, failed, wave: nextWave };
+}
+
+/**
+ * The demo version of a wave: one "Je m'en occupe ?" to the paired demo
+ * agent, so the demo shows the claim card exactly as an agency sees it. A
+ * second call (the 30-minute sweep) closes it quietly — there is no one else
+ * to ask, and no desk to tell.
+ */
+async function dispatchDemoLead(row) {
+  const pair = await demoAccounts.getPairByPhone(row.wa_id);
+  if (!pair || !pair.agentId) {
+    console.log(`[dispatch] demo lead #${row.id} has no live demo pair — closed, nobody asked`);
+    return closeDispatch(row, 'demo-unpaired');
+  }
+  const asked = db.getLeadMatches(row.id);
+  if (asked.some((m) => Number(m.agent_id) === pair.agentId)) return closeDispatch(row, 'demo-done');
+
+  let contact = null;
+  try {
+    // eslint-disable-next-line global-require
+    contact = await require('./propertyRepository').getAgentContactById(pair.agentId);
+  } catch {
+    contact = null;
+  }
+  const taken = db.db
+    .prepare('UPDATE leads SET dispatch_wave = 1, dispatch_wave_at = CURRENT_TIMESTAMP WHERE id = ? AND COALESCE(dispatch_wave, 0) = 0')
+    .run(row.id);
+  if (taken.changes === 0) return { dispatched: 0, notified: 0, failed: 0, skipped: 'wave-taken' };
+
+  const agent = {
+    agent_id: pair.agentId,
+    phone: pair.agentPhone,
+    display_name: contact?.agent_name || pair.label,
+    agency_name: contact?.agent_name || null,
+    score: 0,
+    matched_commune: leadCommunes(row)[0] || null,
+    neighbour_of: null,
+    level: null,
+  };
+  const { created, row: match } = db.recordLeadMatch({
+    leadId: row.id,
+    agentId: agent.agent_id,
+    agentPhone: agent.phone,
+    rank: 1,
+    score: 0,
+    wave: 1,
+    matchedCommune: agent.matched_commune,
+    neighbourOf: null,
+    level: null,
+  });
+  if (!created) return { dispatched: 0, notified: 0, failed: 0, skipped: 'demo-done' };
+  try {
+    await notifyAgency(row, agent, match.id, 1);
+    console.log(`[dispatch] demo lead #${row.id}: demo agent #${pair.agentId} asked`);
+    return { dispatched: 1, notified: 1, failed: 0, wave: 1, demo: true };
+  } catch (err) {
+    db.markLeadMatchFailed({ leadId: row.id, agentId: agent.agent_id, error: err.message });
+    return { dispatched: 1, notified: 0, failed: 1, wave: 1, demo: true };
+  }
 }
 
 function closeDispatch(lead, why) {

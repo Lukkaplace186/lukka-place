@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createLead, createViewingRequest } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
 import { dayClosed, validatePickedSlot } from '@/lib/visitSlots';
@@ -34,7 +35,9 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
  */
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   // The picker (components/VisitSlotPicker.js) posts the exact instant; the
   // French phrase is derived from it here, never trusted from the form. A page
   // cached before the picker shipped still posts free text, which is kept.

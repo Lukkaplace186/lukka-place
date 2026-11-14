@@ -58,6 +58,13 @@ const { listingApprovedText, approvedTemplateUrlButton } = require('../services/
 
 const router = express.Router();
 
+// Demo accounts (services/demoAccounts.js): a request acting for a demo
+// customer or agent runs in a demo context, so nothing it triggers can
+// WhatsApp a real person (the desk, an agency, a listing's agent).
+const demoAccounts = require('../services/demoAccounts');
+
+router.use(demoAccounts.demoContextMiddleware);
+
 // ---------------------------------------------------------------------------
 // Conversations
 // ---------------------------------------------------------------------------
@@ -2384,6 +2391,26 @@ router.post('/send-whatsapp-template', async (req, res) => {
   } catch (err) {
     console.error(`[admin] send-whatsapp-template '${template}' to ${phone} failed: ${err.message}`);
     return res.status(502).json({ success: false, error: `WhatsApp template send failed: ${err.message}` });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Demo accounts (web /admin/demo): the SQLite half of "Réinitialiser" /
+// "Supprimer". Refuses anything that is not a demo number or a demo agent.
+// ---------------------------------------------------------------------------
+
+router.post('/demo-accounts/purge', async (req, res) => {
+  try {
+    // eslint-disable-next-line global-require
+    const { purgeDemoEngineData } = require('../services/demoPurge');
+    const result = await purgeDemoEngineData({
+      phones: Array.isArray(req.body?.phones) ? req.body.phones : [],
+      agentIds: Array.isArray(req.body?.agentIds) ? req.body.agentIds : [],
+      dryRun: req.body?.dryRun === true,
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

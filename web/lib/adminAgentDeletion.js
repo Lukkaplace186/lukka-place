@@ -52,7 +52,7 @@ const BLOCKING_COMMISSION_STATUSES = ['pending', 'approved', 'paid'];
 // Child tables of `properties` with no ON DELETE CASCADE (listing_stats_daily
 // and agent_performance_logs do cascade). Same set deleteListing clears, plus
 // the ones a customer or a rep can attach to a listing.
-const LISTING_CHILD_TABLES = [
+export const LISTING_CHILD_TABLES = [
   'property_slider_images',
   'property_amenities',
   'property_contents',

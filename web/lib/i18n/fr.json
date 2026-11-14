@@ -103,6 +103,16 @@
         "body": "Le bien a peut-être été loué, vendu ou retiré par l'agent. Voici d'autres biens disponibles."
       },
       "browse": "Voir les biens disponibles"
+    },
+    "demo": {
+      "active": "Mode démo — {label} · {side}",
+      "sealed": "Rien n’est publié ni envoyé à de vrais clients ou agents.",
+      "customerSide": "client",
+      "agentSide": "agent",
+      "bothSides": "client et agent",
+      "openAgent": "Passer côté agent",
+      "openCustomer": "Passer côté client",
+      "exit": "Quitter la démo"
     }
   },
   "nav": {
@@ -4036,7 +4046,8 @@
         "invalid": "Code incorrect. Vérifiez et réessayez.",
         "expired": "Ce code a expiré. Demandez-en un nouveau.",
         "too_many": "Trop d’essais. Demandez un nouveau code.",
-        "none": "Aucun changement en cours. Saisissez votre nouveau numéro."
+        "none": "Aucun changement en cours. Saisissez votre nouveau numéro.",
+        "demo": "Compte démo : son numéro ne peut pas être changé."
       }
     },
     "notifications": {
@@ -4160,7 +4171,8 @@
       "campaign": "Campagne",
       "interactions": "Interactions",
       "seo": "SEO & Google",
-      "moveProjects": "Projets de déménagement"
+      "moveProjects": "Projets de déménagement",
+      "demo": "Comptes démo"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -8213,6 +8225,61 @@
       "sent": "Envoyé",
       "buttonTap": "Bouton",
       "media": "{count} média(s)"
+    },
+    "demo": {
+      "title": "Comptes démo",
+      "subtitle": "Un client démo et un agent démo, liés entre eux, pour utiliser Lukka Place exactement comme un client ou un agent — sans toucher à un vrai client, un vrai agent ni au site public.",
+      "rulesTitle": "Ce qui protège les vraies données",
+      "ruleNumbers": "Chaque compte démo a un numéro réservé (+243 0000 …) qui n’appartient à personne.",
+      "ruleMessages": "Aucun message WhatsApp n’est envoyé aux comptes démo : il est enregistré ici (et copié sur votre téléphone si vous en donnez un). Pendant une action démo, rien ne part vers un vrai numéro — ni le desk, ni une agence.",
+      "ruleRouting": "Les demandes du client démo (visites, demandes, messages, projets) vont uniquement à son agent démo. L’agent démo ne reçoit jamais la demande d’un vrai client.",
+      "ruleListings": "Une annonce de l’agent démo reste en attente : elle ne peut jamais être approuvée ni apparaître sur le site, même depuis le back-office Laravel.",
+      "ruleStats": "Les visites et les favoris des comptes démo ne comptent ni dans les statistiques des agents ni dans les publicités.",
+      "ruleBrowse": "Le client démo parcourt les vraies annonces en ligne ; seule la suite (visite, demande, message) est détournée vers l’agent démo.",
+      "createTitle": "Nouvelle paire démo",
+      "label": "Nom de la paire",
+      "labelPlaceholder": "Ex. Test parcours visite",
+      "customerName": "Nom du client démo",
+      "agentName": "Nom de l’agent démo",
+      "agencyName": "Agence de l’agent démo",
+      "agencyPlaceholder": "Agence démo — (nom de la paire)",
+      "deliverTo": "Copier les messages sur ce numéro (facultatif)",
+      "deliverToHint": "Votre WhatsApp : vous recevrez une copie de chaque message envoyé aux comptes démo. Les règles WhatsApp s’appliquent (un message simple n’arrive que si ce numéro nous a écrit dans les 24 h).",
+      "deliverToClear": "Laissez vide pour ne plus recevoir de copies.",
+      "create": "Créer la paire",
+      "creating": "Création…",
+      "created": "Paire démo créée.",
+      "empty": "Aucune paire démo pour le moment.",
+      "notReady": "La migration des comptes démo (migrations/20261114_demo_accounts.sql) n’a pas encore été appliquée.",
+      "loadError": "Impossible de charger les comptes démo : {error}",
+      "notFound": "Paire démo introuvable.",
+      "errorLabel": "Donnez un nom à la paire.",
+      "errorPhone": "Numéro de copie invalide.",
+      "errorTaken": "Ces numéros démo sont déjà utilisés. Réessayez.",
+      "errorFull": "Nombre maximal de paires démo atteint.",
+      "createdBy": "Créée par {who}",
+      "resetOn": "réinitialisée le {date}",
+      "customerSide": "Côté client",
+      "agentSide": "Côté agent",
+      "favorites": "{count} favori(s)",
+      "listings": "{count} annonce(s), jamais publiées",
+      "openCustomer": "Ouvrir l’Espace Client",
+      "openAgent": "Ouvrir l’espace agent",
+      "copiesTo": "Copies des messages envoyées à {phone}.",
+      "copiesNone": "Messages enregistrés ici uniquement, aucune copie.",
+      "copiesEdit": "Modifier",
+      "copiesSaved": "Numéro de copie enregistré.",
+      "messages": "Messages",
+      "reset": "Réinitialiser",
+      "resetDone": "Paire réinitialisée : tout ce qu’elle avait créé est effacé.",
+      "confirmReset": "Réinitialiser « {label} » ? Tout ce que ces deux comptes ont créé (annonces, demandes, visites, favoris, messages) sera effacé, puis les comptes recréés.",
+      "delete": "Supprimer",
+      "deleted": "Paire démo supprimée.",
+      "confirmDelete": "Supprimer « {label} » et tout ce que ces deux comptes ont créé ? Cette action est définitive.",
+      "engineLeft": "Fait, mais l’historique côté moteur n’a pas pu être effacé : {error}",
+      "back": "← Comptes démo",
+      "messagesTitle": "Messages — {label}",
+      "messagesHint": "Tout ce que les comptes démo auraient reçu sur WhatsApp. Une ligne « [Démo — non envoyé à +…] » est un message qui serait parti vers un vrai numéro (desk, agence) pendant une action démo."
     }
   },
   "errors": {

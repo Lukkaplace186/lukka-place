@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createLead } from '@/lib/adminApi';
 import { buildRequirementsSummary } from '@/lib/customerPortal';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
@@ -44,7 +45,9 @@ export async function submitGuestRequestAction(_prev, formData) {
     return { status: 'sent', last4: null };
   }
 
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   if (!phone) return { status: 'error', code: 'phone' };
 
   let communes = [];

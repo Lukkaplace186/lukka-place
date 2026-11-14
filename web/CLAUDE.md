@@ -641,6 +641,38 @@ cascade; engine leads and visits stay).
   cookie stays valid until its own 60 minutes even after the row is ended;
   exit deletes it from the browser.
 
+### Demo accounts (2026-11-14, owner request)
+
+`/admin/demo` (`accounts.demo`: owner, support). Engine half and the rules
+that seal the pair: root docs/claude/whatsapp-delivery.md, "Demo accounts".
+`lib/demoPhone.js` (pure, engine twin), `lib/demoAccounts.js` (SQL),
+`lib/demoSession.js` (cookies), `app/admin/demo/*`, `components/DemoBanner.js`.
+Migration `migrations/20261114_demo_accounts.sql` (engine repo); before it runs
+the page says so and nothing else changes. `tests/unit/demo-accounts.test.js`.
+
+- **A pair** = a real `customers` row and a real `agents` row (`is_test`,
+  verified, `onboarding_source = 'demo'`, no password) on reserved numbers, so
+  every page and action runs unchanged. "Ouvrir l'Espace Client / l'espace
+  agent" mints an ordinary session cookie for it plus `lukka_demo`
+  (`<pair>.<agent>.<customer>`); both sides can be open in one browser. Opening
+  one ends a read-only "view as" (it would refuse every click).
+- **`lukka_demo` only restricts** and counts only while the signed-in session
+  IS that pair's account (checked against the signed tokens, no DB): engineFetch
+  then sends `x-lukka-demo`, page views/taps count as `staff`, ad events are
+  skipped, and the bottom banner shows (switch side, "Quitter la démo").
+- **Web guards**: the five public lead forms submit the demo customer's own
+  number whatever was typed (`demoCustomerPhoneOr`); chat sends a demo
+  customer to the paired agent and refuses a demo agent to anyone else; demo
+  saves are left out of an agent's favourite count; a demo customer cannot
+  change number or delete the account; a demo agent cannot start a FlexPaie
+  payment.
+- **Réinitialiser / Supprimer**: engine purge first (SQLite), then Postgres —
+  the demo agent's listings and their child rows, notifications, devices, the
+  customer (FK cascade) and the agent (`deleteAgentAccount`, delete mode);
+  each refuses a row whose number is not a demo one. Reset recreates both
+  accounts on the same numbers with the same names (new ids). Messages:
+  `/admin/demo/[id]`, the two numbers' WhatsApp history.
+
 ### Deliberately not done yet (and why)
 
 - **Engine leads/conversations/viewings are still SQLite.** Moving them to
@@ -701,6 +733,7 @@ cascade; engine leads and visits stay).
   - Radix content portals to `document.body`, so it is **outside the `<form>`**. `FilterBar` therefore owns every filter value in React state and renders hidden inputs inside the form; the pill panels and the sheet are pure UI. Don't put a named form field inside a portalled panel and expect it to submit.
 - **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
 - **Motion is CSS, not a library.** `framer-motion`, `lib/motion.js` and `lib/useMotionSafe.js` are gone (see "Mobile performance & resilience" below). The presets live in `app/globals.css`: `.u-pop` (a toggled icon — key the span on a counter and apply the class only when it is > 0, so it never plays on mount), `.u-reveal` (entrance on mount), `.u-rise` (small panel over the map), `.u-reveal-in-view` (scroll-driven, `animation-timeline: view()`, no JS; a browser without it shows the element with no reveal). All are gated on `prefers-reduced-motion` in the CSS itself. Radix `Dialog`/`Sheet` animate via `data-state` + `tw-animate-css`. Don't add a motion library back for decoration: it was ~40 KB gzip on every page for effects most of them never ran on a phone.
+  - **One exception, owner's request 2026-11-13: `/guides` uses Motion (`motion` package) for its App Store "Today" cards** (`components/blog/GuideCards.js`, modelled on motion.dev's react-app-store example). A tap lifts the card into a panel (photo, title, summary, the article's opening from `articleIntro`, "Lire l'article complet"); Escape, the backdrop, the ✕ and Android's back button (a `#slug` history entry) close it, and the read link uses `replace` so back from the article lands on /guides. It stays on that page only: `LazyMotion strict` + `m.*` components, with `domMax` loaded by dynamic import (`guideCardFeatures.js`), and every card is a server-rendered `<a href>` that opens the article without JS or with a modifier key. The photo and the title box keep the same pixel size closed and open (CSS variables `--gc-w/--gc-h/--gc-title`), because a layout animation is a transform and a box that changes shape stretches its content. Don't import `motion` anywhere else without the same scoping.
   - **The motion layer (2026-09-23)** adds, same file, same rules: `.u-stagger` (a list's rows enter on mount, 60ms apart, capped at 7) and `.u-stagger-inner` (the same on each row's *content*, for hairline grids where a fading cell flashes `bg-line` — `AgentStatGrid`); `.u-stagger-in-view` / `.u-stagger-in-view-inner` (scroll-driven per child, columns of a grid row cascading via `--u-col`); `.u-rail-reveal` (FeaturedListingsCarousel only: whole strip below `sm`, per card from `sm`); `.u-hero-settle` + `.u-lift-in` (hero photo and headline — transform only, never opacity, because the hero is the LCP); `.u-attention` (three beats on an overdue to-do badge, then still); `.u-header-elevate` (the header's shadow deepens over the first 120px of scroll, via a pseudo-element's opacity on `scroll(root)`). Card photos zoom 1.04 on hover and the card presses to 0.985 unless the press is on one of its buttons.
   - **Keyframes use `translate`/`scale`, never `transform`.** A `both`-filled entrance holds its last frame forever, and a held `transform: none` silently kills every transform-based hover/press on that element (`.u-press`, `.u-card-interactive`, `.u-btn-primary`). Don't put an entrance on an element that uses Tailwind's `translate-*`/`scale-*` utilities either — that is the property they now share.
   - To stagger a list that shares its parent with other elements, wrap the `map` in `<div className="u-stagger contents">`: no box, so the parent's gap is untouched, and `nth-child` counts only the rows.

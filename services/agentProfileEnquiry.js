@@ -95,7 +95,17 @@ function opsMessage({ lead, contact, agentId, agentNotified, skipReason, outside
  * @returns {Promise<{agentNotified: boolean, opsNotified: boolean, skipReason: string|null, outsideWindow: boolean}>}
  */
 async function notifyAgentProfileEnquiry({ lead, agentId }) {
-  const contact = await propertyRepository.getAgentContactById(agentId);
+  // A demo customer's enquiry goes to the paired demo agent, whoever's profile
+  // it was sent from, and the desk copy stays on the demo account.
+  const demoAccounts = require('./demoAccounts');
+  if (demoAccounts.isDemoPhone(lead?.wa_id) && !demoAccounts.currentDemo()) {
+    return demoAccounts.runInDemo({ phone: lead.wa_id }, () => notifyAgentProfileEnquiry({ lead, agentId }));
+  }
+  if (demoAccounts.isDemoPhone(lead?.wa_id)) {
+    const pair = await demoAccounts.getPairByPhone(lead.wa_id);
+    agentId = pair?.agentId ?? null;
+  }
+  const contact = agentId ? await propertyRepository.getAgentContactById(agentId) : null;
   if (contact && !contact.deleted) {
     db.assignLead(lead.id, { agentId: Number(agentId), assignedAgent: contact.agent_name || lead.assigned_agent || null });
   }

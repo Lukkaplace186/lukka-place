@@ -7,6 +7,7 @@ import { cookies } from 'next/headers';
 import { clearCustomerSession, forgetRememberedCustomerPhone } from '@/lib/customerSession';
 import { revokeDevice } from '@/lib/pushNotifications';
 import { PUSH_TOKEN_COOKIE } from '@/lib/pushRules';
+import { isDemoCustomer } from '@/lib/demoAccounts';
 
 /** In the app: this phone stops receiving this customer's alerts. Never blocks the logout. */
 async function revokeThisPhone(customerId, reason) {
@@ -45,6 +46,8 @@ export async function updateNameAction(formData) {
 export async function deleteAccountAction() {
   const customerId = await getCurrentCustomerId();
   if (!customerId) redirect('/compte/connexion');
+  // A demo customer is deleted from /admin/demo, with everything it made.
+  if (await isDemoCustomer(customerId)) redirect('/compte/client');
   await revokeThisPhone(customerId, 'account deleted');
   await deleteCustomer(customerId); // cascades to customer_favorites/customer_saved_searches via FK
   await clearCustomerSession();

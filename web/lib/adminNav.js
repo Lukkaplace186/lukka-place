@@ -72,6 +72,7 @@ export const ADMIN_NAV_GROUPS = [
     items: [
       { href: '/admin/health', labelKey: 'admin.nav.health', icon: 'HeartPulse' },
       { href: '/admin/team', labelKey: 'admin.nav.team', icon: 'UsersRound' },
+      { href: '/admin/demo', labelKey: 'admin.nav.demo', icon: 'FlaskConical' },
       { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: 'ScrollText' },
       { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: 'Settings' },
       { href: '/admin/blog', labelKey: 'admin.nav.blog', icon: 'Newspaper' },

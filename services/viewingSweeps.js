@@ -32,6 +32,7 @@ const propertyMatchingService = require('./propertyMatching');
 const viewingNotifications = require('./viewingNotifications');
 const agentPerformance = require('./agentPerformance');
 const agentReviews = require('./agentReviews');
+const demoAccounts = require('./demoAccounts');
 
 /**
  * How long an agent has before a request escalates.
@@ -291,7 +292,9 @@ async function runSlaSweep(now = new Date()) {
   const due = dbService.listViewingRequestsAwaitingSla(SLA_MS, now.toISOString());
   let alerted = 0;
 
-  for (const request of due) {
+  // A demo customer's request runs as a demo action (services/demoAccounts.js):
+  // the desk copy is recorded on the demo account, never sent.
+  for (const request of due) await demoAccounts.runForPhone(request.lead_wa_id, async () => {
     const { listing, note } = await agentReachability(request.property_id);
 
     const alternatives = await alternativesFor(request, request.property_id);
@@ -329,7 +332,7 @@ async function runSlaSweep(now = new Date()) {
       `[sweep] viewing #${request.id} breached the ${SLA_MS / 60000}min SLA — ` +
         `ops told, client told: ${toldCustomer}, alternatives: ${alternatives.length}`,
     );
-  }
+  });
 
   return { due: due.length, alerted };
 }
@@ -343,14 +346,14 @@ async function runContactCheckSweep(now = new Date()) {
   if (!contactCheckEnabled()) return { due: 0, asked: 0, disabled: true };
   const due = dbService.listViewingRequestsDueForContactCheck(CONTACT_CHECK_MS, now.toISOString(), CONTACT_CHECK_MAX_AGE_MS);
   let asked = 0;
-  for (const request of due) {
+  for (const request of due) await demoAccounts.runForPhone(request.lead_wa_id, async () => {
     const result = await viewingNotifications.askAgentContactCheck(request.id);
     dbService.markContactCheckSent(request.id, now.toISOString());
     if (result.sent) asked += 1;
     console.log(
       `[sweep] viewing #${request.id} contact check: ${result.sent ? `sent (${result.channel})` : `not sent — ${result.reason}`}`,
     );
-  }
+  });
   return { due: due.length, asked };
 }
 
@@ -359,7 +362,7 @@ async function runCheckinSweep(now = new Date()) {
   const due = dbService.listViewingRequestsDueForCheckin(CHECKIN_AFTER_MS, now.toISOString());
   let sent = 0;
 
-  for (const request of due) {
+  for (const request of due) await demoAccounts.runForPhone(request.lead_wa_id, async () => {
     let label = `bien #${request.property_id}`;
     try {
       const listing = await propertyRepository.getListingContactById(request.property_id);
@@ -402,7 +405,7 @@ async function runCheckinSweep(now = new Date()) {
     dbService.markCheckinSent(request.id, now.toISOString());
     sent += 1;
     console.log(`[sweep] viewing #${request.id} check-in sent: ${ok}`);
-  }
+  });
 
   return { due: due.length, sent };
 }

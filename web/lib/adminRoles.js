@@ -65,6 +65,8 @@ export const PERMISSIONS = {
   'sales.delete': ['owner'],
   // "View as" an agent or customer — read-only, reasoned, logged (lib/impersonation.js).
   'accounts.impersonate': ['owner', 'support'],
+  // Demo customer + agent pairs to try the product end to end (lib/demoAccounts.js).
+  'accounts.demo': ['owner', 'support'],
   'routing.manage': ['owner'],
   // Creating a creator or campaign code, editing its fee, switching a code off,
   // announcing the referral programme to every agent.
@@ -137,6 +139,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/sales': 'sales.view',
   '/admin/sales/attribution': 'sales.manage',
   '/admin/impersonation': 'audit.view',
+  '/admin/demo': 'accounts.demo',
   '/admin/cms': 'cms.manage',
   '/admin/blog': 'blog.manage',
   '/admin/settings': 'cms.manage',

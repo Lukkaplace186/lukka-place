@@ -602,3 +602,52 @@ it is the page the agent shares with customers.
   `_v2` (dynamic); a future template with a STATIC button (e.g.
   `annonce_en_ligne_v3` → Mes biens) would get none, so it needs no code
   change. verify-pipeline §107.
+
+## Demo accounts — sealed demo customer + agent pairs (2026-11-14)
+
+Owner request: let the team try the product exactly as a customer and an
+agent would, without touching real people, real data or the storefront.
+Console: `/admin/demo` (web/CLAUDE.md, "Demo accounts"). Engine:
+`services/demoAccounts.js`, `services/demoPurge.js`; Postgres:
+`migrations/20261114_demo_accounts.sql` (`demo_accounts` + trigger
+`properties_demo_guard`). verify-pipeline §114, web
+`tests/unit/demo-accounts.test.js`.
+
+- **Reserved numbers are the whole mechanism.** A pair's agent is
+  `2430000 1NNNN`, its customer `2430000 2NNNN` (N = `demo_accounts.id`). No
+  DRC mobile starts 2430, so the engine knows demo traffic from the number
+  alone (`isDemoPhone`). Web twin: `web/lib/demoPhone.js` (§114 compares).
+- **`chakra.js` asks `interceptSend` before every send** (text, template,
+  buttons). To a demo number: never posted to Chakra, recorded in
+  `whatsapp_message_log` under that number, and copied to the pair's
+  `deliver_to_phone` when set (texts prefixed "🧪 Démo Lukka Place — message
+  pour …", templates re-sent as the same template, buttons as text; the copy
+  passes `_demoForward` so it is not intercepted again). The 24 h rule applies
+  to the copy like any send.
+- **Demo context** (AsyncLocalStorage): inside it, a send to a REAL number is
+  not posted either; it is recorded on the demo number as "[Démo — non envoyé
+  à +…]". Set by `routes/admin.js` for any request carrying `x-lukka-demo`
+  (web's engineFetch adds it while a demo session acts) or a demo number in
+  `phone`/`wa_id`…; by `leadDispatch` for a demo lead; by the three viewing
+  sweeps per demo row (`runForPhone`); by the profile and project enquiry
+  handlers.
+- **Routing**: a demo customer's visit goes to the paired demo agent
+  (`notifyViewingRequest` lays `pairedAgentContact` over the listing, no desk
+  copy); an open request gets one "Je m'en occupe ?" to the demo agent then
+  closes without the desk (`dispatchDemoLead`); profile and project enquiries
+  go to the demo agent. `rankAgentsForRequest` excludes the prefix, so a real
+  customer is never offered a demo agent; `reassignViewing` refuses to move a
+  visit across the demo/real line.
+- **Listings**: the trigger forces `approve_status = 0` on any listing whose
+  agent has a demo number, whoever approves (console, Laravel, script).
+- **Purge** (`POST /admin/demo-accounts/purge`): demo numbers and demo agent
+  ids only (checked in Postgres); deletes leads/visits by the demo numbers
+  only, then every SQLite row keyed on them (found by column: wa_id,
+  agent_phone, lead_id, viewing_request_id, agent_id) and whatever references
+  those through a declared foreign key.
+- **Not covered**: a demo pair cannot WhatsApp us (nobody holds the number),
+  so the WhatsApp assistant, the listing-link enquiry through the central
+  number and WhatsApp intake are not part of the demo. Scheduled jobs that act
+  on rows other than leads/visits (digests, "Faites le point", chat alerts)
+  reach the demo agent's number, which is the intended experience; a desk
+  digest may still list a demo lead line.

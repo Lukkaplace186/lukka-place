@@ -258,6 +258,9 @@ async function rankAgentsForRequest(
         AND a.phone_verified_at IS NOT NULL
         AND a.deleted_at IS NULL
         AND a.direct_routing_enabled IS DISTINCT FROM false
+        -- Never a demo agent (services/demoAccounts.js): a real customer's
+        -- request must not be offered to an account nobody works.
+        AND COALESCE(a.phone, '') NOT LIKE '2430000%'
         -- Coverage is the hard filter. LOWER() on both sides because
         -- primary_communes is agent-entered through a checkbox list built
         -- from the canonical hierarchy, while a lead's commune comes from the

@@ -103,6 +103,16 @@
         "body": "The property may have been let, sold or withdrawn by the agent. Here are other properties available."
       },
       "browse": "See available properties"
+    },
+    "demo": {
+      "active": "Demo mode — {label} · {side}",
+      "sealed": "Nothing is published or sent to real customers or agents.",
+      "customerSide": "customer",
+      "agentSide": "agent",
+      "bothSides": "customer and agent",
+      "openAgent": "Switch to agent",
+      "openCustomer": "Switch to customer",
+      "exit": "Leave the demo"
     }
   },
   "nav": {
@@ -4036,7 +4046,8 @@
         "invalid": "Wrong code. Check it and try again.",
         "expired": "This code has expired. Ask for a new one.",
         "too_many": "Too many tries. Ask for a new code.",
-        "none": "No change in progress. Enter your new number."
+        "none": "No change in progress. Enter your new number.",
+        "demo": "Demo account: its number cannot be changed."
       }
     },
     "notifications": {
@@ -4160,7 +4171,8 @@
       "campaign": "Campaign",
       "interactions": "Interactions",
       "seo": "SEO & Google",
-      "moveProjects": "Move Projects"
+      "moveProjects": "Move Projects",
+      "demo": "Demo Accounts"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -8213,6 +8225,61 @@
       "sent": "Sent",
       "buttonTap": "Button",
       "media": "{count} media"
+    },
+    "demo": {
+      "title": "Demo Accounts",
+      "subtitle": "A demo customer and a demo agent, paired together, to use Lukka Place exactly as a customer or an agent would — without touching a real customer, a real agent or the public site.",
+      "rulesTitle": "What Protects the Real Data",
+      "ruleNumbers": "Each demo account has a reserved number (+243 0000 …) that belongs to nobody.",
+      "ruleMessages": "No WhatsApp message is sent to demo accounts: it is recorded here (and copied to your phone if you give one). During a demo action nothing goes to a real number — not the desk, not an agency.",
+      "ruleRouting": "The demo customer’s requests (visits, requests, messages, projects) go only to their demo agent. The demo agent never receives a real customer’s request.",
+      "ruleListings": "A demo agent’s listing stays pending: it can never be approved or appear on the site, even from the Laravel back-office.",
+      "ruleStats": "Demo accounts’ visits and saves count neither in agents’ statistics nor in advertising.",
+      "ruleBrowse": "The demo customer browses the real live listings; only what follows (visit, request, message) is redirected to the demo agent.",
+      "createTitle": "New Demo Pair",
+      "label": "Pair name",
+      "labelPlaceholder": "E.g. Visit journey test",
+      "customerName": "Demo customer name",
+      "agentName": "Demo agent name",
+      "agencyName": "Demo agent’s agency",
+      "agencyPlaceholder": "Demo agency — (pair name)",
+      "deliverTo": "Copy messages to this number (optional)",
+      "deliverToHint": "Your WhatsApp: you will receive a copy of every message sent to the demo accounts. WhatsApp rules apply (a plain message only arrives if this number wrote to us in the last 24 h).",
+      "deliverToClear": "Leave empty to stop receiving copies.",
+      "create": "Create Pair",
+      "creating": "Creating…",
+      "created": "Demo pair created.",
+      "empty": "No demo pair yet.",
+      "notReady": "The demo accounts migration (migrations/20261114_demo_accounts.sql) has not been applied yet.",
+      "loadError": "Could not load demo accounts: {error}",
+      "notFound": "Demo pair not found.",
+      "errorLabel": "Give the pair a name.",
+      "errorPhone": "Invalid copy number.",
+      "errorTaken": "These demo numbers are already in use. Try again.",
+      "errorFull": "Maximum number of demo pairs reached.",
+      "createdBy": "Created by {who}",
+      "resetOn": "reset on {date}",
+      "customerSide": "Customer Side",
+      "agentSide": "Agent Side",
+      "favorites": "{count} saved listing(s)",
+      "listings": "{count} listing(s), never published",
+      "openCustomer": "Open the Customer Space",
+      "openAgent": "Open the Agent Space",
+      "copiesTo": "Message copies sent to {phone}.",
+      "copiesNone": "Messages recorded here only, no copy.",
+      "copiesEdit": "Edit",
+      "copiesSaved": "Copy number saved.",
+      "messages": "Messages",
+      "reset": "Reset",
+      "resetDone": "Pair reset: everything it created is deleted.",
+      "confirmReset": "Reset “{label}”? Everything these two accounts created (listings, requests, visits, saves, messages) will be deleted, then the accounts recreated.",
+      "delete": "Delete",
+      "deleted": "Demo pair deleted.",
+      "confirmDelete": "Delete “{label}” and everything these two accounts created? This cannot be undone.",
+      "engineLeft": "Done, but the engine-side history could not be deleted: {error}",
+      "back": "← Demo accounts",
+      "messagesTitle": "Messages — {label}",
+      "messagesHint": "Everything the demo accounts would have received on WhatsApp. A “[Démo — non envoyé à +…]” line is a message that would have gone to a real number (desk, agency) during a demo action."
     }
   },
   "errors": {

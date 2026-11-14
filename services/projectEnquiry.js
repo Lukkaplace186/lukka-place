@@ -155,9 +155,21 @@ async function handleProjectEnquiry({ developmentId, waId, name, interest, messa
   const from = String(waId || '').replace(/\D/g, '');
   if (!/^\d{7,15}$/.test(from)) return { ok: false, error: 'wa_id is required.' };
 
+  // A demo customer (services/demoAccounts.js): the enquiry goes to the
+  // paired demo agent instead of the developer, inside a demo action.
+  const demoAccounts = require('./demoAccounts');
+  if (demoAccounts.isDemoPhone(from) && !demoAccounts.currentDemo()) {
+    return demoAccounts.runInDemo({ phone: from }, () => handleProjectEnquiry({ developmentId, waId, name, interest, message }));
+  }
+
   const loaded = await loadProject(developmentId, interest);
   if (!loaded) return { ok: false, error: 'Project not found.' };
-  const { project, picked } = loaded;
+  const { picked } = loaded;
+  let { project } = loaded;
+  if (demoAccounts.isDemoPhone(from)) {
+    const pair = await demoAccounts.getPairByPhone(from);
+    project = { ...project, agent_id: pair?.agentId ?? null };
+  }
 
   const cleanName = String(name || '').trim().slice(0, 120) || null;
   const cleanMessage = String(message || '').replace(/\s+/g, ' ').trim().slice(0, MESSAGE_LIMIT) || null;

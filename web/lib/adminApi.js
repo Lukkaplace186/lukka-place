@@ -12,6 +12,8 @@ import 'server-only';
  * cookie (a single shared team password) — see web/CLAUDE.md.
  */
 
+import { demoEngineHeader } from './demoSession';
+
 function base() {
   const value = process.env.ENGINE_API_BASE;
   if (!value) throw new Error('ENGINE_API_BASE is not set — see .env.local');
@@ -25,9 +27,17 @@ function authHeaders() {
 }
 
 async function engineFetch(path, options = {}) {
+  // A demo session acting (lib/demoSession.js): the engine then sends nothing
+  // to a real number for this request. Only ever restricts.
+  const demo = await demoEngineHeader();
   const res = await fetch(`${base()}${path}`, {
     ...options,
-    headers: { ...authHeaders(), ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+    headers: {
+      ...authHeaders(),
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(demo ? { 'x-lukka-demo': demo } : {}),
+      ...options.headers,
+    },
     cache: 'no-store',
   });
 
@@ -1035,4 +1045,13 @@ export async function answerRequestFollowup(leadId, { answer, waIds }) {
     method: 'POST',
     body: JSON.stringify({ answer, wa_ids: waIds }),
   });
+}
+
+/**
+ * The SQLite half of a demo pair's reset/deletion (engine
+ * services/demoPurge.js). The engine refuses any number or agent that is not
+ * a demo one.
+ */
+export async function purgeDemoEngineData({ phones, agentIds = [] }) {
+  return engineFetch('/admin/demo-accounts/purge', { method: 'POST', body: JSON.stringify({ phones, agentIds }) });
 }

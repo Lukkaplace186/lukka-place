@@ -16,6 +16,14 @@
 
 const axios = require('axios');
 
+/** services/demoAccounts.js, loaded lazily (it loads postgres.js). */
+let demoModule = null;
+function demo() {
+  // eslint-disable-next-line global-require
+  if (!demoModule) demoModule = require('./demoAccounts');
+  return demoModule;
+}
+
 /** services/messageLog.js, loaded lazily (it loads db.js). Its calls never throw. */
 let messageLogModule = null;
 function messageLog() {
@@ -163,7 +171,7 @@ function rethrowChakraError(err, action) {
  * @param {string}  [options.replyToMessageId]  Quote the agent's message.
  * @returns {Promise<Object>} Chakra/Meta response body.
  */
-async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, replyToMessageId } = {}) {
+async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, replyToMessageId, _demoForward = false } = {}) {
   if (!toPhone) {
     throw new Error('sendWhatsAppMessage requires toPhone');
   }
@@ -173,6 +181,13 @@ async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, r
 
   // Leading '+' is valid E.164 but not accepted here.
   const to = String(toPhone).replace(/^\+/, '');
+
+  // Demo accounts (services/demoAccounts.js): a demo number never reaches
+  // Meta, and nothing reaches a real number during a demo action.
+  if (!_demoForward) {
+    const stand = await demo().interceptSend(to, { kind: 'text', text: String(messageText) });
+    if (stand) return stand;
+  }
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -241,9 +256,20 @@ function templateConfigured(name) {
 async function sendTemplate(
   toPhone,
   templateName,
-  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage, sender, urlButton } = {},
+  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage, sender, urlButton, _demoForward = false } = {},
 ) {
   const to = String(toPhone).replace(/^\+/, '');
+  if (!_demoForward) {
+    const stand = await demo().interceptSend(to, {
+      kind: 'template',
+      templateName,
+      bodyParams,
+      buttons,
+      urlButton,
+      options: { languageCode, bodyParams, otpCode, buttons, headerImage, sender, urlButton },
+    });
+    if (stand) return stand;
+  }
   if (headerImage === undefined) headerImage = defaultHeaderImage(templateName);
 
   const template = { name: templateName, language: { code: languageCode } };
@@ -423,6 +449,8 @@ async function sendInteractiveButtons(toPhone, bodyText, buttons = []) {
   }
 
   const to = String(toPhone).replace(/^\+/, '');
+  const stand = await demo().interceptSend(to, { kind: 'interactive', text: String(bodyText), buttons });
+  if (stand) return stand;
 
   const payload = {
     messaging_product: 'whatsapp',

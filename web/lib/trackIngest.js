@@ -62,6 +62,8 @@ export const CALL_ROUTING_TYPES = ['DIRECT', 'CENTRAL'];
 const MISSING_COLUMN = '42703';
 const MISSING_TABLE = '42P01';
 const IMPERSONATION_COOKIE = 'lukka_impersonation';
+// lib/demoPhone.js DEMO_COOKIE, named here like IMPERSONATION_COOKIE above.
+const DEMO_COOKIE = 'lukka_demo';
 
 /** A well-formed visitor id, or null. */
 export function cleanVisitorId(value) {
@@ -110,7 +112,8 @@ export function signedInAgentIdFrom(request) {
  */
 export function viewerKindFor(request, device, { automated = false, agentId = null } = {}) {
   const headers = request.headers;
-  if (cookieValue(request, STAFF_COOKIE) === '1' || cookieValue(request, IMPERSONATION_COOKIE)) return 'staff';
+  // A demo account (lib/demoSession.js) is the team trying the product.
+  if (cookieValue(request, STAFF_COOKIE) === '1' || cookieValue(request, IMPERSONATION_COOKIE) || cookieValue(request, DEMO_COOKIE)) return 'staff';
   if (device === 'bot' || automated === true) return 'bot';
   const purpose = `${headers?.get?.('sec-purpose') || ''} ${headers?.get?.('purpose') || ''} ${headers?.get?.('x-moz') || ''}`;
   if (/prefetch|prerender/i.test(purpose) || headers?.get?.('next-router-prefetch')) return 'prefetch';

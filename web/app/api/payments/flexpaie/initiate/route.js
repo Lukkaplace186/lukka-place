@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentAgentId } from '@/lib/agentSession';
+import { getDemoPairForAgent } from '@/lib/demoAccounts';
 import { startFlexpaiePayment } from '@/lib/payments';
 
 /**
@@ -27,6 +28,8 @@ export async function POST(request) {
   if (!sameOrigin(request)) return NextResponse.json({ error: 'origin' }, { status: 403 });
   const agentId = await getCurrentAgentId();
   if (!agentId) return NextResponse.json({ error: 'auth' }, { status: 401 });
+  // A demo agent never starts a real mobile-money payment (lib/demoAccounts.js).
+  if (await getDemoPairForAgent(agentId)) return NextResponse.json({ error: 'demo' }, { status: 403 });
 
   let body;
   try {

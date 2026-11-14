@@ -18515,6 +18515,148 @@ console.log('\n2. services/openai.js');
   }
 
 
+  // §114 Demo accounts: sealed demo customer + agent pairs (2026-11-14)
+  // ---------------------------------------------------------------------------
+  console.log('\n§114 Demo accounts: demo numbers are never sent to, nothing reaches a real number during a demo action');
+  {
+    const demo114 = require('../services/demoAccounts');
+    const chakra114 = require('../services/chakra');
+    const AGENT = '243000010001';
+    const CUSTOMER = '243000020001';
+    const flush = () => new Promise((r) => setImmediate(r));
+
+    check('a demo number is 243 0000 + 5 digits, agent 1NNNN and customer 2NNNN', () => {
+      assert.deepStrictEqual(demo114.demoPhonesFor(1), { agentPhone: AGENT, customerPhone: CUSTOMER });
+      assert.strictEqual(demo114.isDemoPhone('+243 0000 10001'), true);
+      assert.strictEqual(demo114.isDemoPhone('243812345678'), false);
+      assert.strictEqual(demo114.isDemoPhone('2430000100011'), false, 'one digit too many');
+      assert.throws(() => demo114.demoPhonesFor(10000));
+    });
+
+    check('web/lib/demoPhone.js is the same rule (prefix, pattern, agent/customer digit)', () => {
+      const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'demoPhone.js'), 'utf8');
+      assert.ok(web.includes(`DEMO_PHONE_PREFIX = '${demo114.DEMO_PHONE_PREFIX}'`));
+      assert.ok(web.includes(`DEMO_PHONE_PATTERN = ${demo114.DEMO_PHONE_PATTERN.toString()};`));
+      assert.ok(web.includes('agentPhone: `${DEMO_PHONE_PREFIX}1${suffix}`, customerPhone: `${DEMO_PHONE_PREFIX}2${suffix}`'));
+    });
+
+    await checkAsync('a text, a template and buttons to a demo number never reach Chakra and are recorded under it', async () => {
+      demo114._resetCache({ table: false });
+      const before = httpCalls.length;
+      const text = await chakra114.sendWhatsAppMessage(CUSTOMER, 'Votre visite est confirmée');
+      const tpl = await chakra114.sendTemplate(AGENT, 'agent_lead_match', { bodyParams: ['Gombe'] });
+      const buttons = await chakra114.sendInteractiveButtons(AGENT, 'Nouvelle demande', [{ id: 'x:1', title: 'Accepter' }]);
+      assert.strictEqual(httpCalls.length, before, 'nothing posted');
+      for (const r of [text, tpl, buttons]) assert.strictEqual(r.demo, true);
+      const log = dbService.listWhatsAppMessages({ waId: CUSTOMER });
+      assert.ok(log.some((m) => m.body === 'Votre visite est confirmée'));
+      const agentLog = dbService.listWhatsAppMessages({ waId: AGENT });
+      assert.ok(agentLog.some((m) => m.template_name === 'agent_lead_match'));
+      assert.ok(agentLog.some((m) => m.kind === 'interactive'));
+    });
+
+    await checkAsync('inside a demo action a send to a real number is blocked and recorded on the demo account', async () => {
+      const before = httpCalls.length;
+      const deskBefore = dbService.listWhatsAppMessages({ waId: '243846962654', limit: 500 }).length;
+      const result = await demo114.runInDemo({ phone: CUSTOMER }, () => chakra114.sendWhatsAppMessage('243846962654', 'Nouvelle demande de visite (desk)'));
+      assert.strictEqual(result.demo, true);
+      assert.strictEqual(result.reason, 'blocked-real-recipient');
+      assert.strictEqual(httpCalls.length, before);
+      const log = dbService.listWhatsAppMessages({ waId: CUSTOMER });
+      assert.ok(log.some((m) => /^\[Démo — non envoyé à \+243846962654\]\nNouvelle demande de visite/.test(m.body)));
+      assert.strictEqual(dbService.listWhatsAppMessages({ waId: '243846962654', limit: 500 }).length, deskBefore, 'nothing logged as sent to the desk');
+    });
+
+    await checkAsync('outside a demo action a real number is sent to as before', async () => {
+      const before = httpCalls.length;
+      await chakra114.sendWhatsAppMessage('243812345678', 'Bonjour');
+      assert.strictEqual(httpCalls.length, before + 1);
+      assert.strictEqual(httpCalls.at(-1).data.to, '243812345678');
+    });
+
+    await checkAsync('a pair with a copy number gets a labelled copy of a demo message, and only that one send goes out', async () => {
+      demo114._resetCache({ table: true });
+      demo114._seedPair({ id: 1, label: 'Test', agentId: 9001, customerId: 7001, agentPhone: AGENT, customerPhone: CUSTOMER, deliverTo: '243899000111' });
+      const before = httpCalls.length;
+      await chakra114.sendWhatsAppMessage(AGENT, 'Un client souhaite visiter');
+      await flush(); await flush();
+      // Other jobs may send meanwhile (the scheduler ticks): only what went to the copy number counts.
+      const sent = httpCalls.slice(before).filter((c) => c.data?.to === '243899000111');
+      assert.strictEqual(sent.length, 1);
+      assert.strictEqual(sent[0].data.to, '243899000111');
+      assert.match(sent[0].data.text.body, /^🧪 Démo Lukka Place — message pour agent démo \(Test\)/);
+      assert.match(sent[0].data.text.body, /Un client souhaite visiter/);
+      const tplBefore = httpCalls.length;
+      await chakra114.sendTemplate(CUSTOMER, 'visit_confirmed', { bodyParams: ['Lundi 10h'] });
+      await flush(); await flush();
+      const tplSent = httpCalls.slice(tplBefore).filter((c) => c.data?.to === '243899000111');
+      assert.strictEqual(tplSent.length, 1);
+      assert.strictEqual(tplSent[0].data.template.name, 'visit_confirmed', 'the same template, to the copy number');
+      assert.strictEqual(tplSent[0].data.to, '243899000111');
+    });
+
+    check('an /admin request is a demo action by header or by a demo number in its body', () => {
+      assert.deepStrictEqual(demo114.contextFromRequest({ headers: { 'x-lukka-demo': `${CUSTOMER},${AGENT}` } }), { phone: CUSTOMER });
+      assert.deepStrictEqual(demo114.contextFromRequest({ headers: {}, body: { wa_id: CUSTOMER } }), { phone: CUSTOMER });
+      assert.strictEqual(demo114.contextFromRequest({ headers: { 'x-lukka-demo': '243812345678' }, body: { phone: '243812345678' } }), null);
+    });
+
+    check('routes/admin.js runs every request through the demo middleware; agentRanking never ranks a demo agent', () => {
+      const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(routes, /router\.use\(demoAccounts\.demoContextMiddleware\);/);
+      const ranking = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
+      assert.match(ranking, /AND COALESCE\(a\.phone, ''\) NOT LIKE '2430000%'/);
+    });
+
+    await checkAsync('a demo customer open request asks the paired demo agent only, then closes without the desk', async () => {
+      const dispatch114 = require('../services/leadDispatch');
+      const lead = dbService.createLead({ wa_id: CUSTOMER, name: 'Client démo', source: 'guest-request', commune: 'Gombe', status: 'NEW' });
+      const before = httpCalls.length;
+      const noRank = async () => { throw new Error('must not rank'); };
+      const first = await dispatch114.dispatchNextWave(lead, { rank: noRank });
+      assert.strictEqual(first.demo, true);
+      const matches = dbService.getLeadMatches(lead.id);
+      assert.deepStrictEqual(matches.map((m) => Number(m.agent_id)), [9001]);
+      const second = await dispatch114.dispatchNextWave(lead, { rank: noRank });
+      assert.strictEqual(second.skipped, 'demo-done');
+      await flush(); await flush();
+      // Nothing to an agency or the desk: what was sent is copies to the pair's phone, or other jobs' own sends.
+      assert.ok(!httpCalls.slice(before).some((c) => /(2430000|243846962654)/.test(String(c.data?.to || ''))));
+    });
+
+    await checkAsync('the purge refuses a real number and removes only the demo numbers engine rows', async () => {
+      const purge114 = require('../services/demoPurge');
+      await assert.rejects(() => purge114.purgeDemoEngineData({ phones: ['243812345678'] }), /not demo numbers/);
+      const real = dbService.createLead({ wa_id: '243812345678', name: 'Vrai client', source: 'guest-request', status: 'NEW' });
+      const result = await purge114.purgeDemoEngineData({ phones: [AGENT, CUSTOMER] });
+      assert.ok(result.leads >= 1);
+      assert.strictEqual(dbService.listWhatsAppMessages({ waId: CUSTOMER }).length, 0);
+      assert.strictEqual(dbService.listWhatsAppMessages({ waId: AGENT }).length, 0);
+      assert.ok(dbService.getLead(real.id), 'a real lead stays');
+      assert.ok(dbService.listWhatsAppMessages({ waId: '243812345678' }).length >= 1, 'a real history stays');
+      demo114._resetCache();
+    });
+
+    check('the migration holds a demo agent listings pending whoever approves them', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261114_demo_accounts.sql'), 'utf8');
+      assert.match(sql, /CREATE TRIGGER properties_demo_guard\s+BEFORE INSERT OR UPDATE OF approve_status, agent_id ON properties/);
+      assert.match(sql, /LIKE '2430000%'[\s\S]*NEW\.approve_status := 0/);
+      assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
+    });
+
+    check('visits, profile and project enquiries of a demo customer go to the paired demo agent; reassign never crosses over', () => {
+      const viewing = fs.readFileSync(path.join(__dirname, '..', 'services', 'viewingNotifications.js'), 'utf8');
+      assert.match(viewing, /pairedAgentContact\(lead\.wa_id\)[\s\S]{0,120}notifyOpsCopy = false/);
+      assert.match(viewing, /une visite démo reste avec son agent démo/);
+      assert.match(fs.readFileSync(path.join(__dirname, '..', 'services', 'agentProfileEnquiry.js'), 'utf8'), /agentId = pair\?\.agentId \?\? null/);
+      assert.match(fs.readFileSync(path.join(__dirname, '..', 'services', 'projectEnquiry.js'), 'utf8'), /agent_id: pair\?\.agentId \?\? null/);
+      const sweeps = fs.readFileSync(path.join(__dirname, '..', 'services', 'viewingSweeps.js'), 'utf8');
+      assert.strictEqual((sweeps.match(/demoAccounts\.runForPhone\(request\.lead_wa_id/g) || []).length, 3);
+    });
+  }
+
+
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import CustomerVisitActions from './CustomerVisitActions';
 import VisitAgentRating from './VisitAgentRating';
 import VisitCheckin from './VisitCheckin';
+import { contactTapProps } from '@/lib/contactTapAttrs';
 
 const upperFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -170,13 +171,13 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
             {agentName ? <AgentFace name={agentName} logoUrl={listing?.agency_logo_url || null} t={t} /> : null}
             <div className="flex gap-2">
               {whatsappHref ? (
-                <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={cn(BTN, 'flex-1 bg-green-ink text-white')}>
+                <a href={whatsappHref} target="_blank" rel="noopener noreferrer" {...(agentPhone ? contactTapProps({ surface: 'client_visit', channel: 'whatsapp', listingId: listing?.id }) : {})} className={cn(BTN, 'flex-1 bg-green-ink text-white')}>
                   <WhatsAppIcon className="h-[1.125rem] w-[1.125rem] shrink-0" />
                   {agentPhone ? t('account.agenda.whatsappShort') : t('account.agenda.whatsappLukka')}
                 </a>
               ) : null}
               {callHref ? (
-                <a href={callHref} className={cn(BTN, 'flex-1 text-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]')}>
+                <a href={callHref} {...(agentPhone ? contactTapProps({ surface: 'client_visit', channel: 'call', listingId: listing?.id }) : {})} className={cn(BTN, 'flex-1 text-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]')}>
                   <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" aria-hidden="true" />
                   {t('account.agenda.callShort')}
                 </a>
@@ -202,7 +203,7 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
         {(visit.tone === 'pending' || (visit.tone === 'rescheduled' && expired)) && open ? (
           <div className="flex items-center gap-2">
             {whatsappHref ? (
-              <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={cn(BTN, 'flex-1 text-green-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]')}>
+              <a href={whatsappHref} target="_blank" rel="noopener noreferrer" {...(agentPhone ? contactTapProps({ surface: 'client_visit', channel: 'whatsapp', listingId: listing?.id }) : {})} className={cn(BTN, 'flex-1 text-green-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]')}>
                 <WhatsAppIcon className="h-[1.125rem] w-[1.125rem] shrink-0" />
                 {agentPhone ? t('account.agenda.whatsappShort') : t('account.agenda.whatsappLukka')}
               </a>

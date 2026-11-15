@@ -16,6 +16,8 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: 'FileText' },
       { href: '/admin/projets', labelKey: 'admin.nav.projects', icon: 'Building' },
       { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: 'CalendarClock' },
+      // Every customer -> agent contact, one row each: who, which agent, how (2026-11-15).
+      { href: '/admin/contacts', labelKey: 'admin.nav.contacts', icon: 'UsersRound' },
       { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: 'Mail' },
       // Every customer -> agent interaction, counted, plus the desk's "mise en relation" log.
       { href: '/admin/interactions', labelKey: 'admin.nav.interactions', icon: 'Handshake' },

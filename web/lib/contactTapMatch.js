@@ -30,9 +30,16 @@ const time = (value) => {
   return Number.isFinite(ms) ? ms : null;
 };
 
-/** Only a customer's tap on an agent's own WhatsApp can have alerted the agent. */
-export function tapCanAlert(click) {
-  return click?.routing_type === 'DIRECT_WA' && (click.viewer_kind || 'visitor') === 'visitor' && Boolean(click.listing_id);
+/** The routing a tap must have taken to alert the agent, per alert kind. */
+const DIRECT_ROUTING = { whatsapp: 'DIRECT_WA', call: 'DIRECT' };
+
+/**
+ * Only a customer's tap on an agent's own WhatsApp (or, for `kind: 'call'`,
+ * the agent's own "Appeler", listing_events routing DIRECT) can have alerted
+ * the agent.
+ */
+export function tapCanAlert(click, kind = 'whatsapp') {
+  return click?.routing_type === DIRECT_ROUTING[kind] && (click.viewer_kind || 'visitor') === 'visitor' && Boolean(click.listing_id);
 }
 
 /**
@@ -42,7 +49,7 @@ export function tapCanAlert(click) {
  * @returns {{propertyIds: number[], since: string}|null} null when no tap on the page can have alerted.
  */
 export function tapAlertQuery(clicks) {
-  const taps = (clicks || []).filter(tapCanAlert);
+  const taps = (clicks || []).filter((c) => tapCanAlert(c));
   const times = taps.map((c) => time(c.created_at)).filter((ms) => ms != null);
   if (taps.length === 0 || times.length === 0) return null;
   const propertyIds = [...new Set(taps.map((c) => Number(c.listing_id)))];
@@ -59,20 +66,21 @@ function alertState(alert) {
 /**
  * @param {Array<Object>} clicks rows of the tap log (`id`, `listing_id`, `created_at`, `routing_type`, `viewer_kind`, `visitor_id`)
  * @param {Array<Object>} alerts the engine's rows (`id`, `property_id`, `kind`, `visitor_key`, `created_at`, `sent_via`, `answer`, `answered_at`)
+ * @param {{kind?: 'whatsapp'|'call'}} [options] which taps and alerts to pair (call taps: listing_events, routing DIRECT)
  * @returns {Map<string, {state: 'replied'|'nothing'|'waiting'|'failed'|'earlier', via: string|null,
  *   answeredAt: string|null, alertAt: string}>} keyed by click id; a tap with no entry had no alert.
  */
-export function matchTapAlerts(clicks, alerts) {
+export function matchTapAlerts(clicks, alerts, { kind = 'whatsapp' } = {}) {
   const result = new Map();
   const pool = (alerts || [])
-    .filter((a) => a && a.kind === 'whatsapp' && time(a.created_at) != null)
+    .filter((a) => a && a.kind === kind && time(a.created_at) != null)
     .map((a) => ({ ...a, at: time(a.created_at), propertyId: Number(a.property_id) }))
     .sort((x, y) => x.at - y.at);
   const used = new Set();
 
   // Oldest tap first, so each alert goes to the first tap that caused it.
   const taps = (clicks || [])
-    .filter(tapCanAlert)
+    .filter((c) => tapCanAlert(c, kind))
     .map((c) => ({ click: c, at: time(c.created_at), propertyId: Number(c.listing_id) }))
     .filter((t) => t.at != null)
     .sort((x, y) => x.at - y.at);

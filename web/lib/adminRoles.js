@@ -121,6 +121,8 @@ export const SECTION_PERMISSIONS = {
   '/admin/leads': 'leads.view',
   // Recording an introduction is leads.manage (app/admin/interactions/actions.js).
   '/admin/interactions': 'leads.view',
+  // Every customer → agent contact, one row each, with customers' numbers.
+  '/admin/contacts': 'leads.view',
   '/admin/matching': 'analytics.view',
   '/admin/viewings': 'leads.view',
   '/admin/market-data': 'market.view',

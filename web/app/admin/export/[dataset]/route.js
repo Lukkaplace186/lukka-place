@@ -11,6 +11,8 @@ import { listMembershipsForAdmin } from '@/lib/adminBilling';
 import { listConversations, listLeadMatches, listViewingFeed } from '@/lib/adminApi';
 import { getInvestorMonthlyRows } from '@/lib/investorMetrics';
 import { listProspects } from '@/lib/marketProspects';
+import { contactWindow, filterContactRows } from '@/lib/contactLog';
+import { getContactLabels, loadContactLog } from '@/lib/contactLogLoader';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,6 +154,36 @@ const DATASETS = {
       ['customer', (r) => r.lead_name], ['customer_phone', (r) => r.lead_wa_id], ['status', (r) => r.status], ['routing', (r) => r.routing_type],
       ['agent_id', (r) => r.agent_id], ['scheduled_at', (r) => r.scheduled_at], ['requested_time', (r) => r.requested_time],
       ['sla_alerted_at', (r) => r.sla_alerted_at], ['decline_reason', (r) => r.decline_reason_code],
+    ],
+  },
+  // /admin/contacts: every customer → agent contact with the page's filters.
+  contacts: {
+    permission: 'data.export',
+    fetch: async (p) => {
+      const { rows } = await loadContactLog({ days: contactWindow(p.get('days')) });
+      const filtered = filterContactRows(rows, {
+        channel: p.get('channel'), agentId: p.get('agent'), known: p.get('known') === '1', q: p.get('q') || '',
+      }).slice(0, EXPORT_CAP);
+      const { names, listings, projects } = await getContactLabels(filtered);
+      return filtered.map((row) => {
+        const project = row.projectSlug
+          ? projects.get(`slug:${row.projectSlug.toLowerCase()}`)
+          : row.developmentId ? projects.get(`id:${row.developmentId}`) : null;
+        return {
+          ...row,
+          agentName: names.get(row.agentId)?.name || null,
+          listingReference: listings.get(row.listingId)?.reference || null,
+          listingTitle: listings.get(row.listingId)?.title || null,
+          projectName: project?.name || row.projectSlug || null,
+        };
+      });
+    },
+    columns: [
+      ['date', (r) => r.at], ['channel', (r) => r.channel], ['page', (r) => r.surface || ''],
+      ['customer_name', (r) => r.customer?.name || ''], ['customer_phone', (r) => (r.customer?.phone ? `+${r.customer.phone}` : '')],
+      ['customer_account_id', (r) => r.customer?.customerId || ''], ['agent_id', (r) => r.agentId || ''], ['agent', (r) => r.agentName || ''],
+      ['listing_id', (r) => r.listingId || ''], ['listing_reference', (r) => r.listingReference || ''], ['listing_title', (r) => r.listingTitle || ''],
+      ['project', (r) => r.projectName || ''], ['status', (r) => r.status], ['status_at', (r) => r.statusAt || ''], ['repeat_tap', (r) => Boolean(r.repeat)],
     ],
   },
   conversations: {

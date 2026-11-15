@@ -717,6 +717,18 @@ export async function getInteractionCounts({ days = 30 } = {}) {
 }
 
 /**
+ * The engine half of /admin/contacts (engine db.listContactLog): enquiries,
+ * desk introductions, visit requests and tap alerts in the window, one row
+ * each, with the customer's number.
+ *
+ * @returns {Promise<{leads: Object[], viewings: Object[], tapAlerts: Object[]}>}
+ */
+export async function getContactLog({ days = 30 } = {}) {
+  const { leads, viewings, tapAlerts } = await engineFetch(`/admin/contact-log?days=${encodeURIComponent(days)}`);
+  return { leads: leads || [], viewings: viewings || [], tapAlerts: tapAlerts || [] };
+}
+
+/**
  * A visitor just tapped a verified agent's WhatsApp / Appeler button: the
  * engine tells the agent straight away (services/contactTapAlert.js), after
  * its own dedupe and agent gates.

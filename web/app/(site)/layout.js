@@ -10,6 +10,7 @@ import AccountLimitNotice from '@/components/AccountLimitNotice';
 import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import DemoBanner from '@/components/DemoBanner';
+import ContactTapBeacon from '@/components/ContactTapBeacon';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { getI18n } from '@/lib/i18n/server';
@@ -92,6 +93,8 @@ export default async function SiteLayout({ children }) {
         <SitePageViewTracker />
         {/* "Créez un compte…" at the right moments (growth plan item 24). */}
         <SignupNudge />
+        {/* Direct WhatsApp / call taps outside a listing — projects, Espace Client (/admin/contacts). */}
+        <ContactTapBeacon />
       </CurrencyRateProvider>
     </I18nProvider>
   );

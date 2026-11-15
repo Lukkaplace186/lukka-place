@@ -211,6 +211,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     // Contact goes to Lukka Place's desk when the agency's number is not
     // published; the button says so instead of promising the agency.
     whatsappIsCentral: !routablePhone,
+    // A direct tap reports itself (lib/contactTapAttrs.js, /admin/contacts);
+    // one to our number is recorded when the message arrives.
+    contactAgentId: routablePhone ? agent.id : null,
     // A share to anyone (WhatsApp's contact picker), French — read by the
     // agency's customers whatever language this visitor browses in.
     shareHref: buildWhatsAppShareLink(`${hasRealName ? name : 'Une agence'} sur Lukka Place : ses biens à louer et à vendre.

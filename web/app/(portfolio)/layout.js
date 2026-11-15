@@ -7,6 +7,7 @@ import { I18nProvider } from '@/lib/i18n/client';
 import { getI18n } from '@/lib/i18n/server';
 import SitePageViewTracker from '@/components/SitePageViewTracker';
 import VisitCartMount from '@/components/VisitCartMount';
+import ContactTapBeacon from '@/components/ContactTapBeacon';
 import PortfolioFooterShell from './PortfolioFooterShell';
 
 /**
@@ -111,6 +112,8 @@ export default async function PortfolioLayout({ children }) {
         {/* "Mes visites" (lib/visitCart.js): the agent profile's listing sheet
             adds to it, so its pill and sheet are mounted here as in (site). */}
         <VisitCartMount />
+        {/* Direct WhatsApp / call taps on the profile and directory (/admin/contacts). */}
+        <ContactTapBeacon />
       </CurrencyRateProvider>
     </I18nProvider>
   );

@@ -420,6 +420,47 @@ Built in this first step:
   number instead of being counted).
 - §90 of verify-pipeline; web `tests/unit/agent-contact-attempts.test.js`.
 
+## Contacts — every customer → agent contact, one row each (2026-11-15)
+
+Owner, the same day as the switch below: "where can I see exactly which
+customer contacted which agent, I can't be blind here". `/admin/contacts`
+(Operations, `leads.view`) lists what `/admin/interactions` counts, one row
+per contact: date, customer, agent, listing / project / page, channel, and
+what happened next. Rules in web `lib/contactLog.js` (pure), reads in
+`lib/contactLogLoader.js`, CSV through `/admin/export/contacts`.
+
+- **Sources**: Postgres direct WhatsApp taps (`whatsapp_clicks` DIRECT_WA),
+  direct call taps (`listing_events` call_click DIRECT), `agent_contact_taps`
+  and `chat_threads`; engine `GET /admin/contact-log` (`db.listContactLog`):
+  enquiries to our number, profile / project requests, desk introductions,
+  visit requests (from `viewing_requests`, not their lead), and the tap
+  alerts, paired with taps by `lib/contactTapMatch.js` (calls too). Customers'
+  taps only; a tap to our central number is not listed (its message is). A
+  repeat tap by the same visitor within 10 min is greyed and not counted.
+- **Follow-up column**: taps — the alert and the agent's « J'ai répondu / Rien
+  reçu »; enquiries — NEW or handled, and the customer's answer to the 24 h
+  follow-up (NOT_YET → "Client : pas encore contacté"); visits — the status;
+  Messagerie — whether the agent replied.
+- **Who the customer is**: the number for anything that reached our number or
+  a form; for a tap only when the customer was signed in —
+  `whatsapp_clicks.customer_id` and `listing_events.customer_id` (call taps),
+  from the customer session cookie (signature checked, not the DB). An
+  anonymous tap stays "Anonyme": nothing is asked before WhatsApp opens.
+- **Taps outside a listing were invisible** after the switch: the agent
+  profile, the directory, project pages and the Espace Client visit /
+  proposal cards opened the agent's WhatsApp and recorded nothing. Their
+  direct links now carry `data-contact-*` (web `lib/contactTapAttrs.js`); one
+  listener (`components/ContactTapBeacon.js`, in the (site) and (portfolio)
+  layouts) posts `/api/telemetry/contact-tap` → `agent_contact_taps`
+  (`lib/agentContactTaps.js`). The agent is resolved in SQL — a project's
+  `developments.agent_id`, a listing's agent, or the named agent only if it
+  exists and is not deleted. No agent alert for these taps.
+- Migration `migrations/20261115_contact_log.sql` (two columns, one table,
+  RLS on, anon revoked); everything reads through `to_jsonb` / `to_regclass`,
+  so the page works before it runs. Each source is read alone: one down shows
+  an error banner, never a silent gap; more than 5,000 rows in a source says so.
+- §116 of verify-pipeline; web `tests/unit/contact-log.test.js`.
+
 ## WhatsApp straight to the agent again (2026-11-15)
 
 Owner decision, reversing the section below: the storefront's WhatsApp

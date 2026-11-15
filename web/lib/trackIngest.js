@@ -1,5 +1,6 @@
 import 'server-only';
 import { AGENT_SESSION_COOKIE, verifyAgentSessionToken } from './agentAuth';
+import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
 import { cleanAttribution, isTagged, sourceOf } from './attribution';
 import { PARTNER_COOKIE, parsePartnerCookie } from './partnerRules';
 
@@ -102,6 +103,20 @@ export function signedInAgentIdFrom(request) {
 }
 
 /**
+ * The signed-in customer's id from the request's cookie, or null (2026-11-15,
+ * /admin/contacts: a tap by a signed-in customer says who they are). The
+ * signature and expiry are checked; a revoked session is not looked up — the
+ * id is only ever shown to the team, never acted on.
+ */
+export function signedInCustomerIdFrom(request) {
+  try {
+    return verifyCustomerSessionToken(cookieValue(request, CUSTOMER_SESSION_COOKIE))?.customerId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Who sent this request, before the listing is known (`owner` is decided in
  * the INSERT, from `agent`). Checked in this order: team, automation,
  * speculation, signed-in agent, visitor.
@@ -158,6 +173,13 @@ export const RECORD_PAGE_VIEW_LEGACY_SQL = `
 export const RECORD_LISTING_EVENT_SQL = `
   INSERT INTO listing_events (event, listing_id, commune, price, device, source, visitor_id, routing_type, viewer_kind)
   VALUES ($1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text, $7::text, $8::text, ${viewerKindSql('$9', '$2', '$10')})
+`;
+
+// A call tap by a signed-in customer (migrations/20261115_contact_log.sql);
+// before that migration it falls back to the statement above.
+export const RECORD_LISTING_EVENT_CUSTOMER_SQL = `
+  INSERT INTO listing_events (event, listing_id, commune, price, device, source, visitor_id, routing_type, viewer_kind, customer_id)
+  VALUES ($1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text, $7::text, $8::text, ${viewerKindSql('$9', '$2', '$10')}, $11::bigint)
 `;
 
 export const RECORD_LISTING_EVENT_LEGACY_SQL = `
@@ -311,13 +333,19 @@ export async function recordVisitorTouch(pool, { visitorId, viewerKind, attribut
 
 /** @returns {Promise<boolean>} whether a row was written. */
 export async function recordListingEvent(pool, {
-  event, listingId, commune, price, device, source, visitorId, routingType, viewerKind, agentId,
+  event, listingId, commune, price, device, source, visitorId, routingType, viewerKind, agentId, customerId = null,
 }) {
   if (!LISTING_EVENT_TYPES.includes(event)) throw new Error(`recordListingEvent: unknown event '${event}'`);
   const routing = event === 'call_click' && CALL_ROUTING_TYPES.includes(routingType) ? routingType : null;
+  const tracked = [event, listingId, commune || null, price, device, source, visitorId || null, routing, kindOrVisitor(viewerKind), agentId || null];
+  // Who called is kept for a call tap only: that is what /admin/contacts lists.
+  const withCustomer = event === 'call_click' && customerId
+    ? [[RECORD_LISTING_EVENT_CUSTOMER_SQL, [...tracked, customerId]]]
+    : [];
   return withLegacyFallback(
     pool,
-    [RECORD_LISTING_EVENT_SQL, [event, listingId, commune || null, price, device, source, visitorId || null, routing, kindOrVisitor(viewerKind), agentId || null]],
+    ...withCustomer,
+    [RECORD_LISTING_EVENT_SQL, tracked],
     [RECORD_LISTING_EVENT_LEGACY_SQL, [event, listingId, commune || null, price, device, source]],
   );
 }

@@ -590,6 +590,21 @@ router.get('/interaction-counts', (req, res) => {
 });
 
 /**
+ * /admin/contacts' engine half (db.listContactLog): enquiries, desk
+ * introductions, visit requests and tap alerts in the window, one row each.
+ * Read-only; carries customers' numbers, so it stays behind the API key.
+ */
+router.get('/contact-log', (req, res) => {
+  const { window, since } = windowStart(req.query.days);
+  try {
+    return res.json({ success: true, days: window, ...db.listContactLog({ since, limit: req.query.limit }) });
+  } catch (err) {
+    console.error(`[admin] GET /contact-log failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read the contact log.' });
+  }
+});
+
+/**
  * "Mise en relation" — the desk records that it put a customer in touch with
  * an agent outside the site (services/teamIntroduction.js). Sends nothing.
  */

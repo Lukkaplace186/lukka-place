@@ -4,7 +4,9 @@ import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
-import { attributionFromBody, eventSource, signedInAgentIdFrom, viewerKindFor, visitorIdFrom } from '@/lib/trackIngest';
+import {
+  attributionFromBody, eventSource, signedInAgentIdFrom, signedInCustomerIdFrom, viewerKindFor, visitorIdFrom,
+} from '@/lib/trackIngest';
 
 /**
  * POST /api/telemetry/lead-click — one tap on a listing's WhatsApp button,
@@ -64,6 +66,8 @@ export async function POST(request) {
       agentId,
       // Optional; an unknown value is stored as none, never a 400.
       placement: leadClickPlacement(body?.placement),
+      // Who tapped, when signed in (/admin/contacts). An anonymous visitor stays anonymous.
+      customerId: signedInCustomerIdFrom(request),
     });
   } catch (err) {
     console.error(`[api/telemetry/lead-click] insert failed: ${err.message}`);

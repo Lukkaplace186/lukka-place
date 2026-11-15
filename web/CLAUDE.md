@@ -269,7 +269,10 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   it. Since WhatsApp went straight to the agent again (2026-11-15), the tap
   log's "Agent prévenu" column shows per direct tap the "Un client vous
   contacte" alert and the agent's answer (`lib/contactTapMatch.js`, engine
-  `GET /admin/contact-taps`; root docs/claude/leads-and-enquiries.md). "Delivery health" is API-accepted vs refused plus agents who answered;
+  `GET /admin/contact-taps`; root docs/claude/leads-and-enquiries.md). Each
+  contact with its customer is on **`/admin/contacts`** (Operations,
+  `lib/contactLog.js`); a direct link to an agent outside a listing reports
+  its tap through `contactTapProps` + `ContactTapBeacon`. "Delivery health" is API-accepted vs refused plus agents who answered;
   there is no delivered count because Chakra forwards no receipts.
 
 ### Accounts, roles and the audit log

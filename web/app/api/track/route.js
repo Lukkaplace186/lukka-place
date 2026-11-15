@@ -15,6 +15,7 @@ import {
   recordPageView,
   recordSearch,
   signedInAgentIdFrom,
+  signedInCustomerIdFrom,
   viewerKindFor,
   visitorIdFrom,
 } from '@/lib/trackIngest';
@@ -125,6 +126,8 @@ export async function POST(request) {
         routingType: body?.routingType,
         viewerKind,
         agentId,
+        // Who called, when signed in (/admin/contacts); kept on call taps only.
+        customerId: signedInCustomerIdFrom(request),
       });
       // "Appeler" on a verified agent: tell them a call is coming
       // (lib/contactTapAlert.js), after the response has left.

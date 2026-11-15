@@ -18694,6 +18694,53 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §116 Contacts: every customer → agent contact, one row each (2026-11-15)
+  // ---------------------------------------------------------------------------
+  console.log('\n§116 GET /admin/contact-log lists enquiries, visits and tap alerts one row each, with the customer');
+  {
+    const enquiry116 = dbService.createLead({ wa_id: '243811600001', source: 'listing-whatsapp-enquiry', property_id: 11601, agent_id: 116 });
+    const assistant116 = dbService.createLead({ wa_id: '243811600002', source: 'whatsapp' });
+    const visitLead116 = dbService.createLead({ wa_id: '243811600003', name: 'Client 116', source: 'listing-visit-request', property_id: 11602 });
+    const visit116 = dbService.createViewingRequest({ leadId: visitLead116.id, propertyId: 11602, requestedTime: 'demain 10h' });
+    const alert116 = dbService.createContactTapAlert({ propertyId: 11603, agentId: 116, agentWa: '243811600009', kind: 'call', at: new Date().toISOString() });
+    const log116 = dbService.listContactLog({ since: new Date(Date.now() - 60 * 60 * 1000).toISOString() });
+
+    check('an enquiry to our number is listed with the customer\'s number; the assistant\'s own leads are not', () => {
+      const row = log116.leads.find((l) => l.id === enquiry116.id);
+      assert.ok(row);
+      assert.strictEqual(row.wa_id, '243811600001');
+      assert.strictEqual(row.source, 'listing-whatsapp-enquiry');
+      assert.ok(!log116.leads.some((l) => l.id === assistant116.id));
+      assert.ok(!log116.leads.some((l) => l.id === visitLead116.id), 'a visit is listed once, from viewing_requests');
+    });
+
+    check('a visit request carries its customer and listing', () => {
+      const row = log116.viewings.find((v) => v.id === visit116.id);
+      assert.strictEqual(row.wa_id, '243811600003');
+      assert.strictEqual(row.name, 'Client 116');
+      assert.strictEqual(Number(row.property_id), 11602);
+    });
+
+    check('the tap alerts come too, call alerts included', () => {
+      assert.ok(log116.tapAlerts.some((a) => a.id === alert116 && a.kind === 'call'));
+    });
+
+    check('the read route exists behind the admin router', () => {
+      const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(routes, /router\.get\('\/contact-log'[\s\S]{0,300}db\.listContactLog\(/);
+    });
+
+    check('migration: customer kept on taps, agent_contact_taps closed to the public API', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261115_contact_log.sql'), 'utf8');
+      assert.match(sql, /ALTER TABLE whatsapp_clicks ADD COLUMN IF NOT EXISTS customer_id bigint/);
+      assert.match(sql, /ALTER TABLE listing_events ADD COLUMN IF NOT EXISTS customer_id bigint/);
+      assert.match(sql, /CREATE TABLE IF NOT EXISTS agent_contact_taps/);
+      assert.match(sql, /ALTER TABLE agent_contact_taps ENABLE ROW LEVEL SECURITY/);
+      assert.match(sql, /REVOKE ALL ON agent_contact_taps FROM anon, authenticated/);
+    });
+  }
+
 
 
   console.log(`\n${'-'.repeat(60)}`);

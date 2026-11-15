@@ -59,6 +59,15 @@ export const RECORD_LEAD_CLICK_PLACEMENT_SQL = `
           (SELECT agent_id FROM properties WHERE id = $1::bigint), $7::text, ${viewerKindSql('$8', '$1', '$9')}, $10::text)
 `;
 
+// A tap by a signed-in customer keeps who they are (/admin/contacts,
+// migrations/20261115_contact_log.sql). Before that migration the insert
+// falls back to the statements above, without the customer.
+export const RECORD_LEAD_CLICK_CUSTOMER_SQL = `
+  INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id, visitor_id, viewer_kind, placement, customer_id)
+  VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::numeric, $6::text,
+          (SELECT agent_id FROM properties WHERE id = $1::bigint), $7::text, ${viewerKindSql('$8', '$1', '$9')}, $10::text, $11::bigint)
+`;
+
 export const RECORD_LEAD_CLICK_LEGACY_SQL = `
   INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id)
   VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::numeric, $6::text,
@@ -75,30 +84,38 @@ export const RECORD_LEAD_CLICK_LEGACY_SQL = `
  */
 export async function recordLeadClick(pool, {
   listingId, commune, device, source, price, routingType, visitorId = null, viewerKind = 'visitor', agentId = null,
-  placement = null,
+  placement = null, customerId = null,
 }) {
   if (!LEAD_CLICK_ROUTING_TYPES.includes(routingType)) {
     throw new Error(`recordLeadClick: unknown routing type '${routingType}'`);
   }
   try {
     return await insertLeadClick(pool, {
-      listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement,
+      listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement, customerId,
     });
   } catch (err) {
     // 23514: the routing-type CHECK predates VIA_LUKKA (migration not run yet).
     if (err?.code !== '23514' || routingType !== 'VIA_LUKKA') throw err;
     return insertLeadClick(pool, {
-      listingId, commune, device, source, price, routingType: null, visitorId, viewerKind, agentId, placement,
+      listingId, commune, device, source, price, routingType: null, visitorId, viewerKind, agentId, placement, customerId,
     });
   }
 }
 
 async function insertLeadClick(pool, {
-  listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement,
+  listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement, customerId,
 }) {
   const base = [listingId, commune || null, device, source, price, routingType];
   const kind = VIEWER_KINDS.includes(viewerKind) ? viewerKind : 'visitor';
   const tracked = [...base, visitorId || null, kind, agentId || null];
+  if (customerId) {
+    try {
+      const result = await pool.query(RECORD_LEAD_CLICK_CUSTOMER_SQL, [...tracked, leadClickPlacement(placement), customerId]);
+      return result.rowCount > 0;
+    } catch (err) {
+      if (err?.code !== '42703') throw err;
+    }
+  }
   if (leadClickPlacement(placement)) {
     try {
       const result = await pool.query(RECORD_LEAD_CLICK_PLACEMENT_SQL, [...tracked, placement]);

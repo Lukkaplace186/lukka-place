@@ -2311,6 +2311,54 @@ const INTERACTION_LEAD_SOURCES = [
 ];
 
 /**
+ * The engine half of /admin/contacts (2026-11-15): the same interactions as
+ * getInteractionCounts, one row each instead of counted — enquiries and desk
+ * introductions (with the customer's number), visit requests, and the
+ * "Un client vous contacte" alerts web pairs with its taps. Newest first,
+ * `limit` per kind; `created_at` is returned as stored (leads/viewings are
+ * SQLite datetime text in UTC, alerts are ISO).
+ */
+function listContactLog({ since, limit = 3000 } = {}) {
+  const cap = Math.min(Math.max(Number(limit) || 3000, 1), 5000);
+  const p = { since, cap };
+  const leads = db
+    .prepare(
+      `SELECT id, source, wa_id, name, agent_id, property_id, development_id, status, created_at,
+              contact_followup_answer, contact_channel
+         FROM leads
+        WHERE created_at >= datetime(@since)
+          AND source IN (${INTERACTION_LEAD_SOURCES.map((s) => `'${s}'`).join(', ')})
+        ORDER BY created_at DESC, id DESC
+        LIMIT @cap`,
+    )
+    .all(p);
+  const viewings = db
+    .prepare(
+      // vr.* rather than a column list: visit_mode (video visits) is not on
+      // every database yet. The COALESCEd agent/listing come after it and win.
+      `SELECT vr.*, COALESCE(vr.agent_id, l.agent_id) AS agent_id,
+              COALESCE(vr.property_id, l.property_id) AS property_id,
+              l.wa_id, l.name
+         FROM viewing_requests vr
+         LEFT JOIN leads l ON l.id = vr.lead_id
+        WHERE vr.created_at >= datetime(@since)
+        ORDER BY vr.created_at DESC, vr.id DESC
+        LIMIT @cap`,
+    )
+    .all(p);
+  const tapAlerts = db
+    .prepare(
+      `SELECT id, property_id, agent_id, kind, visitor_key, created_at, sent_via, answer, answered_at
+         FROM contact_tap_alerts
+        WHERE datetime(created_at) >= datetime(@since, '-1 day')
+        ORDER BY created_at DESC, id DESC
+        LIMIT @cap`,
+    )
+    .all(p);
+  return { since, leads, viewings, tapAlerts };
+}
+
+/**
  * The engine half of /admin/interactions: every customer → agent interaction
  * this database holds since `since`, grouped by what the web side needs to
  * attribute it (an agent id when the row names one, else the listing, whose
@@ -5099,6 +5147,7 @@ module.exports = {
   countLeadsByWaIds,
   getLeadAnalytics,
   getInteractionCounts,
+  listContactLog,
   INTERACTION_LEAD_SOURCES,
   recordTeamIntroductionLead,
   VIEWING_FEED_VIEWS,

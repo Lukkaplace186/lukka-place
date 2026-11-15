@@ -7,11 +7,11 @@ import { contactWhatsAppHref, routesViaLukka } from '@/lib/leadRouting';
 import { LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
 import { mergeInteractionCounts } from '@/lib/interactionCounts';
 
-// 2026-11-09, owner decision: every "write to this agent" WhatsApp button
-// (listing, profile, directory, project, Espace Client) opens the Lukka Place
-// number with the page's link; the engine records the customer and hands them
-// the agent's WhatsApp. NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=on restores the
-// agent's own number.
+// 2026-11-09 → 2026-11-15: every "write to this agent" WhatsApp button
+// (listing, profile, directory, project, Espace Client) opened the Lukka Place
+// number with the page's link, and the engine handed the customer the agent's
+// WhatsApp. Owner, 2026-11-15: straight to the agent again by default;
+// NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=off puts our number back in the middle.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 const CENTRAL = '243899000000';
@@ -22,17 +22,25 @@ test.beforeEach(() => {
   delete process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT;
 });
 
-test('a contact button goes to our number with the page link last', () => {
+test('a contact button goes to the agent by default, with the page link last', () => {
+  assert.equal(routesViaLukka(), false);
+  const href = contactWhatsAppHref({ agentPhone: '243821122937', message: 'Bonjour', link: 'https://lukkaplace.com/agents/43' });
+  assert.ok(href.startsWith('https://wa.me/243821122937?text='), href);
+  assert.equal(textOf(href), 'Bonjour\n\nhttps://lukkaplace.com/agents/43');
+});
+
+test('=off puts our number in the middle again, with the page link last', () => {
+  process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT = 'off';
   assert.equal(routesViaLukka(), true);
   const href = contactWhatsAppHref({ agentPhone: '243821122937', message: 'Bonjour', link: 'https://lukkaplace.com/agents/43' });
   assert.ok(href.startsWith(`https://wa.me/${CENTRAL}?text=`), href);
   assert.equal(textOf(href), 'Bonjour\n\nhttps://lukkaplace.com/agents/43');
 });
 
-test('the switch restores the agent\'s own number; no central number means the agent\'s', () => {
+test('=on and unset both mean direct; =off with no central number still means the agent\'s', () => {
   process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT = 'on';
   assert.ok(contactWhatsAppHref({ agentPhone: '243821122937', message: 'x', link: null }).startsWith('https://wa.me/243821122937?'));
-  delete process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT;
+  process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT = 'off';
   delete process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
   assert.equal(routesViaLukka(), false);
   assert.ok(contactWhatsAppHref({ agentPhone: '243821122937', message: 'x', link: null }).startsWith('https://wa.me/243821122937?'));

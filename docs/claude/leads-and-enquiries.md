@@ -420,7 +420,45 @@ Built in this first step:
   number instead of being counted).
 - §90 of verify-pipeline; web `tests/unit/agent-contact-attempts.test.js`.
 
-## WhatsApp through Lukka Place first (2026-11-09)
+## WhatsApp straight to the agent again (2026-11-15)
+
+Owner decision, reversing the section below: the storefront's WhatsApp
+buttons go to the verified agent's own WhatsApp. Reason: customers had to
+write twice — to our number, then again to the `wa.me` link our bot replied
+with (screenshots from 2026-11-15, listings 850, 869, 883, 920) — and the
+owner judged most would not. Lukka Place's number is no longer in the
+conversation.
+
+- **Web**: `routesViaLukka()` (`lib/leadRouting.js`) is false unless
+  `NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=off` (build time — a web rebuild is
+  needed to change it). Unset and `=on` both mean direct. Same gate as before:
+  only a verified, routable agent's number is ever used (lib/listings.js nulls
+  it otherwise); everyone else still opens the central number, and
+  `listingEnquiry` / `contactRelay` keep handling what arrives there (old
+  links, unverified agents).
+- **What is recorded** (nothing new to store): every tap is a
+  `whatsapp_clicks` row with routing `DIRECT_WA`, agent, listing, button and
+  visitor; a customer's tap sends the agent "Un client vous contacte" with
+  « J'ai répondu / Rien reçu » (`services/contactTapAlert.js`, deduped 24 h
+  per visitor + 30 min per listing, template outside the 24 h window), and
+  the answer is stored on `contact_tap_alerts`. Taps count per agent in
+  `/admin/interactions` (`whatsappDirect`).
+- **Console**: `/admin/telemetry`'s tap log has an "Agent prévenu" column —
+  A répondu / Dit n'avoir rien reçu / Prévenu · sans réponse / Alerte non
+  envoyée / Déjà prévenu (clic précédent) / Pas d'alerte. Engine
+  `GET /admin/contact-taps?property_ids=&since=` (`db.listContactTapAlerts`)
+  serves the alerts for the page's listings; web `lib/contactTapMatch.js`
+  pairs each with its tap on listing + visitor + time (alert within 2 min
+  after the tap), since no column links the two rows. Engine down → "Non
+  disponible", never "not told".
+- **Still unknown, by construction**: whether the customer actually sent the
+  message (a tap is not a message), and the customer's number unless they
+  are signed in. Proof would need the agent's own number on the WhatsApp
+  Business API (Meta "coexistence"), not checked for Chakra/DRC yet.
+- §115 of verify-pipeline; web `tests/unit/contact-tap-match.test.js`,
+  `tests/unit/whatsapp-via-lukka.test.js`, `tests/unit/lead-routing.test.js`.
+
+## WhatsApp through Lukka Place first (2026-11-09 — reversed 2026-11-15, see above)
 
 Owner decision after the gap analysis (102 direct WhatsApp taps in 30 days,
 nothing recorded after any of them). Replaces the dual contact policy above

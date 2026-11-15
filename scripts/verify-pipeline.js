@@ -18655,6 +18655,45 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §115 WhatsApp straight to the agent again; the console reads the tap alerts (2026-11-15)
+  // ---------------------------------------------------------------------------
+  console.log('\n§115 Direct WhatsApp is the default again; GET /admin/contact-taps lists the alerts behind the tap log');
+  {
+    const at = (min) => new Date(Date.parse('2026-11-15T10:00:00.000Z') + min * 60_000).toISOString();
+    const a1 = dbService.createContactTapAlert({ propertyId: 11501, agentId: 7, agentWa: '243811500001', kind: 'whatsapp', visitorKey: 'v115', at: at(0) });
+    dbService.markContactTapAlertSent(a1, 'buttons');
+    dbService.answerContactTapAlert(a1, 'REPLIED', at(5));
+    dbService.createContactTapAlert({ propertyId: 11502, agentId: 8, agentWa: '243811500002', kind: 'call', at: at(1) });
+    dbService.createContactTapAlert({ propertyId: 11501, agentId: 7, agentWa: '243811500001', kind: 'whatsapp', at: at(-90) });
+    dbService.createContactTapAlert({ propertyId: 11599, agentId: 9, agentWa: '243811500009', kind: 'whatsapp', at: at(0) });
+
+    check('only the asked listings, from `since` on, newest first, with how each left and the answer — never the agent number', () => {
+      const rows = dbService.listContactTapAlerts({ propertyIds: [11501, '11502', 'x'], since: at(-60) });
+      assert.deepStrictEqual(rows.map((r) => r.property_id), [11502, 11501]);
+      const mine = rows.find((r) => r.id === a1);
+      assert.strictEqual(mine.sent_via, 'buttons');
+      assert.strictEqual(mine.answer, 'REPLIED');
+      assert.strictEqual(mine.answered_at, at(5));
+      assert.ok(!('agent_wa' in mine), 'the console names agents from Postgres');
+    });
+
+    check('no listing or no start date reads nothing', () => {
+      assert.deepStrictEqual(dbService.listContactTapAlerts({ propertyIds: [], since: at(-60) }), []);
+      assert.deepStrictEqual(dbService.listContactTapAlerts({ propertyIds: [11501] }), []);
+    });
+
+    check('the read route exists beside the POST and refuses a missing date', () => {
+      const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(routes, /router\.get\('\/contact-taps'[\s\S]{0,400}since must be an ISO date[\s\S]{0,200}db\.listContactTapAlerts/);
+    });
+
+    check('web: the storefront button goes to the agent unless NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=off', () => {
+      const routing = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'leadRouting.js'), 'utf8');
+      assert.match(routing, /NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT[^\n]*=== 'off'/);
+    });
+  }
+
 
 
   console.log(`\n${'-'.repeat(60)}`);

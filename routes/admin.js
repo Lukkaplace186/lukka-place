@@ -1408,6 +1408,24 @@ router.post('/contact-taps', async (req, res) => {
 });
 
 /**
+ * The "Un client vous contacte" alerts for the listings on one page of the
+ * console's tap log (`property_ids` comma-separated, `since` ISO), with how
+ * each left and the agent's answer. Read-only.
+ */
+router.get('/contact-taps', (req, res) => {
+  const propertyIds = String(req.query.property_ids || '').split(',').filter(Boolean);
+  const since = Date.parse(String(req.query.since || ''));
+  if (!Number.isFinite(since)) return res.status(400).json({ success: false, error: 'since must be an ISO date.' });
+  try {
+    const alerts = db.listContactTapAlerts({ propertyIds, since: new Date(since).toISOString() });
+    return res.json({ success: true, alerts });
+  } catch (err) {
+    console.error(`[admin] GET /contact-taps failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read contact-tap alerts.' });
+  }
+});
+
+/**
  * "Le client a déjà été contacté" — the agent reached the customer from their
  * own phone, which this system cannot see. Told to us by the agent on their
  * dashboard (`by: 'AGENT_DASHBOARD'` + agent_id, re-checked against the

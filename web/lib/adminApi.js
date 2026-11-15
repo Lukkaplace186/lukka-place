@@ -732,6 +732,20 @@ export async function notifyAgentOfContactTap({ listingId, kind, visitorKey = nu
 }
 
 /**
+ * The "Un client vous contacte" alerts on the listings of one page of the tap
+ * log, from `since` on (engine GET /admin/contact-taps); lib/contactTapMatch.js
+ * pairs them with the taps.
+ *
+ * @param {{propertyIds: number[], since: string}} query
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getContactTapAlerts({ propertyIds, since }) {
+  const params = new URLSearchParams({ property_ids: propertyIds.join(','), since });
+  const { alerts } = await engineFetch(`/admin/contact-taps?${params}`);
+  return alerts || [];
+}
+
+/**
  * "Le client a déjà été contacté" on a viewing request: the agent reached the
  * customer from their own phone, which the engine cannot see. `by` is
  * 'AGENT_DASHBOARD' (with `agentId`, re-checked by the engine against the

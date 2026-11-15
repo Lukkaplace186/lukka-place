@@ -4368,6 +4368,28 @@ function answerContactTapAlert(id, answer, at = new Date().toISOString()) {
     .run(answer, at, Number(id)).changes > 0;
 }
 
+/**
+ * The alerts behind a page of /admin/telemetry's tap log (2026-11-15, owner:
+ * WhatsApp goes straight to the agent again, and the console must show per
+ * tap that the agent was told and what they answered). Only the listings on
+ * that page, from `since` on, newest first, capped. `agent_wa` is left out:
+ * the console names agents from Postgres.
+ */
+function listContactTapAlerts({ propertyIds = [], since, limit = 500 } = {}) {
+  const ids = [...new Set(propertyIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+  if (ids.length === 0 || !since) return [];
+  const cap = Math.min(Math.max(Number(limit) || 500, 1), 2000);
+  return db
+    .prepare(
+      `SELECT id, property_id, agent_id, kind, visitor_key, created_at, sent_via, answer, answered_at
+         FROM contact_tap_alerts
+        WHERE property_id IN (${ids.map(() => '?').join(',')}) AND created_at >= ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?`,
+    )
+    .all(...ids, String(since), cap);
+}
+
 /** Stamp the SLA alert so the sweep never fires twice for one request. */
 function markSlaAlerted(id, at = new Date().toISOString()) {
   db.prepare('UPDATE viewing_requests SET sla_alerted_at = ? WHERE id = ?').run(at, id);
@@ -5172,6 +5194,7 @@ module.exports = {
   markContactTapAlertSent,
   getContactTapAlert,
   answerContactTapAlert,
+  listContactTapAlerts,
   CONTACT_TAP_ANSWERS,
   listViewingRequestsDueForContactCheck,
   markContactCheckSent,

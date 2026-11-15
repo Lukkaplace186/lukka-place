@@ -5555,6 +5555,17 @@
       "colTime": "Time",
       "colListing": "Listing",
       "colRouting": "Route",
+      "colAgentAlert": "Agent alerted",
+      "agentAlertHelp": "For a tap to the agent's own WhatsApp: the \"Un client vous contacte\" alert sent to the agent, and what they answered. A tap is not a message: the customer may close WhatsApp without writing. The agent is alerted once per customer per listing over 24 h, and at most once every 30 minutes per listing.",
+      "agentAlert": {
+        "replied": "Replied to the customer",
+        "nothing": "Says nothing arrived",
+        "waiting": "Alerted · no answer",
+        "failed": "Alert not sent",
+        "earlier": "Already alerted (earlier tap)",
+        "none": "No alert",
+        "unavailable": "Unavailable"
+      },
       "colDevice": "Device",
       "colSource": "Source",
       "engineError": "Engine data unavailable: {error}",

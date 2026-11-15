@@ -266,7 +266,10 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
 - **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
   Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
   direct-to-agent tap is invisible to us and is shown beside the rate, never in
-  it. "Delivery health" is API-accepted vs refused plus agents who answered;
+  it. Since WhatsApp went straight to the agent again (2026-11-15), the tap
+  log's "Agent prévenu" column shows per direct tap the "Un client vous
+  contacte" alert and the agent's answer (`lib/contactTapMatch.js`, engine
+  `GET /admin/contact-taps`; root docs/claude/leads-and-enquiries.md). "Delivery health" is API-accepted vs refused plus agents who answered;
   there is no delivered count because Chakra forwards no receipts.
 
 ### Accounts, roles and the audit log

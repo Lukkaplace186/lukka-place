@@ -43,18 +43,11 @@ const LISTING = {
   purpose: 'rent',
 };
 
-// 2026-11-09, owner decision: a verified agent's listing goes through the
-// Lukka Place number first (the engine hands the customer the agent's
-// WhatsApp at once), with the very same message.
-test('a verified agent routes VIA_LUKKA to our number by default, with the storefront message', () => {
-  const { routingType, href } = resolveWhatsAppRouting({ ...LISTING, agent_phone: '243821122937' });
-  assert.equal(routingType, ROUTING_TYPES.viaLukka);
-  assert.ok(href.startsWith(`https://wa.me/${CENTRAL}?text=`), href);
-  assert.match(messageOf(href), /https:\/\/lukkaplace\.com\/listings\/293$/);
-});
-
-test('NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=on restores DIRECT_WA to the agent, with the storefront message', () => {
-  process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT = 'on';
+// 2026-11-09 → 2026-11-15 a verified agent's listing went through the Lukka
+// Place number first; since 2026-11-15 (owner) only when switched back with
+// NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=off — with the very same message.
+test('=off routes a verified agent VIA_LUKKA to our number, with the storefront message', () => {
+  process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT = 'off';
   let routingType;
   let href;
   try {
@@ -62,6 +55,14 @@ test('NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT=on restores DIRECT_WA to the agent, w
   } finally {
     delete process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT;
   }
+  assert.equal(routingType, ROUTING_TYPES.viaLukka);
+  assert.ok(href.startsWith(`https://wa.me/${CENTRAL}?text=`), href);
+  assert.match(messageOf(href), /https:\/\/lukkaplace\.com\/listings\/293$/);
+});
+
+test('a verified agent routes DIRECT_WA to the agent by default (2026-11-15), with the storefront message', () => {
+  delete process.env.NEXT_PUBLIC_WHATSAPP_DIRECT_TO_AGENT;
+  const { routingType, href } = resolveWhatsAppRouting({ ...LISTING, agent_phone: '243821122937' });
   assert.equal(routingType, ROUTING_TYPES.direct);
   assert.ok(href.startsWith('https://wa.me/243821122937?text='), href);
   const text = messageOf(href);

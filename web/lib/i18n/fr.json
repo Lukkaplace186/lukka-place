@@ -5555,6 +5555,17 @@
       "colTime": "Heure",
       "colListing": "Annonce",
       "colRouting": "Circuit",
+      "colAgentAlert": "Agent prévenu",
+      "agentAlertHelp": "Pour un clic vers le WhatsApp de l'agent : l'alerte « Un client vous contacte » envoyée à l'agent, et ce qu'il a répondu. Un clic n'est pas un message : le client peut fermer WhatsApp sans écrire. L'agent est prévenu une fois par client et par annonce sur 24 h, et au plus une fois toutes les 30 minutes par annonce.",
+      "agentAlert": {
+        "replied": "A répondu au client",
+        "nothing": "Dit n'avoir rien reçu",
+        "waiting": "Prévenu · sans réponse",
+        "failed": "Alerte non envoyée",
+        "earlier": "Déjà prévenu (clic précédent)",
+        "none": "Pas d'alerte",
+        "unavailable": "Non disponible"
+      },
       "colDevice": "Appareil",
       "colSource": "Source",
       "engineError": "Données du moteur indisponibles : {error}",

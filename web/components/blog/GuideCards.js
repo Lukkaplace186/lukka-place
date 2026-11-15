@@ -257,7 +257,7 @@ function Media({ article: a, priority = false, className }) {
       style={fixed ? { left: 'calc(50% - var(--gc-w) / 2)' } : undefined}
     >
       {a.coverUrl ? (
-        <Image src={a.coverUrl} alt={a.coverAlt || ''} fill sizes={IMAGE_SIZES} priority={priority} className="object-cover" />
+        <Image src={a.coverUrl} alt={a.coverAlt || ''} fill sizes={IMAGE_SIZES} priority={priority} fetchPriority={priority ? 'high' : undefined} className="object-cover" />
       ) : (
         <div
           aria-hidden="true"

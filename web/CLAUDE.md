@@ -718,6 +718,20 @@ loading or error boundary anywhere outside the client portal and `/admin`.
   - Dialogs that only open on a tap (`AuthPromptModal`,
     `SearchAlertConfirmModal`) are `next/dynamic`. The DM Serif italic font
     file is not loaded.
+  - **Audit 2026-11-15** (live, 375px, modern-web-guidance skill;
+    `tests/unit/web-audit-fixes.test.js`):
+    - On-screen logos are `public/brand/logo-{light,dark}-sm.png` (404×128
+      palette PNGs, ~4 KB). React preloads every `<img>` in the server HTML,
+      so the 2354px originals (205 KB / 37 KB) cost every first visit 205 KB
+      for a 28px logo. The originals stay for print, share images and OG.
+    - `AppMotion` loads `domMax` by dynamic import (`appMotionFeatures.js`),
+      as `/guides` already did: eagerly it was ~55–60 KB brotli on every
+      app-mode page. Safe only while app entrances move and never start at
+      opacity 0 — keep it that way.
+    - In Next 16 `priority` is only a preload `<link>`; the LCP photo also
+      needs `fetchPriority="high"`. Set on the first `/listings` card (website
+      and app), the detail hero and the first `/guides` card — never on the
+      `priority={i < 4}` rails (one or two high images per page at most).
   - **Compression**: `WEB_COMPRESS=off` turns off Next's own gzip so Traefik's
     `compress` middleware can serve brotli. Traefik skips a response that
     already has a Content-Encoding, so the two changes only work together. Set

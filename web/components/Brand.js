@@ -27,7 +27,13 @@ import { useT } from '@/lib/i18n/client';
  * accent color in the app (buttons, active filters, map pins, etc. all stay
  * blue — see app/globals.css).
  */
-const LOGO_ASPECT = { width: 2354, height: 746 };
+// On screen the wordmark is drawn from `logo-light-sm.png` / `logo-dark-sm.png`:
+// the same lockup resized to 128 px tall (3x the largest display height,
+// h-10) as palette PNGs, ~4 KB each. The 2354 px originals weigh 205 KB and
+// 37 KB, and React preloads every <img> in the server HTML, so the original
+// cost every first visit 205 KB for a 28 px logo (audit 2026-11-15). The
+// originals stay for print (ListingTechSheet), share images and OG cards.
+const LOGO_ASPECT = { width: 404, height: 128 };
 
 // 'lg' is the site Header's own size, kept separate from the shared default
 // so bumping the header's visual weight doesn't also resize every other
@@ -40,7 +46,7 @@ const LOGO_SIZES = {
 
 export function Wordmark({ inverted = false, className = '', size = 'base' }) {
   const t = useT();
-  const src = inverted ? '/brand/logo-dark.png?v=2' : '/brand/logo-light.png?v=2';
+  const src = inverted ? '/brand/logo-dark-sm.png' : '/brand/logo-light-sm.png';
 
   return (
     <Link href="/" aria-label="Lukka Place — accueil" className={`inline-flex items-center ${className}`}>

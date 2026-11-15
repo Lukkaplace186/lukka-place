@@ -144,13 +144,14 @@ export default function ListingsSplitView({
               actually above the fold — priority for those skips next/image's
               lazy-loading for the real LCP candidate on this page. */}
           {listings.map((listing, i) => appMode ? (
-            <AppListingCard key={listing.id} listing={listing} priority={i < 2} />
+            <AppListingCard key={listing.id} listing={listing} priority={i < 2} fetchPriority={i === 0 ? 'high' : undefined} />
           ) : (
             <PropertyCard
               key={listing.id}
               listing={listing}
               layout="horizontal"
               priority={i < 2}
+              fetchPriority={i === 0 ? 'high' : undefined}
               isHovered={hoveredId === listing.id}
               onHoverStart={() => setHoveredId(listing.id)}
               onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}

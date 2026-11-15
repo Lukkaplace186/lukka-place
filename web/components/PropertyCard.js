@@ -97,6 +97,7 @@ export default function PropertyCard({
   className = '',
   sizes,
   priority = false,
+  fetchPriority,
 }) {
   const {
     id, title, price, purpose, reference, created_at: createdAt,
@@ -214,6 +215,7 @@ export default function PropertyCard({
             sizes={sizes || (horizontal ? '300px' : '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw')}
             onIndexChange={setActiveIndex}
             priority={priority}
+            fetchPriority={fetchPriority}
           />
         ) : null}
 

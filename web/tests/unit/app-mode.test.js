@@ -155,7 +155,7 @@ test('results in the app: app cards, the floating bar above the tabs, no tabs on
   assert.match(page, /appMode=\{app\}/);
   assert.match(page, /<FloatingControlBar hasResults=\{count > 0\} aboveTabBar=\{app\} \/>/);
   const view = read('components/ListingsSplitView.js');
-  assert.match(view, /appMode \? \(\s*<AppListingCard key=\{listing\.id\} listing=\{listing\} priority=\{i < 2\} \/>/);
+  assert.match(view, /appMode \? \(\s*<AppListingCard key=\{listing\.id\} listing=\{listing\} priority=\{i < 2\} fetchPriority=\{i === 0 \? 'high' : undefined\} \/>/);
   assert.match(read('components/FloatingControlBar.js'), /aboveTabBar \? 'bottom-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]' : 'bottom-6'/);
   assert.match(read('components/AppTabBar.js'), /useSearchParams\(\)\?\.get\('view'\) === 'map'/);
 });

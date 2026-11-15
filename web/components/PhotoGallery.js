@@ -221,7 +221,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               desktop this hidden carousel's priority photo then asks for the
               desktop hero's exact file instead of a second, 1920w copy of the
               same cover (measured 2026-11-06: both were downloaded). */}
-          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority onIndexChange={onMobileIndexChange} />
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority fetchPriority="high" onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (
@@ -301,6 +301,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               alt={alt}
               fill
               priority
+              fetchPriority="high"
               sizes={DETAIL_HERO_SIZES}
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />

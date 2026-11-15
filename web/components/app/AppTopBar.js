@@ -82,19 +82,19 @@ export default function AppTopBar() {
         <Link href={localizeHref('/', locale)} aria-label="Lukka Place" className="relative inline-flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/logo-light.png?v=2"
+            src="/brand/logo-light-sm.png"
             alt=""
-            width={2354}
-            height={746}
+            width={404}
+            height={128}
             className={cn('block h-7 w-auto transition-opacity duration-300', overPhoto && 'opacity-0')}
           />
           {onHome ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src="/brand/logo-dark.png?v=2"
+              src="/brand/logo-dark-sm.png"
               alt=""
-              width={2354}
-              height={746}
+              width={404}
+              height={128}
               className={cn('absolute inset-0 block h-7 w-auto transition-opacity duration-300', !overPhoto && 'opacity-0')}
             />
           ) : null}

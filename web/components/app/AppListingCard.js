@@ -33,7 +33,7 @@ import { listingImages, locationLine, specItems, typeLabel } from '@/lib/listing
  * Motion: the card settles once as it scrolls into view. Transform only: it
  * is in the server HTML either way.
  */
-export default function AppListingCard({ listing, priority = false }) {
+export default function AppListingCard({ listing, priority = false, fetchPriority }) {
   const t = useT();
   const [photo, setPhoto] = useState(0);
   const photoBox = useRef(null);
@@ -68,6 +68,7 @@ export default function AppListingCard({ listing, priority = false }) {
               alt=""
               sizes="(max-width: 640px) 100vw, 512px"
               priority={priority}
+              fetchPriority={fetchPriority}
               onIndexChange={setPhoto}
             />
           ) : (
@@ -77,6 +78,7 @@ export default function AppListingCard({ listing, priority = false }) {
               fill
               sizes="(max-width: 640px) 100vw, 512px"
               priority={priority}
+              fetchPriority={fetchPriority}
               className="object-cover"
             />
           )}

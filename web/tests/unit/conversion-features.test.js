@@ -168,12 +168,12 @@ test('the CSV quotes every field and neutralises formula starts', () => {
   assert.ok(row.startsWith('"310","\'=HYPERLINK(""x"")"'));
 });
 
-test('one viewer reads in the singular in both languages', () => {
-  const fr = JSON.parse(read('../../lib/i18n/fr.json')).listings.detail.recentViewers;
-  const en = JSON.parse(read('../../lib/i18n/en.json')).listings.detail.recentViewers;
-  assert.match(fr.one, /personne a consulté/);
-  assert.match(fr.other, /personnes ont consulté/);
-  assert.match(en.one, /person viewed/);
+// The "N personnes ont consulté ce bien" line was removed from the listing
+// page on the owner's request (2026-11-16). lib/listingInterest.js stays for
+// the console; the page must not show the count again.
+test('the listing page shows no viewer count', () => {
+  const page = read('../../app/(site)/listings/[id]/page.js');
+  assert.doesNotMatch(page, /ListingInterestLine|getRecentListingViewers|recentViewers/);
 });
 
 test('Meta listing events carry the catalogue item type', () => {

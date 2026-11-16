@@ -11,7 +11,20 @@ import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
-import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
+import { splitCommuneBubbles, communeBubbleLabel, groupByArea, AREA_ZOOM_BELOW } from '@/lib/communeBubbles';
+
+/**
+ * Map preview (2026-11-16): `?apercu=carte` in the address shows one bubble
+ * per commune below AREA_ZOOM_BELOW and shorter building labels, so the
+ * owner can compare it with the live map. Read once when the map is built.
+ */
+function mapPreviewOn() {
+  try {
+    return new URLSearchParams(window.location.search).get('apercu') === 'carte';
+  } catch {
+    return false;
+  }
+}
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
 import { useCountUp } from '@/lib/useCountUp';
@@ -144,8 +157,13 @@ function toBounds(latLngBounds) {
   return { south: sw.lat(), west: sw.lng(), north: ne.lat(), east: ne.lng() };
 }
 
-function labelFor(group) {
+function labelFor(group, compact = false) {
   if (group.isCommune) return communeBubbleLabel(group);
+  if (group.isBuilding && compact) {
+    // "3 unités · dès $650" — half the width of the min–max range.
+    const from = group.priceMin === null ? '' : ` · dès ${compactPrice(group.priceMin, 'sale')}`;
+    return `${group.unitCount} unités${from}`;
+  }
   if (group.isBuilding) return buildingPinLabel(group, (value) => compactPrice(value, 'sale'));
   const listing = group.representative;
   return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
@@ -281,6 +299,10 @@ export default function ListingsMap({
   const markerDataRef = useRef(new Map());
   const requestRef = useRef({ controller: null, timer: null, fetched: null, filterQuery: null, targetKey: null, positioning: false });
   const hoveredRef = useRef(null);
+  // Map preview (?apercu=carte): read when the map is built.
+  const previewRef = useRef(false);
+  const areaModeRef = useRef(false);
+  const lastMarkersRef = useRef([]);
   const selectSeqRef = useRef(0);
   // The view we positioned the map on (null until it has settled there), and
   // the last view reported — see "The list follows the map" above.
@@ -388,14 +410,27 @@ export default function ListingsMap({
     if (!map) return;
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
+    lastMarkersRef.current = markers;
+
+    // Preview (?apercu=carte): zoomed out, one bubble per commune instead of
+    // hundreds of overlapping prices; tapping one zooms in to its prices.
+    const preview = previewRef.current;
+    const areaMode = preview && (map.getZoom() ?? 13) < AREA_ZOOM_BELOW;
+    areaModeRef.current = areaMode;
 
     // Listings that only know their commune become one bubble per commune at
     // its centre (lib/communeBubbles.js) instead of a ring of made-up spots.
     // The rest take the same three passes PropertyMap uses: group units of
     // one building, fan listings sharing a base point onto a ring (privacy
     // jitter included), then the screen-space de-overlap net.
-    const { bubbles, rest } = splitCommuneBubbles(markers);
-    const groups = [...bubbles, ...groupListingsByBuilding(rest)];
+    let groups;
+    if (areaMode) {
+      const { areas, rest } = groupByArea(markers);
+      groups = [...areas, ...groupListingsByBuilding(rest)];
+    } else {
+      const { bubbles, rest } = splitCommuneBubbles(markers);
+      groups = [...bubbles, ...groupListingsByBuilding(rest)];
+    }
     const bases = groups.map((group) => {
       const r = group.representative;
       return {
@@ -430,7 +465,7 @@ export default function ListingsMap({
         id: group.isBuilding ? null : String(r.id),
         lat: position.lat,
         lng: position.lng,
-        label: labelFor(group),
+        label: labelFor(group, preview),
         title: group.isCommune ? group.communeName : group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
         commune: Boolean(group.isCommune),
@@ -601,10 +636,17 @@ export default function ListingsMap({
         // before any marker is fetched (see `positioning` below).
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...homeViewRef.current });
         mapRef.current = map;
+        previewRef.current = mapPreviewOn();
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
           onClick: (pin) => {
             const { onListingSelect: select, onBuildingSelect: selectBuilding } = propsRef.current;
+            if (pin.group?.isArea) {
+              // A commune bubble at city zoom: open its prices.
+              map.panTo({ lat: pin.lat, lng: pin.lng });
+              map.setZoom(AREA_ZOOM_BELOW);
+              return;
+            }
             if (pin.building) {
               // A building opens the unit list rather than a preview card:
               // there is no single listing to preview.
@@ -629,6 +671,13 @@ export default function ListingsMap({
         listeners.push(map.addListener('idle', () => {
           scheduleFetch();
           reportArea();
+        }));
+        // Preview: crossing AREA_ZOOM_BELOW swaps prices ↔ commune bubbles at
+        // once, from the markers already fetched.
+        listeners.push(map.addListener('zoom_changed', () => {
+          if (!previewRef.current) return;
+          const areaMode = (map.getZoom() ?? 13) < AREA_ZOOM_BELOW;
+          if (areaMode !== areaModeRef.current) renderMarkers(lastMarkersRef.current);
         }));
 
         setStatus('ready');

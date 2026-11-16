@@ -49,7 +49,7 @@ const {
   notifyOps,
 } = require('../services/viewingNotifications');
 const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, formatSlotFr } = require('../services/visitSchedule');
-const { utcOffsetForCommune } = require('../services/cities');
+const { utcOffsetForCommune, resolveCity } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
 const pushNotify = require('../services/pushNotify');
 const customerAlerts = require('../services/customerAlerts');
@@ -405,6 +405,9 @@ router.post('/leads', (req, res) => {
     agent_id: agentIdRaw,
     // The customer's move story (web "Mon déménagement"), French text.
     move_story: moveStoryRaw,
+    // The city, for a request that names no commune (2026-11-16): it is
+    // then offered to the agencies of that city (leadDispatch cityWideOf).
+    city: cityRaw,
   } = req.body || {};
   if (!waId) {
     return res.status(400).json({ success: false, error: 'wa_id is required.' });
@@ -432,6 +435,8 @@ router.post('/leads', (req, res) => {
       move_story: typeof moveStoryRaw === 'string' && moveStoryRaw.trim()
         ? moveStoryRaw.replace(/\s+/g, ' ').trim().slice(0, MAX_MOVE_STORY)
         : null,
+      // Canonical only; an unknown city is not said (services/cities.js).
+      city: typeof cityRaw === 'string' ? resolveCity(cityRaw) : null,
     });
 
     // AUTOMATED AGENT MATCHING — the event trigger.
@@ -1418,6 +1423,8 @@ router.post('/contact-taps', async (req, res) => {
     propertyId: req.body?.listing_id,
     kind: req.body?.kind,
     visitorKey: req.body?.visitor_key || null,
+    // What the customer chose before WhatsApp opened (2026-11-16); unknown → none.
+    intent: req.body?.intent || null,
   });
   return res.json({ success: true, ...result });
 });

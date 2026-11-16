@@ -37,7 +37,7 @@ function pct(part, whole) {
   return Math.round((part / whole) * 1000) / 10;
 }
 
-const TAP_ALERT_TONE = { replied: 'success', nothing: 'danger', waiting: 'blue', failed: 'warning', earlier: 'neutral' };
+const TAP_ALERT_TONE = { replied: 'success', visitSet: 'success', nothing: 'danger', waiting: 'blue', failed: 'warning', earlier: 'neutral' };
 
 /**
  * "Agent prévenu" for one tap. Only a customer's tap on an agent's own

@@ -153,9 +153,14 @@ test('a tap records which button it came from, and falls back before the migrati
 
   const cta = readFileSync(new URL('../../components/WhatsAppCTA.js', import.meta.url), 'utf8');
   assert.match(cta, /placement = 'card'/);
-  assert.match(cta, /trackLeadClick\(listing, routingType, placement\)/);
+  // Since 2026-11-16 the tap is sent by the visit / disponible / question
+  // chooser (components/WhatsAppIntentSheet.js), which carries the placement.
+  assert.match(cta, /<WhatsAppIntentButton\s+listing=\{listing\}\s+placement=\{placement\}/);
+  const sheet = readFileSync(new URL('../../components/WhatsAppIntentSheet.js', import.meta.url), 'utf8');
+  assert.match(sheet, /trackLeadClick\(listing, routingType, placement\)/, 'the chooser switched off still sends the placement');
+  assert.match(sheet, /trackLeadClick\(listing, chosen\.routingType, placement, intent\)/);
   const bar = readFileSync(new URL('../../components/MobileListingBar.js', import.meta.url), 'utf8');
-  assert.match(bar, /trackLeadClick\(listing, routingType, 'listing_mobile_bar'\)/);
+  assert.match(bar, /placement="listing_mobile_bar"/);
   const page = readFileSync(new URL('../../app/(site)/listings/[id]/page.js', import.meta.url), 'utf8');
   assert.match(page, /<aside[\s\S]*<EnquiryCard [^>]*placement="listing_desktop"/, 'the desktop rail names itself');
   assert.equal((page.match(/placement="listing_desktop"/g) || []).length, 1, 'the phone copy does not claim to be desktop');

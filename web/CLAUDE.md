@@ -4756,8 +4756,9 @@ half: `docs/claude/leads-and-enquiries.md`, same heading.
 - **`/compte/client/projet`**: the story (reasons, "Aujourd'hui", "Vous
   cherchez", "Quand"), whether the alert is on, up to 8 matching homes
   (`getListings`, newest, never widened; none → an honest line and a wider
-  /listings link), and **"Envoyer ma demande aux agences" — the only thing
-  that contacts anyone**: a `move-project` lead with the story, once per 20 h
+  /listings link), and **"Envoyer ma demande aux agences"** (since 2026-11-16
+  the project is also sent by itself when saved — see the note below — and
+  this button is the resend): a `move-project` lead with the story, once per 20 h
   (`MOVE_RESEND_AFTER_MS`). `/compte/client/projet/modifier` reopens the cards
   on the stored answers and saves through `saveMoveProjectAction`.
 - **Accueil** opens with a "Mon déménagement" card (the story in one line, or
@@ -5274,3 +5275,32 @@ same heading. Tests: `tests/unit/commune-bubbles.test.js`, verify-pipeline §113
   `BuildingUnitsDrawer` (headed by the commune, "emplacement précis non
   indiqué", quartier on each row). A single one keeps its price pin. This
   is the one exception to "every listing shows its price on the map".
+
+## WhatsApp asks what the customer wants; "Mon projet" goes by itself (2026-11-16)
+
+Engine half and the measurements: `docs/claude/leads-and-enquiries.md`,
+"Direct contact, measured". Web side:
+
+- **Listing WhatsApp buttons open `components/WhatsAppIntentSheet.js`** (a
+  bottom sheet: Je veux le visiter / Est-il toujours disponible ? / Une
+  autre question) before WhatsApp. The choice pre-types its question
+  (`lib/whatsappIntent.js` `INTENT_QUESTION_FR`, through
+  `buildWhatsAppMessage({ intent })` and `resolveWhatsAppRouting(listing,
+  intent)` — the words change, never the number) and rides the tap beacon
+  (`trackLeadClick(…, intent)` → `whatsapp_clicks.intent` → the agent alert).
+  The trigger is a `<button>` and every click inside the sheet stops
+  propagation: card buttons sit inside the card's `<Link>`. Copy lives in
+  `listings.waIntent` (a namespace every layout that shows listings already
+  loads). `NEXT_PUBLIC_WHATSAPP_INTENT=off` (build time) = one tap.
+- **`/admin/contacts`** reads the intent (`lib/contactLog.js` `CONTACT_WANTS`:
+  visit / enquiry / unknown) — cards, filter `wants`, a column, CSV.
+- **Move projects are sent when saved** (`lib/moveProjectRequest.js`):
+  sign-up, login with answers and `saveMoveProjectAction` call
+  `autoSendMoveProject` — once per project (never-sent only), when it says
+  rent/buy and a city or communes (`moveRequestBlocker` accepts a city
+  alone: the engine asks that city's agencies). `sendMoveRequestAction` and
+  the console's "Envoyer aux agences" (`app/admin/move-projects/actions.js`,
+  `leads.manage`) use the same `sendMoveProjectRequest`. `MOVE_AUTO_SEND=off`
+  = the tap only. The cards and the project page say only an agency that
+  takes the request gets the number (waves, up to 3).
+- `tests/unit/direct-contact-intent.test.js`.

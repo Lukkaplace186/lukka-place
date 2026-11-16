@@ -3,7 +3,9 @@ import { Download, X } from 'lucide-react';
 import { getAdminSession } from '@/lib/adminSession';
 import { can } from '@/lib/adminRoles';
 import { buildHref, firstParam, parsePage } from '@/lib/adminPagination';
-import { CONTACT_CHANNELS, CONTACT_WINDOWS, contactWindow, filterContactRows, summariseContactRows } from '@/lib/contactLog';
+import {
+  CONTACT_CHANNELS, CONTACT_WANTS, CONTACT_WINDOWS, contactWindow, filterContactRows, summariseContactRows,
+} from '@/lib/contactLog';
 import { getContactLabels, loadContactLog } from '@/lib/contactLogLoader';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
@@ -25,7 +27,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
 
 /** Chip colour per follow-up state: green = the agent acted, red = someone is waiting. */
 const STATUS_TONE = {
-  replied: 'success', contacted: 'success', customerConfirmed: 'success', visitConfirmed: 'success', visitDone: 'success',
+  replied: 'success', visitSet: 'success', contacted: 'success', customerConfirmed: 'success', visitConfirmed: 'success', visitDone: 'success',
   nothing: 'danger', customerWaiting: 'danger', notContacted: 'warning', failed: 'warning', visitPending: 'warning',
   waiting: 'blue', visitRescheduled: 'blue', earlier: 'neutral', noAlert: 'neutral', tapOnly: 'neutral',
   visitDeclined: 'neutral', visitCancelled: 'neutral', visitOther: 'neutral',
@@ -45,20 +47,26 @@ export default async function AdminContactsPage({ searchParams }) {
   const known = firstParam(raw.known) === '1';
   const q = firstParam(raw.q) || '';
   const agentId = Number.parseInt(firstParam(raw.agent), 10) || null;
+  // What the customer asked for: a visit, information, or not known (lib/contactLog.js).
+  const wants = CONTACT_WANTS.includes(firstParam(raw.wants)) ? firstParam(raw.wants) : null;
   const paging = parsePage(raw);
   const params = Object.fromEntries(
-    ['days', 'channel', 'known', 'q', 'agent', 'page', 'size'].map((key) => [key, firstParam(raw[key]) || undefined]),
+    ['days', 'channel', 'known', 'q', 'agent', 'wants', 'page', 'size'].map((key) => [key, firstParam(raw[key]) || undefined]),
   );
   const session = await getAdminSession();
   const canExport = can(session?.role, 'data.export');
 
   const { rows, errors, capped } = await loadContactLog({ days });
-  const filtered = filterContactRows(rows, { channel, agentId, known, q });
-  const summary = summariseContactRows(filterContactRows(rows, { agentId, known, q }));
+  const filtered = filterContactRows(rows, { channel, agentId, known, q, wants });
+  const summary = summariseContactRows(filterContactRows(rows, { agentId, known, q, wants }));
+  // The "asks for" cards count across every intent, so the other two stay visible when one is picked.
+  const wantsSummary = summariseContactRows(filterContactRows(rows, { channel, agentId, known, q }));
   const pageRows = filtered.slice(paging.offset, paging.offset + paging.limit);
   const { names, listings, projects } = await getContactLabels(agentId ? [...pageRows, { agentId }] : pageRows);
   const agentName = (id) => names.get(id)?.name || t('admin.interactions.agentFallback', { id });
-  const exportQuery = new URLSearchParams(Object.entries({ days: String(days), channel, known: known ? '1' : null, q, agent: agentId ? String(agentId) : null }).filter(([, v]) => v)).toString();
+  const exportQuery = new URLSearchParams(Object.entries({
+    days: String(days), channel, known: known ? '1' : null, q, agent: agentId ? String(agentId) : null, wants,
+  }).filter(([, v]) => v)).toString();
 
   return (
     <div className="flex flex-col gap-7">
@@ -111,6 +119,27 @@ export default async function AdminContactsPage({ searchParams }) {
         </ul>
       </section>
 
+      <section className="flex flex-col gap-2" aria-labelledby="contacts-wants">
+        <div className="flex items-center gap-2">
+          <h2 id="contacts-wants" className="u-eyebrow text-ink-45">{t('admin.contacts.wants.title')}</h2>
+          <InfoTip label={t('admin.contacts.wants.title')}>{t('admin.contacts.wants.help')}</InfoTip>
+        </div>
+        <ul className="grid grid-cols-3 gap-2 sm:max-w-xl">
+          {CONTACT_WANTS.map((key) => (
+            <li key={key}>
+              <Link
+                href={buildHref(PATH, params, { wants: wants === key ? '' : key, page: '' })}
+                aria-current={wants === key ? 'true' : undefined}
+                className={`u-card flex h-full flex-col gap-1 rounded-card p-3.5 transition-colors ${wants === key ? 'bg-blue-tint ring-1 ring-blue' : 'bg-surface hover:bg-canvas-alt'}`}
+              >
+                <span className="u-eyebrow text-ink-45">{t(`admin.contacts.wants.${key}`)}</span>
+                <span className="text-[1.375rem] font-extrabold text-ink">{fmt(wantsSummary.byWants[key])}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <TableToolbar
@@ -126,13 +155,20 @@ export default async function AdminContactsPage({ searchParams }) {
               },
               {
                 type: 'select',
+                param: 'wants',
+                label: t('admin.contacts.wants.filter'),
+                allLabel: t('admin.contacts.wants.all'),
+                options: CONTACT_WANTS.map((key) => ({ value: key, label: t(`admin.contacts.wants.${key}`) })),
+              },
+              {
+                type: 'select',
                 param: 'known',
                 label: t('admin.contacts.customer'),
                 allLabel: t('admin.contacts.customerAll'),
                 options: [{ value: '1', label: t('admin.contacts.customerKnownOnly') }],
               },
             ]}
-            resetKeys={['q', 'channel', 'known', 'agent']}
+            resetKeys={['q', 'channel', 'known', 'agent', 'wants']}
           />
           {canExport ? (
             <a
@@ -167,6 +203,7 @@ export default async function AdminContactsPage({ searchParams }) {
               <th className={TH_STICKY}>{t('admin.contacts.colAgent')}</th>
               <th className={TH_STICKY}>{t('admin.contacts.colWhat')}</th>
               <th className={TH_STICKY}>{t('admin.contacts.colChannel')}</th>
+              <th className={TH_STICKY}>{t('admin.contacts.wants.col')}</th>
               <th className={TH_STICKY}>
                 <span className="inline-flex items-center gap-1">
                   {t('admin.contacts.colStatus')}
@@ -177,7 +214,7 @@ export default async function AdminContactsPage({ searchParams }) {
           </thead>
           <tbody>
             {pageRows.length === 0 ? (
-              <EmptyRow colSpan={6}>{t('admin.contacts.empty', { days })}</EmptyRow>
+              <EmptyRow colSpan={7}>{t('admin.contacts.empty', { days })}</EmptyRow>
             ) : pageRows.map((row) => {
               const listing = row.listingId ? listings.get(row.listingId) : null;
               const project = row.projectSlug
@@ -224,6 +261,11 @@ export default async function AdminContactsPage({ searchParams }) {
                   </td>
                   <td className={TD_DENSE}>
                     <Chip tone="neutral">{t(`admin.interactions.short.${row.channel}`)}</Chip>
+                  </td>
+                  <td className={TD_DENSE}>
+                    {row.intent ? (
+                      <Chip tone={row.wants === 'visit' ? 'success' : 'blue'}>{t(`admin.contacts.wants.intent.${row.intent}`)}</Chip>
+                    ) : <span className="text-ink-35">—</span>}
                   </td>
                   <td className={TD_DENSE}>
                     <div className="flex flex-col items-start gap-0.5">

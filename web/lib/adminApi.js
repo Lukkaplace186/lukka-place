@@ -384,7 +384,7 @@ export async function moderateAgentReview(id, commentStatus) {
  */
 export async function createLead({
   waId, name, source, propertyId, assignedAgent, requirementsSummary,
-  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId, moveStory,
+  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId, moveStory, city,
 }) {
   return engineFetch('/admin/leads', {
     method: 'POST',
@@ -408,6 +408,8 @@ export async function createLead({
       bedrooms,
       // "Mon déménagement" story, French (lib/moveProjectRules.js moveStoryFr).
       move_story: moveStory,
+      // A request with no commune: the agencies of this city are asked.
+      city,
     }),
   });
 }
@@ -736,10 +738,11 @@ export async function getContactLog({ days = 30 } = {}) {
  * @param {{listingId: number, kind: 'whatsapp'|'call', visitorKey?: string|null}} input
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function notifyAgentOfContactTap({ listingId, kind, visitorKey = null }) {
+export async function notifyAgentOfContactTap({ listingId, kind, visitorKey = null, intent = null }) {
   return engineFetch('/admin/contact-taps', {
     method: 'POST',
-    body: JSON.stringify({ listing_id: listingId, kind, visitor_key: visitorKey }),
+    // intent: visit | availability | question (lib/whatsappIntent.js) — the alert leads with it.
+    body: JSON.stringify({ listing_id: listingId, kind, visitor_key: visitorKey, intent: intent || undefined }),
   });
 }
 

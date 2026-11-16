@@ -317,8 +317,151 @@ async function rankAgentsForRequest(
   }));
 }
 
+/**
+ * Lowercased commune names that place a listing or an agency in `city`, for
+ * rankAgentsForCity. Agents tick canonical keys; a few communes carry a
+ * "(City)" suffix because their bare name exists in another city too
+ * ("Kalamu (Boma)" vs Kinshasa's Kalamu, "Kabondo (Boma)" vs "Kabondo
+ * (Kisangani)"). The bare label is matched only when no other commune
+ * anywhere shares it — else a Boma request would reach Kinshasa's Kalamu
+ * agencies. [] for an unknown city.
+ */
+function cityCommuneNames(city) {
+  // eslint-disable-next-line global-require
+  const { CITIES, communesOfCity, communeLabel } = require('./cities');
+  const keys = communesOfCity(city);
+  const labelUses = new Map();
+  for (const name of Object.keys(CITIES)) {
+    for (const key of communesOfCity(name)) {
+      const label = communeLabel(key).toLowerCase();
+      labelUses.set(label, (labelUses.get(label) || 0) + 1);
+    }
+  }
+  return [...new Set(keys.flatMap((k) => {
+    const label = communeLabel(k).toLowerCase();
+    return labelUses.get(label) === 1 ? [k.toLowerCase(), label] : [k.toLowerCase()];
+  }))];
+}
+
+/**
+ * A request that names a city but no commune (2026-11-16, owner: "Mon
+ * projet" requests disappeared — 7 of 9 customers picked a city on the
+ * "Où ?" card and ticked no commune, and a request without a commune reached
+ * nobody). Ranks the agencies covering ANY commune of that city.
+ *
+ * Every Kinshasa agency covers some Kinshasa commune, so coverage cannot
+ * separate them; what can is stock. The score therefore leans on real live
+ * listings that fit the request:
+ *
+ *   coverage    20  covers at least one commune of the city (the hard filter)
+ *   fit       0-30  live listings in the city fitting budget, bedrooms and
+ *                   rent/sale (6 each) — the agency that can answer today
+ *   inventory 0-15  live listings in the city (3 each)
+ *   verified    10  as above (also a hard filter)
+ *
+ * × the plan multiplier, then the same priority level and fairness
+ * adjustments as a commune request (services/leadDispatch.js). Same shared
+ * agent gate, same demo exclusion. Nothing is deduced about where the
+ * customer wants to live: the alert says the commune is open.
+ *
+ * @param {{city: string, priceMin?: number|null, priceMax?: number|null, bedrooms?: number|null,
+ *   transactionType?: string|null}} request `city` canonical (services/cities.js resolveCity).
+ * @param {number} [limit]
+ */
+async function rankAgentsForCity(
+  { city, priceMin = null, priceMax = null, bedrooms = null, transactionType = null },
+  limit = MAX_AGENTS_PER_LEAD,
+) {
+  if (!isConfigured()) {
+    console.warn('[agentRanking] Postgres is not configured — no agents can be ranked');
+    return [];
+  }
+  const names = cityCommuneNames(city);
+  if (names.length === 0) return [];
+  const purpose = transactionType === 'vente' ? 'sale' : transactionType === 'location' ? 'rent' : null;
+  const inCity = `
+    EXISTS (
+      SELECT 1 FROM property_amenities pa
+      JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
+      WHERE pa.property_id = p.id
+        AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
+        AND LOWER(ac.name) = ANY($1::text[])
+    )`;
+  const sql = `
+    WITH scoped AS (
+      SELECT
+        a.id, a.phone, a.agency_name, a.phone_verified_at,
+        COALESCE(ai.first_name || ' ' || COALESCE(ai.last_name, ''), a.username) AS display_name,
+        COALESCE(pkg.priority_multiplier, 1.0) AS priority_multiplier,
+        (
+          SELECT COUNT(*) FROM properties p
+          WHERE p.agent_id = a.id AND ${PUBLIC_LISTING_FILTER} AND p.listing_status = 'active' AND ${inCity}
+        ) AS matching_listings,
+        (
+          SELECT COUNT(*) FROM properties p
+          WHERE p.agent_id = a.id AND ${PUBLIC_LISTING_FILTER} AND p.listing_status = 'active' AND ${inCity}
+            AND ($2::numeric IS NULL OR p.price IS NULL OR p.price <= $2::numeric)
+            AND ($3::numeric IS NULL OR p.price IS NULL OR p.price >= $3::numeric)
+            AND ($4::int     IS NULL OR p.beds  IS NULL OR ABS(p.beds - $4::int) <= 1)
+            AND ($5::text    IS NULL OR p.purpose = $5::text)
+        ) AS fitting_listings
+      FROM agents a
+      LEFT JOIN LATERAL (
+        SELECT first_name, last_name FROM agent_infos
+        WHERE agent_id = a.id
+        ORDER BY (language_id = 20) DESC, language_id
+        LIMIT 1
+      ) ai ON true
+      LEFT JOIN LATERAL (
+        SELECT package_id FROM memberships
+        WHERE vendor_id = a.vendor_id AND status = 1 AND expire_date > NOW()
+        ORDER BY expire_date DESC
+        LIMIT 1
+      ) m ON true
+      LEFT JOIN packages pkg ON pkg.id = m.package_id
+      WHERE a.status = 1
+        AND a.phone IS NOT NULL
+        AND a.phone <> ''
+        AND a.phone_verified_at IS NOT NULL
+        AND a.deleted_at IS NULL
+        AND a.direct_routing_enabled IS DISTINCT FROM false
+        AND COALESCE(a.phone, '') NOT LIKE '2430000%'
+        AND (
+          EXISTS (SELECT 1 FROM unnest(COALESCE(a.primary_communes,  '{}')) c WHERE LOWER(c) = ANY($1::text[]))
+          OR
+          EXISTS (SELECT 1 FROM unnest(COALESCE(a.serviced_communes, '{}')) c WHERE LOWER(c) = ANY($1::text[]))
+        )
+    )
+    SELECT
+      id AS agent_id, phone, display_name, agency_name, priority_multiplier,
+      matching_listings, fitting_listings,
+      false AS is_primary,
+      (
+        20
+        + LEAST(fitting_listings * 6, 30)
+        + LEAST(matching_listings * 3, 15)
+        + CASE WHEN phone_verified_at IS NOT NULL THEN 10 ELSE 0 END
+      ) * COALESCE(priority_multiplier, 1.0) AS base_score
+    FROM scoped
+    ORDER BY base_score DESC, fitting_listings DESC, matching_listings DESC, id ASC
+    LIMIT $6
+  `;
+  const { rows } = await getPool().query(sql, [names, priceMax, priceMin, bedrooms, purpose, Math.max(limit * 3, limit)]);
+  return rows.map((r) => ({
+    ...r,
+    agent_id: Number(r.agent_id),
+    base_score: Number(r.base_score),
+    priority_multiplier: Number(r.priority_multiplier),
+    matching_listings: Number(r.matching_listings),
+    fitting_listings: Number(r.fitting_listings),
+    display_name: (r.display_name || '').trim() || null,
+  }));
+}
+
 module.exports = {
   rankAgentsForRequest,
+  rankAgentsForCity,
+  cityCommuneNames,
   upToDateAgentIds,
   portfolioSignals,
   PORTFOLIO_SIGNALS_SQL,

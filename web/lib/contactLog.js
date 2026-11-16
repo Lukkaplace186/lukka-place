@@ -23,9 +23,18 @@
  */
 import { matchTapAlerts } from './contactTapMatch';
 import { INTERACTION_CHANNELS, LEAD_SOURCE_CHANNEL } from './interactionCounts';
+import { cleanWhatsAppIntent, contactIntentGroup } from './whatsappIntent';
 
 export const CONTACT_CHANNELS = INTERACTION_CHANNELS.map((c) => c.key);
 export const CONTACT_WINDOWS = [7, 30, 90];
+/**
+ * What the customer asked for (2026-11-16, owner: "is the customer simply
+ * enquiring or requesting an appointment?"): 'visit' — a visit request, or a
+ * WhatsApp tap where they chose « Je veux le visiter »; 'enquiry' — « Est-il
+ * disponible ? » or « Autre question »; 'unknown' — a call, a message, a tap
+ * from before the chooser. Read from what the customer did, never guessed.
+ */
+export const CONTACT_WANTS = ['visit', 'enquiry', 'unknown'];
 /** A visitor tapping the same contact again within this is a repeat, shown dimmed. */
 export const REPEAT_MINUTES = 10;
 
@@ -93,6 +102,7 @@ export function buildContactRows({
     const match = waAlerts.get(String(tap.id));
     rows.push({
       key: `wa:${tap.id}`, at: toIso(tap.created_at), channel: 'whatsappDirect', surface: 'listing',
+      intent: cleanWhatsAppIntent(tap.intent),
       customer: customerFrom(customers, tap.customer_id), visitorId: tap.visitor_id || null,
       agentId: agentOf(tap.agent_id, tap.listing_id), listingId: num(tap.listing_id),
       status: tapStatus(match), statusAt: match?.answeredAt || null,
@@ -146,6 +156,8 @@ export function buildContactRows({
   for (const visit of engine.viewings || []) {
     rows.push({
       key: `visit:${visit.id}`, at: toIso(visit.created_at), channel: 'visitRequest', surface: visit.visit_mode === 'video' ? 'video' : null,
+      // "Demander une visite": an appointment asked for, by construction.
+      intent: 'visit',
       customer: visit.wa_id ? { customerId: null, phone: digits(visit.wa_id), name: visit.name || null } : null,
       agentId: agentOf(visit.agent_id, visit.property_id), listingId: num(visit.property_id),
       viewingId: num(visit.id),
@@ -153,6 +165,10 @@ export function buildContactRows({
     });
   }
 
+  for (const row of rows) {
+    if (row.intent === undefined) row.intent = null;
+    row.wants = contactIntentGroup(row.intent);
+  }
   rows.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')) || a.key.localeCompare(b.key));
   return markRepeats(rows);
 }
@@ -183,13 +199,16 @@ export function contactWindow(raw) {
  * The page's filters: channel, agent, customer known only, and a search on
  * the customer's number or name.
  */
-export function filterContactRows(rows, { channel = null, agentId = null, known = false, q = '' } = {}) {
+export function filterContactRows(rows, {
+  channel = null, agentId = null, known = false, q = '', wants = null,
+} = {}) {
   const term = String(q || '').trim().toLowerCase();
   const termDigits = digits(term);
   const agent = num(agentId);
   return rows.filter((row) => {
     if (channel && CONTACT_CHANNELS.includes(channel) && row.channel !== channel) return false;
     if (agent && row.agentId !== agent) return false;
+    if (wants && CONTACT_WANTS.includes(wants) && row.wants !== wants) return false;
     if (known && !row.customer?.phone && !row.customer?.customerId) return false;
     if (term) {
       const phoneHit = termDigits.length >= 4 && (row.customer?.phone || '').includes(termDigits);
@@ -203,12 +222,14 @@ export function filterContactRows(rows, { channel = null, agentId = null, known 
 /** Totals over the filtered rows: all, customer known, and per channel. */
 export function summariseContactRows(rows) {
   const byChannel = Object.fromEntries(CONTACT_CHANNELS.map((key) => [key, 0]));
+  const byWants = Object.fromEntries(CONTACT_WANTS.map((key) => [key, 0]));
   let known = 0;
   let repeats = 0;
   for (const row of rows) {
     if (row.repeat) { repeats += 1; continue; }
     byChannel[row.channel] = (byChannel[row.channel] || 0) + 1;
+    byWants[row.wants || 'unknown'] = (byWants[row.wants || 'unknown'] || 0) + 1;
     if (row.customer?.phone || row.customer?.customerId) known += 1;
   }
-  return { total: rows.length - repeats, known, repeats, byChannel };
+  return { total: rows.length - repeats, known, repeats, byChannel, byWants };
 }

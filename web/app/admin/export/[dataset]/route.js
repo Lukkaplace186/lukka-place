@@ -163,6 +163,7 @@ const DATASETS = {
       const { rows } = await loadContactLog({ days: contactWindow(p.get('days')) });
       const filtered = filterContactRows(rows, {
         channel: p.get('channel'), agentId: p.get('agent'), known: p.get('known') === '1', q: p.get('q') || '',
+        wants: p.get('wants'),
       }).slice(0, EXPORT_CAP);
       const { names, listings, projects } = await getContactLabels(filtered);
       return filtered.map((row) => {
@@ -180,6 +181,8 @@ const DATASETS = {
     },
     columns: [
       ['date', (r) => r.at], ['channel', (r) => r.channel], ['page', (r) => r.surface || ''],
+      // visit | enquiry | unknown, and the exact choice (visit | availability | question).
+      ['customer_asks_for', (r) => r.wants || 'unknown'], ['intent', (r) => r.intent || ''],
       ['customer_name', (r) => r.customer?.name || ''], ['customer_phone', (r) => (r.customer?.phone ? `+${r.customer.phone}` : '')],
       ['customer_account_id', (r) => r.customer?.customerId || ''], ['agent_id', (r) => r.agentId || ''], ['agent', (r) => r.agentName || ''],
       ['listing_id', (r) => r.listingId || ''], ['listing_reference', (r) => r.listingReference || ''], ['listing_title', (r) => r.listingTitle || ''],

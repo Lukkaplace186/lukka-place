@@ -25,9 +25,9 @@ export function contactTapKind({ event, routingType, viewerKind, recorded }) {
 }
 
 /** Fire-and-forget body for `after()`: never throws into the response. */
-export async function alertAgentOfContactTap({ listingId, kind, visitorId = null }) {
+export async function alertAgentOfContactTap({ listingId, kind, visitorId = null, intent = null }) {
   try {
-    const result = await notifyAgentOfContactTap({ listingId, kind, visitorKey: visitorId });
+    const result = await notifyAgentOfContactTap({ listingId, kind, visitorKey: visitorId, intent });
     if (!result?.sent) console.log(`[contact-tap] listing #${listingId} ${kind}: no alert (${result?.reason || 'unknown'})`);
   } catch (err) {
     console.error(`[contact-tap] listing #${listingId} ${kind}: engine call failed: ${err.message}`);

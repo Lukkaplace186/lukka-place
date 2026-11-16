@@ -19,6 +19,7 @@ import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerS
 import { consumeProofAtLogin } from '@/lib/whatsappVerify';
 import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
+import { autoSendMoveProject } from '@/lib/moveProjectRequest';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -118,6 +119,8 @@ export async function loginAction(_prevState, formData) {
   if (hasAnswers) {
     const { saved, id } = await saveProjectAndAlert(Number(customer.id), project, await getT());
     console.log(`[move-project] login customer #${customer.id} saved=${saved} project=${id ?? 'none'}`);
+    // Sent to agencies as on sign-up (lib/moveProjectRequest.js). Never throws.
+    if (saved && id != null) await autoSendMoveProject(Number(customer.id), id);
     if (saved && id != null && next === '/compte/client') redirect(`/compte/client/projet/${id}?nouveau=1`);
   }
 

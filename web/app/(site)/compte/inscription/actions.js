@@ -17,6 +17,7 @@ import { findActivePartnerByCode } from '@/lib/partners';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
+import { autoSendMoveProject } from '@/lib/moveProjectRequest';
 import { getT } from '@/lib/i18n/server';
 import { recordSignupOutcome } from '@/lib/signupFunnel';
 import { passwordLongEnough } from '@/lib/passwordRules';
@@ -157,7 +158,15 @@ export async function signupAction(_prevState, formData) {
   if (hasAnswers) {
     const { saved, id, alert } = await saveProjectAndAlert(Number(customer.id), project, await getT());
     console.log(`[move-project] signup customer #${customer.id} saved=${saved} project=${id ?? 'none'} alert=${alert || 'none'} steps=${project.answeredSteps.length}`);
-    if (saved && id != null) projectHref = `/compte/client/projet/${id}?nouveau=1`;
+    if (saved && id != null) {
+      projectHref = `/compte/client/projet/${id}?nouveau=1`;
+      // The project goes to agencies straight away (owner, 2026-11-16: it used
+      // to wait for a tap nobody made). The cards said so. Never throws.
+      const sent = await autoSendMoveProject(Number(customer.id), id);
+      if (sent.status === 'sent' && sent.leadId) {
+        await recordAdEventFromAction({ name: 'Lead', eventId: `lead-m-${sent.leadId}`, phone });
+      }
+    }
   }
 
   // Signed in, done: number + password is the whole signup (2026-11-06,

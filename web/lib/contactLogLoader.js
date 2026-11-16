@@ -20,7 +20,9 @@ export const CONTACT_SOURCE_CAP = 5000;
 
 export const WA_TAPS_SQL = `
   SELECT wc.id, wc.created_at, wc.listing_id, wc.agent_id, wc.visitor_id, wc.viewer_kind, wc.routing_type,
-         (to_jsonb(wc) ->> 'customer_id')::bigint AS customer_id
+         (to_jsonb(wc) ->> 'customer_id')::bigint AS customer_id,
+         -- migrations/20261116_contact_intent.sql; NULL before it runs.
+         to_jsonb(wc) ->> 'intent' AS intent
     FROM whatsapp_clicks wc
    WHERE wc.created_at >= NOW() - make_interval(days => $1::int)
      AND wc.routing_type = 'DIRECT_WA'

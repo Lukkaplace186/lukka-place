@@ -59,6 +59,8 @@ export function tapAlertQuery(clicks) {
 function alertState(alert) {
   if (!alert.sent_via) return 'failed';
   if (alert.answer === 'REPLIED') return 'replied';
+  // The customer asked to visit and the agent says a visit is set (2026-11-16).
+  if (alert.answer === 'VISIT_SET') return 'visitSet';
   if (alert.answer === 'NOTHING') return 'nothing';
   return 'waiting';
 }
@@ -67,7 +69,7 @@ function alertState(alert) {
  * @param {Array<Object>} clicks rows of the tap log (`id`, `listing_id`, `created_at`, `routing_type`, `viewer_kind`, `visitor_id`)
  * @param {Array<Object>} alerts the engine's rows (`id`, `property_id`, `kind`, `visitor_key`, `created_at`, `sent_via`, `answer`, `answered_at`)
  * @param {{kind?: 'whatsapp'|'call'}} [options] which taps and alerts to pair (call taps: listing_events, routing DIRECT)
- * @returns {Map<string, {state: 'replied'|'nothing'|'waiting'|'failed'|'earlier', via: string|null,
+ * @returns {Map<string, {state: 'replied'|'visitSet'|'nothing'|'waiting'|'failed'|'earlier', via: string|null,
  *   answeredAt: string|null, alertAt: string}>} keyed by click id; a tap with no entry had no alert.
  */
 export function matchTapAlerts(clicks, alerts, { kind = 'whatsapp' } = {}) {

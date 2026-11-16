@@ -4,8 +4,9 @@ import Link from '@/components/LocaleLink';
 import { useEffect, useRef, useState } from 'react';
 import { Phone, CalendarClock, ChevronRight, MessageCircle } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppCTA';
+import WhatsAppIntentButton from './WhatsAppIntentSheet';
 import FavoriteButton from './FavoriteButton';
-import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
+import { trackCallClick } from '@/lib/analyticsClient';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import ShareButton from './ShareButton';
 import AgentMonogram from './AgentMonogram';
@@ -148,7 +149,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
   // one rule every WhatsApp CTA shares (lib/leadRouting.js). `agentPhone` is
   // only non-null for a verified, routing-enabled agent (lib/listings.js), so
   // the tel: link below follows the same rule without restating it.
-  const { href: whatsappHref, routingType } = resolveWhatsAppRouting(listing);
+  const { href: whatsappHref } = resolveWhatsAppRouting(listing);
   const displayName = agentName || 'Lukka Place';
   const qualifier = agentName ? 'Agent partenaire' : 'Équipe Lukka Place';
   // The logo and name open the agent's public profile — where people expect
@@ -225,16 +226,17 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
              (unlike the card variants), so the native target="_blank"
              navigation is correct and the beacon just rides alongside it —
              `keepalive` is what gets it out of the tab. */
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackLeadClick(listing, routingType, placement ?? undefined)}
+          // 2026-11-16: asks visit / disponible / question before WhatsApp
+          // opens, and sends the choice with the same beacon
+          // (WhatsAppIntentSheet.js).
+          <WhatsAppIntentButton
+            listing={listing}
+            placement={placement ?? undefined}
             className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
           >
             <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />
             {t('enquiry.contactWhatsApp')}
-          </a>
+          </WhatsAppIntentButton>
         ) : (
           <span className="inline-flex w-full items-center justify-center rounded-lg border border-line px-5 py-3 text-sm font-semibold text-ink-25">
             {t('enquiry.contactUnavailable')}

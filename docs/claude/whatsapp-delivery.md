@@ -563,9 +563,9 @@ variables, never throws).
 | `nouveau_message_agent` / `_client` | `CHAT_AGENT_TEMPLATE` / `CHAT_CUSTOMER_TEMPLATE` | 4 · link = thread id | `chatNotify` |
 | `bon_de_visite_client` | `VISIT_RECEIPT_TEMPLATE` | listing, date, agent · none, **no header** | `visitReceipt.sendReceipt` (template first) |
 | `avis_visite_client` | `VISIT_FEEDBACK_TEMPLATE` | first name, listing · Bien passée / Pas convaincu / Agent absent | check-in |
-| ~~`annonce_en_ligne_v2`~~ **OFF 2026-11-12** | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
+| `annonce_en_ligne_v2` (off 2026-11-12 → **on again 2026-11-16**) | `LISTING_APPROVED_TEMPLATE` | n°, what+where · link `/listings/{{1}}` | moderation verdict — see below |
 | `suivi_demande_client` | `SUIVI_DEMANDE_TEMPLATE` | **first name, request** (was sent with one — fixed) · 3 quick replies | `requestFollowup` |
-| `client_vous_contacte_agent` | `CONTACT_TAP_TEMPLATE` | agent, Appeler/WhatsApp, listing · 2 quick replies | `contactTapAlert` |
+| `client_vous_contacte_agent` | `CONTACT_TAP_TEMPLATE` | agent, Appeler/WhatsApp, listing — since 2026-11-16 {{3}} leads with the customer's choice ("une demande de visite — …") · 2 quick replies (the « Visite fixée » button is session-only) | `contactTapAlert` |
 | `contact_client_verif_agent` | `VIEWING_CONTACT_CHECK_TEMPLATE` | agent, client, listing · 3 quick replies | `askAgentContactCheck` |
 | `visite_mise_a_jour_agent` | `VIEWING_AGENT_UPDATE_TEMPLATE` | agent, listing, what happened, slot · static link | `tellAgentVisitUpdate`: customer accepted / refused a time / cancelled, desk confirmed |
 | `visite_effectuee_agent` | `VISIT_DONE_TEMPLATE` | agent, listing, client, when · Oui / Non | `runVisitDoneSweep` |
@@ -651,3 +651,51 @@ Console: `/admin/demo` (web/CLAUDE.md, "Demo accounts"). Engine:
   on rows other than leads/visits (digests, "Faites le point", chat alerts)
   reach the demo agent's number, which is the intended experience; a desk
   digest may still list a demo lead line.
+
+## Two drafts for direct contact (2026-11-16) — to submit
+
+Wired, unset by default (read at call time): until Meta approves them nothing
+changes. Both on the INTAKE account (+243 976 321 848), UTILITY, French,
+picture header like the others (then add the name to `TEMPLATES_WITH_IMAGE`)
+or none. docs/claude/leads-and-enquiries.md, "Direct contact, measured".
+
+- **`client_veut_visiter_agent`** → `CONTACT_TAP_VISIT_TEMPLATE`
+  (`services/contactTapAlert.js`). A customer chose « Je veux le visiter »
+  and the agent is outside the 24 h window. Today they get
+  `client_vous_contacte_agent` ("pour : une demande de visite — …") with two
+  buttons, so « Visite fixée » can only be tapped inside the window.
+  > Bonjour {{1}}, un client veut visiter votre bien sur Lukka Place : {{2}}.
+  >
+  > Il vous écrit sur WhatsApp. Proposez-lui un créneau, puis dites-nous où vous en êtes.
+
+  Footer: "Votre réponse nous aide à suivre vos clients." Quick replies, in
+  this order: « Visite fixée » / « J'ai répondu » / « Rien reçu ».
+  Samples: {{1}} Prince · {{2}} Appartement à louer à Limete.
+- **`agence_prend_demande_client`** → `AGENCY_CLAIMED_TEMPLATE`
+  (`services/leadClaims.js` `sendCustomerClaimed`). An agency took the
+  customer's request ("Je m'en occupe"); a website customer is almost always
+  outside the window, so today's text rarely arrives and they do not know who
+  will call. The text now also carries the agency's own WhatsApp link.
+  > Bonjour {{1}}, bonne nouvelle : l'agence {{2}} s'occupe de votre recherche à {{3}} sur Lukka Place.
+  >
+  > Elle va vous écrire sur WhatsApp. Vous pouvez aussi la joindre directement au {{4}}.
+
+  Footer: "Vous recevez ce message suite à votre demande sur Lukka Place."
+  No button. Samples: {{1}} Kera · {{2}} Pharaon immobilier · {{3}} Kinshasa
+  (toutes communes) · {{4}} +243 812 345 678.
+- **Switch on**: the env name in the engine `.env`, `pm2 restart
+  lukka-place-engine --update-env`, test-send to the desk number.
+- verify-pipeline §117.
+
+## `annonce_en_ligne_v2` switched back on (2026-11-16, owner)
+
+`LISTING_APPROVED_TEMPLATE=annonce_en_ligne_v2` uncommented in the engine
+`.env` (backup `/root/deploy-backups/20261116-080546-env`), engine restarted
+with `--update-env`. Test send to the desk (…2654) for listing 1041 (`urlButton`
+1041, picture header from `TEMPLATES_WITH_IMAGE`): accepted, wamid
+`wamid.HBgMMjQzODQ2OTYyNjU0FQIAERgUQ0VGRDM4N0VBQUI2NUQyNDZCM0IA`;
+`https://lukkaplace.com/listings/1041` answers 200. Nothing was changed at
+Meta since it was switched off on 2026-11-12, so whether « Voir l'annonce »
+opens the listing is the owner's tap on that desk message. If it does not:
+comment the line out again, restart, and check the button URL registered at
+Meta (must be `https://lukkaplace.com/listings/{{1}}`).

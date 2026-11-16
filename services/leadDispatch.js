@@ -32,7 +32,10 @@
  *           nudged down so a busy commune spreads)
  *
  * NOBODY TO ASK
- *   no commune      -> the desk is told at once ("no-commune")
+ *   no commune      -> a city-wide request (2026-11-16): the agencies of the
+ *                      customer's city, ranked on fitting stock
+ *                      (agentRanking.rankAgentsForCity); with no city
+ *                      either, the desk is told at once ("no-commune")
  *   no agency in it -> agencies of the neighbouring communes are asked, the
  *                      alert says so, and the desk is told ("no-coverage")
  *
@@ -45,9 +48,10 @@
 
 const db = require('./db');
 const chakra = require('./chakra');
-const { rankAgentsForRequest } = require('./agentRanking');
+const { rankAgentsForRequest, rankAgentsForCity } = require('./agentRanking');
 const { leadCommunes } = require('./leadCommunes');
 const { neighbouringCommunes } = require('./communeNeighbours');
+const { resolveCity, communesOfCity } = require('./cities');
 const agentPriority = require('./agentPriority');
 const demoAccounts = require('./demoAccounts');
 
@@ -129,11 +133,34 @@ function budgetLabel(lead) {
  */
 function communesLabel(lead, agent) {
   const all = leadCommunes(lead);
-  if (all.length === 0) return 'Kinshasa';
+  if (all.length === 0) {
+    const city = cityWideOf(lead);
+    return city ? `${city} (toutes communes)` : 'Kinshasa';
+  }
   const matched = agent?.neighbour_of ? null : agent?.matched_commune;
   if (!matched) return all.join(', ');
   const rest = all.filter((c) => c.toLowerCase() !== matched.toLowerCase());
   return [matched, ...rest].join(', ');
+}
+
+/**
+ * The city of a request that names no commune but a city with known
+ * communes (web "Mon projet": the customer picked the city, not a commune),
+ * or null. Only a canonical city counts (services/cities.js resolveCity):
+ * a guessed one would send the request to the wrong side of the country.
+ */
+function cityWideOf(lead) {
+  if (!lead || leadCommunes(lead).length > 0) return null;
+  const city = resolveCity(lead.city);
+  return city && communesOfCity(city).length > 0 ? city : null;
+}
+
+/** "Gombe, Ngaliema", or "Kinshasa (toute la ville)" for a city-wide request. */
+function placeOfRequest(lead) {
+  const communes = leadCommunes(lead);
+  if (communes.length) return communes.join(', ');
+  const city = cityWideOf(lead);
+  return city ? `${city} (toute la ville)` : 'commune non précisée';
 }
 
 /**
@@ -183,6 +210,9 @@ function alertText(lead, agent, link, { wave = 1, withButtons = true } = {}) {
     );
   } else {
     lines.push(`Nouvelle demande client à ${communesLabel(lead, agent)} :`);
+  }
+  if (cityWideOf(lead)) {
+    lines.push('• Le client n’a pas choisi de commune : proposez-lui ce que vous avez dans la ville.');
   }
   // "Mon déménagement": why the customer is moving, in their answers' words.
   if (lead.move_story) lines.push(`• ${lead.move_story}`);
@@ -244,6 +274,7 @@ function requestLines(lead) {
   const out = [];
   const communes = leadCommunes(lead);
   if (communes.length) out.push(`• Commune : ${communes.join(', ')}`);
+  else if (cityWideOf(lead)) out.push(`• Ville : ${cityWideOf(lead)} (aucune commune choisie)`);
   if (lead.transaction_type) out.push(`• Type : ${lead.transaction_type === 'vente' ? 'Achat' : 'Location'}`);
   if (lead.bedrooms != null) out.push(`• Chambres : ${lead.bedrooms}`);
   const budget = budgetLabel(lead);
@@ -259,8 +290,8 @@ function deskText(lead, reason, { neighbours = [], asked = 0 } = {}) {
   const head = {
     'no-commune': '🧭 Demande client sans commune : aucune agence prévenue',
     'no-coverage': neighbours.length
-      ? `📍 Aucune agence inscrite à ${leadCommunes(lead).join(', ')} : proposée aux communes voisines (${neighbours.join(', ')})`
-      : `📍 Aucune agence inscrite à ${leadCommunes(lead).join(', ')} ni dans les communes voisines : personne n’a été prévenu`,
+      ? `📍 Aucune agence inscrite à ${placeOfRequest(lead)} : proposée aux communes voisines (${neighbours.join(', ')})`
+      : `📍 Aucune agence inscrite à ${placeOfRequest(lead)}${cityWideOf(lead) ? '' : ' ni dans les communes voisines'} : personne n’a été prévenu`,
     unclaimed: `⏱️ Demande client sans preneur : ${asked} agence(s) prévenue(s), aucune ne l’a prise`,
   }[reason];
   return [
@@ -340,11 +371,31 @@ async function rankCommunes(lead, communes, rank, neighbourOf = null) {
  *
  * @returns {Promise<{ranked: Object[], skipped?: string, neighbours?: string[]}>}
  */
-async function candidatesFor(lead, { rank, levels }) {
+async function candidatesFor(lead, { rank, rankCity = rankAgentsForCity, levels }) {
   const communes = leadCommunes(lead);
-  const direct = await rankCommunes(lead, communes, rank);
-  if (direct.failed) return { ranked: [], skipped: 'ranking-failed' };
-  let ranked = mergeRankedAcrossCommunes(direct.perCommune);
+  const city = cityWideOf(lead);
+  let ranked;
+  if (city) {
+    // City-wide: one ranking over every commune of the city, no neighbours.
+    try {
+      const rows = await rankCity({
+        city,
+        priceMin: lead.price_min ?? null,
+        priceMax: lead.price_max ?? null,
+        bedrooms: lead.bedrooms ?? null,
+        transactionType: lead.transaction_type ?? null,
+      }, RANK_FETCH);
+      ranked = mergeRankedAcrossCommunes([{ commune: null, rows }]);
+    } catch (err) {
+      console.error(`[dispatch] city-wide ranking failed for lead #${lead.id} in ${city}: ${err.message}`);
+      return { ranked: [], skipped: 'ranking-failed' };
+    }
+    if (!ranked.length) return { ranked: [], skipped: 'no-coverage', neighbours: [] };
+  } else {
+    const direct = await rankCommunes(lead, communes, rank);
+    if (direct.failed) return { ranked: [], skipped: 'ranking-failed' };
+    ranked = mergeRankedAcrossCommunes(direct.perCommune);
+  }
   let neighbours = [];
   if (!ranked.length) {
     // No agency in any requested commune: the nearest communes of the same city.
@@ -451,7 +502,7 @@ async function notifyAgency(lead, agent, matchId, wave) {
  * @returns {Promise<{dispatched: number, notified: number, failed: number, wave?: number, skipped?: string}>}
  */
 async function dispatchNextWave(lead, {
-  rank = rankAgentsForRequest, levels = agentPriority.computeLevels, deskSend, force = false,
+  rank = rankAgentsForRequest, rankCity = rankAgentsForCity, levels = agentPriority.computeLevels, deskSend, force = false,
 } = {}) {
   if (!lead || !lead.id) return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-lead' };
   const fresh = db.getLead(lead.id) || lead;
@@ -469,8 +520,8 @@ async function dispatchNextWave(lead, {
   }
 
   const communes = leadCommunes(row);
-  if (communes.length === 0) {
-    console.log(`[dispatch] lead #${row.id} has no commune — desk told, no agency`);
+  if (communes.length === 0 && !cityWideOf(row)) {
+    console.log(`[dispatch] lead #${row.id} has no commune nor city — desk told, no agency`);
     await alertDeskOnce(row, 'no-commune', {}, { send: deskSend });
     return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-commune' };
   }
@@ -483,10 +534,10 @@ async function dispatchNextWave(lead, {
   if (claims >= MAX_CLAIMS) return closeDispatch(row, 'full');
   if (nextWave > WAVE_SIZES.length) return finishWaves(row, asked, { deskSend });
 
-  const found = await candidatesFor(row, { rank, levels });
+  const found = await candidatesFor(row, { rank, rankCity, levels });
   if (found.skipped === 'ranking-failed') return { dispatched: 0, notified: 0, failed: 0, skipped: 'ranking-failed' };
   if (found.skipped === 'no-coverage') {
-    console.log(`[dispatch] no agency covers ${communes.join(', ')} nor its neighbours — lead #${row.id} to the desk`);
+    console.log(`[dispatch] no agency covers ${placeOfRequest(row)} — lead #${row.id} to the desk`);
     await alertDeskOnce(row, 'no-coverage', { neighbours: [] }, { send: deskSend });
     db.db.prepare('UPDATE leads SET dispatch_closed_at = CURRENT_TIMESTAMP WHERE id = ? AND dispatch_closed_at IS NULL').run(row.id);
     return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-coverage' };
@@ -536,7 +587,7 @@ async function dispatchNextWave(lead, {
   }
 
   console.log(
-    `[dispatch] lead #${row.id} (${communes.join(', ')}) wave ${nextWave} -> ${wave.length} agency(ies): ${notified} sent, ${failed} failed`,
+    `[dispatch] lead #${row.id} (${placeOfRequest(row)}) wave ${nextWave} -> ${wave.length} agency(ies): ${notified} sent, ${failed} failed`,
   );
   return { dispatched: wave.length, notified, failed, wave: nextWave };
 }
@@ -696,6 +747,8 @@ module.exports = {
   alertButtons,
   agentLink,
   communesLabel,
+  cityWideOf,
+  placeOfRequest,
   mergeRankedAcrossCommunes,
   claimButtonId,
   passButtonId,

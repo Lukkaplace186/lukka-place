@@ -249,13 +249,15 @@ export function listingEventPayload(listing) {
  *   which button was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS); the
  *   server stores an unknown value as none.
  */
-export function trackLeadClick(listing, routingType, placement) {
+export function trackLeadClick(listing, routingType, placement, intent = null) {
   if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
   beacon('/api/telemetry/lead-click', {
     event: 'whatsapp_cta_clicked',
     ...listingEventPayload(listing),
     routingType,
     placement,
+    // What the customer chose before WhatsApp opened (lib/whatsappIntent.js); null = not asked.
+    intent: intent || undefined,
   });
 }
 

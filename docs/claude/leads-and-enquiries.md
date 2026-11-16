@@ -671,3 +671,81 @@ cherche plus".
 
 `REQUEST_FOLLOWUP=off` stops the job; answers already sent are still handled.
 verify-pipeline §102; web `tests/unit/push-notifications.test.js`.
+
+## Direct contact, measured: what the customer asks for, and "Mon projet" reaches agencies (2026-11-16)
+
+Owner, 2026-11-16, while the app is not live and WhatsApp runs on templates:
+customers and agents should talk directly, "even if it means us not knowing
+exactly what happened", but we want to know whether a customer is enquiring
+or asking for a visit; and "Mon projet" / "Trouvez pour moi" requests "just
+disappear". Measured on production the same day: 9 move projects saved, **0**
+ever sent to an agency (7 of 9 had a city and no commune, and a request was
+only sent on an explicit tap that refused it without a commune); 38 direct
+WhatsApp taps in 7 days, 11 "Un client vous contacte" alerts, agents answered
+about 40 %; every pre-typed message asked both "disponible ?" and "visiter ?".
+
+**What the customer asks for (the tap carries it).**
+- Every listing WhatsApp button (cards, the phone bar, the desktop card) opens
+  a sheet first: « Je veux le visiter » / « Est-il toujours disponible ? » /
+  « Une autre question » (web `components/WhatsAppIntentSheet.js`,
+  `lib/whatsappIntent.js`). Each pre-types its own question line in the same
+  storefront message (opening and link unchanged), so the choice saves the
+  customer typing. WhatsApp still opens straight on the agent's number.
+- Stored on the tap: `whatsapp_clicks.intent` ('visit' | 'availability' |
+  'question', NULL = not asked) — `migrations/20261116_contact_intent.sql`;
+  web retries without it on 42703 (`lib/leadClicks.js`).
+- Sent with the agent alert (`services/contactTapAlert.js`, `intent` on
+  `POST /admin/contact-taps`, stored on `contact_tap_alerts.intent`): the
+  title says it ("Un client veut visiter votre bien"); a visit gets a third
+  button « 📅 Visite fixée » (`contact_tap_visit:<id>` → answer `VISIT_SET`,
+  counted as a reply and apart). Outside the 24 h window the approved
+  `client_vous_contacte_agent` carries the intent in {{3}} ("pour : une
+  demande de visite — Appartement à Limete"), with its two buttons only — no
+  new template.
+- The central number reads it back from the question line
+  (`listingEnquiry.enquiryIntent`) for the agent's enquiry template message.
+- `/admin/contacts`: "Ce que le client demande" — Une visite (a visit choice
+  or a "Demander une visite" request) / Un renseignement / Inconnu (calls,
+  messages, taps before this), as cards, a filter (`wants=`), a column and
+  two CSV columns (`customer_asks_for`, `intent`). "Agent : visite fixée" is
+  a follow-up state there and on `/admin/telemetry`.
+- `NEXT_PUBLIC_WHATSAPP_INTENT=off` (build time) = one tap, old message.
+  A call tap has no intent (nothing is asked before the dialer).
+
+**"Mon projet" reaches agencies.**
+- A project is sent as soon as it is saved — sign-up, login with answers, the
+  cards — once, the first time it has rent/buy and a city or communes
+  (`web/lib/moveProjectRequest.js` `autoSendMoveProject`, `onlyIfNeverSent`;
+  an edit of a project already sent alerts nobody; the customer's button
+  resends after 20 h). The sign-up card and the project page say it goes to
+  agencies and that only an agency that takes it gets the number.
+  `MOVE_AUTO_SEND=off` (web, call time) = the tap only.
+- **City-wide requests**: a lead with no commune but a canonical city
+  (`leads.city`, idempotent ALTER; `POST /admin/leads` `city`, through
+  `cities.resolveCity`) goes to that city's agencies in the same waves
+  (`leadDispatch.cityWideOf`, `agentRanking.rankAgentsForCity`: covers any
+  commune of the city 20 + fitting stock 6 each ≤ 30 + stock 3 each ≤ 15 +
+  verified 10, × plan, then level and fairness; shared agent gate; no
+  neighbours). The alert says "Kinshasa (toutes communes)" and that the
+  customer chose no commune. Neither city nor commune → the desk, as before.
+- `/admin/move-projects`: "Envoyer aux agences" on a project never sent
+  (`leads.manage`, confirmation, audited) — the backfill for the 9 stuck
+  projects is the owner's call, row by row; the column shows "Kinshasa (toute
+  la ville)" and why a project cannot go.
+- **When an agency takes it** (`services/leadClaims.js`) the customer's message names the
+  request's own city (a city-wide one never says "Kinshasa" by default) and
+  carries the agency's WhatsApp link (verified, undeleted number only), so the
+  customer can write first. Outside the window: `AGENCY_CLAIMED_TEMPLATE` once
+  approved, else the text. A visit tap outside the agent's window:
+  `CONTACT_TAP_VISIT_TEMPLATE` (three buttons) once approved. Drafts:
+  whatsapp-delivery.md, "Two drafts for direct contact".
+- **Review fixes before commit**: a send is reserved in Postgres before the
+  engine is called (`claimMoveProjectSend`, one guarded UPDATE of
+  `last_lead_at`; released if the call fails), so a slow automatic send and a
+  tap never make two leads; the save waits 5 s at most for the send. The city
+  ranking matches a bare commune name only when no other city has it
+  (`agentRanking.cityCommuneNames`: Boma's "Kalamu (Boma)" never reaches
+  Kinshasa's Kalamu agencies). Every click from the sheet, its backdrop
+  included, stops before the card's link. « Une autre question » ends the
+  message on the question line (link before it) so the customer types after it.
+- verify-pipeline §117; web `tests/unit/direct-contact-intent.test.js`.

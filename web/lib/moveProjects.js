@@ -293,6 +293,67 @@ export async function recordSettledCheckin(customerId, projectId, { answer, stor
   }
 }
 
+export const CLAIM_SEND_SQL = `
+  WITH prev AS (SELECT last_lead_at FROM customer_move_projects WHERE customer_id = $1 AND id = $3)
+  UPDATE customer_move_projects SET last_lead_at = NOW()
+   WHERE customer_id = $1 AND id = $3
+     AND (last_lead_at IS NULL OR last_lead_at < NOW() - make_interval(secs => $2::double precision))
+  RETURNING (SELECT last_lead_at FROM prev) AS previous_at`;
+
+const CLAIM_SEND_LEGACY_SQL = `
+  WITH prev AS (SELECT last_lead_at FROM customer_move_projects WHERE customer_id = $1)
+  UPDATE customer_move_projects SET last_lead_at = NOW()
+   WHERE customer_id = $1
+     AND (last_lead_at IS NULL OR last_lead_at < NOW() - make_interval(secs => $2::double precision))
+  RETURNING (SELECT last_lead_at FROM prev) AS previous_at`;
+
+/**
+ * Reserve one send of a project to agencies (lib/moveProjectRequest.js),
+ * BEFORE the engine is called: `last_lead_at` is stamped only when the last
+ * send is older than `resendAfterMs` (or there was none), in one guarded
+ * UPDATE. Two sends at once — the automatic one still running after a slow
+ * engine and the customer's tap, or two taps — cannot both win, so agencies
+ * are never offered the same project twice. Returns the previous stamp so a
+ * failed send can give the slot back (releaseMoveProjectSend).
+ *
+ * @returns {Promise<{claimed: boolean, previousAt: string|null}>} never throws
+ *   (a database error answers "not claimed": no send without the guard).
+ */
+export async function claimMoveProjectSend(customerId, projectId, resendAfterMs) {
+  const id = Number(projectId);
+  const legacy = id === LEGACY_PROJECT_ID;
+  const params = legacy ? [customerId, Number(resendAfterMs) / 1000] : [customerId, Number(resendAfterMs) / 1000, id];
+  try {
+    // READ COMMITTED re-checks the WHERE on the row a concurrent send just
+    // stamped, so the second one updates nothing. `prev` only reads the
+    // stamp being replaced.
+    const { rows } = await getPool().query(
+      legacy ? CLAIM_SEND_LEGACY_SQL : CLAIM_SEND_SQL,
+      params,
+    );
+    return rows.length ? { claimed: true, previousAt: rows[0].previous_at ?? null } : { claimed: false, previousAt: null };
+  } catch (err) {
+    console.warn(`[move-project] could not reserve the send of project #${id}: ${err.message}`);
+    return { claimed: false, previousAt: null };
+  }
+}
+
+/** A reserved send that did not happen: put the previous stamp back. Never throws. */
+export async function releaseMoveProjectSend(customerId, projectId, previousAt) {
+  const id = Number(projectId);
+  const legacy = id === LEGACY_PROJECT_ID;
+  try {
+    await getPool().query(
+      legacy
+        ? 'UPDATE customer_move_projects SET last_lead_at = $2::timestamptz WHERE customer_id = $1'
+        : 'UPDATE customer_move_projects SET last_lead_at = $2::timestamptz WHERE customer_id = $1 AND id = $3',
+      legacy ? [customerId, previousAt] : [customerId, previousAt, id],
+    );
+  } catch (err) {
+    console.warn(`[move-project] could not release the send of project #${id}: ${err.message}`);
+  }
+}
+
 /** Records the lead "Envoyer ma demande aux agences" created for one project. Never throws. */
 export async function markMoveProjectSent(customerId, projectId, leadId) {
   const id = Number(projectId);

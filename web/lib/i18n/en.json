@@ -484,6 +484,17 @@
     "ariaLabel": "Breadcrumb"
   },
   "listings": {
+    "waIntent": {
+      "title": "What Would You like to Ask?",
+      "lead": "WhatsApp opens with your message already written for {who}.",
+      "theAgent": "the agent",
+      "options": {
+        "visit": { "label": "I want to visit it", "hint": "Ask for a viewing time" },
+        "availability": { "label": "Is it still available?", "hint": "The most asked question" },
+        "question": { "label": "Another question", "hint": "You type it in WhatsApp" }
+      },
+      "footer": "You write straight to the agent, from your own WhatsApp."
+    },
     "filters": {
       "title": "Filters",
       "searchPlaceholder": "Commune or area…",
@@ -1071,7 +1082,7 @@
       "phone": "Your WhatsApp number",
       "submit": "Send my request",
       "sending": "Sending…",
-      "privacy": "Your number goes to the agencies that receive your request and to the Lukka Place team, and to nobody else.",
+      "privacy": "Your number only goes to the agencies that take your request (3 at most) and to the Lukka Place team.",
       "sentTitle": "Request Sent",
       "sentBody": "Our partner agencies covering {commune} receive it. If one of them has a matching property, they will message you on WhatsApp at the number ending {last4}.",
       "sentBodyShort": "Your request has been received.",
@@ -3797,7 +3808,7 @@
       },
       "account": {
         "title": "Create Your Space",
-        "lead": "Your move will be saved, and we’ll send you new homes that match it.",
+        "lead": "Your move will be saved and sent to the best-placed agencies: the ones that take it (3 at most) get your number and write to you. We’ll also send you new homes that match it.",
         "noAnswers": "You can tell us about your move later, from your space.",
         "summary": {
           "one": "{count} answer saved",
@@ -3807,7 +3818,7 @@
       },
       "edit": {
         "title": "Your Move Is Ready",
-        "lead": "Save it: we’ll prepare the homes and the alert that match it.",
+        "lead": "Save it: we’ll prepare the homes and the alert that match it, and send it to agencies if it hasn’t gone yet.",
         "save": "Save My Move",
         "saving": "Saving…",
         "error": "Your move could not be saved. Please try again in a moment.",
@@ -3846,16 +3857,16 @@
         "alertOn": "Alert on: we’ll tell you about new homes that match your move.",
         "request": {
           "title": "Let Agencies Suggest Homes",
-          "lead": "We send your move to the agencies in the communes you chose. They’ll write to you on WhatsApp.",
+          "lead": "Your move goes to the agencies best placed to answer it, those in your communes first. The ones that take it write to you on WhatsApp.",
           "cta": "Send my request to agencies",
           "sending": "Sending…",
           "sent": "Request sent on {date}. Agencies’ suggestions arrive in your messages.",
           "sentNow": "Request sent. Agencies’ suggestions will arrive in your messages.",
           "seeMessages": "See my messages",
-          "privacy": "Your number goes to the agencies that receive your request and to the Lukka Place team, and nobody else.",
+          "privacy": "Your number only goes to the agencies that take your request (3 at most) and to the Lukka Place team.",
           "missing": {
             "transaction": "To send your request, tell us whether you want to rent or buy.",
-            "communes": "To send your request, pick at least one commune."
+            "communes": "To send your request, pick your city or at least one commune."
           },
           "errors": {
             "send": "Your request could not be sent. Please try again in a moment.",
@@ -5560,6 +5571,7 @@
       "agentAlertHelp": "For a tap to the agent's own WhatsApp: the \"Un client vous contacte\" alert sent to the agent, and what they answered. A tap is not a message: the customer may close WhatsApp without writing. The agent is alerted once per customer per listing over 24 h, and at most once every 30 minutes per listing.",
       "agentAlert": {
         "replied": "Replied to the customer",
+        "visitSet": "Visit set",
         "nothing": "Says nothing arrived",
         "waiting": "Alerted · no answer",
         "failed": "Alert not sent",
@@ -8021,7 +8033,23 @@
         "visitDeclined": "Visit declined",
         "visitCancelled": "Visit cancelled",
         "visitDone": "Visit done",
-        "visitOther": "Visit"
+        "visitOther": "Visit",
+        "visitSet": "Agent: visit set"
+      },
+      "wants": {
+        "title": "What the Customer Asks For",
+        "help": "Before WhatsApp opens, the customer picks: visit, \"still available?\" or another question. \"Demander une visite\" counts as a visit. Unknown: a call, a message, or a tap from before 16 November 2026.",
+        "col": "Asks for",
+        "filter": "Customer asks for",
+        "all": "All",
+        "visit": "A visit",
+        "enquiry": "Information",
+        "unknown": "Unknown",
+        "intent": {
+          "visit": "Visit",
+          "availability": "Available?",
+          "question": "Question"
+        }
       }
     },
     "interactions": {
@@ -8291,7 +8319,23 @@
       "oneCustomer": "Projects of customer #{id}.",
       "allCustomers": "See all customers",
       "whatsapp": "Message on WhatsApp",
-      "call": "Call"
+      "call": "Call",
+      "wholeCity": "{city} (whole city)",
+      "send": "Send to agencies",
+      "sendTitle": "Send This Project to Agencies?",
+      "sendIntro": "{name}'s project goes to the best-placed agencies: 2 first, then 3, then 2, every 30 minutes. An agency only gets the customer's number if it takes the request (3 at most). If nobody takes it, the desk is told.",
+      "sendConfirm": "Yes, send",
+      "sending": "Sending…",
+      "sentShort": "Sent",
+      "sentNow": "Project sent to agencies: request #{id}.",
+      "sendBlocked": {
+        "transaction": "Cannot go: rent or buy is not stated.",
+        "communes": "Cannot go: no city and no commune.",
+        "recent": "Already sent less than 20 h ago.",
+        "inactive": "Project found or paused: nothing is sent.",
+        "phone": "This customer has no number.",
+        "send": "Sending failed. Try again in a moment."
+      }
     },
     "whatsappHistory": {
       "title": "WhatsApp History",

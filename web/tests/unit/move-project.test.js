@@ -336,8 +336,10 @@ test('"C\'est le bon !" marks the request CONVERTED and stops the alert, unless 
   assert.match(found, /stopProjectAlert\(customerId, project\)/);
   assert.match(found, /updateLeadStatus\(project\.lastLeadId, 'CONVERTED'\)/);
   assert.match(src, /p\.id !== project\.id && p\.status === 'active'/, 'a shared alert is kept for the other project');
-  // A found or paused move never reaches agencies again.
-  assert.match(src, /if \(project\.status !== 'active'\) return \{ status: 'error', code: 'send' \};/);
+  // A found or paused move never reaches agencies again — the one send
+  // function every path uses since 2026-11-16 (lib/moveProjectRequest.js).
+  assert.match(read('lib/moveProjectRequest.js'), /if \(project\.status && project\.status !== 'active'\) return 'inactive';/);
+  assert.match(src, /sendMoveProjectRequest\(customerId, id, \{ origin: 'customer' \}\)/);
 });
 
 test('the story is shared only with explicit consent, and only when there is a story', () => {

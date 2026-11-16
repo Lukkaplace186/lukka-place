@@ -1,6 +1,7 @@
 import { formatPrice } from './format';
 import { SITE_URL } from './constants';
 import { placeLabel } from './placeLabel';
+import { intentQuestionFr } from './whatsappIntent';
 
 /**
  * The message a customer sends when they tap a listing's WhatsApp button
@@ -37,7 +38,9 @@ import { placeLabel } from './placeLabel';
  * Always quotes the listing's real stored USD price, deliberately never a
  * currency-toggled CDF estimate — see components/Price.js's doc comment.
  */
-export function buildWhatsAppMessage({ reference, id, propertyType, quartier = null, commune, price, purpose, pricePeriod }) {
+export function buildWhatsAppMessage({
+  reference, id, propertyType, quartier = null, commune, price, purpose, pricePeriod, intent = null,
+}) {
   // Quartier first, then commune (lib/placeLabel.js): "Appartement à Industriel, Limete".
   const what = [propertyType, placeLabel({ quartier, commune })].filter(Boolean).join(' à ');
   const priceText = price != null ? formatPrice(price, purpose, pricePeriod) : '';
@@ -47,8 +50,22 @@ export function buildWhatsAppMessage({ reference, id, propertyType, quartier = n
   const lines = ['Bonjour, je vous contacte via Lukka Place au sujet de ce bien :'];
   if (facts) lines.push(facts);
   if (ref) lines.push(`Réf. ${ref}`);
-  lines.push('', 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?');
-  if (id != null) lines.push('', `${SITE_URL}/listings/${id}`);
+  // The customer's question, by what they chose in the WhatsApp sheet
+  // (lib/whatsappIntent.js): visit, availability or another question; the
+  // combined line when nothing was chosen. The engine reads it back
+  // (services/listingEnquiry.js enquiryIntent).
+  // « Une autre question »: the customer types after the last line, so the
+  // link goes first and the question line ends the message — their words then
+  // follow "J’ai une question sur ce bien :". The engine finds the link
+  // anywhere in the message (services/listingEnquiry.js LISTING_URL).
+  const link = id != null ? `${SITE_URL}/listings/${id}` : null;
+  if (intent === 'question') {
+    if (link) lines.push('', link);
+    lines.push('', intentQuestionFr(intent));
+    return lines.join('\n');
+  }
+  lines.push('', intentQuestionFr(intent));
+  if (link) lines.push('', link);
   return lines.join('\n');
 }
 

@@ -484,6 +484,17 @@
     "ariaLabel": "Fil d'Ariane"
   },
   "listings": {
+    "waIntent": {
+      "title": "Que voulez-vous demander ?",
+      "lead": "WhatsApp s’ouvre avec votre message déjà écrit pour {who}.",
+      "theAgent": "l’agent",
+      "options": {
+        "visit": { "label": "Je veux le visiter", "hint": "Demandez un créneau de visite" },
+        "availability": { "label": "Est-il toujours disponible ?", "hint": "La question la plus posée" },
+        "question": { "label": "Une autre question", "hint": "Vous l’écrivez dans WhatsApp" }
+      },
+      "footer": "Vous écrivez directement à l’agent, sur votre WhatsApp."
+    },
     "filters": {
       "title": "Filtres",
       "searchPlaceholder": "Commune, quartier…",
@@ -1071,7 +1082,7 @@
       "phone": "Votre numéro WhatsApp",
       "submit": "Envoyer ma demande",
       "sending": "Envoi…",
-      "privacy": "Votre numéro est transmis aux agences qui reçoivent votre demande et à l’équipe Lukka Place, et à personne d’autre.",
+      "privacy": "Votre numéro n’est transmis qu’aux agences qui prennent votre demande (3 au plus) et à l’équipe Lukka Place.",
       "sentTitle": "Demande envoyée",
       "sentBody": "Les agences partenaires qui couvrent {commune} la reçoivent. Si l’une d’elles a un bien qui correspond, elle vous écrira sur WhatsApp au numéro finissant par {last4}.",
       "sentBodyShort": "Votre demande a bien été reçue.",
@@ -3797,7 +3808,7 @@
       },
       "account": {
         "title": "Créez votre espace",
-        "lead": "Votre projet sera enregistré, et vous recevrez les nouveaux biens qui y correspondent.",
+        "lead": "Votre projet sera enregistré et envoyé aux agences les mieux placées : celles qui le prennent (3 au plus) reçoivent votre numéro et vous écrivent. Vous recevrez aussi les nouveaux biens qui y correspondent.",
         "noAnswers": "Vous pourrez raconter votre projet plus tard, depuis votre espace.",
         "summary": {
           "one": "{count} réponse enregistrée",
@@ -3807,7 +3818,7 @@
       },
       "edit": {
         "title": "Votre projet est prêt",
-        "lead": "Enregistrez-le : nous préparons les biens et l’alerte qui y correspondent.",
+        "lead": "Enregistrez-le : nous préparons les biens et l’alerte qui y correspondent, et nous l’envoyons aux agences s’il ne l’a pas encore été.",
         "save": "Enregistrer mon projet",
         "saving": "Enregistrement…",
         "error": "Le projet n’a pas pu être enregistré. Réessayez dans un instant.",
@@ -3846,16 +3857,16 @@
         "alertOn": "Alerte active : nous vous prévenons des nouveaux biens qui correspondent à votre projet.",
         "request": {
           "title": "Laissez les agences vous proposer des biens",
-          "lead": "Nous envoyons votre projet aux agences des communes choisies. Elles vous écriront sur WhatsApp.",
+          "lead": "Votre projet part aux agences les mieux placées pour y répondre, d’abord celles de vos communes. Celles qui le prennent vous écrivent sur WhatsApp.",
           "cta": "Envoyer ma demande aux agences",
           "sending": "Envoi…",
           "sent": "Demande envoyée le {date}. Les propositions des agences arrivent dans vos messages.",
           "sentNow": "Demande envoyée. Les propositions des agences arriveront dans vos messages.",
           "seeMessages": "Voir mes messages",
-          "privacy": "Votre numéro est transmis aux agences qui reçoivent votre demande et à l’équipe Lukka Place, et à personne d’autre.",
+          "privacy": "Votre numéro n’est transmis qu’aux agences qui prennent votre demande (3 au plus) et à l’équipe Lukka Place.",
           "missing": {
             "transaction": "Pour envoyer votre demande, dites-nous si vous voulez louer ou acheter.",
-            "communes": "Pour envoyer votre demande, choisissez au moins une commune."
+            "communes": "Pour envoyer votre demande, choisissez votre ville ou au moins une commune."
           },
           "errors": {
             "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant.",
@@ -5560,6 +5571,7 @@
       "agentAlertHelp": "Pour un clic vers le WhatsApp de l'agent : l'alerte « Un client vous contacte » envoyée à l'agent, et ce qu'il a répondu. Un clic n'est pas un message : le client peut fermer WhatsApp sans écrire. L'agent est prévenu une fois par client et par annonce sur 24 h, et au plus une fois toutes les 30 minutes par annonce.",
       "agentAlert": {
         "replied": "A répondu au client",
+        "visitSet": "Visite fixée",
         "nothing": "Dit n'avoir rien reçu",
         "waiting": "Prévenu · sans réponse",
         "failed": "Alerte non envoyée",
@@ -8021,7 +8033,23 @@
         "visitDeclined": "Visite déclinée",
         "visitCancelled": "Visite annulée",
         "visitDone": "Visite faite",
-        "visitOther": "Visite"
+        "visitOther": "Visite",
+        "visitSet": "Agent : visite fixée"
+      },
+      "wants": {
+        "title": "Ce que le client demande",
+        "help": "Avant d’ouvrir WhatsApp, le client choisit : visiter, « toujours disponible ? » ou une autre question. « Demander une visite » compte comme une visite. Inconnu : un appel, un message, ou un clic d’avant le 16 novembre 2026.",
+        "col": "Demande",
+        "filter": "Le client demande",
+        "all": "Tout",
+        "visit": "Une visite",
+        "enquiry": "Un renseignement",
+        "unknown": "Inconnu",
+        "intent": {
+          "visit": "Visite",
+          "availability": "Disponible ?",
+          "question": "Question"
+        }
       }
     },
     "interactions": {
@@ -8291,7 +8319,23 @@
       "oneCustomer": "Projets du client n° {id}.",
       "allCustomers": "Voir tous les clients",
       "whatsapp": "Écrire sur WhatsApp",
-      "call": "Appeler"
+      "call": "Appeler",
+      "wholeCity": "{city} (toute la ville)",
+      "send": "Envoyer aux agences",
+      "sendTitle": "Envoyer ce projet aux agences ?",
+      "sendIntro": "Le projet de {name} part aux agences les mieux placées, 2 d’abord, puis 3, puis 2 toutes les 30 minutes. Une agence ne reçoit le numéro du client que si elle prend la demande (3 au plus). Si personne ne la prend, le bureau est prévenu.",
+      "sendConfirm": "Oui, envoyer",
+      "sending": "Envoi…",
+      "sentShort": "Envoyé",
+      "sentNow": "Projet envoyé aux agences : demande n° {id}.",
+      "sendBlocked": {
+        "transaction": "Ne peut pas partir : louer ou acheter n’est pas dit.",
+        "communes": "Ne peut pas partir : ni ville ni commune.",
+        "recent": "Déjà envoyé il y a moins de 20 h.",
+        "inactive": "Projet trouvé ou en pause : rien n’est envoyé.",
+        "phone": "Ce client n’a pas de numéro.",
+        "send": "L’envoi a échoué. Réessayez dans un instant."
+      }
     },
     "whatsappHistory": {
       "title": "Historique WhatsApp",

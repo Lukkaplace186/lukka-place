@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { Phone } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { communeLabel } from '@/lib/cities';
-import { budgetRangeText } from '@/lib/moveProjectRules';
+import { budgetRangeText, moveRequestBlocker } from '@/lib/moveProjectRules';
 import { getT } from '@/lib/i18n/server';
 import { Chip, formatKinshasa } from '../LeadRoutingUI';
 import { WhatsAppLink } from '../ContactCell';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE } from '../table/TableFrame';
+import SendProjectButton from './SendProjectButton';
 
 const STATUS_TONE = { active: 'blue', paused: 'neutral', found: 'success' };
 
@@ -15,8 +16,9 @@ const STATUS_TONE = { active: 'blue', paused: 'neutral', found: 'success' };
  * who told us the move, and what they told us. The person is the customer
  * account behind the project — its stored name and number, nothing guessed;
  * no name is said as such. The WhatsApp chip opens a chat from the admin's
- * own WhatsApp (wa.me, like ContactCell) and "Appeler" is a tel: link;
- * nothing on this page sends a message by itself.
+ * own WhatsApp (wa.me, like ContactCell) and "Appeler" is a tel: link.
+ * "Envoyer aux agences" (2026-11-16) sends a project that never went, after
+ * a confirmation (SendProjectButton); nothing else here sends anything.
  */
 export default async function MoveProjectRows({ rows }) {
   const t = await getT();
@@ -46,6 +48,9 @@ export default async function MoveProjectRows({ rows }) {
           });
           const reasons = row.reasons || [];
           const communes = row.communes || [];
+          // Why it cannot go yet, else null (lib/moveProjectRules.js).
+          const blocker = moveRequestBlocker({ transactionType: row.transaction_type, communes, city: row.city });
+          const canSend = !row.last_lead_id && row.status === 'active' && !blocker && row.phone && row.project_id != null;
           return (
             <tr key={row.project_id || `${row.customer_id}-${row.created_at}`} className={TR_DENSE}>
               <td className={TD_DENSE}>
@@ -70,7 +75,9 @@ export default async function MoveProjectRows({ rows }) {
                 {row.transaction_type ? <div className="text-ink-45">{t(`account.move.steps.transaction.options.${row.transaction_type}`)}</div> : null}
               </td>
               <td className={TD_DENSE}>
-                {communes.length ? communes.map(communeLabel).join(', ') : <span className="text-ink-45">{t('admin.moveProjects.notSaid')}</span>}
+                {communes.length ? communes.map(communeLabel).join(', ') : row.city ? (
+                  <span>{t('admin.moveProjects.wholeCity', { city: row.city })}</span>
+                ) : <span className="text-ink-45">{t('admin.moveProjects.notSaid')}</span>}
               </td>
               <td className={`${TD_DENSE} u-tabular whitespace-nowrap`}>{budget || <span className="text-ink-45">{t('admin.moveProjects.notSaid')}</span>}</td>
               <td className={TD_DENSE}>
@@ -86,7 +93,23 @@ export default async function MoveProjectRows({ rows }) {
                     <Link href={`/admin/leads/${row.last_lead_id}`} className="text-blue-deep hover:underline">{t('admin.moveProjects.requestN', { id: row.last_lead_id })}</Link>
                     {row.last_lead_at ? <div className="text-ink-45">{formatKinshasa(row.last_lead_at)}</div> : null}
                   </>
-                ) : <span className="text-ink-45">{t('admin.moveProjects.noRequest')}</span>}
+                ) : (
+                  <>
+                    <span className="text-ink-45">{t('admin.moveProjects.noRequest')}</span>
+                    {canSend ? (
+                      <div>
+                        <SendProjectButton
+                          customerId={row.customer_id}
+                          projectId={row.project_id}
+                          customerLabel={row.full_name || `#${row.customer_id}`}
+                        />
+                      </div>
+                    ) : null}
+                    {!row.last_lead_id && row.status === 'active' && blocker ? (
+                      <div className="text-ink-45">{t(`admin.moveProjects.sendBlocked.${blocker}`)}</div>
+                    ) : null}
+                  </>
+                )}
                 {row.phone ? (
                   <Link href={`/admin/leads?wa=${encodeURIComponent(row.phone)}`} className="block text-blue-deep hover:underline">{t('admin.moveProjects.allRequests')}</Link>
                 ) : null}

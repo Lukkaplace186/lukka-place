@@ -18743,6 +18743,255 @@ console.log('\n2. services/openai.js');
 
 
 
+  // ---------------------------------------------------------------------------
+  // §117 Direct contact, measured: city-wide requests and the customer's intent (2026-11-16)
+  // ---------------------------------------------------------------------------
+  // Owner, 2026-11-16: "Mon projet" requests disappeared (9 projects, 0 sent:
+  // 7 had a city and no commune), and with WhatsApp straight to the agent we
+  // could not tell an enquiry from an appointment request. A request with a
+  // city and no commune now goes to that city's agencies in waves; a tap
+  // carries what the customer chose (visit / availability / question).
+  console.log('\n§117 a request with only a city reaches that city\'s agencies; a WhatsApp tap says whether the customer wants a visit');
+  {
+    const dispatch117 = require('../services/leadDispatch');
+    const ranking117 = require('../services/agentRanking');
+    const tap117 = require('../services/contactTapAlert');
+    const enquiry117 = require('../services/listingEnquiry');
+    const chakra117 = require('../services/chakra');
+    const saved117 = {
+      buttons: chakra117.sendInteractiveButtons,
+      text: chakra117.sendWhatsAppMessage,
+      template: chakra117.sendTemplate,
+      ops: process.env.OPS_WHATSAPP_NUMBER,
+      claimTpl: process.env.AGENT_LEAD_CLAIM_TEMPLATE,
+      matchTpl: process.env.AGENT_LEAD_MATCH_TEMPLATE,
+      tapTpl: process.env.CONTACT_TAP_TEMPLATE,
+      tapFlag: process.env.CONTACT_TAP_ALERT,
+      visitTpl: process.env.CONTACT_TAP_VISIT_TEMPLATE,
+      repoListing: propertyRepo.getListingContactById,
+      repoAgent: propertyRepo.getAgentContactById,
+    };
+    const sent117 = [];
+    const desk117 = [];
+    const deskSend = async (to, text) => { desk117.push({ to, text }); return 'session'; };
+    const neutral = async (ids) => new Map(ids.map((id) => [id, { level: 'argent', multiplier: 1 }]));
+    const cityAgents = (n) => Array.from({ length: n }, (_, i) => ({
+      agent_id: 11700 + i, phone: `24394117${String(i).padStart(2, '0')}`, base_score: 70 - i, matching_listings: 3, fitting_listings: 2, display_name: `Agence ${i}`,
+    }));
+    const newLead = (extra = {}) => dbService.createLead({
+      wa_id: '243941170001', name: 'Client 117', source: 'move-project', transaction_type: 'location', price_max: 200, ...extra,
+    });
+    try {
+      chakra117.sendInteractiveButtons = async (to, text, buttons) => { sent117.push({ kind: 'buttons', to, text, buttons }); return { ok: true }; };
+      chakra117.sendWhatsAppMessage = async (to, text) => { sent117.push({ kind: 'text', to, text }); return { ok: true }; };
+      chakra117.sendTemplate = async () => { throw new Error('no template in tests'); };
+      delete process.env.AGENT_LEAD_CLAIM_TEMPLATE;
+      delete process.env.AGENT_LEAD_MATCH_TEMPLATE;
+      process.env.OPS_WHATSAPP_NUMBER = '243941170099';
+
+      check('leads keep the city a request names (idempotent ALTER), only canonical ones through POST /leads', () => {
+        const cols = dbService.db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
+        assert.ok(cols.includes('city'));
+        assert.strictEqual(newLead({ city: 'Kinshasa' }).city, 'Kinshasa');
+        const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(routes, /city: typeof cityRaw === 'string' \? resolveCity\(cityRaw\) : null/);
+      });
+
+      check('a city-wide request: a city with no commune; a commune always wins; a guessed city never counts', () => {
+        assert.strictEqual(dispatch117.cityWideOf({ city: 'Kinshasa' }), 'Kinshasa');
+        assert.strictEqual(dispatch117.cityWideOf({ city: 'lshi' }), 'Lubumbashi');
+        assert.strictEqual(dispatch117.cityWideOf({ city: 'Kinshasa', commune: 'Gombe' }), null);
+        assert.strictEqual(dispatch117.cityWideOf({ city: 'Atlantis' }), null);
+        assert.strictEqual(dispatch117.cityWideOf({}), null);
+        assert.strictEqual(dispatch117.communesLabel({ city: 'Kinshasa' }), 'Kinshasa (toutes communes)');
+        assert.strictEqual(dispatch117.templateParams({ city: 'Kinshasa' }, { display_name: 'A' }, 'l')[1], 'Kinshasa (toutes communes)');
+      });
+
+      let cityLead;
+      await checkAsync('wave 1 of a city-wide request goes to the city ranking\'s best 2, never to the desk as "no commune"', async () => {
+        sent117.length = 0;
+        desk117.length = 0;
+        cityLead = newLead({ city: 'Kinshasa' });
+        let communeRanked = false;
+        const out = await dispatch117.dispatchLead(cityLead, {
+          rank: async () => { communeRanked = true; return []; },
+          rankCity: async (req) => { assert.strictEqual(req.city, 'Kinshasa'); assert.strictEqual(req.priceMax, 200); return cityAgents(6); },
+          levels: neutral,
+          deskSend,
+        });
+        assert.deepStrictEqual([out.wave, out.notified], [1, 2]);
+        assert.strictEqual(communeRanked, false);
+        assert.deepStrictEqual(dbService.getLeadMatches(cityLead.id).map((m) => m.agent_id), [11700, 11701]);
+        const alert = sent117.find((s) => s.kind === 'buttons');
+        assert.match(alert.text, /Kinshasa \(toutes communes\)/);
+        assert.match(alert.text, /n’a pas choisi de commune/);
+        assert.strictEqual(desk117.length, 0);
+      });
+
+      await checkAsync('no city and no commune: the desk, as before', async () => {
+        desk117.length = 0;
+        const lead = newLead();
+        const out = await dispatch117.dispatchLead(lead, { rank: async () => [], rankCity: async () => cityAgents(3), levels: neutral, deskSend });
+        assert.strictEqual(out.skipped, 'no-commune');
+        assert.strictEqual(desk117.length, 1);
+      });
+
+      await checkAsync('nobody in the city: the desk is told, naming the city', async () => {
+        desk117.length = 0;
+        const lead = newLead({ city: 'Lubumbashi' });
+        const out = await dispatch117.dispatchLead(lead, { rank: async () => [], rankCity: async () => [], levels: neutral, deskSend });
+        assert.strictEqual(out.skipped, 'no-coverage');
+        assert.match(desk117[0].text, /Aucune agence inscrite à Lubumbashi \(toute la ville\)/);
+        assert.match(desk117[0].text, /Ville : Lubumbashi/);
+      });
+
+      check('when an agency takes it, the customer hears its city (never "Kinshasa" for Lubumbashi) and gets its WhatsApp', () => {
+        const claims117 = require('../services/leadClaims');
+        const text = claims117.customerText({ city: 'Lubumbashi', wa_id: '243941170001' }, 'Agence Lushi', '243811170001');
+        assert.match(text, /votre recherche à Lubumbashi/);
+        assert.match(text, /https:\/\/wa\.me\/243811170001/);
+        assert.doesNotMatch(claims117.customerText({ commune: 'Gombe' }, 'A', null), /wa\.me/, 'no number, no link');
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'leadClaims.js'), 'utf8');
+        assert.match(src, /envName: 'AGENCY_CLAIMED_TEMPLATE'/);
+        assert.match(src, /usable = contact && !contact\.deleted && contact\.phone_verified_at/);
+      });
+
+      check('the city ranking applies the shared agent gate and never a demo agent', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
+        const body = src.slice(src.indexOf('async function rankAgentsForCity'));
+        for (const gate of [/a\.phone_verified_at IS NOT NULL/, /a\.deleted_at IS NULL/, /a\.direct_routing_enabled IS DISTINCT FROM false/, /NOT LIKE '2430000%'/, /\$\{PUBLIC_LISTING_FILTER\}/]) {
+          assert.match(body, gate);
+        }
+        assert.strictEqual(typeof ranking117.rankAgentsForCity, 'function');
+      });
+
+      check('a Boma request never matches Kinshasa\'s Kalamu: a bare commune name counts only when no other city has it', () => {
+        const boma = ranking117.cityCommuneNames('Boma');
+        assert.ok(boma.includes('kalamu (boma)'));
+        assert.ok(!boma.includes('kalamu'), 'Kalamu is also a Kinshasa commune');
+        assert.ok(!boma.includes('kabondo'), 'Kabondo is also in Kisangani');
+        assert.ok(ranking117.cityCommuneNames('Kinshasa').includes('kalamu'));
+        assert.deepStrictEqual(ranking117.cityCommuneNames('Atlantis'), []);
+      });
+
+      // ---- the customer's intent on a WhatsApp tap ----
+      // The real senders again: the alert is read from httpCalls below.
+      chakra117.sendInteractiveButtons = saved117.buttons;
+      chakra117.sendWhatsAppMessage = saved117.text;
+      delete process.env.CONTACT_TAP_ALERT;
+      delete process.env.CONTACT_TAP_TEMPLATE;
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      propertyRepo.getAgentContactById = async () => ({ agent_id: 43, deleted: false });
+      const toAgent = () => httpCalls.filter((c) => c.data && String(c.data.to) === AGENT_WA);
+
+      check('the visit buttons fit WhatsApp\'s 20 characters; « Visite fixée » parses to VISIT_SET', () => {
+        const b = tap117.buttons(9, 'whatsapp', 'visit');
+        assert.deepStrictEqual(b.map((x) => x.id), ['contact_tap_visit:9', 'contact_tap_replied:9', 'contact_tap_nothing:9']);
+        for (const x of b) assert.ok([...x.title].length <= 20, x.title);
+        assert.deepStrictEqual(tap117.parseTapButtonId('contact_tap_visit:9'), { answer: 'VISIT_SET', alertId: 9 });
+        assert.strictEqual(tap117.buttons(9, 'whatsapp', 'question').length, 2);
+        assert.strictEqual(tap117.buttons(9, 'call', 'visit').length, 2, 'a call has no intent');
+      });
+
+      httpCalls.length = 0;
+      const visit117 = await tap117.alertAgentOfTap({ propertyId: 11701, kind: 'whatsapp', visitorKey: 'v-117a', intent: 'visit' });
+      check('a visit tap: the alert leads with it, carries « Visite fixée », and the intent is stored', () => {
+        assert.strictEqual(visit117.sent, true);
+        const body = JSON.stringify(toAgent()[0].data);
+        assert.match(body, /Un client veut visiter votre bien/);
+        assert.match(body, new RegExp(`contact_tap_visit:${visit117.alertId}`));
+        assert.strictEqual(dbService.getContactTapAlert(visit117.alertId).intent, 'visit');
+      });
+
+      httpCalls.length = 0;
+      const odd117 = await tap117.alertAgentOfTap({ propertyId: 11702, kind: 'whatsapp', visitorKey: 'v-117b', intent: 'pizza' });
+      const call117 = await tap117.alertAgentOfTap({ propertyId: 11703, kind: 'call', visitorKey: 'v-117c', intent: 'visit' });
+      check('an unknown intent, or a call, stores none and keeps the plain alert', () => {
+        assert.strictEqual(dbService.getContactTapAlert(odd117.alertId).intent, null);
+        assert.strictEqual(dbService.getContactTapAlert(call117.alertId).intent, null);
+        assert.match(JSON.stringify(toAgent()[0].data), /Un client vous contacte/);
+      });
+
+      await tap117.handleTapButtonReply({ from: AGENT_WA, replyId: `contact_tap_visit:${visit117.alertId}` });
+      check('« Visite fixée » is kept, counts as a reply, and is counted apart', () => {
+        assert.strictEqual(dbService.getContactTapAlert(visit117.alertId).answer, 'VISIT_SET');
+        const row = dbService.getInteractionCounts({ since: '2000-01-01' }).contactTaps.find((r) => r.propertyId === 11701);
+        assert.deepStrictEqual({ replied: row.replied, visitSet: row.visitSet }, { replied: 1, visitSet: 1 });
+        const listed = dbService.listContactTapAlerts({ propertyIds: [11701], since: '2000-01-01' });
+        assert.strictEqual(listed[0].intent, 'visit');
+      });
+
+      process.env.CONTACT_TAP_TEMPLATE = 'client_vous_contacte_agent';
+      chakra117.sendTemplate = saved117.template;
+      dbService.db.prepare('DELETE FROM whatsapp_last_inbound WHERE wa_id = ?').run(String(AGENT_WA));
+      httpCalls.length = 0;
+      const tpl117 = await tap117.alertAgentOfTap({ propertyId: 11704, kind: 'whatsapp', visitorKey: 'v-117d', intent: 'visit' });
+      check('outside the window the approved template says it in {{3}}, with its two buttons only', () => {
+        assert.strictEqual(tpl117.channel, 'template');
+        const sent = httpCalls.filter((c) => c.data?.type === 'template' && c.data.template?.name === 'client_vous_contacte_agent');
+        const params = sent[0].data.template.components.find((c) => c.type === 'body').parameters.map((p) => p.text);
+        assert.match(params[2], /^une demande de visite — /);
+        const json = JSON.stringify(sent[0].data);
+        assert.doesNotMatch(json, /contact_tap_visit/);
+      });
+
+      process.env.CONTACT_TAP_VISIT_TEMPLATE = 'client_veut_visiter_agent';
+      dbService.db.prepare('DELETE FROM whatsapp_last_inbound WHERE wa_id = ?').run(String(AGENT_WA));
+      httpCalls.length = 0;
+      const visitTpl117 = await tap117.alertAgentOfTap({ propertyId: 11705, kind: 'whatsapp', visitorKey: 'v-117e', intent: 'visit' });
+      const visitSent117 = httpCalls.filter((c) => c.data?.type === 'template').map((c) => c.data.template?.name);
+      httpCalls.length = 0;
+      const questionTpl117 = await tap117.alertAgentOfTap({ propertyId: 11706, kind: 'whatsapp', visitorKey: 'v-117f', intent: 'question' });
+      const questionSent117 = httpCalls.filter((c) => c.data?.type === 'template').map((c) => c.data.template?.name);
+      delete process.env.CONTACT_TAP_VISIT_TEMPLATE;
+      check('once approved, a visit outside the window uses the three-button visit template; a question keeps the usual one', () => {
+        assert.strictEqual(visitTpl117.channel, 'template');
+        assert.deepStrictEqual(visitSent117, ['client_veut_visiter_agent']);
+        assert.strictEqual(questionTpl117.channel, 'template');
+        assert.deepStrictEqual(questionSent117, ['client_vous_contacte_agent']);
+      });
+
+      check('the central number reads the intent back from the pre-typed question', () => {
+        const msg = (q) => `Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\nAppartement à Limete — 700 $ / mois\n\n${q}\n\nhttps://lukkaplace.com/listings/5`;
+        assert.strictEqual(enquiry117.enquiryIntent(msg('Je souhaite visiter ce bien. Quand seriez-vous disponible ?')), 'visit');
+        assert.strictEqual(enquiry117.enquiryIntent(msg('Est-il toujours disponible ?')), 'availability');
+        assert.strictEqual(enquiry117.enquiryIntent(msg('J’ai une question sur ce bien :')), 'question');
+        assert.strictEqual(enquiry117.enquiryIntent(msg('Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?')), null);
+        const facts = enquiry117.parseLinklessEnquiry(msg('J’ai une question sur ce bien :').replace(/\nhttps.*/, ''));
+        assert.strictEqual(facts.price, 700);
+      });
+
+      check('engine and web share the same three intents and the same question lines', () => {
+        const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'whatsappIntent.js'), 'utf8');
+        assert.match(web, /WHATSAPP_INTENTS = Object\.freeze\(\['visit', 'availability', 'question'\]\)/);
+        assert.deepStrictEqual(tap117.INTENTS, ['visit', 'availability', 'question']);
+        assert.ok(web.includes('Je souhaite visiter ce bien.'));
+        assert.ok(web.includes('J’ai une question sur ce bien :'));
+      });
+
+      check('migration: whatsapp_clicks.intent with a closed vocabulary', () => {
+        const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261116_contact_intent.sql'), 'utf8');
+        assert.match(sql, /ALTER TABLE whatsapp_clicks ADD COLUMN IF NOT EXISTS intent text/);
+        assert.match(sql, /CHECK \(intent IS NULL OR intent IN \('visit', 'availability', 'question'\)\)/);
+      });
+    } finally {
+      chakra117.sendInteractiveButtons = saved117.buttons;
+      chakra117.sendWhatsAppMessage = saved117.text;
+      chakra117.sendTemplate = saved117.template;
+      propertyRepo.getListingContactById = saved117.repoListing;
+      propertyRepo.getAgentContactById = saved117.repoAgent;
+      for (const [key, value] of [
+        ['OPS_WHATSAPP_NUMBER', saved117.ops], ['AGENT_LEAD_CLAIM_TEMPLATE', saved117.claimTpl], ['AGENT_LEAD_MATCH_TEMPLATE', saved117.matchTpl],
+        ['CONTACT_TAP_TEMPLATE', saved117.tapTpl], ['CONTACT_TAP_ALERT', saved117.tapFlag],
+        ['CONTACT_TAP_VISIT_TEMPLATE', saved117.visitTpl],
+      ]) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }
+
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

@@ -40,7 +40,10 @@ function parseLeadButtonId(replyId) {
 
 function whereLabel(lead) {
   const communes = leadCommunes(lead);
-  return communes.length ? communes.join(', ') : 'Kinshasa';
+  if (communes.length) return communes.join(', ');
+  // A city-wide request (2026-11-16) says its own city — "Lubumbashi", never
+  // the old "Kinshasa" fallback, which stays for a request naming neither.
+  return dispatch.cityWideOf(lead) || 'Kinshasa';
 }
 
 /** wa.me link with an opening line the agency can send as is. */
@@ -69,13 +72,21 @@ function claimedText(lead, claims) {
 const FULL_TEXT = `Merci ! ${dispatch.MAX_CLAIMS} agences s’occupent déjà de cette demande. Vous serez prévenu de la prochaine.`;
 const PASS_TEXT = 'C’est noté, merci. Répondre aux demandes, même par « Pas dispo », vous garde en tête de liste pour les prochaines.';
 
-function customerText(lead, agencyName) {
-  return [
+/**
+ * The customer's "an agency is on it". Since 2026-11-16 it also carries the
+ * agency's own WhatsApp (owner: customers and agents talk directly): the
+ * customer can write first instead of waiting for a call. Only a verified,
+ * undeleted agency number is given — the one the claim came from.
+ */
+function customerText(lead, agencyName, agencyPhone = null) {
+  const lines = [
     `Bonne nouvelle : ${agencyName ? `l’agence *${agencyName}*` : 'une agence partenaire'} s’occupe de votre recherche à ${whereLabel(lead)}.`,
     'Elle va vous contacter sur ce numéro WhatsApp.',
-    '',
-    '— Lukka Place',
-  ].join('\n');
+  ];
+  const phone = digits(agencyPhone);
+  if (phone) lines.push(`Vous pouvez aussi lui écrire directement : https://wa.me/${phone}`);
+  lines.push('', '— Lukka Place');
+  return lines.join('\n');
 }
 
 async function send(to, text, label) {
@@ -90,14 +101,45 @@ async function send(to, text, label) {
   }
 }
 
-async function agencyName(agentId) {
+/** The claiming agency's name, and its number when verified and not deleted. */
+async function agencyContact(agentId) {
   try {
     // eslint-disable-next-line global-require
     const contact = await require('./propertyRepository').getAgentContactById(agentId);
-    return contact?.agent_name || null;
+    const usable = contact && !contact.deleted && contact.phone_verified_at;
+    return { name: contact?.agent_name || null, phone: usable ? digits(contact.agent_phone) || null : null };
   } catch {
-    return null;
+    return { name: null, phone: null };
   }
+}
+
+/**
+ * The customer's message on WhatsApp: outside their 24 h window (a website
+ * customer usually is) the template `AGENCY_CLAIMED_TEMPLATE` when approved
+ * (draft `agence_prend_demande_client`, docs/claude/whatsapp-delivery.md:
+ * first name, agency, where, agency number), else the text as before — which
+ * then probably does not arrive, and the log says it was only accepted.
+ */
+async function sendCustomerClaimed(lead, { name, phone }, text, label) {
+  try {
+    // eslint-disable-next-line global-require
+    const { sendTemplateOutsideWindow, firstName } = require('./templateOutsideWindow');
+    const viaTemplate = await sendTemplateOutsideWindow({
+      to: digits(lead.wa_id),
+      envName: 'AGENCY_CLAIMED_TEMPLATE',
+      bodyParams: [
+        firstName(lead.name, 'cher client'),
+        name || 'une agence partenaire',
+        whereLabel(lead),
+        phone ? `+${phone}` : 'le numéro qui vous appellera',
+      ],
+      label,
+    });
+    if (viaTemplate) return true;
+  } catch (err) {
+    console.warn(`[lead-claims] ${label}: template not sent (${err.message}) — text`);
+  }
+  return send(lead.wa_id, text, label);
 }
 
 /** When every agency of the current wave said "Pas dispo", send the next wave now. */
@@ -144,8 +186,9 @@ async function answerMatch(match, answer, { channel, replyTo = null } = {}) {
   if (result.outcome === 'claimed' && customer.wa_id) {
     // The customer may be outside the 24 h window (a web form): the send is
     // accepted and may not arrive. Logged either way; the agency calls them.
-    const name = await agencyName(match.agent_id);
-    const text = customerText(lead, name);
+    const agency = await agencyContact(match.agent_id);
+    const { name } = agency;
+    const text = customerText(lead, name, agency.phone);
     const label = `customer told about agent #${match.agent_id} on lead #${lead.id}`;
     // The app first (services/pushNotify.js, category `requests`); WhatsApp
     // as before. Urgent: unread after PUSH_CUSTOMER_FALLBACK_MIN, the same
@@ -162,7 +205,7 @@ async function answerMatch(match, answer, { channel, replyTo = null } = {}) {
       url: '/compte/client/messages',
       urgent: true,
       fallback: { sender: 'customer_text', phone: customer.wa_id, text },
-      sendWhatsApp: () => send(customer.wa_id, text, label),
+      sendWhatsApp: () => sendCustomerClaimed(lead, agency, text, label),
     }).catch((err) => console.error(`[lead-claims] ${label}: ${err.message}`));
   }
   return { ok: true, outcome: result.outcome, claims: result.claims, customer };

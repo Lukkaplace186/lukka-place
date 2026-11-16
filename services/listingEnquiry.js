@@ -177,7 +177,9 @@ function parseLinklessEnquiry(text) {
       reference = ref[1].trim() || null;
       continue;
     }
-    if (/disponible|visiter|https?:\/\//i.test(line)) break;
+    // The question line ends the facts — every wording the storefront has
+    // used, the intent ones of 2026-11-16 included ("J’ai une question…").
+    if (/disponible|visiter|question|https?:\/\//i.test(line)) break;
     if (!facts) facts = line;
   }
 
@@ -330,6 +332,28 @@ function opsMessage({ listing, propertyId, from, quotedReference, agentNotified,
 }
 
 /**
+ * What the customer chose on the storefront before WhatsApp opened
+ * (2026-11-16, web lib/whatsappIntent.js), read back from the question line
+ * the site pre-typed: 'visit' | 'availability' | 'question', or null for the
+ * older combined wording or a message the customer rewrote. Read, never
+ * guessed: only the site's own sentences count.
+ */
+function enquiryIntent(text) {
+  const body = String(text || '');
+  if (/Je souhaite visiter ce bien/i.test(body)) return 'visit';
+  if (/J[’']ai une question sur ce bien/i.test(body)) return 'question';
+  if (/Est-il toujours disponible \?\s*$/im.test(body) && !/quand serait-il possible de le visiter/i.test(body)) return 'availability';
+  return null;
+}
+
+/** The {{message}} of the agent's enquiry template, by intent. */
+const ENQUIRY_INTENT_MESSAGE = {
+  visit: 'Le client souhaite visiter ce bien.',
+  availability: 'Le client demande si le bien est toujours disponible.',
+  question: 'Le client a une question sur ce bien.',
+};
+
+/**
  * Tell the listing's agent and the desk. Never throws; returns whether
  * anybody was actually reached, because the customer's reply depends on it.
  *
@@ -341,7 +365,7 @@ function opsMessage({ listing, propertyId, from, quotedReference, agentNotified,
  *
  * @returns {Promise<{agentNotified: boolean, opsNotified: boolean, reason?: string}>}
  */
-async function notifyEnquiry({ listing, propertyId, from, quotedReference, leadId = null }) {
+async function notifyEnquiry({ listing, propertyId, from, quotedReference, leadId = null, intent = null }) {
   // Same gate as services/postgres.js's resolveAgentId and
   // agentOnboarding's identifySender: an unverified number is somebody's
   // claim, and messaging it would tell a stranger who is asking about an
@@ -362,7 +386,7 @@ async function notifyEnquiry({ listing, propertyId, from, quotedReference, leadI
           agentName: listing.agent_name,
           subject: [listing.title || `annonce n° ${propertyId}`, placeLabel(listing)].filter(Boolean).join(', '),
           client: displayPhone(from),
-          message: 'Est-il toujours disponible ? Le client souhaite le visiter.',
+          message: ENQUIRY_INTENT_MESSAGE[intent] || 'Est-il toujours disponible ? Le client souhaite le visiter.',
           leadId,
           label: `listing enquiry #${propertyId}`,
         },
@@ -526,7 +550,7 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
     // Fire the alert BEFORE replying: the customer's reply states whether
     // somebody was reached, so it cannot be written until we know.
     ({ agentNotified, opsNotified } = await notifyEnquiry({
-      listing, propertyId, from, quotedReference, leadId: lead?.id ?? null,
+      listing, propertyId, from, quotedReference, leadId: lead?.id ?? null, intent: enquiryIntent(text),
     }));
   } else {
     console.log(`[enquiry] property #${propertyId} from ${from} — follow-up of #${recent.id} (${recent.lead_id ? "visit" : "lead"}), no new alert`);
@@ -679,6 +703,7 @@ async function handleUnidentifiedEnquiry({ from, text, primaryWamid, linkless, c
 
 module.exports = {
   handleListingEnquiry,
+  enquiryIntent,
   parseLinklessEnquiry,
   matchEnquiryCandidates,
   carriesEnquiryOpening,

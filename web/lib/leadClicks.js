@@ -1,5 +1,6 @@
 import 'server-only';
 import { VIEWER_KINDS, viewerKindSql } from './trackIngest';
+import { cleanWhatsAppIntent } from './whatsappIntent';
 
 /**
  * Storefront WhatsApp taps, with the routing each one actually took.
@@ -68,6 +69,16 @@ export const RECORD_LEAD_CLICK_CUSTOMER_SQL = `
           (SELECT agent_id FROM properties WHERE id = $1::bigint), $7::text, ${viewerKindSql('$8', '$1', '$9')}, $10::text, $11::bigint)
 `;
 
+// What the customer chose before WhatsApp opened (lib/whatsappIntent.js,
+// migrations/20261116_contact_intent.sql). Tried first when there is one;
+// before the migration (42703) the tap is kept by the statements above,
+// without it.
+export const RECORD_LEAD_CLICK_INTENT_SQL = `
+  INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id, visitor_id, viewer_kind, placement, customer_id, intent)
+  VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::numeric, $6::text,
+          (SELECT agent_id FROM properties WHERE id = $1::bigint), $7::text, ${viewerKindSql('$8', '$1', '$9')}, $10::text, $11::bigint, $12::text)
+`;
+
 export const RECORD_LEAD_CLICK_LEGACY_SQL = `
   INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id)
   VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::numeric, $6::text,
@@ -84,30 +95,39 @@ export const RECORD_LEAD_CLICK_LEGACY_SQL = `
  */
 export async function recordLeadClick(pool, {
   listingId, commune, device, source, price, routingType, visitorId = null, viewerKind = 'visitor', agentId = null,
-  placement = null, customerId = null,
+  placement = null, customerId = null, intent = null,
 }) {
   if (!LEAD_CLICK_ROUTING_TYPES.includes(routingType)) {
     throw new Error(`recordLeadClick: unknown routing type '${routingType}'`);
   }
   try {
     return await insertLeadClick(pool, {
-      listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement, customerId,
+      listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement, customerId, intent,
     });
   } catch (err) {
     // 23514: the routing-type CHECK predates VIA_LUKKA (migration not run yet).
     if (err?.code !== '23514' || routingType !== 'VIA_LUKKA') throw err;
     return insertLeadClick(pool, {
-      listingId, commune, device, source, price, routingType: null, visitorId, viewerKind, agentId, placement, customerId,
+      listingId, commune, device, source, price, routingType: null, visitorId, viewerKind, agentId, placement, customerId, intent,
     });
   }
 }
 
 async function insertLeadClick(pool, {
-  listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement, customerId,
+  listingId, commune, device, source, price, routingType, visitorId, viewerKind, agentId, placement, customerId, intent = null,
 }) {
   const base = [listingId, commune || null, device, source, price, routingType];
   const kind = VIEWER_KINDS.includes(viewerKind) ? viewerKind : 'visitor';
   const tracked = [...base, visitorId || null, kind, agentId || null];
+  const wanted = cleanWhatsAppIntent(intent);
+  if (wanted) {
+    try {
+      const result = await pool.query(RECORD_LEAD_CLICK_INTENT_SQL, [...tracked, leadClickPlacement(placement), customerId || null, wanted]);
+      return result.rowCount > 0;
+    } catch (err) {
+      if (err?.code !== '42703') throw err;
+    }
+  }
   if (customerId) {
     try {
       const result = await pool.query(RECORD_LEAD_CLICK_CUSTOMER_SQL, [...tracked, leadClickPlacement(placement), customerId]);

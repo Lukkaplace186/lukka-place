@@ -321,7 +321,10 @@ export function budgetRangeText(min, max, { between, from, upTo }) {
  */
 export function moveRequestBlocker(project) {
   if (!project?.transactionType) return 'transaction';
-  if (!project.communes?.length) return 'communes';
+  // A city alone is enough (2026-11-16): the request then goes to the
+  // agencies of that city (engine leadDispatch cityWideOf). Only a project
+  // with neither stays unsent — 7 of the first 9 had a city and no commune.
+  if (!project.communes?.length && !findCity(project.city)) return 'communes';
   return null;
 }
 

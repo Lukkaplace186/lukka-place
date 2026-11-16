@@ -1848,6 +1848,10 @@ const LEADS_EXTENDED_COLUMNS = [
   ['contact_followup_answer', 'TEXT'],
   ['contact_followup_answered_at', 'TEXT'],
   ['contact_followup_answer_via', 'TEXT'],
+  // City-wide requests (2026-11-16, services/leadDispatch.js cityWideOf): the
+  // city the customer picked when they ticked no commune ("Mon projet"),
+  // canonical (services/cities.js). NULL = not said; never deduced.
+  ['city', 'TEXT'],
 ];
 
 function migrateLeads() {
@@ -2262,7 +2266,7 @@ const LEAD_FIELDS = [
   'conversation_id', 'wa_id', 'name', 'source', 'property_id', 'transaction_type',
   'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
   'status', 'assigned_agent', 'communes', 'development_id', 'contact_channel', 'recorded_by',
-  'move_story',
+  'move_story', 'city',
 ];
 
 /**
@@ -2348,7 +2352,7 @@ function listContactLog({ since, limit = 3000 } = {}) {
     .all(p);
   const tapAlerts = db
     .prepare(
-      `SELECT id, property_id, agent_id, kind, visitor_key, created_at, sent_via, answer, answered_at
+      `SELECT id, property_id, agent_id, kind, intent, visitor_key, created_at, sent_via, answer, answered_at
          FROM contact_tap_alerts
         WHERE datetime(created_at) >= datetime(@since, '-1 day')
         ORDER BY created_at DESC, id DESC
@@ -2393,7 +2397,8 @@ function getInteractionCounts({ since }) {
   const contactTaps = db
     .prepare(
       `SELECT agent_id, property_id, kind, COUNT(*) AS n,
-              SUM(CASE WHEN answer = 'REPLIED' THEN 1 ELSE 0 END) AS replied,
+              SUM(CASE WHEN answer IN ('REPLIED', 'VISIT_SET') THEN 1 ELSE 0 END) AS replied,
+              SUM(CASE WHEN answer = 'VISIT_SET' THEN 1 ELSE 0 END) AS visit_set,
               SUM(CASE WHEN answer = 'NOTHING' THEN 1 ELSE 0 END) AS nothing_received
          FROM contact_tap_alerts
         WHERE sent_via IS NOT NULL AND datetime(created_at) >= datetime(@since)
@@ -2413,7 +2418,7 @@ function getInteractionCounts({ since }) {
     // to any total: the tap itself is already counted by web.
     contactTaps: contactTaps.map((r) => ({
       agentId: num(r.agent_id), propertyId: num(r.property_id), kind: r.kind,
-      alerted: r.n, replied: r.replied || 0, nothing: r.nothing_received || 0,
+      alerted: r.n, replied: r.replied || 0, nothing: r.nothing_received || 0, visitSet: r.visit_set || 0,
     })),
   };
 }
@@ -4365,6 +4370,22 @@ function recordViewingDirectContact(id, { channel, by, at = new Date().toISOStri
 // ---------------------------------------------------------------------------
 
 /**
+ * `intent` (2026-11-16): what the customer chose before WhatsApp opened —
+ * 'visit' | 'availability' | 'question' (web components/WhatsAppIntentSheet.js),
+ * NULL for a call tap or a tap made before the chooser. Their own tap, never
+ * inferred.
+ */
+function migrateContactTapAlerts() {
+  const existing = new Set(db.prepare('PRAGMA table_info(contact_tap_alerts)').all().map((c) => c.name));
+  if (existing.has('intent')) return [];
+  db.exec('ALTER TABLE contact_tap_alerts ADD COLUMN intent TEXT');
+  console.log('[db] contact_tap_alerts schema migrated — added column(s): intent');
+  return ['intent'];
+}
+
+migrateContactTapAlerts();
+
+/**
  * Why a tap must not alert again, or null. Same visitor on the same listing
  * since `sameVisitorSince` → 'duplicate-visitor'; anyone on the same listing
  * since `sameListingSince` → 'recent-alert'.
@@ -4383,14 +4404,16 @@ function recentContactTapAlert({ propertyId, visitorKey, sameVisitorSince, sameL
 }
 
 /** @returns {number} the new alert id. */
-function createContactTapAlert({ propertyId, agentId, agentWa, kind, visitorKey = null, at = new Date().toISOString() }) {
+function createContactTapAlert({
+  propertyId, agentId, agentWa, kind, visitorKey = null, intent = null, at = new Date().toISOString(),
+}) {
   return Number(
     db
       .prepare(
-        `INSERT INTO contact_tap_alerts (property_id, agent_id, agent_wa, kind, visitor_key, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO contact_tap_alerts (property_id, agent_id, agent_wa, kind, visitor_key, intent, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(Number(propertyId), agentId == null ? null : Number(agentId), String(agentWa), String(kind), visitorKey, at)
+      .run(Number(propertyId), agentId == null ? null : Number(agentId), String(agentWa), String(kind), visitorKey, intent || null, at)
       .lastInsertRowid,
   );
 }
@@ -4404,7 +4427,9 @@ function getContactTapAlert(id) {
   return db.prepare('SELECT * FROM contact_tap_alerts WHERE id = ?').get(Number(id));
 }
 
-const CONTACT_TAP_ANSWERS = ['REPLIED', 'NOTHING'];
+// VISIT_SET (2026-11-16): the customer asked to visit and the agent says a
+// visit is set — a reply too, and the one outcome the console counts apart.
+const CONTACT_TAP_ANSWERS = ['REPLIED', 'NOTHING', 'VISIT_SET'];
 
 /** The agent's answer; the first one stands. @returns {boolean} whether recorded. */
 function answerContactTapAlert(id, answer, at = new Date().toISOString()) {
@@ -4429,7 +4454,7 @@ function listContactTapAlerts({ propertyIds = [], since, limit = 500 } = {}) {
   const cap = Math.min(Math.max(Number(limit) || 500, 1), 2000);
   return db
     .prepare(
-      `SELECT id, property_id, agent_id, kind, visitor_key, created_at, sent_via, answer, answered_at
+      `SELECT id, property_id, agent_id, kind, intent, visitor_key, created_at, sent_via, answer, answered_at
          FROM contact_tap_alerts
         WHERE property_id IN (${ids.map(() => '?').join(',')}) AND created_at >= ?
         ORDER BY created_at DESC, id DESC

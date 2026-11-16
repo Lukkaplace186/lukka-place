@@ -62,8 +62,9 @@ export function contactWhatsAppHref({ agentPhone, message, link }) {
   return getCentralWhatsAppHref(text) || (phone ? buildWhatsAppLink(phone, text) : null);
 }
 
-export function listingWhatsAppMessage(listing) {
+export function listingWhatsAppMessage(listing, intent = null) {
   return buildWhatsAppMessage({
+    intent,
     reference: listing?.reference,
     id: listing?.id,
     propertyType: listing?.category_name,
@@ -77,12 +78,15 @@ export function listingWhatsAppMessage(listing) {
 
 /**
  * @param {Object} listing A row from lib/listings.js.
+ * @param {'visit'|'availability'|'question'|null} [intent] what the customer
+ *   chose before WhatsApp opened (lib/whatsappIntent.js) — only the message
+ *   changes, never where it goes.
  * @returns {{routingType: 'DIRECT_WA'|'CENTRAL_FALLBACK'|'VIA_LUKKA', href: string|null}}
  *   `href` is null only when routing is central and no central number is
  *   configured — callers render their honest disabled state for that.
  */
-export function resolveWhatsAppRouting(listing) {
-  const message = listingWhatsAppMessage(listing);
+export function resolveWhatsAppRouting(listing, intent = null) {
+  const message = listingWhatsAppMessage(listing, intent);
   const agentPhone = String(listing?.agent_phone || '').replace(/\D/g, '');
   if (agentPhone && routesViaLukka()) {
     return { routingType: ROUTING_TYPES.viaLukka, href: getCentralWhatsAppHref(message) };

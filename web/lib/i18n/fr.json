@@ -2829,6 +2829,9 @@
       "accounts": "Comptes créés",
       "verified": "Numéros vérifiés",
       "yourCode": "Votre code :",
+      "agencyCode": "Code de l’agence :",
+      "agencyShared": "Code de {agency} : vos clients et ceux de vos collègues comptent ensemble, pour l’agence.",
+      "yourAgency": "votre agence",
       "copy": "Copier le lien",
       "share": "Partager",
       "qr": "QR code",
@@ -5736,7 +5739,9 @@
         "chip": "Agence partenaire",
         "mark": "Marquer comme partenaire",
         "remove": "Retirer des partenaires",
-        "hint": "Ses annonces sont regroupées et signalées « Agence partenaire » dans les approbations. Rien ne change sur le site public.",
+        "hint": "Ses annonces sont regroupées et signalées « Agence partenaire » dans les approbations, et l’agence reçoit un code de parrainage unique pour tous ses agents : les clients qu’ils amènent comptent pour l’agence.",
+        "code": "Code de parrainage de l’agence (tous ses agents) :",
+        "codeStats": "Clients et crédits de l’agence",
         "marked": "Agence marquée comme partenaire.",
         "unmarked": "Agence retirée des partenaires.",
         "unavailable": "Les agences partenaires ne sont pas encore activées (migration à lancer)."
@@ -7472,9 +7477,11 @@
         "creator": "Créateurs",
         "campaign": "Campagnes",
         "agent": "Agents",
+        "agency": "Agences partenaires",
         "creatorOne": "Créateur",
         "campaignOne": "Campagne",
-        "agentOne": "Agent"
+        "agentOne": "Agent",
+        "agencyOne": "Agence partenaire"
       },
       "period": "Période",
       "days": "{n} jours",

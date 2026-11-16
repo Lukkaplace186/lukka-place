@@ -104,10 +104,18 @@ async function createCustomerFromWhatsApp({ waId, code = null }, pool = require(
               AND (p.agent_id IS NULL OR (a.deleted_at IS NULL AND a.status = 1))
               -- An agent's code only while the agent campaign is on (web
               -- /admin/campagne, cms_settings growth.referral_campaign; no row
-              -- = off). Same condition as web lib/partners.js AGENT_CODES_LIVE_SQL.
-              AND (p.kind <> 'agent' OR EXISTS (
-                SELECT 1 FROM cms_settings s
-                 WHERE s.key = 'growth.referral_campaign' AND (s.value ->> 'active') = 'true'))`,
+              -- = off); an agency's code (2026-11-16) while the agency is
+              -- marked partner and not deleted, switch or not. vendor_id is
+              -- read through to_jsonb so this parses before
+              -- migrations/20261116_agency_partner_codes.sql. Same condition
+              -- as web lib/partners.js AGENT_CODES_LIVE_SQL.
+              AND (p.kind NOT IN ('agent', 'agency')
+                OR (p.kind = 'agent' AND EXISTS (
+                  SELECT 1 FROM cms_settings s
+                   WHERE s.key = 'growth.referral_campaign' AND (s.value ->> 'active') = 'true'))
+                OR (p.kind = 'agency' AND EXISTS (
+                  SELECT 1 FROM partner_agencies pag JOIN vendors pv ON pv.id = pag.vendor_id
+                   WHERE pag.vendor_id = (to_jsonb(p) ->> 'vendor_id')::bigint AND pv.deleted_at IS NULL)))`,
           [code],
         );
         const partner = rows[0];

@@ -18991,6 +18991,52 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // §118 Agency referral codes: JOKER AGENCY's one code (2026-11-16)
+  // ---------------------------------------------------------------------------
+  console.log('\n§118 a partner agency\'s code signs customers up on WhatsApp for the agency, whatever the agents\' campaign switch says');
+  {
+    const customerOnboarding118 = require('../services/customerOnboarding');
+    const src118 = fs.readFileSync(path.join(__dirname, '..', 'services', 'customerOnboarding.js'), 'utf8');
+    const squash118 = (text) => text.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ');
+
+    check('the WhatsApp signup\'s code check has the agency branch, read through to_jsonb (parses before the migration)', () => {
+      const sql = squash118(src118);
+      assert.match(sql, /p\.kind NOT IN \('agent', 'agency'\)/);
+      assert.match(sql, /p\.kind = 'agent' AND EXISTS \( SELECT 1 FROM cms_settings s WHERE s\.key = 'growth\.referral_campaign'/);
+      assert.match(sql, /p\.kind = 'agency' AND EXISTS \( SELECT 1 FROM partner_agencies pag JOIN vendors pv ON pv\.id = pag\.vendor_id WHERE pag\.vendor_id = \(to_jsonb\(p\) ->> 'vendor_id'\)::bigint AND pv\.deleted_at IS NULL\)/);
+      assert.ok(!/\bp\.vendor_id\b/.test(sql), 'no bare p.vendor_id before the column exists');
+    });
+
+    await checkAsync('an agency code found live credits the customer to the agency partner', async () => {
+      const seen = [];
+      const client = {
+        async query(sql, params = []) {
+          const flat = sql.replace(/\s+/g, ' ').trim();
+          seen.push({ sql: flat, params });
+          if (/^SELECT id FROM customers WHERE phone/.test(flat)) return { rows: [] };
+          if (/INSERT INTO customers/.test(flat)) return { rows: [{ id: 601 }] };
+          if (/FROM partners p LEFT JOIN agents/.test(flat)) return { rows: [{ id: 90, code: 'JOKER01', kind: 'agency', agent_phone: null }] };
+          return { rows: [], rowCount: 1 };
+        },
+        release() {},
+      };
+      const result = await customerOnboarding118.createCustomerFromWhatsApp(
+        { waId: '243899118001', code: 'JOKER01' }, { connect: async () => client },
+      );
+      assert.strictEqual(result.partnerCode, 'JOKER01');
+      assert.ok(seen.some((q) => /INSERT INTO partner_conversions/.test(q.sql) && q.params[0] === 90 && q.params[1] === 601));
+      assert.ok(seen.some((q) => /INSERT INTO account_acquisitions/.test(q.sql) && q.params[1] === 'JOKER01' && q.params[2] === 90));
+    });
+
+    check('the migration adds the agency kind idempotently', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261116_agency_partner_codes.sql'), 'utf8');
+      assert.match(sql, /ADD COLUMN IF NOT EXISTS vendor_id bigint/);
+      assert.match(sql, /CHECK \(kind IN \('agent', 'creator', 'campaign', 'agency'\)\)/);
+      assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS partners_vendor_idx/);
+    });
+  }
+
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

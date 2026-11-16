@@ -2829,6 +2829,9 @@
       "accounts": "Accounts created",
       "verified": "Numbers verified",
       "yourCode": "Your code:",
+      "agencyCode": "Agency code:",
+      "agencyShared": "{agency}'s code: your customers and your colleagues' count together, for the agency.",
+      "yourAgency": "your agency",
       "copy": "Copy link",
       "share": "Share",
       "qr": "QR code",
@@ -5736,7 +5739,9 @@
         "chip": "Partner agency",
         "mark": "Mark as partner",
         "remove": "Remove from partners",
-        "hint": "Its listings are grouped and badged “Partner agency” in approvals. Nothing changes on the public site.",
+        "hint": "Its listings are grouped and badged “Partner agency” in approvals, and the agency gets one referral code for all its agents: the customers they bring count for the agency.",
+        "code": "Agency referral code (all its agents):",
+        "codeStats": "Agency customers and credits",
         "marked": "Agency marked as a partner.",
         "unmarked": "Agency removed from partners.",
         "unavailable": "Partner agencies are not switched on yet (migration not run)."
@@ -7472,9 +7477,11 @@
         "creator": "Creators",
         "campaign": "Campaigns",
         "agent": "Agents",
+        "agency": "Partner Agencies",
         "creatorOne": "Creator",
         "campaignOne": "Campaign",
-        "agentOne": "Agent"
+        "agentOne": "Agent",
+        "agencyOne": "Partner Agency"
       },
       "period": "Period",
       "days": "{n} days",

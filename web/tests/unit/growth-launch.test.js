@@ -80,9 +80,9 @@ test('flags are facts: a burst from one connection, a low activation rate once s
   assert.deepEqual(sumByCurrency([{ amount: 1, currency: 'USD' }, { amount: 2.5, currency: 'USD' }, { amount: 1000, currency: 'CDF' }]), { USD: 3.5, CDF: 1000 });
 });
 
-test('the credit run only reads agent partners\' customer conversions not yet credited', () => {
+test('the credit run only reads agent (and partner-agency) customer conversions not yet credited', () => {
   const sql = squash(CREDIT_CANDIDATES_SQL);
-  assert.match(sql, /JOIN partners p ON p\.id = c\.partner_id AND p\.kind = 'agent'/);
+  assert.match(sql, /JOIN partners p ON p\.id = c\.partner_id AND p\.kind IN \('agent', 'agency'\)/);
   assert.match(sql, /NOT EXISTS \(SELECT 1 FROM partner_credits pc WHERE pc\.conversion_id = c\.id\)/);
   assert.match(sql, /AS is_agent_number/);
   const ledger = read('lib/referralCredits.js');

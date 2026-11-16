@@ -609,7 +609,11 @@ model. Engine pieces:
   single-use link to web `/compte/activer` (only the SHA-256 stored). Routed
   in `routes/webhook.js` before the sales referral, with the listing-enquiry
   guards (no draft, no media). Matches only the pre-typed start, never
-  "parrainage". An existing number is pointed to its login.
+  "parrainage". An existing number is pointed to its login. A partner
+  agency's code (kind `agency`, 2026-11-16, JOKER01) is accepted whatever
+  the agents' campaign switch says, while the agency is marked partner — the
+  same SQL text as web `AGENT_CODES_LIVE_SQL` (web/CLAUDE.md, "Agency
+  referral codes"; migration `20261116_agency_partner_codes.sql`). §118.
 - **`services/growthDaily.js`**: job `growth-daily` (registered before
   `sqlite-backup`, pinned in §24), `GROWTH_DAILY_HOUR` (default 7 Kinshasa).
   Web `POST /api/cron/growth-daily` writes the agents' referral credits and

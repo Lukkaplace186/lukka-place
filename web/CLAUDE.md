@@ -207,6 +207,29 @@ Conflating any two of these is the bug that keeps recurring:
   first, so the code is safe before the migration (no chips, no toggle).
   "Partenaires" in the sidebar is the growth/referral programme, a different
   thing. `tests/unit/admin-partner-agencies.test.js`, verify-pipeline §111.
+- **Agency referral codes (2026-11-16, owner: Joker's deal is $1 per customer,
+  counted for the agency as a whole).** A partner agency gets ONE code, a
+  `partners` row of kind `agency` with `vendor_id`
+  (`migrations/20261116_agency_partner_codes.sql`), minted from the agency's
+  name (JOKER AGENCY → JOKER01) by `ensureAgencyPartnerCode` the first time
+  it is needed: the agency's console page (code, `/i/CODE` link, "Clients et
+  crédits de l'agence" → `/admin/partenaires/<id>`) or one of its agents'
+  links. `ensureAgentPartnerCode` returns the agency's code for any agent of a
+  partner agency, so every share link, QR, `!share` and the "Mes parrainages"
+  card of the owner and every agent carry it, and the card shows the
+  AGENCY's figures and money (`scope: 'agency'`). Customers brought by any
+  of them land on one partner: one `$1` credit each (same activation rule,
+  hold, fraud voids — an agency agent's own number is `auto:agent_number`),
+  one row on `/admin/partenaires/agents`, one payout. The code is live while
+  the agency is marked partner and not deleted, **whatever the agents'
+  campaign switch says** (`AGENT_CODES_LIVE_SQL`, engine
+  `customerOnboarding.js` the same text); unmarking the agency switches it
+  off. `vendor_id` is read as `(to_jsonb(p) ->> 'vendor_id')::bigint` so the
+  SQL parses before the migration. Agents' older personal codes (JONAS01)
+  are not redirected to the agency: they follow the campaign switch as
+  before. `/admin/partenaires` has an "Agences partenaires" tab; no fee form
+  for an agency (it earns credits). `tests/unit/agency-partner-codes.test.js`,
+  verify-pipeline §118.
 - **Duplicate detection** flags same-normalised-phone and same-email groups
   only, never name similarity. The phone normaliser folds DRC shorthand onto
   `243…` and leaves every other country's digits alone — an unconditional
@@ -3838,7 +3861,7 @@ AFTER `20261027_growth_attribution.sql`. Every read before it says "not
 switched on" (42P01) and the pages render. Tests:
 `tests/unit/growth-launch.test.js`; engine §24 (job order), §67.
 
-- **$1 per activated customer, agents only** (`lib/referralRules.js` is THE
+- **$1 per activated customer, agents (and partner agencies, 2026-11-16) only** (`lib/referralRules.js` is THE
   rule, change it there; `lib/referralCredits.js` is the ledger). Owner
   decision: a customer counts once their number is verified AND they saved a
   listing, set an alert or requested a visit within 14 days (visit times come
@@ -4191,7 +4214,8 @@ carries the same condition. While stopped an agent's link lands untagged,
 (`CREDIT_CANDIDATES_SQL`) creates no agent credit — sign-ups already linked
 wait and are credited only if the campaign is restarted. On 2026-11-04 the
 only agent credit on record was already void.
-Creators' and campaigns' codes are not affected.
+Creators' and campaigns' codes are not affected, nor a partner agency's code
+(2026-11-16, "Agency referral codes" above): its agents' card stays up.
 Tests: `tests/unit/referral-campaign-switch.test.js`.
 
 ## Interactions clients → agents (`/admin/interactions`, 2026-11-04)

@@ -23,14 +23,18 @@ import { normaliseReferralCode } from './launchCommission';
 export const PARTNER_COOKIE = 'lp_ref';
 export const PARTNER_COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
 
-/** `campaign` is a code the team makes for one channel (a flyer, a radio spot). */
-export const PARTNER_KINDS = ['agent', 'creator', 'campaign'];
+/**
+ * `campaign` is a code the team makes for one channel (a flyer, a radio spot).
+ * `agency` (2026-11-16) is a partner agency's one code, shared by its owner
+ * and agents (lib/partners.js ensureAgencyPartnerCode).
+ */
+export const PARTNER_KINDS = ['agent', 'creator', 'campaign', 'agency'];
 
 /** How the click arrived: a /go link, its printed QR code, or `?ref=` on any page. */
 export const PARTNER_CLICK_VIAS = ['link', 'qr', 'param'];
 
 /** utm_source a partner's link tags the visit with, by kind. */
-export const PARTNER_UTM_SOURCE = { agent: 'agent', creator: 'influencer', campaign: 'campagne' };
+export const PARTNER_UTM_SOURCE = { agent: 'agent', creator: 'influencer', campaign: 'campagne', agency: 'agence' };
 export const PARTNER_UTM_MEDIUM = 'partner';
 
 export { normaliseReferralCode as normalisePartnerCode };

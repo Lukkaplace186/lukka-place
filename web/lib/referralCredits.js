@@ -4,15 +4,17 @@ import { getLeadCountsByWaIds } from './adminApi';
 import {
   ACTIVATION_WINDOW_DAYS, REFERRAL_CREDIT, approvableAt, evaluateActivation, phoneHash, referralFlags, voidReasonFor,
 } from './referralRules';
-import { AGENT_CODES_LIVE_SQL } from './partners';
+import { AGENT_CODES_LIVE_SQL, ensureAgentPartnerCode } from './partners';
 
 /**
  * The agents' $1-per-customer ledger (growth plan items 13–17): writing
  * credits from conversions, the 7-day hold, approving, paying, voiding.
  * lib/referralRules.js decides WHEN a customer counts; this applies it.
  *
- * Only AGENT partners earn credits: a creator or a campaign is paid through
- * the fee recorded on the partner (/admin/partenaires), not per account here.
+ * Only AGENT and AGENCY partners earn credits: a creator or a campaign is paid
+ * through the fee recorded on the partner (/admin/partenaires), not per
+ * account here. An agency partner (2026-11-16, JOKER AGENCY) earns for every
+ * customer its owner or agents bring — one code, one ledger row, one payout.
  *
  * Idempotent: `conversion_id` is UNIQUE and one live credit per phone hash, so
  * a re-run, a second button press and the scheduler can never write a second
@@ -38,12 +40,13 @@ export const CREDIT_CANDIDATES_SQL = `
               AND regexp_replace(COALESCE(ag.phone, ''), '\\D', '', 'g') = regexp_replace(cu.phone, '\\D', '', 'g')
          ) AS is_agent_number
     FROM partner_conversions c
-    JOIN partners p ON p.id = c.partner_id AND p.kind = 'agent'
+    JOIN partners p ON p.id = c.partner_id AND p.kind IN ('agent', 'agency')
     JOIN customers cu ON cu.id = c.account_id
    WHERE c.account_type = 'customer'
      -- No agent credit is created while the agent campaign is stopped
      -- (/admin/campagne, 2026-11-04): sign-ups already linked to an agent's
-     -- code wait, and are credited only if the campaign is restarted.
+     -- code wait, and are credited only if the campaign is restarted. An
+     -- agency's code earns while the agency is marked partner, switch or not.
      AND ${AGENT_CODES_LIVE_SQL}
      AND NOT EXISTS (SELECT 1 FROM partner_credits pc WHERE pc.conversion_id = c.id)
      AND cu.created_at >= NOW() - make_interval(days => $1::int)
@@ -143,7 +146,7 @@ export async function syncReferralCredits({ now = new Date() } = {}) {
 // Console reads
 // ---------------------------------------------------------------------------
 
-/** Per agent partner: accounts, activation, credits by state, money by state, review flags. */
+/** Per agent or agency partner: accounts, activation, credits by state, money by state, review flags. */
 export const AGENT_LEDGER_SQL = `
   WITH conv AS (
     SELECT c.partner_id,
@@ -184,7 +187,7 @@ export const AGENT_LEDGER_SQL = `
      WHERE currency = 'USD'
      GROUP BY partner_id
   )
-  SELECT p.id, p.code, p.agent_id, p.status,
+  SELECT p.id, p.kind, p.code, p.agent_id, p.status,
          COALESCE(NULLIF(TRIM(a.agency_name), ''), NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), p.name) AS name,
          a.phone AS agent_phone,
          COALESCE(conv.accounts, 0) AS accounts, COALESCE(conv.settled, 0) AS settled,
@@ -203,8 +206,8 @@ export const AGENT_LEDGER_SQL = `
     LEFT JOIN settled_credit ON settled_credit.partner_id = p.id
     LEFT JOIN burst ON burst.partner_id = p.id
     LEFT JOIN money ON money.partner_id = p.id
-   WHERE p.kind = 'agent' AND COALESCE(conv.accounts, 0) > 0
-     AND ($2::text IS NULL OR p.code ILIKE $2 OR a.agency_name ILIKE $2 OR CONCAT_WS(' ', ai.first_name, ai.last_name) ILIKE $2)
+   WHERE p.kind IN ('agent', 'agency') AND COALESCE(conv.accounts, 0) > 0
+     AND ($2::text IS NULL OR p.code ILIKE $2 OR p.name ILIKE $2 OR a.agency_name ILIKE $2 OR CONCAT_WS(' ', ai.first_name, ai.last_name) ILIKE $2)
    ORDER BY COALESCE(money.approvable, 0) + COALESCE(money.approved, 0) DESC, COALESCE(conv.accounts, 0) DESC, p.id
    LIMIT $3 OFFSET $4
 `;
@@ -217,6 +220,7 @@ const likeTerm = (q) => {
 function ledgerRow(row) {
   return {
     partnerId: Number(row.id),
+    kind: row.kind,
     code: row.code,
     agentId: row.agent_id == null ? null : Number(row.agent_id),
     name: row.name,
@@ -397,20 +401,24 @@ export async function voidCredit({ creditId, reason, by }) {
 
 /**
  * Credits and money for one agent's dashboard: counts by state, USD by state,
- * and the last customers by first name. Null before the migration.
+ * and the last customers by first name — of the code the agent's links carry,
+ * so an agent of a partner agency sees the AGENCY's total. Null before the
+ * migration.
  */
 export async function getAgentCreditSummary(agentId) {
   try {
+    const code = await ensureAgentPartnerCode(agentId);
+    if (!code) return null;
     const pool = getPool();
     const { rows } = await pool.query(
       `SELECT pc.status, pc.amount, pc.currency, pc.approvable_at, pc.created_at,
               split_part(TRIM(COALESCE(cu.full_name, '')), ' ', 1) AS first_name
          FROM partner_credits pc
-         JOIN partners p ON p.id = pc.partner_id AND p.agent_id = $1
+         JOIN partners p ON p.id = pc.partner_id AND p.code = $1
          LEFT JOIN customers cu ON cu.id = pc.account_id
         WHERE pc.status <> 'void'
         ORDER BY pc.created_at DESC`,
-      [Number(agentId)],
+      [code],
     );
     const usd = rows.filter((row) => row.currency === 'USD');
     const sum = (filter) => Math.round(usd.filter(filter).reduce((total, row) => total + Number(row.amount), 0) * 100) / 100;

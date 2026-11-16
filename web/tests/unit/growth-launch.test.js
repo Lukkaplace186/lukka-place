@@ -229,6 +229,13 @@ test('the owners\' summary names the channels, the best agent and creator', () =
 
 // --- 23–25 -------------------------------------------------------------------------------
 
+test('no "Créer mon compte via WhatsApp" button on the customer signup or invite pages (owner, 2026-11-16)', () => {
+  for (const file of ['app/(site)/compte/inscription/page.js', 'app/(site)/i/[code]/page.js']) {
+    const page = read(file);
+    assert.doesNotMatch(page, /whatsappSignupLink|auth\.whatsappSignup\.cta/, file);
+  }
+});
+
 test('the WhatsApp signup message starts with the wording the engine matches, never "parrainage"', () => {
   assert.equal(whatsappSignupText(), 'Inscription Lukka Place');
   assert.equal(whatsappSignupText('nadia01'), 'Inscription Lukka Place — Code : NADIA01');

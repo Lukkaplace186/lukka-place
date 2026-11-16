@@ -3956,9 +3956,12 @@ switched on" (42P01) and the pages render. Tests:
   `POST /api/cron/growth-daily` (credit run + yesterday's text) and sends the
   text to `ADMIN_ALERT_NUMBERS` (else the desk), through the desk-alert
   template when set.
-- **Signup on WhatsApp** (item 23): "Créer mon compte via WhatsApp" on
+- **Signup on WhatsApp** (item 23): "Créer mon compte via WhatsApp" was on
   `/compte/inscription` and the invite page (`lib/whatsappSignup.js`,
-  "Inscription Lukka Place — Code : X"). The engine
+  "Inscription Lukka Place — Code : X"). **Removed from both pages on
+  2026-11-16 (owner: too confusing, it led to errors)** — the web form is the
+  only way in; `lib/whatsappSignup.js` and the engine handler stay so links
+  already shared still work. The engine
   (`services/customerOnboarding.js`, routed before the sales referral)
   creates a VERIFIED customer (`signup_channel 'whatsapp'`, no usable
   password until set), credits the code's partner, records the acquisition

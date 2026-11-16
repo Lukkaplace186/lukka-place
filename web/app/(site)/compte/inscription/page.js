@@ -5,8 +5,6 @@ import SignupForm from './SignupForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
 import { partnerCodePrefill } from '@/lib/partnerPrefill';
-import { whatsappSignupLink } from '@/lib/whatsappSignup';
-import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import MoveOnboarding from '@/components/MoveOnboarding';
 import CustomerSignupTracker from '@/components/CustomerSignupTracker';
 import { SIGNUP_ENTRY_PARAM, cleanSignupEntry } from '@/lib/signupFunnelRules';
@@ -34,7 +32,9 @@ export default async function CustomerSignupPage({ searchParams }) {
   // paint already shows the right dial code (lib/requestCountry.js).
   const initialCountry = typeof params.country === 'string' ? params.country : await getRequestCountry();
   const partnerCode = await partnerCodePrefill(typeof params.code === 'string' ? params.code : null);
-  const whatsappHref = whatsappSignupLink(partnerCode || null);
+  // No "Créer mon compte via WhatsApp" button any more (owner, 2026-11-16:
+  // too confusing, it led to errors). The engine still answers the message
+  // (services/customerOnboarding.js) for links already shared.
 
   // "Mon déménagement" (2026-11-07): the questions first, card by card, and
   // the account form as the last card (components/MoveOnboarding.js). The
@@ -70,25 +70,12 @@ export default async function CustomerSignupPage({ searchParams }) {
           entry,
         }}
         accountFooter={
-          <>
-            {whatsappHref ? (
-              <a
-                href={whatsappHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="u-press mt-4 flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-bold text-ink hover:border-green"
-              >
-                <WhatsAppIcon className="h-[1.125rem] w-[1.125rem] text-green" />
-                {t('auth.whatsappSignup.cta')}
-              </a>
-            ) : null}
-            <p className="mt-5 text-center text-sm text-ink-45">
-              {t('auth.haveAccount')}{' '}
-              <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
-                {t('common.shared.signIn')}
-              </Link>
-            </p>
-          </>
+          <p className="mt-5 text-center text-sm text-ink-45">
+            {t('auth.haveAccount')}{' '}
+            <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
+              {t('common.shared.signIn')}
+            </Link>
+          </p>
         }
       />
       </>
@@ -114,22 +101,6 @@ export default async function CustomerSignupPage({ searchParams }) {
         <p className="mt-3 text-sm text-ink-45">
           {t('auth.signupKeepsLocal')}
         </p>
-
-        {whatsappHref ? (
-          <>
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="u-press mt-5 flex h-11 items-center justify-center gap-2 rounded-md bg-green px-4 text-sm font-bold text-white hover:bg-green-deep"
-            >
-              <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />
-              {t('auth.whatsappSignup.cta')}
-            </a>
-            <p className="mt-1.5 text-center text-xs text-ink-45">{t('auth.whatsappSignup.hint')}</p>
-            <p className="u-micro mt-4 text-center text-ink-45">{t('auth.whatsappSignup.or')}</p>
-          </>
-        ) : null}
 
         <SignupForm
           action={signupAction}

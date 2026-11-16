@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { getTotalPageViews, getWhatsAppConversionRate, getViewsByDevice } from '@/lib/analytics';
 import { TAB_QUEUES } from '@/lib/adminDashboardTabs';
 import { frNumber } from '@/lib/format';
@@ -6,21 +7,29 @@ import WorkQueues from '../WorkQueues';
 import ClickBreakdown from '../ClickBreakdown';
 import TabSection from './TabSection';
 
-function StatCard({ label, value, hint }) {
-  return (
-    <div className="rounded-card border border-line bg-white p-4">
+function StatCard({ label, value, hint, href }) {
+  const body = (
+    <>
       <p className="u-eyebrow text-ink-45">{label}</p>
       <p className="u-stat mt-1 text-ink">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-ink-45">{hint}</p> : null}
-    </div>
+      {hint ? <p className={`mt-1 text-xs ${href ? 'font-medium text-blue' : 'text-ink-45'}`}>{hint}</p> : null}
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className="block rounded-card border border-line bg-white p-4 transition-colors hover:border-blue">
+        {body}
+      </Link>
+    );
+  }
+  return <div className="rounded-card border border-line bg-white p-4">{body}</div>;
 }
 
 /**
  * "Is the business moving?" — the urgent queues, the traffic behind the KPI
  * header, and the 12-week click trend. Everything else lives in its own tab.
  */
-export default async function ExecutiveTab({ role, sinceDays }) {
+export default async function ExecutiveTab({ role, sinceDays, periode = null }) {
   const t = await getT();
   const [pageViews, conversionRate, byDevice] = await Promise.all([
     getTotalPageViews({ sinceDays }),
@@ -42,7 +51,13 @@ export default async function ExecutiveTab({ role, sinceDays }) {
 
       <TabSection title={t('admin.queues.trafficTitle')}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatCard label={t('admin.dashboard.pageViews')} value={frNumber(pageViews)} />
+          {/* Opens where those visitors came from (2026-11-16), same period. */}
+          <StatCard
+            label={t('admin.dashboard.pageViews')}
+            value={frNumber(pageViews)}
+            hint={t('admin.dashboard.pageViewsHint')}
+            href={periode ? `/admin/dashboard/sources?periode=${periode}` : '/admin/dashboard/sources'}
+          />
           <StatCard
             label={t('admin.dashboard.conversionRate')}
             value={conversionRate === null ? t('common.shared.noData') : `${(conversionRate * 100).toFixed(1)}%`}

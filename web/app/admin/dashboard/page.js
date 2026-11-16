@@ -121,7 +121,7 @@ export default async function AdminDashboardPage({ searchParams }) {
       </nav>
 
       <Suspense key={`${tab.key}|${period.key}|${beds ?? ''}`} fallback={<TabSkeleton />}>
-        {tab.key === 'apercu' ? <ExecutiveTab role={role} sinceDays={sinceDays} /> : null}
+        {tab.key === 'apercu' ? <ExecutiveTab role={role} sinceDays={sinceDays} periode={periode} /> : null}
         {tab.key === 'demande' ? <DemandLeadsTab role={role} sinceDays={sinceDays} /> : null}
         {tab.key === 'offre' ? <SupplyVerificationTab role={role} sinceDays={sinceDays} /> : null}
         {tab.key === 'marche' ? <MarketIntelligenceTab sinceDays={sinceDays} beds={beds} periode={periode} /> : null}

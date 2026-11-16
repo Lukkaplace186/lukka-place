@@ -286,6 +286,23 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   `marketBenchmarks.js`, deliberately: a sold listing is not on the market.
   Yearly rent ÷ 12 exactly as `lib/format.js` renders it; `price <= 0` is "prix
   sur demande", counted apart and never averaged in as $0.
+- **Where visitors come from** (2026-11-16, owner: "see if it's Facebook ads,
+  Instagram, ChatGPT… so we can double down"): the dashboard's "Page views"
+  tile opens `/admin/dashboard/sources` with the same period. Channels, change
+  against the same-length window before, WhatsApp clicks and contact rate per
+  channel, visitors per hour (24 h) / day / week (Kinshasa time), the tagged
+  campaigns (Meta sends `{{campaign.id}}` as utm_campaign and its placement —
+  fb / ig / an — as utm_source) and agents' codes, then the raw sources.
+  Rules in `lib/trafficChannels.js`, as a JS function and as a SQL CASE built
+  from the same lists (checked to agree on all 66 production combinations);
+  queries in `lib/trafficSources.js`, people only (`peopleSql`), so totals sit
+  below the tile's raw count. **An fbclid alone is Facebook, not an ad** —
+  Facebook adds it to every outbound link; an ad is a paid utm_medium, a Meta
+  campaign id, ttclid or gclid (`lib/growthRules.js` still counts fbclid as
+  paid for accounts). A WhatsApp click goes to the channel of the same
+  visitor's last page view before it. ChatGPT tags its links
+  `utm_source=chatgpt.com`; on launch it was the second channel by visitors
+  and the first by WhatsApp clicks. `tests/unit/traffic-sources.test.js`.
 - **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
   Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
   direct-to-agent tap is invisible to us and is shown beside the rate, never in

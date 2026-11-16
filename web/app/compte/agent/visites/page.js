@@ -241,7 +241,7 @@ export default async function AgentVisitAgendaPage() {
 
         {availability.available ? (
           <AgentVisitAvailability
-            initial={{ closedWeekdays: availability.closedWeekdays, blockedDates: availability.blockedDates }}
+            initial={{ closedWeekdays: availability.closedWeekdays, blockedDates: availability.blockedDates, videoVisits: availability.videoVisits }}
             today={kinshasaDayKey(now)}
           />
         ) : null}

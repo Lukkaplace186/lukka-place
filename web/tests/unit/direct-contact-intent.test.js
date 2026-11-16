@@ -29,7 +29,7 @@ test.beforeEach(() => reset());
 // --- the WhatsApp intent ---------------------------------------------------
 
 test('three intents, anything else is none; on unless switched off', () => {
-  assert.deepEqual(WHATSAPP_INTENTS, ['visit', 'availability', 'question']);
+  assert.deepEqual(WHATSAPP_INTENTS, ['visit', 'video_visit', 'availability', 'question']);
   assert.equal(cleanWhatsAppIntent('visit'), 'visit');
   assert.equal(cleanWhatsAppIntent('VISIT'), null);
   assert.equal(cleanWhatsAppIntent(undefined), null);

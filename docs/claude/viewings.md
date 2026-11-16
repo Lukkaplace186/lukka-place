@@ -779,3 +779,50 @@ escalated, and the listing stayed on the site as "sous offre".
   request whose answer took the listing down shows "Annonce retirée du site
   (louée / vendue)" with the time. Only rows on the same page are paired.
 - verify-pipeline §108; web `tests/unit/viewing-groups.test.js`.
+
+## "Visite par appel vidéo" — the diaspora visits by WhatsApp video (2026-11-16)
+
+Owner request: a customer abroad (Paris, Brussels, Washington) could book a
+visit but not attend it, and paying from abroad on the strength of photos is
+where Kinshasa scams happen. Now the visit can be a WhatsApp video call: the
+agent calls the customer from the property at the booked time. Everything
+else is the ordinary visit loop (Accepter / Autre créneau / Décliner, SLA,
+check-in, bon de visite); "Agent absent" at the check-in also covers an agent
+who never called.
+
+- **`viewing_requests.visit_mode`** (SQLite ALTER list): `'in_person'` |
+  `'video'`, NULL on every older row = in person, never backfilled. Rules in
+  `services/visitMode.js`. A separate column, never folded into
+  `requested_time`: the agent's new-time proposal replaces that phrase and
+  the mode must survive it.
+- **Routes.** `POST /admin/viewing-requests` and `/batch` (per item) take
+  `visit_mode`; anything but the two values is a 400. A repeated form can
+  switch the mode while PENDING (`refreshPendingViewing`). `GET
+  /admin/viewing-requests/feed?visit_mode=video|in_person` filters
+  (in_person includes NULL). The owner and customer lists return the column.
+- **No new template.** `demande_visite_agent_v3`'s date/time variable reads
+  « mardi 18 novembre à 10h00 · par appel vidéo » (`withVisitMode`); so do the
+  customer's confirmed / unavailable templates (`slotForTemplate`), the desk
+  copy and the push. The session alert and the agent's own confirmation add
+  « 📹 … appelez le client en vidéo sur WhatsApp à l'heure prévue »; the
+  customer's confirmation adds « l'agent vous appellera en vidéo » and the
+  owner's warning **« Ne versez aucun argent sur la seule base d'une
+  vidéo. »**; the reminders say « Gardez WhatsApp ouvert ».
+- **The direct WhatsApp path**: a fourth tap intent `video_visit` (web
+  `lib/whatsappIntent.js`, second step after « Je veux le visiter »).
+  `contactTapAlert` titles it « Un client veut visiter votre bien par appel
+  vidéo » with the visit buttons; outside the window the visit template's
+  listing variable gets « · par appel vidéo ». The central number reads the
+  pre-typed sentence back (`listingEnquiry.enquiryIntent`).
+- **The agent's switch** « J'accepte les visites par appel vidéo »:
+  `agent_visit_availability.video_visits` (Postgres, default true — owner: on
+  by default). Off = the dialog and the chooser stop offering it and the
+  listing's Server Action refuses a posted video visit (`visit_error=video`).
+- **Migration** `migrations/20261116_video_visits.sql` (the switch column +
+  the `whatsapp_clicks.intent` CHECK widened to `video_visit`). Before it
+  runs: every agent accepts video visits, the switch says it cannot be saved
+  yet, and a video tap is stored as `visit` (web retries on 23514).
+- **Not covered:** the visit cart ("Mes visites", up to 4 listings) is still
+  in person only — the batch route accepts `visit_mode`, the sheet does not
+  offer it yet.
+- verify-pipeline §119; web `tests/unit/video-visits.test.js`.

@@ -66,16 +66,21 @@ const SAME_LISTING_MS = 30 * 60 * 1000;
 const ANSWERS = { replied: 'REPLIED', nothing: 'NOTHING', visit: 'VISIT_SET' };
 
 /** What the customer chose before WhatsApp opened (web lib/whatsappIntent.js). */
-const INTENTS = ['visit', 'availability', 'question'];
+const INTENTS = ['visit', 'video_visit', 'availability', 'question'];
+
+/** Both ask for an appointment: the agent gets the « Visite fixée » answer. */
+const VISIT_INTENTS = ['visit', 'video_visit'];
 
 /** The intent as the agent reads it, in the alert's title and the template's {{3}}. */
 const INTENT_TITLE = {
   visit: 'Un client veut visiter votre bien',
+  video_visit: 'Un client veut visiter votre bien par appel vidéo',
   availability: 'Un client demande si votre bien est disponible',
   question: 'Un client a une question sur votre bien',
 };
 const INTENT_PURPOSE = {
   visit: 'une demande de visite',
+  video_visit: 'une visite par appel vidéo WhatsApp',
   availability: 'savoir si le bien est disponible',
   question: 'une question',
 };
@@ -93,7 +98,7 @@ function digits(value) {
 }
 
 function buttons(alertId, kind, intent = null) {
-  if (kind !== 'call' && intent === 'visit') {
+  if (kind !== 'call' && VISIT_INTENTS.includes(intent)) {
     return [
       { id: `contact_tap_visit:${alertId}`, title: '📅 Visite fixée' },
       { id: `contact_tap_replied:${alertId}`, title: "✅ J'ai répondu" },
@@ -126,6 +131,7 @@ function alertText({ listing, propertyId, kind, intent = null, withQuestion = tr
   if (withQuestion) {
     let ask;
     if (kind === 'call') ask = 'Après votre échange, dites-le-nous ci-dessous : nous ne voyons pas vos appels.';
+    else if (wanted === 'video_visit') ask = 'Proposez-lui un créneau et appelez-le en vidéo sur WhatsApp depuis le bien, puis dites-le-nous ci-dessous : nous ne voyons pas vos échanges.';
     else if (wanted === 'visit') ask = 'Proposez-lui un créneau, puis dites-le-nous ci-dessous : nous ne voyons pas vos échanges.';
     else ask = 'Répondez-lui vite, puis dites-le-nous ci-dessous : nous ne voyons pas vos échanges.';
     lines.push('', ask);
@@ -144,7 +150,7 @@ const THANKS = {
  * Tell the listing's agent a customer just tapped their button. Never throws.
  *
  * @param {{propertyId: number|string, kind: 'whatsapp'|'call', visitorKey?: string|null,
- *   intent?: 'visit'|'availability'|'question'|null, now?: Date}} input
+ *   intent?: 'visit'|'video_visit'|'availability'|'question'|null, now?: Date}} input
  * @returns {Promise<{sent: boolean, reason?: string, alertId?: number, channel?: string}>}
  */
 async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = null, now = new Date() } = {}) {
@@ -198,10 +204,14 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = n
     // replies « Visite fixée » / « J'ai répondu » / « Rien reçu » = the three
     // payloads), so the appointment can be answered from a cold chat too.
     // Unset → the two-button template below, intent in {{3}}.
-    if (wanted === 'visit' && await sendTemplateOutsideWindow({
+    // A video visit rides the same template, the mode written after the listing.
+    if (VISIT_INTENTS.includes(wanted) && await sendTemplateOutsideWindow({
       to,
       envName: 'CONTACT_TAP_VISIT_TEMPLATE',
-      bodyParams: [firstName(listing.agent_name, 'cher partenaire'), listingLabel(listing, id)],
+      bodyParams: [
+        firstName(listing.agent_name, 'cher partenaire'),
+        wanted === 'video_visit' ? `${listingLabel(listing, id)} · par appel vidéo` : listingLabel(listing, id),
+      ],
       buttons: buttons(alertId, kind, wanted),
       label: `contact tap #${alertId} (visit)`,
       now,

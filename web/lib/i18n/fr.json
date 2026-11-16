@@ -489,11 +489,34 @@
       "lead": "WhatsApp s’ouvre avec votre message déjà écrit pour {who}.",
       "theAgent": "l’agent",
       "options": {
-        "visit": { "label": "Je veux le visiter", "hint": "Demandez un créneau de visite" },
-        "availability": { "label": "Est-il toujours disponible ?", "hint": "La question la plus posée" },
-        "question": { "label": "Une autre question", "hint": "Vous l’écrivez dans WhatsApp" }
+        "visit": {
+          "label": "Je veux le visiter",
+          "hint": "Demandez un créneau de visite"
+        },
+        "availability": {
+          "label": "Est-il toujours disponible ?",
+          "hint": "La question la plus posée"
+        },
+        "question": {
+          "label": "Une autre question",
+          "hint": "Vous l’écrivez dans WhatsApp"
+        },
+        "video_visit": {
+          "label": "Par appel vidéo",
+          "hint": "Idéal si vous êtes à l’étranger"
+        }
       },
-      "footer": "Vous écrivez directement à l’agent, sur votre WhatsApp."
+      "footer": "Vous écrivez directement à l’agent, sur votre WhatsApp.",
+      "visitMode": {
+        "title": "Comment voulez-vous visiter ?",
+        "lead": "Sur place, ou l’agent vous montre le bien en vidéo sur WhatsApp.",
+        "back": "Retour",
+        "warning": "Ne versez aucun argent sur la seule base d’une vidéo.",
+        "inPerson": {
+          "label": "Sur place",
+          "hint": "Vous allez au bien avec l’agent"
+        }
+      }
     },
     "filters": {
       "title": "Filtres",
@@ -1124,7 +1147,8 @@
       "phone": "Numéro invalide — vérifiez et réessayez.",
       "time": "Indiquez le créneau qui vous arrange.",
       "failed": "L'envoi a échoué, réessayez.",
-      "closed": "L’agent ne fait pas de visites ce jour-là. Choisissez un autre jour."
+      "closed": "L’agent ne fait pas de visites ce jour-là. Choisissez un autre jour.",
+      "video": "Cet agent ne propose pas de visite par appel vidéo. Choisissez une visite sur place."
     },
     "trackVisit": "Suivre sa réponse dans Mes visites →",
     "visitShort": "Visiter",
@@ -1179,7 +1203,21 @@
         "failed": "L’envoi a échoué. Réessayez dans un instant."
       }
     },
-    "sentTeam": "Votre demande de visite est bien reçue. L’équipe Lukka Place la transmet à l’agent et vous répond."
+    "sentTeam": "Votre demande de visite est bien reçue. L’équipe Lukka Place la transmet à l’agent et vous répond.",
+    "visitMode": {
+      "label": "Comment voulez-vous visiter ?",
+      "inPerson": "Sur place",
+      "inPersonHint": "Vous allez au bien avec l’agent",
+      "video": "Par appel vidéo",
+      "videoHint": "L’agent vous montre le bien en vidéo sur WhatsApp",
+      "videoNote": "L’agent vous appellera en vidéo sur WhatsApp, au numéro indiqué ci-dessous, à l’heure choisie.",
+      "warning": "Ne versez aucun argent sur la seule base d’une vidéo.",
+      "bothClocks": "{listingTime} à {listingCity} · {visitorTime} à {visitorCity}",
+      "optionVisitor": "{time} ({visitorTime} à {visitorCity})",
+      "nextDay": "le lendemain",
+      "prevDay": "la veille",
+      "sentVideo": "Visite par appel vidéo : l’agent vous appellera sur WhatsApp à l’heure convenue."
+    }
   },
   "search": {
     "label": {
@@ -1468,7 +1506,12 @@
       "noSlot": "Créneau non précisé",
       "slotAgreed": "Confirmée · heure de Kinshasa",
       "slotPicked": "Créneau choisi par le client · heure de Kinshasa",
-      "slotInWords": "Demandé par le client, en ses mots"
+      "slotInWords": "Demandé par le client, en ses mots",
+      "video": {
+        "title": "Visite par appel vidéo",
+        "howTo": "Appelez le client en vidéo sur WhatsApp à l’heure prévue, depuis le bien.",
+        "short": "appel vidéo"
+      }
     },
     "settings": {
       "title": "Paramètres",
@@ -2063,6 +2106,12 @@
         "failed": "Enregistrement impossible. Réessayez.",
         "unavailable": "Ce réglage n’est pas encore disponible.",
         "note": "Appliqué tout de suite à toutes vos annonces."
+      },
+      "video": {
+        "title": "J’accepte les visites par appel vidéo",
+        "lead": "Un client à l’étranger vous demande de lui montrer le bien en vidéo sur WhatsApp.",
+        "savedOn": "Visites par appel vidéo activées.",
+        "savedOff": "Visites par appel vidéo désactivées."
       }
     },
     "availability": {
@@ -3142,7 +3191,9 @@
         "slot": "Créneau : {time}",
         "noInstant": "L'horaire exact reste à confirmer avec l'agent.",
         "declined": "L'agent ne peut pas organiser cette visite. Des biens similaires vous ont été proposés sur WhatsApp.",
-        "agentAbsent": "Merci de nous l'avoir signalé : notre équipe vous recontacte."
+        "agentAbsent": "Merci de nous l'avoir signalé : notre équipe vous recontacte.",
+        "video": "par appel vidéo",
+        "videoConfirmed": "l’agent vous appellera en vidéo sur WhatsApp. Ne versez aucun argent sur la seule base d’une vidéo."
       },
       "status": {
         "PENDING": "Visite demandée",
@@ -5488,7 +5539,12 @@
       "confirmClosed": "Cette demande ne peut plus être confirmée (déclinée, annulée ou terminée).",
       "awaitingCustomer": "En attente du client",
       "proposalReminded": "Client relancé",
-      "proposalRefused": "Créneau refusé — agent relancé"
+      "proposalRefused": "Créneau refusé — agent relancé",
+      "mode": {
+        "label": "Type de visite",
+        "inPerson": "Sur place",
+        "video": "Appel vidéo"
+      }
     },
     "marketData": {
       "title": "Données marché",
@@ -8088,7 +8144,8 @@
         "intent": {
           "visit": "Visite",
           "availability": "Disponible ?",
-          "question": "Question"
+          "question": "Question",
+          "video_visit": "Visite vidéo"
         }
       }
     },

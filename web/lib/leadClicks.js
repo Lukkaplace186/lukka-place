@@ -125,6 +125,13 @@ async function insertLeadClick(pool, {
       const result = await pool.query(RECORD_LEAD_CLICK_INTENT_SQL, [...tracked, leadClickPlacement(placement), customerId || null, wanted]);
       return result.rowCount > 0;
     } catch (err) {
+      // 23514: the intent CHECK predates 'video_visit'
+      // (migrations/20261116_video_visits.sql not run yet) — the tap is kept
+      // as the visit request it also is.
+      if (err?.code === '23514' && wanted === 'video_visit') {
+        const result = await pool.query(RECORD_LEAD_CLICK_INTENT_SQL, [...tracked, leadClickPlacement(placement), customerId || null, 'visit']);
+        return result.rowCount > 0;
+      }
       if (err?.code !== '42703') throw err;
     }
   }

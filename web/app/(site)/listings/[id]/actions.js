@@ -10,6 +10,7 @@ import { utcOffsetForListing } from '@/lib/cities';
 import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { visitModeFromForm } from '@/lib/visitMode';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -60,9 +61,15 @@ export async function submitVisitRequestAction(propertyId, formData) {
 
   // A day the agent marked as taking no visits: the calendar greys it out, and
   // a form posted around the calendar is refused the same way.
-  if (picked?.iso && dayClosed(kinshasaDayKey(picked.iso), await getListingAvailability(listing.id))) {
+  // "Sur place" / "Par appel vidéo" (lib/visitMode.js). A video visit the
+  // agent no longer takes is refused, like a closed day: the dialog stops
+  // offering it, and a form posted around the dialog is answered the same way.
+  const visitMode = visitModeFromForm(formData);
+  const availability = await getListingAvailability(listing.id);
+  if (picked?.iso && dayClosed(kinshasaDayKey(picked.iso), availability)) {
     redirect(`${base}?visit_error=closed`);
   }
+  if (visitMode === 'video' && !availability.videoVisits) redirect(`${base}?visit_error=video`);
 
   try {
     const { lead } = await createLead({
@@ -71,9 +78,9 @@ export async function submitVisitRequestAction(propertyId, formData) {
       source: 'listing-visit-request',
       propertyId: listing.id,
       assignedAgent: listing.agency_name || null,
-      requirementsSummary: `Demande de visite — créneau souhaité : ${requestedTime}`,
+      requirementsSummary: `Demande de visite${visitMode === 'video' ? ' par appel vidéo' : ''} — créneau souhaité : ${requestedTime}`,
     });
-    await createViewingRequest({ leadId: lead.id, propertyId: listing.id, requestedTime, preferredSlotAt: picked?.iso || null });
+    await createViewingRequest({ leadId: lead.id, propertyId: listing.id, requestedTime, preferredSlotAt: picked?.iso || null, visitMode });
   } catch (err) {
     console.error(`[listings/${propertyId}] visit request failed: ${err.message}`);
     redirect(`${base}?visit_error=1`);
@@ -92,5 +99,5 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // agent. Without one the request goes to Lukka Place's desk, and the page
   // must not tell the customer an agent has it (request #8, 2026-10-10: the
   // listing had no agent and the confirmation still said "sent to the agent").
-  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}`);
+  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&visit_mode=video' : ''}`);
 }

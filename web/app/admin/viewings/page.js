@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { listViewingFeed } from '@/lib/adminApi';
+import { VISIT_MODES } from '@/lib/visitMode';
 import { getListingLabels } from '@/lib/adminLeadRouting';
 import { getAgentContactsByIds, searchAgentIds } from '@/lib/agents';
 import {
@@ -79,6 +80,8 @@ export default async function AdminViewingsPage({ searchParams }) {
     status: VIEWING_REQUEST_STATUSES.includes(statusParam) || VIEW_FILTERS[statusParam] ? statusParam : undefined,
     routing: ROUTING_TYPES.includes(firstParam(raw.routing)) ? firstParam(raw.routing) : undefined,
     commune: firstParam(raw.commune) || undefined,
+    // "Visite par appel vidéo" (lib/visitMode.js): sur place / vidéo.
+    mode: VISIT_MODES.includes(firstParam(raw.mode)) ? firstParam(raw.mode) : undefined,
     from: DATE_PATTERN.test(firstParam(raw.from) || '') ? firstParam(raw.from) : undefined,
     to: DATE_PATTERN.test(firstParam(raw.to) || '') ? firstParam(raw.to) : undefined,
   };
@@ -96,6 +99,7 @@ export default async function AdminViewingsPage({ searchParams }) {
       q: filters.q,
       agentIds,
       commune: filters.commune,
+      visitMode: filters.mode,
       from: kinshasaDayStart(filters.from),
       to: kinshasaDayEnd(filters.to),
       limit,
@@ -180,6 +184,12 @@ export default async function AdminViewingsPage({ searchParams }) {
             param: 'routing',
             label: t('admin.viewings.colRouting'),
             options: ROUTING_TYPES.map((value) => ({ value, label: t(ROUTING_TYPE_LABEL_KEYS[value]) })),
+          },
+          {
+            type: 'select',
+            param: 'mode',
+            label: t('admin.viewings.mode.label'),
+            options: VISIT_MODES.map((value) => ({ value, label: t(`admin.viewings.mode.${value === 'video' ? 'video' : 'inPerson'}`) })),
           },
           {
             type: 'select',
@@ -281,6 +291,7 @@ export default async function AdminViewingsPage({ searchParams }) {
                         <span className="text-ink-35">{t('admin.viewings.notRouted')}</span>
                       )}
                       {row.reassigned_at ? <Chip>{t('admin.viewings.reassignedChip')}</Chip> : null}
+                      {row.visit_mode === 'video' ? <Chip tone="blue">{t('admin.viewings.mode.video')}</Chip> : null}
                     </div>
                   </td>
                   <td className={TD_DENSE}>

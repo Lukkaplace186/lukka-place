@@ -136,6 +136,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
   const sp = await searchParams;
   const visitSent = sp.visit_sent === '1' ? 'agent' : sp.visit_sent === 'team' ? 'team' : null;
   const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
+  // A video visit's confirmation carries the payment warning (lib/visitMode.js).
+  const visitVideo = Boolean(visitSent) && sp.visit_mode === 'video';
   const listing = await getListingById(id);
 
   // Covers both "no such id" and "exists but is not approved" —
@@ -388,7 +390,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">
-              <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} saveShare={false} />
+              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} />
               <AgentProfileLink agentId={listing.agent_id} />
               <PricePanel listing={listing} />
               <SimilarAlertButton query={alertQuery} />
@@ -416,7 +418,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
               it the item stretches to the row's full height and has no
               room left to stick within. top-24 clears the fixed header. */}
           <aside className="hidden w-full self-start lg:sticky lg:top-24 lg:flex lg:flex-col lg:space-y-4">
-            <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} placement="listing_desktop" />
+            <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} placement="listing_desktop" />
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
             <SimilarAlertButton query={alertQuery} />

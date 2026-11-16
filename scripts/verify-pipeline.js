@@ -18961,10 +18961,12 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(facts.price, 700);
       });
 
-      check('engine and web share the same three intents and the same question lines', () => {
+      // Four since §119 added the video visit (2026-11-16).
+      check('engine and web share the same intents and the same question lines', () => {
         const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'whatsappIntent.js'), 'utf8');
-        assert.match(web, /WHATSAPP_INTENTS = Object\.freeze\(\['visit', 'availability', 'question'\]\)/);
-        assert.deepStrictEqual(tap117.INTENTS, ['visit', 'availability', 'question']);
+        assert.match(web, /WHATSAPP_INTENTS = Object\.freeze\(\['visit', 'video_visit', 'availability', 'question'\]\)/);
+        assert.deepStrictEqual(tap117.INTENTS, ['visit', 'video_visit', 'availability', 'question']);
+        assert.ok(web.includes('Je souhaite visiter ce bien par appel vidéo WhatsApp.'));
         assert.ok(web.includes('Je souhaite visiter ce bien.'));
         assert.ok(web.includes('J’ai une question sur ce bien :'));
       });
@@ -19037,6 +19039,126 @@ console.log('\n2. services/openai.js');
     });
   }
 
+
+  // ---------------------------------------------------------------------------
+  // §119 "Visite par appel vidéo" (2026-11-16)
+  // ---------------------------------------------------------------------------
+  console.log('\n§119 a customer abroad books a visit by WhatsApp video call; the agent, the desk and the customer are told which');
+  {
+    const visitMode119 = require('../services/visitMode');
+    const notifications119 = require('../services/viewingNotifications');
+    const alerts119 = require('../services/customerAlerts');
+    const tap119 = require('../services/contactTapAlert');
+    const enquiry119 = require('../services/listingEnquiry');
+
+    check('the mode is in_person or video, absent is in person, anything else is refused', () => {
+      assert.deepStrictEqual(visitMode119.VISIT_MODES, ['in_person', 'video']);
+      assert.deepStrictEqual(visitMode119.resolveVisitModeInput(undefined), { value: null });
+      assert.deepStrictEqual(visitMode119.resolveVisitModeInput(''), { value: null });
+      assert.deepStrictEqual(visitMode119.resolveVisitModeInput('video'), { value: 'video' });
+      assert.ok(visitMode119.resolveVisitModeInput('teleport').error);
+      assert.strictEqual(visitMode119.withVisitMode('mardi 18 novembre à 10h00', { visit_mode: 'video' }), 'mardi 18 novembre à 10h00 · par appel vidéo');
+      assert.strictEqual(visitMode119.withVisitMode('mardi 18 novembre à 10h00', { visit_mode: null }), 'mardi 18 novembre à 10h00');
+      assert.strictEqual(visitMode119.VIDEO_PAYMENT_WARNING, "⚠️ Ne versez aucun argent sur la seule base d'une vidéo.");
+    });
+
+    const lead119 = dbService.createLead({ wa_id: '33612119119', name: 'Client Paris', source: 'listing-visit-request', property_id: 11901 });
+
+    check('the row keeps the mode, refuses an unknown one, and older rows read as in person', () => {
+      const video = dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11901, requestedTime: 'mardi 18 novembre à 10h00', visitMode: 'video' });
+      assert.strictEqual(video.visit_mode, 'video');
+      const plain = dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11902, requestedTime: 'mardi 18 novembre à 11h00' });
+      assert.strictEqual(plain.visit_mode, null);
+      assert.throws(() => dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11903, visitMode: 'teleport' }), /unknown visit mode/);
+      // The repeated form can switch the mode while the request is unanswered.
+      const refreshed = dbService.refreshPendingViewing(plain.id, { requestedTime: 'mardi 18 novembre à 12h00', visitMode: 'video' });
+      assert.strictEqual(refreshed.visit_mode, 'video');
+      const kept = dbService.refreshPendingViewing(plain.id, { requestedTime: 'mardi 18 novembre à 13h00' });
+      assert.strictEqual(kept.visit_mode, 'video', 'absent leaves the mode as it was');
+    });
+
+    await checkAsync('POST /admin/viewing-requests stores visit_mode and refuses an unknown one; the batch too', async () => {
+      const bad = await adminRequest('POST', '/admin/viewing-requests', {
+        lead_id: lead119.id, property_id: 11904, requested_time: 'mercredi 10h', visit_mode: 'teleport',
+      });
+      assert.strictEqual(bad.status, 400);
+      const ok = await adminRequest('POST', '/admin/viewing-requests', {
+        lead_id: lead119.id, property_id: 11904, requested_time: 'mercredi 10h', visit_mode: 'video',
+      });
+      assert.strictEqual(ok.status, 201);
+      assert.strictEqual(ok.body.viewingRequest.visit_mode, 'video');
+      const slot = new Date(Date.now() + 3 * 24 * 3600 * 1000);
+      slot.setUTCHours(9, 0, 0, 0);
+      const badBatch = await adminRequest('POST', '/admin/viewing-requests/batch', {
+        wa_id: '33612119120', items: [{ property_id: 11905, preferred_slot_at: slot.toISOString(), visit_mode: 'hologram' }],
+      });
+      assert.strictEqual(badBatch.status, 400);
+    });
+
+    check('the agent alert says video and how; an in-person one does not', () => {
+      const listing = { id: 11901, title: 'Appartement Gombe', agent_name: 'Agent Test', agent_phone: '243900119119' };
+      const video = notifications119.agentMessage({
+        listing, lead: lead119, viewingRequest: { id: 1, requested_time: 'mardi 18 novembre à 10h00', visit_mode: 'video' }, propertyId: 11901,
+      });
+      assert.ok(video.includes(visitMode119.VIDEO_AGENT_LINE));
+      const plain = notifications119.agentMessage({
+        listing, lead: lead119, viewingRequest: { id: 2, requested_time: 'mardi 18 novembre à 10h00', visit_mode: null }, propertyId: 11901,
+      });
+      assert.ok(!plain.includes('vidéo'));
+      const desk = notifications119.opsMessage({
+        listing, lead: lead119, viewingRequest: { id: 1, requested_time: 'mardi 18 novembre à 10h00', visit_mode: 'video' }, propertyId: 11901, agentNotified: true,
+      });
+      assert.match(desk, /Créneau souhaité : mardi 18 novembre à 10h00 · par appel vidéo/);
+    });
+
+    check('the customer\'s confirmation says the agent will video call, with the payment warning', () => {
+      const listing = { id: 11901, title: 'Appartement Gombe', agent_name: 'Agent Test', agent_phone: '243900119119' };
+      const text = notifications119.tenantAcceptedText(listing, { id: 1, requested_time: 'mardi 18 novembre à 10h00', visit_mode: 'video' }, 11901);
+      assert.ok(text.includes(visitMode119.VIDEO_CUSTOMER_LINE));
+      assert.ok(text.includes(visitMode119.VIDEO_PAYMENT_WARNING));
+      const plain = notifications119.tenantAcceptedText(listing, { id: 2, requested_time: 'mardi 18 novembre à 10h00' }, 11901);
+      assert.ok(!plain.includes('vidéo'));
+    });
+
+    check('the approved template carries the mode in its date/time variable, no new template', () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'viewingNotifications.js'), 'utf8');
+      assert.match(src, /withVisitMode\(viewingRequest\?\.requested_time \|\| 'Non précisé', viewingRequest\)/);
+      assert.match(src, /function slotForTemplate[\s\S]{0,300}withVisitMode\(/);
+    });
+
+    check('the visit reminders tell a video customer to keep WhatsApp open', () => {
+      const soon = alerts119.reminderCopy('soon', { scheduled_at: '2026-11-18T09:00:00Z', visit_mode: 'video' }, 'Appartement Gombe');
+      assert.match(soon.text, /visite par appel vidéo \(Appartement Gombe\)/);
+      assert.match(soon.text, /Gardez WhatsApp ouvert/);
+      const plain = alerts119.reminderCopy('soon', { scheduled_at: '2026-11-18T09:00:00Z' }, 'Appartement Gombe');
+      assert.ok(!plain.text.includes('vidéo'));
+    });
+
+    check('a WhatsApp tap for a video visit is its own intent, answered like a visit', () => {
+      assert.ok(tap119.INTENTS.includes('video_visit'));
+      const text = tap119.alertText({ listing: { id: 11901, title: 'Appartement Gombe' }, propertyId: 11901, kind: 'whatsapp', intent: 'video_visit' });
+      assert.match(text, /Un client veut visiter votre bien par appel vidéo/);
+      assert.ok(tap119.buttons(5, 'whatsapp', 'video_visit').some((b) => b.id === 'contact_tap_visit:5'));
+      // The central number reads the site's own sentence back.
+      assert.strictEqual(enquiry119.enquiryIntent('Je souhaite visiter ce bien par appel vidéo WhatsApp. Quand seriez-vous disponible ?'), 'video_visit');
+      assert.strictEqual(enquiry119.enquiryIntent('Je souhaite visiter ce bien. Quand seriez-vous disponible ?'), 'visit');
+    });
+
+    check('the admin feed filters video vs in person (older rows are in person)', () => {
+      const video = dbService.listAllViewingRequests({ visitMode: 'video', limit: 200 });
+      assert.ok(video.data.length >= 2 && video.data.every((row) => row.visit_mode === 'video'));
+      const inPerson = dbService.listAllViewingRequests({ visitMode: 'in_person', limit: 200 });
+      assert.ok(inPerson.data.every((row) => row.visit_mode !== 'video'));
+      assert.throws(() => dbService.listAllViewingRequests({ visitMode: 'teleport' }), /Invalid visit mode/);
+    });
+
+    check('the migration adds the agent\'s switch (on by default) and widens the intent CHECK idempotently', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261116_video_visits.sql'), 'utf8');
+      assert.match(sql, /ADD COLUMN IF NOT EXISTS video_visits boolean NOT NULL DEFAULT true/);
+      assert.match(sql, /intent IN \('visit', 'video_visit', 'availability', 'question'\)/);
+      assert.match(sql, /pg_get_constraintdef\(oid\) LIKE '%video_visit%'/);
+    });
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

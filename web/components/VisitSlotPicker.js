@@ -5,6 +5,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { formatVisitDay, formatVisitSlot, kinshasaDayKey, slotPhraseFr } from '@/lib/visitAgenda';
 import { calendarWeeks, dayClosed, dayHasFreeSlot, slotsForDay, visitDays } from '@/lib/visitSlots';
+import { browserTimeZone, timeAtOffset, visitorClock } from '@/lib/visitMode';
 
 /**
  * The visit calendar: a month-style grid of the next fourteen Kinshasa days
@@ -24,6 +25,12 @@ import { calendarWeeks, dayClosed, dayHasFreeSlot, slotsForDay, visitDays } from
  * Controlled when `value` / `onChange` are given ("Mes visites"); with a
  * `name` it also posts `<name>` (the ISO instant, +01:00) and
  * `requested_time` (the French phrase every agent message already shows).
+ *
+ * `visitMode="video"` (2026-11-16, lib/visitMode.js): each time also shows
+ * the visitor's own clock when it differs from the listing's — someone in
+ * Paris booking a Kinshasa visit reads « 10:00 (11:00 à Paris) ». `onInfo`
+ * receives what the slots API says about the agent (`videoVisits`) and the
+ * listing (`city`), so the dialog can offer the video choice or not.
  */
 // A native select with our own chevron (appearance-none removes the system one).
 const SELECT_CHEVRON = {
@@ -34,7 +41,7 @@ const SELECT_CHEVRON = {
   paddingRight: '2.25rem',
 };
 
-export default function VisitSlotPicker({ propertyId, value, onChange, name, idPrefix = 'visit-slot' }) {
+export default function VisitSlotPicker({ propertyId, value, onChange, name, idPrefix = 'visit-slot', visitMode = 'in_person', onInfo }) {
   const t = useT();
   const locale = useLocale();
   // Rendered only inside a dialog or sheet opened in the browser — never on
@@ -44,6 +51,9 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
   const [availability, setAvailability] = useState(null);
   // The listing's clock (+1 Kinshasa, +2 Lubumbashi, Goma…), from the slots API.
   const [utcOffset, setUtcOffset] = useState(1);
+  const [city, setCity] = useState(null);
+  // The visitor's own zone (browser), read once: this renders only in the browser.
+  const [visitorZone] = useState(() => browserTimeZone());
   const [internal, setInternal] = useState(null);
   const selected = value !== undefined ? value : internal;
   const [day, setDay] = useState(() => (selected ? kinshasaDayKey(selected) : null));
@@ -58,11 +68,15 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
         if (Array.isArray(data?.busy)) setBusy(data.busy);
         setAvailability({ closedWeekdays: data?.closedWeekdays || [], blockedDates: data?.blockedDates || [] });
         if (data?.utcOffset === 2) setUtcOffset(2);
+        if (typeof data?.city === 'string') setCity(data.city);
+        onInfo?.({ videoVisits: data?.videoVisits !== false, city: typeof data?.city === 'string' ? data.city : null });
       })
       .catch(() => {});
     return () => {
       live = false;
     };
+    // onInfo is read once per listing; a parent re-render must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId]);
 
   const days = useMemo(() => visitDays(now), [now]);
@@ -78,6 +92,18 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
     if (value === undefined) setInternal(iso);
     onChange?.(iso);
   }
+
+  // A video visit: the visitor's clock beside the listing's, when they differ.
+  const video = visitMode === 'video';
+  const clockOf = (iso) => (video ? visitorClock(iso, { listingOffsetHours: utcOffset, timeZone: visitorZone }) : null);
+  const shiftText = (clock) => (clock?.dayShift > 0 ? ` ${t('enquiry.visitMode.nextDay')}` : clock?.dayShift < 0 ? ` ${t('enquiry.visitMode.prevDay')}` : '');
+  const optionText = (slot) => {
+    const clock = clockOf(slot.iso);
+    return clock
+      ? t('enquiry.visitMode.optionVisitor', { time: slot.time, visitorTime: `${clock.time}${shiftText(clock)}`, visitorCity: clock.city })
+      : slot.time;
+  };
+  const selectedClock = selected ? clockOf(selected) : null;
 
   const REASONS = { busy: 'enquiry.picker.busy', past: 'enquiry.picker.tooSoon', closed: 'enquiry.picker.closed' };
   const reasonText = (reason) => (REASONS[reason] ? t(REASONS[reason]) : undefined);
@@ -177,7 +203,7 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
             <optgroup key={part} label={t(`enquiry.picker.${part}`)}>
               {slots.filter((slot) => inPart(slot.time)).map((slot) => (
                 <option key={slot.iso} value={slot.iso} disabled={slot.disabled}>
-                  {slot.disabled ? `${slot.time} — ${reasonText(slot.reason)}` : slot.time}
+                  {slot.disabled ? `${slot.time} — ${reasonText(slot.reason)}` : optionText(slot)}
                 </option>
               ))}
             </optgroup>
@@ -192,9 +218,19 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
       </div>
 
       {selected ? (
-        <p className="rounded-lg bg-blue-tint px-3 py-2 text-sm font-semibold text-blue-deep" aria-live="polite">
-          {t('enquiry.picker.chosen', { slot: formatVisitSlot(selected, locale) })}
-        </p>
+        <div className="rounded-lg bg-blue-tint px-3 py-2 text-sm font-semibold text-blue-deep" aria-live="polite">
+          <p>{t('enquiry.picker.chosen', { slot: formatVisitSlot(selected, locale) })}</p>
+          {selectedClock ? (
+            <p className="mt-0.5 font-normal">
+              {t('enquiry.visitMode.bothClocks', {
+                listingTime: timeAtOffset(selected, utcOffset),
+                listingCity: city || 'Kinshasa',
+                visitorTime: `${selectedClock.time}${shiftText(selectedClock)}`,
+                visitorCity: selectedClock.city,
+              })}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

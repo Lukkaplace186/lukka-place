@@ -175,6 +175,22 @@ function reminderDue(row, now = new Date()) {
 function reminderCopy(kind, row, label) {
   const when = formatSlotFr(row.scheduled_at) || 'bientôt';
   const place = label ? ` (${label})` : '';
+  // A video visit (services/visitMode.js): nobody travels, the phone must be on.
+  if (row.visit_mode === 'video') {
+    const visit = `votre visite par appel vidéo${place}`;
+    if (kind === 'soon') {
+      return {
+        title: 'Votre visite vidéo approche',
+        body: `${visit[0].toUpperCase()}${visit.slice(1)} est prévue ${when}. Gardez WhatsApp ouvert : l'agent vous appellera en vidéo.`,
+        text: `🏠 [Lukka Place] Rappel : ${visit} est prévue ${when}. Gardez WhatsApp ouvert : l'agent vous appellera en vidéo.`,
+      };
+    }
+    return {
+      title: 'Visite vidéo demain',
+      body: `Rappel : ${visit} est prévue ${when}.`,
+      text: `🏠 [Lukka Place] Rappel : ${visit} est prévue ${when}. L'agent vous appellera en vidéo sur WhatsApp.`,
+    };
+  }
   if (kind === 'soon') {
     return {
       title: 'Votre visite approche',
@@ -202,7 +218,7 @@ async function runVisitReminders(now = new Date(), { listingLabel = defaultListi
   const rows = db
     .prepare(
       `SELECT v.id, v.property_id, v.scheduled_at, v.commune, v.reminder_eve_sent_at, v.reminder_soon_sent_at,
-              l.wa_id AS lead_wa_id
+              v.visit_mode, l.wa_id AS lead_wa_id
          FROM viewing_requests v
          JOIN leads l ON l.id = v.lead_id
         WHERE v.status = 'CONFIRMED'

@@ -11,6 +11,9 @@
  * rather than adding a step for nothing.
  *
  *   visit         « Je veux le visiter »   → an appointment asked for
+ *   video_visit   … « par appel vidéo »    → an appointment, by WhatsApp video
+ *                                            call (2026-11-16, the diaspora:
+ *                                            a second step after « visiter »)
  *   availability  « Est-il disponible ? »   → an enquiry
  *   question      « Autre question »        → an enquiry, the customer types it
  *
@@ -24,9 +27,9 @@
  * tap route and the tests.
  */
 
-export const WHATSAPP_INTENTS = Object.freeze(['visit', 'availability', 'question']);
+export const WHATSAPP_INTENTS = Object.freeze(['visit', 'video_visit', 'availability', 'question']);
 
-/** @returns {'visit'|'availability'|'question'|null} */
+/** @returns {'visit'|'video_visit'|'availability'|'question'|null} */
 export function cleanWhatsAppIntent(value) {
   return WHATSAPP_INTENTS.includes(value) ? value : null;
 }
@@ -43,6 +46,8 @@ export function whatsappIntentEnabled() {
  */
 export const INTENT_QUESTION_FR = Object.freeze({
   visit: 'Je souhaite visiter ce bien. Quand seriez-vous disponible ?',
+  // The engine reads this sentence back (services/listingEnquiry.js enquiryIntent).
+  video_visit: 'Je souhaite visiter ce bien par appel vidéo WhatsApp. Quand seriez-vous disponible ?',
   availability: 'Est-il toujours disponible ?',
   question: 'J’ai une question sur ce bien :',
   default: 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?',
@@ -58,7 +63,7 @@ export function intentQuestionFr(intent) {
  * @returns {'visit'|'enquiry'|'unknown'}
  */
 export function contactIntentGroup(intent) {
-  if (intent === 'visit') return 'visit';
+  if (intent === 'visit' || intent === 'video_visit') return 'visit';
   if (intent === 'availability' || intent === 'question') return 'enquiry';
   return 'unknown';
 }

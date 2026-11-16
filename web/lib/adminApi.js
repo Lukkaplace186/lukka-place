@@ -263,7 +263,7 @@ export async function respondToViewingRequest(id, { agentId, status, requestedTi
  * @param {{leadId: number, propertyId?: number, requestedTime?: string}} options
  * @returns {Promise<{viewingRequest: Object}>}
  */
-export async function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null }) {
+export async function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null, visitMode = null }) {
   return engineFetch('/admin/viewing-requests', {
     method: 'POST',
     body: JSON.stringify({
@@ -271,6 +271,8 @@ export async function createViewingRequest({ leadId, propertyId, requestedTime, 
       property_id: propertyId,
       requested_time: requestedTime,
       ...(preferredSlotAt ? { preferred_slot_at: preferredSlotAt } : {}),
+      // 'in_person' | 'video' (engine services/visitMode.js); absent = in person.
+      ...(visitMode ? { visit_mode: visitMode } : {}),
     }),
   });
 }
@@ -861,10 +863,12 @@ export async function redispatchLead(leadId) {
  * fall-through counts. NOT the owner-scoped listViewingRequests above.
  */
 export async function listViewingFeed({
-  status, routingType, view, q, agentIds, commune, from, to, limit, offset,
+  status, routingType, view, q, agentIds, commune, from, to, limit, offset, visitMode,
 } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
+  // 'video' | 'in_person' (engine services/visitMode.js).
+  if (visitMode) params.set('visit_mode', visitMode);
   if (routingType) params.set('routing_type', routingType);
   if (view) params.set('view', view);
   if (q) params.set('q', q);

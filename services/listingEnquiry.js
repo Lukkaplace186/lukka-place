@@ -334,12 +334,13 @@ function opsMessage({ listing, propertyId, from, quotedReference, agentNotified,
 /**
  * What the customer chose on the storefront before WhatsApp opened
  * (2026-11-16, web lib/whatsappIntent.js), read back from the question line
- * the site pre-typed: 'visit' | 'availability' | 'question', or null for the
+ * the site pre-typed: 'visit' | 'video_visit' | 'availability' | 'question', or null for the
  * older combined wording or a message the customer rewrote. Read, never
  * guessed: only the site's own sentences count.
  */
 function enquiryIntent(text) {
   const body = String(text || '');
+  if (/Je souhaite visiter ce bien par appel vid[ée]o/i.test(body)) return 'video_visit';
   if (/Je souhaite visiter ce bien/i.test(body)) return 'visit';
   if (/J[’']ai une question sur ce bien/i.test(body)) return 'question';
   if (/Est-il toujours disponible \?\s*$/im.test(body) && !/quand serait-il possible de le visiter/i.test(body)) return 'availability';
@@ -349,6 +350,7 @@ function enquiryIntent(text) {
 /** The {{message}} of the agent's enquiry template, by intent. */
 const ENQUIRY_INTENT_MESSAGE = {
   visit: 'Le client souhaite visiter ce bien.',
+  video_visit: 'Le client souhaite visiter ce bien par appel vidéo WhatsApp.',
   availability: 'Le client demande si le bien est toujours disponible.',
   question: 'Le client a une question sur ce bien.',
 };

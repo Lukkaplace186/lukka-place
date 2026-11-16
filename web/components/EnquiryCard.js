@@ -28,6 +28,7 @@ const VISIT_ERROR_KEYS = {
   phone: 'enquiry.errors.phone',
   time: 'enquiry.errors.time',
   closed: 'enquiry.errors.closed',
+  video: 'enquiry.errors.video',
   1: 'enquiry.errors.failed',
 };
 
@@ -131,7 +132,7 @@ function VisitRequestButton({ propertyId }) {
 // `placement` names the copy in the tap log (lib/leadClicks.js): the desktop
 // rail passes 'listing_desktop'; the phone copy passes none (no value in the
 // vocabulary describes it, and calling it the bottom bar would be false).
-export default function EnquiryCard({ listing, visitSent, visitError, saveShare = true, placement = null }) {
+export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitError, saveShare = true, placement = null }) {
   const t = useT();
   const {
     id, title,
@@ -201,6 +202,12 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
           // WhatsApp"), and a web visitor usually has not.
           <div className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] text-success" role="status">
             <p className="font-semibold">{t(visitSent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent')}</p>
+            {visitVideo ? (
+              <>
+                <p className="mt-1">{t('enquiry.visitMode.sentVideo')}</p>
+                <p className="mt-1 font-semibold text-warning-ink">{t('enquiry.visitMode.warning')}</p>
+              </>
+            ) : null}
             <Link href="/compte/client/visites" className="mt-1 inline-block font-semibold underline underline-offset-2">
               {t('enquiry.trackVisit')}
             </Link>

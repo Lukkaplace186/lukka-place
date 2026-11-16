@@ -489,11 +489,34 @@
       "lead": "WhatsApp opens with your message already written for {who}.",
       "theAgent": "the agent",
       "options": {
-        "visit": { "label": "I want to visit it", "hint": "Ask for a viewing time" },
-        "availability": { "label": "Is it still available?", "hint": "The most asked question" },
-        "question": { "label": "Another question", "hint": "You type it in WhatsApp" }
+        "visit": {
+          "label": "I want to visit it",
+          "hint": "Ask for a viewing time"
+        },
+        "availability": {
+          "label": "Is it still available?",
+          "hint": "The most asked question"
+        },
+        "question": {
+          "label": "Another question",
+          "hint": "You type it in WhatsApp"
+        },
+        "video_visit": {
+          "label": "By video call",
+          "hint": "Ideal if you are abroad"
+        }
       },
-      "footer": "You write straight to the agent, from your own WhatsApp."
+      "footer": "You write straight to the agent, from your own WhatsApp.",
+      "visitMode": {
+        "title": "How Would You like to Visit?",
+        "lead": "In person, or the agent shows you the property on a WhatsApp video call.",
+        "back": "Back",
+        "warning": "Never pay any money on the strength of a video alone.",
+        "inPerson": {
+          "label": "In person",
+          "hint": "You go to the property with the agent"
+        }
+      }
     },
     "filters": {
       "title": "Filters",
@@ -1124,7 +1147,8 @@
       "phone": "Invalid number — check it and try again.",
       "time": "Tell us the time that suits you.",
       "failed": "Sending failed, please try again.",
-      "closed": "The agent takes no viewings that day. Pick another day."
+      "closed": "The agent takes no viewings that day. Pick another day.",
+      "video": "This agent does not offer video call visits. Please choose an in-person visit."
     },
     "trackVisit": "Follow their answer in My viewings →",
     "visitShort": "Visit",
@@ -1179,7 +1203,21 @@
         "failed": "Sending failed. Try again in a moment."
       }
     },
-    "sentTeam": "Your viewing request has been received. The Lukka Place team is passing it to the agent and will get back to you."
+    "sentTeam": "Your viewing request has been received. The Lukka Place team is passing it to the agent and will get back to you.",
+    "visitMode": {
+      "label": "How Would You Like to Visit?",
+      "inPerson": "In person",
+      "inPersonHint": "You go to the property with the agent",
+      "video": "By video call",
+      "videoHint": "The agent shows you the property on a WhatsApp video call",
+      "videoNote": "The agent will video call you on WhatsApp, on the number below, at the time you choose.",
+      "warning": "Never pay any money on the strength of a video alone.",
+      "bothClocks": "{listingTime} in {listingCity} · {visitorTime} in {visitorCity}",
+      "optionVisitor": "{time} ({visitorTime} in {visitorCity})",
+      "nextDay": "the next day",
+      "prevDay": "the day before",
+      "sentVideo": "Video call visit: the agent will call you on WhatsApp at the agreed time."
+    }
   },
   "search": {
     "label": {
@@ -1468,7 +1506,12 @@
       "noSlot": "No time given",
       "slotAgreed": "Confirmed · Kinshasa time",
       "slotPicked": "Time picked by the customer · Kinshasa time",
-      "slotInWords": "Asked for by the customer, in their words"
+      "slotInWords": "Asked for by the customer, in their words",
+      "video": {
+        "title": "Video Call Visit",
+        "howTo": "Video call the customer on WhatsApp at the booked time, from the property.",
+        "short": "video call"
+      }
     },
     "settings": {
       "title": "Settings",
@@ -2063,6 +2106,12 @@
         "failed": "Could not save. Try again.",
         "unavailable": "This setting is not available yet.",
         "note": "Applies at once to all your listings."
+      },
+      "video": {
+        "title": "I Accept Video Call Visits",
+        "lead": "A customer abroad asks you to show them the property on a WhatsApp video call.",
+        "savedOn": "Video call visits switched on.",
+        "savedOff": "Video call visits switched off."
       }
     },
     "availability": {
@@ -3142,7 +3191,9 @@
         "slot": "Time: {time}",
         "noInstant": "The exact time is still to be agreed with the agent.",
         "declined": "The agent can't arrange this viewing. Similar properties have been sent to you on WhatsApp.",
-        "agentAbsent": "Thank you for letting us know: our team will get back to you."
+        "agentAbsent": "Thank you for letting us know: our team will get back to you.",
+        "video": "by video call",
+        "videoConfirmed": "the agent will video call you on WhatsApp. Never pay any money on the strength of a video alone."
       },
       "status": {
         "PENDING": "Viewing requested",
@@ -5488,7 +5539,12 @@
       "confirmClosed": "This request can no longer be confirmed (declined, cancelled or finished).",
       "awaitingCustomer": "Awaiting customer",
       "proposalReminded": "Customer reminded",
-      "proposalRefused": "Time refused — agent asked again"
+      "proposalRefused": "Time refused — agent asked again",
+      "mode": {
+        "label": "Visit type",
+        "inPerson": "In person",
+        "video": "Video call"
+      }
     },
     "marketData": {
       "title": "Market Data",
@@ -8088,7 +8144,8 @@
         "intent": {
           "visit": "Visit",
           "availability": "Available?",
-          "question": "Question"
+          "question": "Question",
+          "video_visit": "Video visit"
         }
       }
     },

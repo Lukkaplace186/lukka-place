@@ -49,6 +49,7 @@ const {
   notifyOps,
 } = require('../services/viewingNotifications');
 const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, formatSlotFr } = require('../services/visitSchedule');
+const { resolveVisitModeInput } = require('../services/visitMode');
 const { utcOffsetForCommune, resolveCity } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
 const pushNotify = require('../services/pushNotify');
@@ -971,6 +972,7 @@ router.patch('/leads/:id', (req, res) => {
 router.post('/viewing-requests', (req, res) => {
   const {
     lead_id: leadId, property_id: propertyId, requested_time: requestedTime, preferred_slot_at: preferredSlotRaw,
+    visit_mode: visitModeRaw,
   } = req.body || {};
   const numericLeadId = Number.parseInt(leadId, 10);
   if (!Number.isFinite(numericLeadId) || !db.getLead(numericLeadId)) {
@@ -984,6 +986,10 @@ router.post('/viewing-requests', (req, res) => {
     if (resolved.error) return res.status(400).json({ success: false, error: resolved.error });
     preferredSlotAt = resolved.value;
   }
+  // 'in_person' | 'video' (services/visitMode.js); absent = in person, as before.
+  const mode = resolveVisitModeInput(visitModeRaw);
+  if (mode.error) return res.status(400).json({ success: false, error: mode.error });
+  const visitMode = mode.value;
 
   try {
     // Same customer, same listing, still unanswered: the form was sent again
@@ -991,12 +997,12 @@ router.post('/viewing-requests', (req, res) => {
     // agent is not alerted twice (2026-11-11, visits #21/#22).
     const open = db.findPendingViewingFor({ waId: db.getLead(numericLeadId)?.wa_id, propertyId });
     if (open) {
-      const viewingRequest = db.refreshPendingViewing(open.id, { requestedTime, preferredSlotAt });
+      const viewingRequest = db.refreshPendingViewing(open.id, { requestedTime, preferredSlotAt, visitMode });
       console.log(`[admin] POST /viewing-requests: request #${open.id} on property #${propertyId} repeated — updated, no new alert`);
       return res.status(200).json({ success: true, viewingRequest, reused: true });
     }
 
-    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt });
+    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt, visitMode });
     // The lead IS a visit request now. Without this the web form's leads sat at
     // NEW forever, and the customer's own account could not show them as visits.
     db.markLeadViewingRequested(numericLeadId);
@@ -1098,7 +1104,9 @@ router.post('/viewing-requests/batch', (req, res) => {
     const slot = resolvePreferredSlotInput(item?.preferred_slot_at, now);
     if (slot.error) return res.status(400).json({ success: false, error: slot.error, property_id: propertyId });
     const requestedTime = String(item?.requested_time || formatSlotFr(slot.value) || '').trim().slice(0, 200);
-    parsed.push({ propertyId, preferredSlotAt: slot.value, requestedTime });
+    const mode = resolveVisitModeInput(item?.visit_mode);
+    if (mode.error) return res.status(400).json({ success: false, error: mode.error, property_id: propertyId });
+    parsed.push({ propertyId, preferredSlotAt: slot.value, requestedTime, visitMode: mode.value });
   }
   if (db.countRecentVisitBatches(waId, new Date(now.getTime() - 3600 * 1000).toISOString()) >= VISIT_BATCH_PER_HOUR) {
     return res.status(429).json({ success: false, error: 'One multi-visit request per hour.' });
@@ -1113,7 +1121,7 @@ router.post('/viewing-requests/batch', (req, res) => {
         name: name ? String(name).trim().slice(0, 120) : null,
         source: 'listing-visit-request',
         property_id: item.propertyId,
-        requirements_summary: `Demande de visite (sélection de ${parsed.length}) — créneau souhaité : ${item.requestedTime}`,
+        requirements_summary: `Demande de visite${item.visitMode === 'video' ? ' par appel vidéo' : ''} (sélection de ${parsed.length}) — créneau souhaité : ${item.requestedTime}`,
       });
       const viewingRequest = db.createViewingRequest({
         leadId: lead.id,
@@ -1121,6 +1129,7 @@ router.post('/viewing-requests/batch', (req, res) => {
         requestedTime: item.requestedTime,
         preferredSlotAt: item.preferredSlotAt,
         batchId,
+        visitMode: item.visitMode,
       });
       db.markLeadViewingRequested(lead.id);
       created.push({ lead, viewingRequest });
@@ -1267,6 +1276,7 @@ router.get('/viewing-requests/by-customer', (req, res) => {
 router.get('/viewing-requests/feed', (req, res) => {
   const {
     status, routing_type: routingType, view, q, agent_ids: agentIdsRaw, commune, from, to, limit, offset,
+    visit_mode: visitMode,
   } = req.query;
   const instant = (value) => {
     if (!value) return undefined;
@@ -1283,7 +1293,7 @@ router.get('/viewing-requests/feed', (req, res) => {
     return res.json({
       success: true,
       ...db.listAllViewingRequests({
-        status, routingType, view, q, agentIds, commune, from: fromIso, to: toIso, limit, offset,
+        status, routingType, view, q, agentIds, commune, from: fromIso, to: toIso, limit, offset, visitMode,
       }),
     });
   } catch (err) {

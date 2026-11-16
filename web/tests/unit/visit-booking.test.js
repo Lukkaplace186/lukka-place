@@ -85,7 +85,7 @@ test('two picks under an hour apart are flagged, not refused', () => {
 
 test('the visit form posts the picked instant; the action derives the phrase and passes the slot', () => {
   const card = read('components/VisitRequestDialog.js');
-  assert.match(card, /<VisitSlotPicker propertyId=\{propertyId\} name="preferred_slot_at"/);
+  assert.match(card, /<VisitSlotPicker\s+propertyId=\{propertyId\}\s+name="preferred_slot_at"/);
   assert.ok(!/name="requested_time"/.test(card), 'no free-text time field left');
   const action = read('app/(site)/listings/[id]/actions.js');
   assert.match(action, /validatePickedSlot\(pickedRaw, new Date\(\), \{ utcOffset: utcOffsetForListing\(listing\) \}\)/);
@@ -143,7 +143,7 @@ test('every surface books through the one dialog, and a blocked day is refused s
   const agentPath = /^\/agents\/\d{1,12}$/;
   for (const bad of ['//evil.com', '/agents/1/../../x', 'https://evil.com/agents/1', '/agents/1?x=1', '/agents/abc']) {
     assert.ok(!agentPath.test(bad), `${bad} is not an accepted return path`);
-  }  assert.match(action, /dayClosed\(kinshasaDayKey\(picked\.iso\), await getListingAvailability\(listing\.id\)\)/);
+  }  assert.match(action, /const availability = await getListingAvailability\(listing\.id\);\s*if \(picked\?\.iso && dayClosed\(kinshasaDayKey\(picked\.iso\), availability\)\)/);
   assert.match(read('app/(site)/listings/visitBatchActions.js'), /dayClosed\(kinshasaDayKey\(slot\.iso\), await getListingAvailability\(listing\.id\)\)/);
 });
 

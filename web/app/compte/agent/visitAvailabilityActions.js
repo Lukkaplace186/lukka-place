@@ -1,7 +1,7 @@
 'use server';
 
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getAgentAvailability, saveAgentAvailability } from '@/lib/agentAvailability';
+import { getAgentAvailability, saveAgentAvailability, saveAgentVideoVisits } from '@/lib/agentAvailability';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -31,6 +31,26 @@ export async function saveVisitAvailabilityAction(input) {
     return { ok: true, closedWeekdays: stored.closedWeekdays, blockedDates: stored.blockedDates };
   } catch (err) {
     console.error(`[visit-availability] agent #${agentId}: ${err.message}`);
+    return { ok: false, error: t('agent.agenda.availability.failed') };
+  }
+}
+
+/**
+ * The agent's "J'accepte les visites par appel vidéo" switch
+ * (components/AgentVisitAvailability.js). The session's agent only; the
+ * value is a strict boolean.
+ * @returns {Promise<{ok: boolean, error?: string, videoVisits?: boolean}>}
+ */
+export async function saveVideoVisitsAction(on) {
+  const t = await getT();
+  const agentId = await getCurrentAgentId();
+  if (!agentId) return { ok: false, error: t('agent.agenda.done.auth') };
+  try {
+    const outcome = await saveAgentVideoVisits(agentId, on === true);
+    if (outcome === 'unavailable') return { ok: false, error: t('agent.agenda.availability.unavailable') };
+    return { ok: true, videoVisits: on === true };
+  } catch (err) {
+    console.error(`[visit-availability] agent #${agentId} video: ${err.message}`);
     return { ok: false, error: t('agent.agenda.availability.failed') };
   }
 }

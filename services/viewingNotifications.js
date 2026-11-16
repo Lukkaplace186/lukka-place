@@ -36,6 +36,9 @@
  */
 
 const chakra = require('./chakra');
+const {
+  VIDEO_AGENT_LINE, VIDEO_CUSTOMER_LINE, VIDEO_PAYMENT_WARNING, isVideoVisit, withVisitMode,
+} = require('./visitMode');
 const deskAlert = require('./deskAlert');
 const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
@@ -199,7 +202,12 @@ async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam, 
 
 /** What the customer is told the visit time is: the agreed instant, else their own words. */
 function slotForTemplate(viewingRequest, agreedAt = null) {
-  return (agreedAt && formatSlotFr(agreedAt, visitClock(viewingRequest))) || viewingRequest?.requested_time || 'À convenir';
+  // A video visit says so with the time (services/visitMode.js): the approved
+  // templates have no line of their own for it.
+  return withVisitMode(
+    (agreedAt && formatSlotFr(agreedAt, visitClock(viewingRequest))) || viewingRequest?.requested_time || 'À convenir',
+    viewingRequest,
+  );
 }
 
 /**
@@ -299,6 +307,7 @@ function agentMessage({ listing, lead, viewingRequest, propertyId }) {
     `👤 Client: ${lead?.name || 'Non précisé'} (${displayPhone(lead?.wa_id)})`,
     `📅 Date souhaitée: ${viewingRequest?.requested_time || 'Non précisée'}`,
   ];
+  if (isVideoVisit(viewingRequest)) lines.push(VIDEO_AGENT_LINE);
   if (placeLabel(listing || {})) lines.push(`🗺️ Lieu : ${placeLabel(listing)}`);
   // The portal link, spelled out: the buttons under this message answer it in
   // one tap, but an agent who wants the customer's details, or whose client
@@ -442,7 +451,8 @@ function opsMessage({ listing, lead, viewingRequest, propertyId, agentNotified, 
   ];
   if (placeLabel(listing || {})) lines.push(`• Lieu : ${placeLabel(listing)}`);
   lines.push(`• Client : ${lead?.name || 'Non précisé'} (${displayPhone(lead?.wa_id)})`);
-  if (viewingRequest?.requested_time) lines.push(`• Créneau souhaité : ${viewingRequest.requested_time}`);
+  if (viewingRequest?.requested_time) lines.push(`• Créneau souhaité : ${withVisitMode(viewingRequest.requested_time, viewingRequest)}`);
+  else if (isVideoVisit(viewingRequest)) lines.push(`• ${withVisitMode('', viewingRequest)}`);
   lines.push(
     '',
     agentNotified
@@ -633,7 +643,8 @@ async function notifyViewingRequest({
           listing.agent_name || 'Agent',
           lead?.name || 'Non précisé',
           listingLabel(listing, id),
-          viewingRequest?.requested_time || 'Non précisé',
+          // demande_visite_agent_v3's date/time variable carries the mode too.
+          withVisitMode(viewingRequest?.requested_time || 'Non précisé', viewingRequest),
         ],
         viewingRequestId: viewingRequest?.id ?? null,
         agentId: listing.agent_id ?? null,
@@ -646,9 +657,9 @@ async function notifyViewingRequest({
         phone: agentPhone,
         kind: 'viewing_request',
         refId: viewingRequest?.id,
-        title: 'Nouvelle demande de visite',
+        title: isVideoVisit(viewingRequest) ? 'Nouvelle visite par appel vidéo' : 'Nouvelle demande de visite',
         body: `${lead?.name || 'Un client'} souhaite visiter ${listingLabel(listing, id)}`
-          + (viewingRequest?.requested_time ? ` — ${viewingRequest.requested_time}` : '')
+          + (viewingRequest?.requested_time ? ` — ${withVisitMode(viewingRequest.requested_time, viewingRequest)}` : '')
           + '. Répondez dans les 15 minutes.',
         url: viewingRequest?.id ? `/compte/agent/demandes?visite=${viewingRequest.id}` : '/compte/agent/demandes',
         urgent: Boolean(viewingRequest?.id),
@@ -708,7 +719,7 @@ async function notifyViewingRequest({
           agentNotified ? listing?.agent_name || 'Agent prévenu' : 'Aucun agent prévenu',
           lead?.name,
           listingLabel(listing, id),
-          viewingRequest?.requested_time,
+          viewingRequest?.requested_time ? withVisitMode(viewingRequest.requested_time, viewingRequest) : viewingRequest?.requested_time,
         ],
         linkParam: viewingRequest?.id,
       }, 'ops copy');
@@ -1126,6 +1137,7 @@ function acceptedAgentText(listing, viewingRequest, propertyId) {
     `${HEADER_BRAND} Visite confirmée ✅`,
     `📍 ${listingLabel(listing, propertyId)}`,
     `📅 ${viewingRequest?.requested_time || 'Créneau à convenir'}`,
+    ...(isVideoVisit(viewingRequest) ? [VIDEO_AGENT_LINE] : []),
     '',
     'Le client vient d\'être prévenu sur WhatsApp.',
     schedulerLink(),
@@ -1147,8 +1159,10 @@ function tenantAcceptedText(listing, viewingRequest, propertyId, agreedAt = null
   const agreed = agreedAt ? formatSlotFr(agreedAt, visitClock(viewingRequest, listing)) : null;
   if (agreed) lines.push(`📅 Créneau : ${agreed}`);
   else if (viewingRequest?.requested_time) lines.push(`📅 Créneau : ${viewingRequest.requested_time}`);
+  if (isVideoVisit(viewingRequest)) lines.push(VIDEO_CUSTOMER_LINE);
   if (listing?.agent_name) lines.push(`👤 Agent : ${listing.agent_name}`);
   if (listing?.agent_phone) lines.push(`📞 ${displayPhone(listing.agent_phone)}`);
+  if (isVideoVisit(viewingRequest)) lines.push('', VIDEO_PAYMENT_WARNING);
   lines.push('', listingLink(listing, propertyId));
   return lines.join('\n');
 }

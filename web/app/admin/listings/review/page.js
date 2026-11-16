@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
 import { getListingSources } from '@/lib/adminApi';
-import { getListingFactsForReview } from '@/lib/adminListings';
+import { getCategoriesForAdmin, getListingFactsForReview } from '@/lib/adminListings';
+import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { listModerationQueue } from '@/lib/moderationQueue';
 import { reviewOrder, splitQueue } from '@/lib/moderationRow';
 import ReviewMode from './ReviewMode';
@@ -19,6 +20,8 @@ function renderTime() {
  * alone). Each listing comes with every photo, the facts we extracted and
  * what the agent actually sent on WhatsApp (engine services/listingSource.js).
  * Decisions go through moderateListingsAction like the queue's buttons.
+ * With `listings.edit`, the facts can be corrected in place (and approved in
+ * the same gesture) through the listing page's own adminUpdateListingAction.
  */
 export default async function ListingReviewPage({ searchParams }) {
   const session = await getAdminSession();
@@ -30,9 +33,12 @@ export default async function ListingReviewPage({ searchParams }) {
   const queue = await listModerationQueue({ status: 'pending', limit: 100 });
   const ordered = reviewOrder(queue.rows, now, { only });
   const ids = ordered.map((row) => row.id);
-  const [factsResult, sourcesResult] = await Promise.allSettled([
+  const canEdit = can(session?.role, 'listings.edit');
+  const [factsResult, sourcesResult, locationsResult, categoriesResult] = await Promise.allSettled([
     getListingFactsForReview(ids),
     getListingSources(ids),
+    canEdit ? getLocationHierarchyWithFallback({ city: 'all' }) : null,
+    canEdit ? getCategoriesForAdmin() : null,
   ]);
   if (sourcesResult.status === 'rejected') {
     console.error(`[admin] review mode: listing sources failed: ${sourcesResult.reason?.message}`);
@@ -40,6 +46,13 @@ export default async function ListingReviewPage({ searchParams }) {
   const facts = factsResult.status === 'fulfilled' ? factsResult.value : new Map();
   const sources = sourcesResult.status === 'fulfilled' ? sourcesResult.value : null;
   const { check, ready } = splitQueue(ordered, now);
+  // The editor needs the canonical communes (the action re-checks against
+  // them) and the real categories; without either it is not offered.
+  const editing = canEdit && factsResult.status === 'fulfilled'
+    && locationsResult.status === 'fulfilled' && locationsResult.value?.communes?.length
+    && categoriesResult.status === 'fulfilled'
+    ? { communes: locationsResult.value.communes, locations: locationsResult.value.locations || {}, categories: categoriesResult.value }
+    : null;
 
   const items = ordered.map((row) => ({
     ...row,
@@ -55,6 +68,7 @@ export default async function ListingReviewPage({ searchParams }) {
       renderedAt={now}
       counts={{ check: check.length, ready: ready.length, total: queue.total }}
       only={only}
+      editing={editing}
     />
   );
 }

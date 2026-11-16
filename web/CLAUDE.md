@@ -416,6 +416,20 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
     reasons are chips everywhere (`RejectReasons.js`, also the queue's dialog).
     A same-agent re-send is still refused by `moderateListingsAction` and the
     reason is shown; compare first.
+  - **Correcting in place (2026-11-16, owner request)**: "Corriger ici" (or
+    E) turns "Ce que nous avons lu" into a form (title, type, sub-type,
+    transaction, price/currency/period, commune + quartier picker, reference,
+    rooms, area, the three entry costs, description) beside the agent's
+    message; the footer's green button becomes "Enregistrer et approuver"
+    (Ctrl+Entrée), Échap cancels. It saves through the listing page's
+    `adminUpdateListingAction` (`listings.edit`), sending only what changed —
+    plus `price_period` and `listing_status`, which that action clears when
+    absent, and commune + quartier together (the address is rebuilt from
+    both): `lib/reviewQuickEdit.js`, `tests/unit/review-quick-edit.test.js`.
+    An approval refused for missing price/content opens the form. The review
+    keeps the queue it opened with (a Server Action's revalidation re-renders
+    the page without the decided listing, which shifted the index) and shows
+    corrections from local state.
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while

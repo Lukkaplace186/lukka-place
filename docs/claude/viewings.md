@@ -825,7 +825,8 @@ property at the booked time; everything else is the ordinary visit loop
   the listing's Server Action refuses a posted video visit (`visit_error=video`).
   The app's booking screen does not read the switch yet.
 - **Migration** `migrations/20261116_video_visits.sql` (the switch column +
-  the `whatsapp_clicks.intent` CHECK widened to `video_visit`). Before it
+  the `whatsapp_clicks.intent` CHECK widened to `video_visit`), applied to
+  production 2026-11-16 with the deploy of 0800b22 + 373fc1b. Before it
   runs: every agent accepts video visits, the switch says it cannot be saved
   yet, and a video tap is stored as `visit` (web retries on 23514).
 - **Not covered:** the visit cart ("Mes visites", up to 4 listings) is still

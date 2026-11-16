@@ -10,7 +10,7 @@ import { utcOffsetForListing } from '@/lib/cities';
 import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
-import { visitModeFromForm } from '@/lib/visitMode';
+import { requestedTimeWithMode, visitModeOf } from '@/lib/visitModeRules';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -56,20 +56,25 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // Checked on the listing's own clock (lib/cities.js): a "14h" for a
   // Lubumbashi house is 14h in Lubumbashi (UTC+2).
   const picked = pickedRaw ? validatePickedSlot(pickedRaw, new Date(), { utcOffset: utcOffsetForListing(listing) }) : null;
-  const requestedTime = picked?.phrase || (pickedRaw ? '' : String(formData.get('requested_time') || '').trim().slice(0, 200));
-  if (!requestedTime) redirect(`${base}?visit_error=time`);
+  const statedTime = picked?.phrase || (pickedRaw ? '' : String(formData.get('requested_time') || '').trim().slice(0, 200));
+  if (!statedTime) redirect(`${base}?visit_error=time`);
+  // "En vidéo" (the app's booking screen): a WhatsApp video call instead of a
+  // visit on site. The engine stores the mode, and the phrase every alert
+  // prints says it too, so the agent reads it on the very first message.
+  const visitMode = visitModeOf(formData.get('visit_mode'));
+  const requestedTime = requestedTimeWithMode(statedTime, visitMode);
 
   // A day the agent marked as taking no visits: the calendar greys it out, and
   // a form posted around the calendar is refused the same way.
-  // "Sur place" / "Par appel vidéo" (lib/visitMode.js). A video visit the
-  // agent no longer takes is refused, like a closed day: the dialog stops
-  // offering it, and a form posted around the dialog is answered the same way.
-  const visitMode = visitModeFromForm(formData);
-  const availability = await getListingAvailability(listing.id);
-  if (picked?.iso && dayClosed(kinshasaDayKey(picked.iso), availability)) {
+  if (picked?.iso && dayClosed(kinshasaDayKey(picked.iso), await getListingAvailability(listing.id))) {
     redirect(`${base}?visit_error=closed`);
   }
-  if (visitMode === 'video' && !availability.videoVisits) redirect(`${base}?visit_error=video`);
+  // An agent who switched video visits off is not asked for one: the website's
+  // dialog and the WhatsApp chooser stop offering it, and a form posted around
+  // them is refused the same way (2026-11-16).
+  if (visitMode === 'video' && !(await getListingAvailability(listing.id)).videoVisits) {
+    redirect(`${base}?visit_error=video`);
+  }
 
   try {
     const { lead } = await createLead({
@@ -78,7 +83,7 @@ export async function submitVisitRequestAction(propertyId, formData) {
       source: 'listing-visit-request',
       propertyId: listing.id,
       assignedAgent: listing.agency_name || null,
-      requirementsSummary: `Demande de visite${visitMode === 'video' ? ' par appel vidéo' : ''} — créneau souhaité : ${requestedTime}`,
+      requirementsSummary: `${visitMode === 'video' ? 'Demande de visite en vidéo' : 'Demande de visite'} — créneau souhaité : ${requestedTime}`,
     });
     await createViewingRequest({ leadId: lead.id, propertyId: listing.id, requestedTime, preferredSlotAt: picked?.iso || null, visitMode });
   } catch (err) {
@@ -99,5 +104,5 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // agent. Without one the request goes to Lukka Place's desk, and the page
   // must not tell the customer an agent has it (request #8, 2026-10-10: the
   // listing had no agent and the confirmation still said "sent to the agent").
-  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&visit_mode=video' : ''}`);
+  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&mode=video' : ''}`);
 }

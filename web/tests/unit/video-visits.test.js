@@ -4,29 +4,29 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import {
-  VIDEO_PAYMENT_WARNING_FR, VISIT_MODES, isVideoVisit, timeAtOffset, visitModeFromForm, visitorClock, zoneCity, zoneOffsetMinutes,
+  VIDEO_PAYMENT_WARNING_FR, timeAtOffset, visitorClock, zoneCity, zoneOffsetMinutes,
 } from '@/lib/visitMode';
+import { VIDEO_PHRASE, requestedTimeWithMode, visitModeOf } from '@/lib/visitModeRules';
 import { WHATSAPP_INTENTS, cleanWhatsAppIntent, contactIntentGroup, intentQuestionFr } from '@/lib/whatsappIntent';
 import { RECORD_LEAD_CLICK_INTENT_SQL, recordLeadClick } from '@/lib/leadClicks';
 import { LISTING_AVAILABILITY_SQL, videoVisitsFrom, EMPTY_AVAILABILITY } from '@/lib/agentAvailability';
 import { normalizeSql } from '../support/fakePool.js';
 
-// "Visite par appel vidéo" (owner, 2026-11-16): a customer abroad asks the
-// agent to show the property on a WhatsApp video call at the booked time.
+// "Visite par appel vidéo" on the website (owner, 2026-11-16): a customer
+// abroad asks the agent to show the property on a WhatsApp video call. The
+// mode follows the app's rules (lib/visitModeRules.js, 2026-11-13).
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 const read = (rel) => readFileSync(path.join(root, rel), 'utf8');
-const form = (entries) => ({ get: (key) => entries[key] ?? null });
 
-test('the visit mode is read from the form, and anything unknown is in person', () => {
-  assert.deepEqual(VISIT_MODES, ['in_person', 'video']);
-  assert.equal(visitModeFromForm(form({ visit_mode: 'video' })), 'video');
-  assert.equal(visitModeFromForm(form({ visit_mode: 'in_person' })), 'in_person');
-  assert.equal(visitModeFromForm(form({ visit_mode: 'teleport' })), 'in_person');
-  assert.equal(visitModeFromForm(form({})), 'in_person');
-  assert.equal(isVideoVisit({ visit_mode: 'video' }), true);
-  // Rows from before the column: NULL is in person.
-  assert.equal(isVideoVisit({ visit_mode: null }), false);
+test('the website uses the app’s rules: "video" or on site, the phrase once after the time', () => {
+  assert.equal(visitModeOf('video'), 'video');
+  assert.equal(visitModeOf(''), null);
+  assert.equal(visitModeOf('in_person'), null);
+  assert.equal(requestedTimeWithMode('mardi 18 novembre à 10h00', 'video'), `mardi 18 novembre à 10h00 ${VIDEO_PHRASE}`);
+  assert.equal(requestedTimeWithMode(`mardi ${VIDEO_PHRASE}`, 'video'), `mardi ${VIDEO_PHRASE}`);
+  // The engine adds the same words where it formats the time itself.
+  assert.match(read('../services/visitMode.js'), new RegExp(`const VIDEO_PHRASE = '${VIDEO_PHRASE.replace(/[()]/g, '\\$&')}';`));
 });
 
 test('the visitor sees their own clock when it differs from the listing’s', () => {
@@ -44,7 +44,7 @@ test('the visitor sees their own clock when it differs from the listing’s', ()
   assert.deepEqual(visitorClock('2027-06-15T10:00:00+01:00', { listingOffsetHours: 1, timeZone: 'Europe/Brussels' }), { time: '11:00', city: 'Brussels', dayShift: 0 });
   // A Lubumbashi listing (UTC+2) seen from Kinshasa.
   assert.deepEqual(visitorClock(slot, { listingOffsetHours: 2, timeZone: 'Africa/Kinshasa' }), { time: '10:00', city: 'Kinshasa', dayShift: 0 });
-  // The visitor's date moves: 20:00 Kinshasa is 04:00 the next day in Tokyo, 14:00 is 08:00 the same day.
+  // The visitor's date moves: 20:00 Kinshasa is 04:00 the next day in Tokyo; 08:00 is 23:00 the day before in Los Angeles.
   assert.equal(visitorClock('2026-11-18T20:00:00+01:00', { listingOffsetHours: 1, timeZone: 'Asia/Tokyo' }).dayShift, 1);
   assert.equal(visitorClock('2026-11-18T08:00:00+01:00', { listingOffsetHours: 1, timeZone: 'America/Los_Angeles' }).dayShift, -1);
   // Unknown zone or instant: nothing, never a guess.
@@ -108,11 +108,14 @@ test('the agent’s switch is on unless they turned it off, and read safely befo
   assert.match(LISTING_AVAILABILITY_SQL, /p\.status = 1 AND p\.approve_status = 1/);
 });
 
-test('the visit form posts the mode, and the action refuses a video visit the agent does not take', () => {
+test('the dialog posts "video" or nothing; the action refuses a video visit the agent does not take', () => {
   const dialog = read('components/VisitRequestDialog.js');
-  assert.match(dialog, /name="visit_mode" value=\{videoOffered \? mode : 'in_person'\}/);
+  assert.match(dialog, /name="visit_mode" value=\{videoOffered && mode === 'video' \? 'video' : ''\}/);
   const action = read('app/(site)/listings/[id]/actions.js');
-  assert.match(action, /visitMode === 'video' && !availability\.videoVisits\) redirect\(`\$\{base\}\?visit_error=video`\)/);
+  assert.match(action, /const visitMode = visitModeOf\(formData\.get\('visit_mode'\)\);/);
+  assert.match(action, /visitMode === 'video' && !\(await getListingAvailability\(listing\.id\)\)\.videoVisits\) \{\s*redirect\(`\$\{base\}\?visit_error=video`\);/);
   assert.match(action, /createViewingRequest\(\{[^}]*visitMode \}\)/);
-  assert.match(read('lib/adminApi.js'), /visit_mode: visitMode/);
+  // The confirmation reads the action's own redirect (&mode=video).
+  assert.match(action, /'&mode=video'/);
+  assert.match(read('app/(site)/listings/[id]/page.js'), /sp\.mode === 'video'/);
 });

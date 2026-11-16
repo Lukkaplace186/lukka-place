@@ -784,30 +784,35 @@ escalated, and the listing stayed on the site as "sous offre".
 
 Owner request: a customer abroad (Paris, Brussels, Washington) could book a
 visit but not attend it, and paying from abroad on the strength of photos is
-where Kinshasa scams happen. Now the visit can be a WhatsApp video call: the
-agent calls the customer from the property at the booked time. Everything
-else is the ordinary visit loop (Accepter / Autre créneau / Décliner, SLA,
-check-in, bon de visite); "Agent absent" at the check-in also covers an agent
-who never called.
+where Kinshasa scams happen. The app's booking screen has offered "Sur place
+/ En vidéo" since 2026-11-13 (branch feat/agent-app-push, deployed, not yet
+merged here); this extends the same mode to the website and the WhatsApp
+chooser and adds the agent's switch. The agent calls the customer from the
+property at the booked time; everything else is the ordinary visit loop
+(Accepter / Autre créneau / Décliner, SLA, check-in, bon de visite), and
+"Agent absent" at the check-in also covers an agent who never called.
 
-- **`viewing_requests.visit_mode`** (SQLite ALTER list): `'in_person'` |
-  `'video'`, NULL on every older row = in person, never backfilled. Rules in
-  `services/visitMode.js`. A separate column, never folded into
-  `requested_time`: the agent's new-time proposal replaces that phrase and
-  the mode must survive it.
+- **One rule with the app.** `viewing_requests.visit_mode` is `'video'` or
+  NULL = on site (`db.normalizeVisitMode`, `VISIT_MODES = ['video']`): any
+  other value is stored as NULL, never refused. The web adds « (appel vidéo
+  WhatsApp) » to the time it sends (web `lib/visitModeRules.js`
+  `requestedTimeWithMode`), so `requested_time` already says it.
 - **Routes.** `POST /admin/viewing-requests` and `/batch` (per item) take
-  `visit_mode`; anything but the two values is a 400. A repeated form can
-  switch the mode while PENDING (`refreshPendingViewing`). `GET
-  /admin/viewing-requests/feed?visit_mode=video|in_person` filters
-  (in_person includes NULL). The owner and customer lists return the column.
-- **No new template.** `demande_visite_agent_v3`'s date/time variable reads
-  « mardi 18 novembre à 10h00 · par appel vidéo » (`withVisitMode`); so do the
-  customer's confirmed / unavailable templates (`slotForTemplate`), the desk
-  copy and the push. The session alert and the agent's own confirmation add
-  « 📹 … appelez le client en vidéo sur WhatsApp à l'heure prévue »; the
-  customer's confirmation adds « l'agent vous appellera en vidéo » and the
-  owner's warning **« Ne versez aucun argent sur la seule base d'une
-  vidéo. »**; the reminders say « Gardez WhatsApp ouvert ».
+  `visit_mode`. A repeated form while PENDING updates it (`refreshPendingViewing`:
+  a sent mode is applied, `in_person` = NULL; none sent = unchanged — the web
+  sends one only for video, so switching a repeated request back to on site
+  from the website keeps it video). `GET /admin/viewing-requests/feed?visit_mode=video|in_person`
+  filters (in_person includes NULL). The owner and customer lists return it.
+- **Messages, no new template** (`services/visitMode.js`). Where the engine
+  formats the time itself (the agreed instant, the desk copy, the push, the
+  customer's confirmed / unavailable templates via `slotForTemplate`)
+  `withVisitMode` adds the same phrase, never twice — so
+  `demande_visite_agent_v3`'s date/time variable carries it. The session
+  alert and the agent's own confirmation add « 📹 … appelez le client en
+  vidéo sur WhatsApp à l'heure prévue »; the customer's confirmation adds
+  « l'agent vous appellera en vidéo » and the owner's warning **« Ne versez
+  aucun argent sur la seule base d'une vidéo. »**; reminders say « Gardez
+  WhatsApp ouvert ».
 - **The direct WhatsApp path**: a fourth tap intent `video_visit` (web
   `lib/whatsappIntent.js`, second step after « Je veux le visiter »).
   `contactTapAlert` titles it « Un client veut visiter votre bien par appel
@@ -816,13 +821,14 @@ who never called.
   pre-typed sentence back (`listingEnquiry.enquiryIntent`).
 - **The agent's switch** « J'accepte les visites par appel vidéo »:
   `agent_visit_availability.video_visits` (Postgres, default true — owner: on
-  by default). Off = the dialog and the chooser stop offering it and the
-  listing's Server Action refuses a posted video visit (`visit_error=video`).
+  by default). Off = the website dialog and the chooser stop offering it and
+  the listing's Server Action refuses a posted video visit (`visit_error=video`).
+  The app's booking screen does not read the switch yet.
 - **Migration** `migrations/20261116_video_visits.sql` (the switch column +
   the `whatsapp_clicks.intent` CHECK widened to `video_visit`). Before it
   runs: every agent accepts video visits, the switch says it cannot be saved
   yet, and a video tap is stored as `visit` (web retries on 23514).
 - **Not covered:** the visit cart ("Mes visites", up to 4 listings) is still
-  in person only — the batch route accepts `visit_mode`, the sheet does not
+  on site only — the batch route accepts `visit_mode`, the sheet does not
   offer it yet.
 - verify-pipeline §119; web `tests/unit/video-visits.test.js`.

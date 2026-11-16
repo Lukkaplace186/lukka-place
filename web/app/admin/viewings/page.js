@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { listViewingFeed } from '@/lib/adminApi';
-import { VISIT_MODES } from '@/lib/visitMode';
 import { getListingLabels } from '@/lib/adminLeadRouting';
 import { getAgentContactsByIds, searchAgentIds } from '@/lib/agents';
 import {
@@ -32,6 +31,10 @@ export const metadata = {
 };
 
 export const dynamic = 'force-dynamic';
+
+// The visit-type filter: 'video', or 'in_person' = every other request
+// (engine db.listAllViewingRequests, visit_mode NULL = on site).
+const VISIT_FEED_MODES = ['in_person', 'video'];
 
 /** A filter value, not a status: the SLA-alerted PENDING slice (engine VIEWING_FEED_VIEWS.escalated). */
 const ESCALATED = 'ESCALATED';
@@ -81,7 +84,7 @@ export default async function AdminViewingsPage({ searchParams }) {
     routing: ROUTING_TYPES.includes(firstParam(raw.routing)) ? firstParam(raw.routing) : undefined,
     commune: firstParam(raw.commune) || undefined,
     // "Visite par appel vidéo" (lib/visitMode.js): sur place / vidéo.
-    mode: VISIT_MODES.includes(firstParam(raw.mode)) ? firstParam(raw.mode) : undefined,
+    mode: VISIT_FEED_MODES.includes(firstParam(raw.mode)) ? firstParam(raw.mode) : undefined,
     from: DATE_PATTERN.test(firstParam(raw.from) || '') ? firstParam(raw.from) : undefined,
     to: DATE_PATTERN.test(firstParam(raw.to) || '') ? firstParam(raw.to) : undefined,
   };
@@ -189,7 +192,7 @@ export default async function AdminViewingsPage({ searchParams }) {
             type: 'select',
             param: 'mode',
             label: t('admin.viewings.mode.label'),
-            options: VISIT_MODES.map((value) => ({ value, label: t(`admin.viewings.mode.${value === 'video' ? 'video' : 'inPerson'}`) })),
+            options: VISIT_FEED_MODES.map((value) => ({ value, label: t(`admin.viewings.mode.${value === 'video' ? 'video' : 'inPerson'}`) })),
           },
           {
             type: 'select',

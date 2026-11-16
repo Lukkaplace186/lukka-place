@@ -1507,11 +1507,7 @@
       "slotAgreed": "Confirmée · heure de Kinshasa",
       "slotPicked": "Créneau choisi par le client · heure de Kinshasa",
       "slotInWords": "Demandé par le client, en ses mots",
-      "video": {
-        "title": "Visite par appel vidéo",
-        "howTo": "Appelez le client en vidéo sur WhatsApp à l’heure prévue, depuis le bien.",
-        "short": "appel vidéo"
-      }
+      "videoCall": "Appel vidéo WhatsApp demandé"
     },
     "settings": {
       "title": "Paramètres",

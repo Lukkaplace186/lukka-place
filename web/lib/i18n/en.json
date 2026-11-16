@@ -1507,11 +1507,7 @@
       "slotAgreed": "Confirmed · Kinshasa time",
       "slotPicked": "Time picked by the customer · Kinshasa time",
       "slotInWords": "Asked for by the customer, in their words",
-      "video": {
-        "title": "Video Call Visit",
-        "howTo": "Video call the customer on WhatsApp at the booked time, from the property.",
-        "short": "video call"
-      }
+      "videoCall": "WhatsApp video call requested"
     },
     "settings": {
       "title": "Settings",

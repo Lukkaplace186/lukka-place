@@ -19051,48 +19051,57 @@ console.log('\n2. services/openai.js');
     const tap119 = require('../services/contactTapAlert');
     const enquiry119 = require('../services/listingEnquiry');
 
-    check('the mode is in_person or video, absent is in person, anything else is refused', () => {
-      assert.deepStrictEqual(visitMode119.VISIT_MODES, ['in_person', 'video']);
-      assert.deepStrictEqual(visitMode119.resolveVisitModeInput(undefined), { value: null });
-      assert.deepStrictEqual(visitMode119.resolveVisitModeInput(''), { value: null });
-      assert.deepStrictEqual(visitMode119.resolveVisitModeInput('video'), { value: 'video' });
-      assert.ok(visitMode119.resolveVisitModeInput('teleport').error);
-      assert.strictEqual(visitMode119.withVisitMode('mardi 18 novembre à 10h00', { visit_mode: 'video' }), 'mardi 18 novembre à 10h00 · par appel vidéo');
+    check('one rule with the app (2026-11-13): \'video\' or NULL = on site, the phrase after the time once', () => {
+      assert.deepStrictEqual(dbService.VISIT_MODES, ['video']);
+      assert.strictEqual(dbService.normalizeVisitMode('video'), 'video');
+      assert.strictEqual(dbService.normalizeVisitMode('in_person'), null);
+      assert.strictEqual(dbService.normalizeVisitMode('teleport'), null);
+      assert.strictEqual(visitMode119.VIDEO_PHRASE, '(appel vidéo WhatsApp)');
+      const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'visitModeRules.js'), 'utf8');
+      assert.ok(web.includes("export const VIDEO_PHRASE = '(appel vidéo WhatsApp)';"), 'engine and web print the same words');
+      assert.strictEqual(visitMode119.withVisitMode('mardi 18 novembre à 10h00', { visit_mode: 'video' }), 'mardi 18 novembre à 10h00 (appel vidéo WhatsApp)');
+      // The web already put it in requested_time: never twice.
+      assert.strictEqual(visitMode119.withVisitMode('mardi 18 novembre à 10h00 (appel vidéo WhatsApp)', { visit_mode: 'video' }), 'mardi 18 novembre à 10h00 (appel vidéo WhatsApp)');
       assert.strictEqual(visitMode119.withVisitMode('mardi 18 novembre à 10h00', { visit_mode: null }), 'mardi 18 novembre à 10h00');
       assert.strictEqual(visitMode119.VIDEO_PAYMENT_WARNING, "⚠️ Ne versez aucun argent sur la seule base d'une vidéo.");
     });
 
     const lead119 = dbService.createLead({ wa_id: '33612119119', name: 'Client Paris', source: 'listing-visit-request', property_id: 11901 });
 
-    check('the row keeps the mode, refuses an unknown one, and older rows read as in person', () => {
+    check('the row keeps the mode; anything else, and every older row, is on site (NULL)', () => {
       const video = dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11901, requestedTime: 'mardi 18 novembre à 10h00', visitMode: 'video' });
       assert.strictEqual(video.visit_mode, 'video');
       const plain = dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11902, requestedTime: 'mardi 18 novembre à 11h00' });
       assert.strictEqual(plain.visit_mode, null);
-      assert.throws(() => dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11903, visitMode: 'teleport' }), /unknown visit mode/);
+      assert.strictEqual(dbService.createViewingRequest({ leadId: lead119.id, propertyId: 11903, visitMode: 'teleport' }).visit_mode, null);
       // The repeated form can switch the mode while the request is unanswered.
       const refreshed = dbService.refreshPendingViewing(plain.id, { requestedTime: 'mardi 18 novembre à 12h00', visitMode: 'video' });
       assert.strictEqual(refreshed.visit_mode, 'video');
       const kept = dbService.refreshPendingViewing(plain.id, { requestedTime: 'mardi 18 novembre à 13h00' });
-      assert.strictEqual(kept.visit_mode, 'video', 'absent leaves the mode as it was');
+      assert.strictEqual(kept.visit_mode, 'video', 'no mode sent leaves it as it was');
+      const back = dbService.refreshPendingViewing(plain.id, { requestedTime: 'mardi 18 novembre à 14h00', visitMode: 'in_person' });
+      assert.strictEqual(back.visit_mode, null, 'back to on site');
     });
 
-    await checkAsync('POST /admin/viewing-requests stores visit_mode and refuses an unknown one; the batch too', async () => {
-      const bad = await adminRequest('POST', '/admin/viewing-requests', {
+    await checkAsync('POST /admin/viewing-requests stores visit_mode (an unknown one is on site); the batch per item', async () => {
+      const odd = await adminRequest('POST', '/admin/viewing-requests', {
         lead_id: lead119.id, property_id: 11904, requested_time: 'mercredi 10h', visit_mode: 'teleport',
       });
-      assert.strictEqual(bad.status, 400);
+      assert.strictEqual(odd.status, 201);
+      assert.strictEqual(odd.body.viewingRequest.visit_mode, null);
       const ok = await adminRequest('POST', '/admin/viewing-requests', {
-        lead_id: lead119.id, property_id: 11904, requested_time: 'mercredi 10h', visit_mode: 'video',
+        lead_id: lead119.id, property_id: 11906, requested_time: 'mercredi 11h (appel vidéo WhatsApp)', visit_mode: 'video',
       });
       assert.strictEqual(ok.status, 201);
       assert.strictEqual(ok.body.viewingRequest.visit_mode, 'video');
       const slot = new Date(Date.now() + 3 * 24 * 3600 * 1000);
       slot.setUTCHours(9, 0, 0, 0);
-      const badBatch = await adminRequest('POST', '/admin/viewing-requests/batch', {
-        wa_id: '33612119120', items: [{ property_id: 11905, preferred_slot_at: slot.toISOString(), visit_mode: 'hologram' }],
+      const batch = await adminRequest('POST', '/admin/viewing-requests/batch', {
+        wa_id: '33612119120', items: [{ property_id: 11905, preferred_slot_at: slot.toISOString(), visit_mode: 'video' }],
       });
-      assert.strictEqual(badBatch.status, 400);
+      assert.strictEqual(batch.status, 201);
+      const row = dbService.listAllViewingRequests({ visitMode: 'video', limit: 200 }).data.find((r) => r.property_id === 11905);
+      assert.ok(row, 'the batch item is a video visit');
     });
 
     check('the agent alert says video and how; an in-person one does not', () => {
@@ -19108,7 +19117,7 @@ console.log('\n2. services/openai.js');
       const desk = notifications119.opsMessage({
         listing, lead: lead119, viewingRequest: { id: 1, requested_time: 'mardi 18 novembre à 10h00', visit_mode: 'video' }, propertyId: 11901, agentNotified: true,
       });
-      assert.match(desk, /Créneau souhaité : mardi 18 novembre à 10h00 · par appel vidéo/);
+      assert.match(desk, /Créneau souhaité : mardi 18 novembre à 10h00 \(appel vidéo WhatsApp\)/);
     });
 
     check('the customer\'s confirmation says the agent will video call, with the payment warning', () => {

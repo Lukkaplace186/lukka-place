@@ -176,7 +176,7 @@ export async function AgentVisitReminderBanner({ visits, listingById }) {
     const listing = propertyId ? listingById.get(String(propertyId)) : null;
     const where = listing?.title || v.lead_commune || customerLabel(v);
     // A video visit says so: the agent calls instead of going (lib/visitMode.js).
-    return [formatVisitTime(v.scheduled_at, locale), where, v.visit_mode === 'video' ? t('agent.visits.video.short') : null].filter(Boolean).join(' · ');
+    return [formatVisitTime(v.scheduled_at, locale), where, v.visit_mode === 'video' ? t('agent.visits.videoCall') : null].filter(Boolean).join(' · ');
   });
 
   return (

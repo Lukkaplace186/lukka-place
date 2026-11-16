@@ -49,7 +49,6 @@ const {
   notifyOps,
 } = require('../services/viewingNotifications');
 const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, formatSlotFr } = require('../services/visitSchedule');
-const { resolveVisitModeInput } = require('../services/visitMode');
 const { utcOffsetForCommune, resolveCity } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
 const pushNotify = require('../services/pushNotify');
@@ -972,7 +971,8 @@ router.patch('/leads/:id', (req, res) => {
 router.post('/viewing-requests', (req, res) => {
   const {
     lead_id: leadId, property_id: propertyId, requested_time: requestedTime, preferred_slot_at: preferredSlotRaw,
-    visit_mode: visitModeRaw,
+    // 'video' = a WhatsApp video call instead of a visit on site (db.normalizeVisitMode).
+    visit_mode: visitMode,
   } = req.body || {};
   const numericLeadId = Number.parseInt(leadId, 10);
   if (!Number.isFinite(numericLeadId) || !db.getLead(numericLeadId)) {
@@ -986,10 +986,6 @@ router.post('/viewing-requests', (req, res) => {
     if (resolved.error) return res.status(400).json({ success: false, error: resolved.error });
     preferredSlotAt = resolved.value;
   }
-  // 'in_person' | 'video' (services/visitMode.js); absent = in person, as before.
-  const mode = resolveVisitModeInput(visitModeRaw);
-  if (mode.error) return res.status(400).json({ success: false, error: mode.error });
-  const visitMode = mode.value;
 
   try {
     // Same customer, same listing, still unanswered: the form was sent again
@@ -1104,9 +1100,7 @@ router.post('/viewing-requests/batch', (req, res) => {
     const slot = resolvePreferredSlotInput(item?.preferred_slot_at, now);
     if (slot.error) return res.status(400).json({ success: false, error: slot.error, property_id: propertyId });
     const requestedTime = String(item?.requested_time || formatSlotFr(slot.value) || '').trim().slice(0, 200);
-    const mode = resolveVisitModeInput(item?.visit_mode);
-    if (mode.error) return res.status(400).json({ success: false, error: mode.error, property_id: propertyId });
-    parsed.push({ propertyId, preferredSlotAt: slot.value, requestedTime, visitMode: mode.value });
+    parsed.push({ propertyId, preferredSlotAt: slot.value, requestedTime, visitMode: db.normalizeVisitMode(item?.visit_mode) });
   }
   if (db.countRecentVisitBatches(waId, new Date(now.getTime() - 3600 * 1000).toISOString()) >= VISIT_BATCH_PER_HOUR) {
     return res.status(429).json({ success: false, error: 'One multi-visit request per hour.' });

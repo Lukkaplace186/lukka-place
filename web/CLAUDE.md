@@ -5348,19 +5348,22 @@ Engine half and the measurements: `docs/claude/leads-and-enquiries.md`,
 
 ## "Visite par appel vidéo" (2026-11-16)
 
-Engine half and the why: root docs/claude/viewings.md, same heading. Here:
-`lib/visitMode.js` (pure: form reading, the visitor's clock),
-`VisitRequestDialog` (« Sur place » / « Par appel vidéo » above the calendar,
-shown once the slots API says `videoVisits`; video shows the owner's payment
-warning), `VisitSlotPicker` (`visitMode="video"`: each time also in the
-visitor's own zone when it differs — « 10:00 (04:00 à New York) » and
-« 10:00 à Kinshasa · 04:00 à New York » under the pick; the zone is the
-browser's `Intl`, never guessed from the phone; Paris and Brussels share
-Kinshasa's clock in winter, so nothing is added there then),
-`WhatsAppIntentSheet` (second step after « visiter » when the agent takes
-video visits, intent `video_visit`), `AgentVisitAvailability` (the switch,
-saved on its own by `saveVideoVisitsAction`), the agent's visit card and
-reminder banner, `/admin/viewings` (filter `mode`, a chip), the customer's
-visit timeline. `lib/agentAvailability.js` reads `video_visits` through
-`to_jsonb` (works before the migration; only an explicit false turns it off).
+Engine half and the why: root docs/claude/viewings.md, same heading. The mode
+follows the app's rules (`lib/visitModeRules.js`, 2026-11-13: `visit_mode`
+'video' or nothing, « (appel vidéo WhatsApp) » after the time, `&mode=video`
+on the confirmation redirect). Here: `lib/visitMode.js` (pure: the owner's
+warning, the visitor's clock), `VisitRequestDialog` (« Sur place » / « Par
+appel vidéo » above the calendar, shown once the slots API says
+`videoVisits`; video shows the payment warning), `VisitSlotPicker`
+(`visitMode="video"`: each time also in the visitor's own zone when it
+differs — « 10:00 (04:00 à New York) » and « 10:00 à Kinshasa · 04:00 à New
+York » under the pick; the zone is the browser's `Intl`, never guessed from
+the phone; Paris and Brussels share Kinshasa's clock in winter, so nothing is
+added there then), `WhatsAppIntentSheet` (second step after « visiter » when
+the agent takes video visits, intent `video_visit`), `AgentVisitAvailability`
+(the switch, saved on its own by `saveVideoVisitsAction`), the agent's
+reminder banner (the card's « · Appel vidéo WhatsApp demandé » is the app's),
+`/admin/viewings` (filter `mode`, a chip), the customer's visit timeline.
+`lib/agentAvailability.js` reads `video_visits` through `to_jsonb` (works
+before the migration; only an explicit false turns it off).
 `tests/unit/video-visits.test.js`.

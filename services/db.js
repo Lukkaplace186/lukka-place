@@ -13,7 +13,6 @@ const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs, isCommercialType, COMMERCIAL_SPEC_FIELDS } = require('./commercial');
 const { normaliseListingDetails, DETAIL_FIELDS, BOOLEAN_DETAIL_FIELDS } = require('./listingDetails');
 const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS, mergeCapped } = require('./listingMedia');
-const { VISIT_MODES } = require('./visitMode');
 const crypto = require('crypto');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -3396,20 +3395,26 @@ function declineLeadMatch({ matchId, channel = 'whatsapp' }) {
  * @param {string} [data.requestedTime] Free text — see the column comment above.
  * @returns {Object} The new viewing_requests row.
  */
+/**
+ * How the customer asked to see the home: NULL is a visit on site (every
+ * request before 2026-11-13, and the default), 'video' a WhatsApp video call
+ * with the agent (the app's "En vidéo"). Anything else is not a mode we know
+ * and is stored as NULL, never guessed.
+ */
+const VISIT_MODES = Object.freeze(['video']);
+function normalizeVisitMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  return VISIT_MODES.includes(mode) ? mode : null;
+}
+
 function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null, batchId = null, visitMode = null } = {}) {
   if (!leadId) throw new Error('createViewingRequest requires leadId');
-  if (visitMode != null && !VISIT_MODES.includes(visitMode)) {
-    throw new Error(`createViewingRequest: unknown visit mode '${visitMode}'`);
-  }
   const info = db
     .prepare(
       `INSERT INTO viewing_requests (lead_id, property_id, requested_time, preferred_slot_at, batch_id, visit_mode)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .run(
-      leadId, toNullable(propertyId), toNullable(requestedTime), toNullable(preferredSlotAt), toNullable(batchId),
-      toNullable(visitMode),
-    );
+    .run(leadId, toNullable(propertyId), toNullable(requestedTime), toNullable(preferredSlotAt), toNullable(batchId), normalizeVisitMode(visitMode));
   return db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(Number(info.lastInsertRowid));
 }
 
@@ -3453,6 +3458,9 @@ function getViewingRequest(id) {
  * we already messaged this particular request". See services/scheduler.js.
  */
 const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
+  // 'video' when the customer asked for a WhatsApp video call instead of a
+  // visit on site (web app, 2026-11-13); NULL = on site. See normalizeVisitMode.
+  ['visit_mode', 'TEXT'],
   ['decline_reason', 'TEXT'],
   ['scheduled_at', 'TEXT'],
   ['sla_alerted_at', 'TEXT'],
@@ -3552,9 +3560,6 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // When the agent's "déjà loué / vendu" answer on THIS request took the
   // listing off the site (services/viewingNotifications.js takeListingOffMarket).
   ['listing_closed_at', 'TEXT'],
-  // "Visite par appel vidéo" (2026-11-16, services/visitMode.js): 'in_person'
-  // | 'video'. NULL on older rows = in person; never backfilled.
-  ['visit_mode', 'TEXT'],
 ];
 
 /** viewing_requests.direct_contact_channel — same words as leads.contact_channel. */
@@ -4334,9 +4339,11 @@ function refreshPendingViewing(id, { requestedTime, preferredSlotAt, visitMode }
       `UPDATE viewing_requests SET requested_time = ?, preferred_slot_at = ? WHERE id = ? AND status = 'PENDING'`,
     ).run(text, toNullable(preferredSlotAt), Number(id));
   }
-  // The repeated form says how they want to visit too; absent leaves it as it was.
-  if (VISIT_MODES.includes(visitMode)) {
-    db.prepare(`UPDATE viewing_requests SET visit_mode = ? WHERE id = ? AND status = 'PENDING'`).run(visitMode, Number(id));
+  // The repeated form says how they want to visit too (video, or back to on
+  // site); a caller that sends no mode at all leaves it as it was.
+  if (visitMode !== undefined) {
+    db.prepare(`UPDATE viewing_requests SET visit_mode = ? WHERE id = ? AND status = 'PENDING'`)
+      .run(normalizeVisitMode(visitMode), Number(id));
   }
   return getViewingRequest(id);
 }
@@ -4685,16 +4692,19 @@ function listViewingProposalsAwaitingCustomer(silentMs, nowIso = new Date().toIS
     .all(new Date(now - silentMs).toISOString(), new Date(now - maxAgeMs).toISOString());
 }
 
+/** The admin feed's visit-type filter (GET /admin/viewing-requests/feed?visit_mode=). */
+const VISIT_FEED_MODES = Object.freeze(['in_person', 'video']);
+
 function listAllViewingRequests({
   status, routingType, view, q, agentIds, commune, from, to, limit, offset, visitMode,
 } = {}) {
   const where = [];
   const params = {};
-  // "Visite par appel vidéo" (services/visitMode.js): 'video', or 'in_person'
-  // which includes the rows from before the column (NULL = in person).
+  // Video visits (normalizeVisitMode): 'video', or 'in_person' = every other
+  // row, the ones from before the column included (NULL = on site).
   if (visitMode) {
-    if (!VISIT_MODES.includes(visitMode)) throw new Error(`Invalid visit mode '${visitMode}'`);
-    where.push(visitMode === 'video' ? "vr.visit_mode = 'video'" : "COALESCE(vr.visit_mode, 'in_person') <> 'video'");
+    if (!VISIT_FEED_MODES.includes(visitMode)) throw new Error(`Invalid visit mode '${visitMode}'`);
+    where.push(visitMode === 'video' ? "vr.visit_mode = 'video'" : "COALESCE(vr.visit_mode, '') <> 'video'");
   }
   if (status) {
     if (!VIEWING_REQUEST_STATUSES.includes(status)) throw new Error(`Invalid status '${status}'`);
@@ -5255,6 +5265,8 @@ module.exports = {
   countAgentProposalsSince,
   MAX_PITCHES_PER_LEAD,
   createViewingRequest,
+  normalizeVisitMode,
+  VISIT_MODES,
   getViewingRequest,
   getViewingRequestWithLead,
   listViewingRequestsForCustomer,

@@ -96,7 +96,8 @@ export default function VisitRequestDialog({ propertyId, open, onOpenChange, ret
         <form action={bound} className="flex flex-col gap-4">
           {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
 
-          <input type="hidden" name="visit_mode" value={videoOffered ? mode : 'in_person'} />
+          {/* 'video' or nothing = on site (lib/visitModeRules.js visitModeOf). */}
+          <input type="hidden" name="visit_mode" value={videoOffered && mode === 'video' ? 'video' : ''} />
           {videoOffered ? (
             <fieldset>
               <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-70">{t('enquiry.visitMode.label')}</legend>

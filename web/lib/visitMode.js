@@ -1,35 +1,25 @@
 /**
- * "Sur place" or "Par appel vidéo" (2026-11-16, owner): how a customer wants
- * to visit. A customer abroad — Paris, Brussels, Washington — asks the agent
- * to show the property on a WhatsApp video call at the booked time.
+ * "Sur place" or "Par appel vidéo" on the website (2026-11-16, owner): a
+ * customer abroad — Paris, Brussels, Washington — asks the agent to show the
+ * property on a WhatsApp video call at the booked time.
  *
- * Stored by the engine on the visit request (`viewing_requests.visit_mode`,
- * engine services/visitMode.js): 'in_person' | 'video', NULL on older rows
- * (= in person). Whether an agent takes video visits is their own switch
- * (lib/agentAvailability.js `videoVisits`, on by default).
+ * The mode itself follows the app's rules (lib/visitModeRules.js, 2026-11-13:
+ * `visit_mode` 'video' or nothing = on site, and « (appel vidéo WhatsApp) »
+ * after the time). Whether an agent takes video visits is their own switch
+ * (lib/agentAvailability.js `videoVisits`, on by default). This module holds
+ * what the website adds: the owner's warning and the visitor's clock beside
+ * the listing's, with the city name.
  *
  * The visitor's clock: a video visit's time is the listing's local time
  * (Kinshasa +1, Lubumbashi +2…). Someone booking from Paris sees it next to
  * their own time when the two differ — « 10:00 à Kinshasa · 10:00 à Paris ».
  * The zone is the browser's (`Intl`), never guessed from the phone number.
  *
- * Pure module: shared by the dialog, the Server Action and the tests.
+ * Pure module: shared by the dialog, the picker and the tests.
  */
-
-export const VISIT_MODES = Object.freeze(['in_person', 'video']);
 
 /** The owner's wording, shown with every video booking. */
 export const VIDEO_PAYMENT_WARNING_FR = 'Ne versez aucun argent sur la seule base d’une vidéo.';
-
-/** 'in_person' | 'video' from a posted form; anything else is in person. */
-export function visitModeFromForm(formData) {
-  const raw = String(formData?.get?.('visit_mode') || '').trim();
-  return VISIT_MODES.includes(raw) ? raw : 'in_person';
-}
-
-export function isVideoVisit(row) {
-  return row?.visit_mode === 'video';
-}
 
 /** The browser's IANA zone ("Europe/Paris"), or null when it cannot say. */
 export function browserTimeZone() {

@@ -136,8 +136,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
   const sp = await searchParams;
   const visitSent = sp.visit_sent === '1' ? 'agent' : sp.visit_sent === 'team' ? 'team' : null;
   const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
-  // A video visit's confirmation carries the payment warning (lib/visitMode.js).
-  const visitVideo = Boolean(visitSent) && sp.visit_mode === 'video';
+  // A video visit's confirmation carries the payment warning (lib/visitMode.js);
+  // `mode=video` is what the visit action adds to the redirect.
+  const visitVideo = Boolean(visitSent) && sp.mode === 'video';
   const listing = await getListingById(id);
 
   // Covers both "no such id" and "exists but is not approved" —

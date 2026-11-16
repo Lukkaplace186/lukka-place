@@ -271,7 +271,7 @@ export async function createViewingRequest({ leadId, propertyId, requestedTime, 
       property_id: propertyId,
       requested_time: requestedTime,
       ...(preferredSlotAt ? { preferred_slot_at: preferredSlotAt } : {}),
-      // 'in_person' | 'video' (engine services/visitMode.js); absent = in person.
+      // 'video' = a WhatsApp video call (engine db.normalizeVisitMode); absent = on site.
       ...(visitMode ? { visit_mode: visitMode } : {}),
     }),
   });
@@ -867,7 +867,7 @@ export async function listViewingFeed({
 } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
-  // 'video' | 'in_person' (engine services/visitMode.js).
+  // The visit-type filter: 'video' | 'in_person' (engine db.listAllViewingRequests).
   if (visitMode) params.set('visit_mode', visitMode);
   if (routingType) params.set('routing_type', routingType);
   if (view) params.set('view', view);

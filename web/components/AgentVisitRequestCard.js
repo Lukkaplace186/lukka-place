@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Phone, Check, X, CalendarCheck, CalendarClock, MoreHorizontal, Home, MessageCircle, MessageCircleCheck, Target, Video } from 'lucide-react';
+import { Phone, Check, X, CalendarCheck, CalendarClock, MoreHorizontal, Home, MessageCircle, MessageCircleCheck, Target } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { recordViewingDirectContactAction, updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { agentActionsFor } from '@/lib/viewingActions';
@@ -195,8 +195,6 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   // escalates — and only until one is on file.
   const canRecordContact = !contactRecorded && (status === 'PENDING' || status === 'RESCHEDULED');
   const SlotIcon = agreed ? CalendarCheck : CalendarClock;
-  // "Visite par appel vidéo" (lib/visitMode.js): the agent calls the customer.
-  const video = viewingRequest.visit_mode === 'video';
 
   const whatsappLink = (className, label) => (
     <AgentContactLink
@@ -239,18 +237,13 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           <SlotIcon strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden="true" />
           <span className="min-w-0">
             <span className="block">{slotText}</span>
-            <span className="block text-xs font-semibold text-ink-45">{slotCaption}</span>
+            <span className="block text-xs font-semibold text-ink-45">
+              {slotCaption}
+              {/* The customer asked for a WhatsApp video call, not a visit on site (visit_mode). */}
+              {viewingRequest.visit_mode === 'video' ? ` · ${t('agent.visits.videoCall')}` : null}
+            </span>
           </span>
         </p>
-        {video ? (
-          <p className="flex min-w-0 items-start gap-2 rounded-lg bg-blue-tint px-3 py-2 text-sm text-blue-deep">
-            <Video strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0">
-              <span className="block font-semibold">{t('agent.visits.video.title')}</span>
-              <span className="block text-xs">{t('agent.visits.video.howTo')}</span>
-            </span>
-          </p>
-        ) : null}
         {target && (
           <p className="flex min-w-0 items-center gap-2 text-sm text-ink-70">
             <Home strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" aria-hidden="true" />

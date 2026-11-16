@@ -30,6 +30,10 @@ import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
 
 test('the period picker accepts only its own keys', () => {
   assert.equal(parseClickPeriod('7').days, 7);
+  // 24 h, 3 and 14 days to read an ad campaign's effect (owner, 2026-11-16).
+  assert.equal(parseClickPeriod('1').days, 1);
+  assert.equal(parseClickPeriod('3').days, 3);
+  assert.equal(parseClickPeriod('14').days, 14);
   assert.equal(parseClickPeriod(['90']).days, 90);
   assert.equal(parseClickPeriod('tout').days, null);
   assert.equal(parseClickPeriod('365').key, '30', 'an unknown period falls back to the default');

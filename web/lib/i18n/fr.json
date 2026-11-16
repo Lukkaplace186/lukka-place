@@ -4223,7 +4223,10 @@
       "direct": "Accès direct",
       "period": "Période",
       "periods": {
+        "1": "24 h",
+        "3": "3 jours",
         "7": "7 jours",
+        "14": "14 jours",
         "30": "30 jours",
         "90": "90 jours",
         "tout": "Depuis le début"

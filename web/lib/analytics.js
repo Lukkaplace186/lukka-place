@@ -568,8 +568,13 @@ const CLICK_CONTENT_LANGUAGE_ID = 20;
 const CLICK_CATEGORY_LANGUAGE_ID = 26;
 
 /** Periods offered on the dashboard. `null` days = since tracking began. */
+// 1 / 3 / 14 days added 2026-11-16 (owner): to see an ad campaign's effect.
+// Rolling windows (NOW() minus N days), so "24 h" is the last 24 hours.
 export const CLICK_PERIODS = [
+  { key: '1', days: 1 },
+  { key: '3', days: 3 },
   { key: '7', days: 7 },
+  { key: '14', days: 14 },
   { key: '30', days: 30 },
   { key: '90', days: 90 },
   { key: 'tout', days: null },

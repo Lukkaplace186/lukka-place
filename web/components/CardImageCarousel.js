@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import SafeImage from './SafeImage';
 import VideoPlayBadge from './VideoPlayBadge';
@@ -107,6 +107,15 @@ export default function CardImageCarousel({
   fullWidth = sizes === '100vw',
   // How many photos after the cover to fetch once it has painted (0 = none).
   preloadAhead = 0,
+  // 'always': round arrows visible on every screen (the detail page's phone
+  // gallery). Cards keep 'hover' — see TOUCH above for why a phone card must
+  // not carry tappable arrows.
+  arrows = 'hover',
+  // The detail page hides the dots when its thumbnail strip shows position.
+  showDots = true,
+  // A ref the caller can use to jump to a photo ({ goTo(i) }): the detail
+  // page's thumbnails.
+  controlRef = null,
 }) {
   const t = useT();
   const [index, setIndex] = useState(0);
@@ -170,11 +179,17 @@ export default function CardImageCarousel({
     }
     const scroller = scrollerRef.current;
     if (scroller) {
-      scroller.scrollTo({ left: i * scroller.clientWidth, behavior: 'smooth' });
+      // A jump of more than one photo (a thumbnail, or wrapping from the last
+      // photo to the first) is instant: a smooth scroll passes every photo in
+      // between, and handleScroll would load each of them on the way.
+      const far = Math.abs(i - Math.round(scroller.scrollLeft / (scroller.clientWidth || 1))) > 1;
+      scroller.scrollTo({ left: i * scroller.clientWidth, behavior: far ? 'auto' : 'smooth' });
     }
     setIndex(i);
     markLoadedAround(i);
   }
+
+  useImperativeHandle(controlRef, () => ({ goTo: (i) => scrollToIndex(i) }));
 
   function go(delta, e) {
     scrollToIndex((index + delta + total) % total, e);
@@ -239,6 +254,14 @@ export default function CardImageCarousel({
 
   const arrowClass =
     'u-press absolute top-1/2 hidden -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 pointer-events-none backdrop-blur-sm transition-opacity hover:bg-surface sm:flex sm:group-hover/carousel:pointer-events-auto sm:group-hover/carousel:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100';
+  // The detail page: visible and tappable on a phone, a 40px circle padded to
+  // a 44px target by .u-hit. Swiping still works around it.
+  const alwaysArrowClass =
+    'u-press u-hit u-glass-white absolute top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-ink shadow-md';
+  const shownArrowClass = arrows === 'always' ? alwaysArrowClass : arrowClass;
+  const arrowInset = arrows === 'always' ? 'left-3' : 'left-2';
+  const arrowInsetRight = arrows === 'always' ? 'right-3' : 'right-2';
+  const arrowIcon = arrows === 'always' ? 'h-5 w-5' : 'h-4 w-4';
 
   return (
     <div className="group/carousel relative h-full w-full overflow-hidden bg-canvas-alt" onPointerEnter={handlePointerEnter}>
@@ -286,19 +309,20 @@ export default function CardImageCarousel({
             type="button"
             onClick={(e) => go(-1, e)}
             aria-label={t('listings.gallery.previousPhoto')}
-            className={`${arrowClass} left-2`}
+            className={`${shownArrowClass} ${arrowInset}`}
           >
-            <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className={arrowIcon} />
           </button>
           <button
             type="button"
             onClick={(e) => go(1, e)}
             aria-label={t('listings.gallery.nextPhoto')}
-            className={`${arrowClass} right-2`}
+            className={`${shownArrowClass} ${arrowInsetRight}`}
           >
-            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className={arrowIcon} />
           </button>
 
+          {showDots ? (
           <div
             className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-1.5 sm:pointer-events-auto"
             onClick={(e) => {
@@ -324,6 +348,7 @@ export default function CardImageCarousel({
               />
             ))}
           </div>
+          ) : null}
         </>
       )}
     </div>

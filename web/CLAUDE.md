@@ -5408,8 +5408,17 @@ server time). Photo 2 was only mounted once the swipe was half done
 - Checked in a browser at 375 px: photos 1–3 loaded before any swipe; at
   1024 px the hidden carousel mounted only the cover; /listings cards
   unchanged (lazy, one photo each). `tests/unit/photo-swipe-preload.test.js`.
-- Not done: a CDN close to Kinshasa (owner decision; it is what would cut the
-  ~1.6 s itself).
+- The CDN came the same day: see "Cloudflare in front of lukkaplace.com".
+- **Thumbnails and visible arrows on the phone gallery** (same day, owner's
+  reference site). Under the edge-to-edge photo, a strip of 80 px thumbnails
+  (`sizes="80px"`, `fetchPriority="low"`): a tap jumps there through
+  `controlRef.goTo` (useImperativeHandle), and the strip keeps the current
+  one centred as the visitor swipes. It replaces the dots (`showDots`). The
+  carousel takes `arrows="always"` here only: round 40 px arrows padded to
+  44 px by `.u-hit`. Cards keep `arrows="hover"`, hidden on a phone (the
+  TOUCH note in CardImageCarousel). A jump of more than one photo is
+  instant, so the photos skipped over are not loaded. Desktop mosaic
+  unchanged.
 
 ## Cloudflare in front of lukkaplace.com (2026-11-17)
 

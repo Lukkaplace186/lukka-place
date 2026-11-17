@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, Play, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import VideoPlayBadge from './VideoPlayBadge';
@@ -114,6 +114,19 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
     [noteSeen],
   );
 
+  // Phone thumbnail strip (2026-11-17, owner's reference: a row of small
+  // photos under the main one). A tap jumps the carousel there; the strip
+  // keeps the current photo in view as the visitor swipes.
+  const carouselControl = useRef(null);
+  const thumbStripRef = useRef(null);
+  useEffect(() => {
+    const strip = thumbStripRef.current;
+    const thumb = strip?.querySelector(`[data-thumb="${mobileIndex}"]`);
+    if (!strip || !thumb) return;
+    const left = thumb.offsetLeft - (strip.clientWidth - thumb.clientWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [mobileIndex]);
+
   useEffect(() => {
     if (lightboxIndex !== null) noteSeen(lightboxIndex, true);
   }, [lightboxIndex, noteSeen]);
@@ -213,7 +226,9 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               so the first swipe lands on a photo instead of a grey frame
               (owner's iPhone, 2026-11-17: ~1.5 s per photo from Kinshasa).
               loadingShimmer: a slow photo reads as loading, not as missing. */}
-          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority preloadAhead={2} loadingShimmer onIndexChange={onMobileIndexChange} />
+          {/* arrows="always": visible ← → on the phone photo (the cards keep
+              theirs hidden); the thumbnail strip below replaces the dots. */}
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority preloadAhead={2} loadingShimmer arrows="always" showDots={false} controlRef={carouselControl} onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (
@@ -246,6 +261,41 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           </button>
         ) : null}
       </div>
+
+      {/* Thumbnails, phone only. Small files (sizes 80px, low fetch
+          priority, never ahead of the main photo), so a visitor sees at once
+          what the other photos are and can jump to one. `relative` makes
+          each thumb's offsetLeft count from the strip (the effect above). */}
+      {total > 1 ? (
+        <div
+          ref={thumbStripRef}
+          aria-label={t('listings.gallery.allPhotos')}
+          className="no-scrollbar relative -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 pt-2 sm:hidden"
+        >
+          {shots.map((src, index) => (
+            <button
+              key={`${src}-${index}`}
+              type="button"
+              data-thumb={index}
+              onClick={() => carouselControl.current?.goTo(index)}
+              aria-label={`Photo ${index + 1}`}
+              aria-current={index === mobileIndex ? 'true' : undefined}
+              className={`relative h-14 w-20 flex-none overflow-hidden rounded-md bg-canvas-deep transition-shadow ${
+                index === mobileIndex ? 'ring-2 ring-blue ring-offset-1 ring-offset-canvas' : ''
+              }`}
+            >
+              <SafeImage src={src} alt="" fill sizes="80px" fetchPriority="low" draggable={false} className="object-cover" />
+              {items[index]?.video ? (
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-white">
+                    <Play strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 translate-x-[1px] fill-white" />
+                  </span>
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <Dialog open={gridOpen} onOpenChange={setGridOpen}>
         <DialogContent showCloseButton className="max-h-[78dvh] max-w-[min(96vw,40rem)] gap-0 overflow-y-auto p-3 sm:hidden">

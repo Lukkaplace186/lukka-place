@@ -47,3 +47,33 @@ test('feed cards neither preload ahead nor shimmer', () => {
     assert.doesNotMatch(source, /preloadAhead/);
   }
 });
+
+// Phone gallery, thumbnails and visible arrows (2026-11-17, owner's reference
+// site). Cards must keep their hidden arrows (see CardImageCarousel's TOUCH
+// note): only the detail page opts in.
+test('only the detail page shows tappable arrows on a phone; cards keep hover arrows', () => {
+  assert.match(carousel, /arrows = 'hover',/);
+  const always = carousel.match(/const alwaysArrowClass =\s*'([^']+)'/)?.[1] || '';
+  for (const token of ['flex', 'u-hit', 'h-10', 'w-10']) assert.ok(always.split(/\s+/).includes(token), `always-arrow class lacks ${token}`);
+  assert.ok(!always.split(/\s+/).includes('hidden') && !always.includes('opacity-0'), 'always-visible arrows are hidden');
+  const gallery = read('components/PhotoGallery.js');
+  assert.match(gallery, /<CardImageCarousel [^>]*arrows="always" showDots=\{false\} controlRef=\{carouselControl\}/);
+  for (const file of ['components/PropertyCard.js', 'components/MapCardCarousel.js']) {
+    assert.doesNotMatch(read(file), /arrows="always"/, `${file} must not show phone arrows`);
+  }
+});
+
+test('the phone thumbnail strip is small, low priority, and jumps the carousel', () => {
+  const gallery = read('components/PhotoGallery.js');
+  const strip = gallery.slice(gallery.indexOf('ref={thumbStripRef}'), gallery.indexOf('<Dialog open={gridOpen}'));
+  assert.match(strip, /sm:hidden/);
+  assert.match(strip, /sizes="80px" fetchPriority="low"/);
+  assert.match(strip, /onClick=\{\(\) => carouselControl\.current\?\.goTo\(index\)\}/);
+  assert.match(strip, /aria-current=\{index === mobileIndex \? 'true' : undefined\}/);
+});
+
+test('a jump of more than one photo is instant, so the photos in between are not loaded', () => {
+  const jump = carousel.slice(carousel.indexOf('function scrollToIndex('), carousel.indexOf('function go('));
+  assert.match(jump, /behavior: far \? 'auto' : 'smooth'/);
+  assert.match(carousel, /useImperativeHandle\(controlRef, \(\) => \(\{ goTo: \(i\) => scrollToIndex\(i\) \}\)\)/);
+});

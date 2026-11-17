@@ -60,19 +60,18 @@ test('only a changed quartier, reference or commune asks for a new point', () =>
   assert.equal(locationTextChanged(null, before), false);
 });
 
-test('map preview (?apercu=carte) changes only how a price tag is drawn', () => {
+test('the polished price tag is the live map: same pins, same label, finish in CSS only', () => {
   const map = read('components/ListingsMap.js');
-  assert.match(map, /get\('apercu'\) === 'carte'/);
-  assert.match(map, /preview: previewRef\.current,/, 'the pin layer is told');
-  assert.doesNotMatch(map, /groupByArea|AREA_ZOOM_BELOW|pillTone|purpose: group/, 'same pins, same count pill as the live map');
+  assert.doesNotMatch(map, /apercu|previewRef|mapPreviewOn|groupByArea|pillTone|purpose: group/);
+  assert.match(map, /return `\$\{group\.unitCount\} unités\$\{from\}`;/, 'building tag: "3 unités · dès $650"');
   const layer = read('lib/mapPinLayer.js');
-  assert.doesNotMatch(layer, /renderLabel|lkp-pin__cur/, 'the price label is the live one, "$" included');
-  assert.doesNotMatch(layer, /layerDepth|PREVIEW_NEAR_ZOOM|dataset\.purpose/);
+  assert.match(layer, /this\.container\.className = 'lkp-layer';/);
+  assert.doesNotMatch(layer, /renderLabel|lkp-pin__cur|layerDepth/, 'the price label is plain text, "$" included');
   const css = read('app/globals.css');
-  assert.match(css, /\.lkp-layer--preview \.lkp-pin__body \{/);
-  const from = css.indexOf('/* Map preview (?apercu=carte');
-  const previewCss = css.slice(from, css.indexOf(".lkp-pin[data-visited='true'] {", from));
-  assert.ok(previewCss.length > 200, 'preview block found');
-  assert.doesNotMatch(previewCss, /lkp-pin__cur|lkp-pin__per|border-radius|opacity|--lkp-bg/, 'same shape, colours and full-strength "$" as today');
-  assert.doesNotMatch(css, /data-band|data-behind|data-purpose/);
+  assert.doesNotMatch(css, /lkp-layer--preview/);
+  const from = css.indexOf('/* Price tag finish (2026-11-17');
+  const finish = css.slice(from, css.indexOf(".lkp-pin[data-visited='true'] {", from));
+  assert.ok(from > 0 && finish.length > 200, 'finish block found');
+  assert.doesNotMatch(finish, /border-radius|opacity|--lkp-bg/, 'same shape, colours and full-strength "$" as before');
+  assert.match(finish, /\.lkp-layer \.lkp-pin:hover \{ z-index: 2999999 !important; \}/);
 });

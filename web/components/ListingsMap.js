@@ -10,24 +10,8 @@ import { compactPrice, priceZIndex } from '@/lib/mapIcons';
 import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
-import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
+import { groupListingsByBuilding } from '@/lib/buildingGroups';
 import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
-
-/**
- * Map preview (2026-11-17): `?apercu=carte` in the address shows the same
- * crowd as the live map with a more finished price tag (lib/mapPinLayer.js
- * #renderLabel, `.lkp-layer--preview` in app/globals.css) and shorter
- * building labels. Owner: keep the density, it shows how much is available
- * — two earlier previews (commune bubbles, compact/layered tags) were
- * dropped. Read once when the map is built.
- */
-function mapPreviewOn() {
-  try {
-    return new URLSearchParams(window.location.search).get('apercu') === 'carte';
-  } catch {
-    return false;
-  }
-}
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
 import { useCountUp } from '@/lib/useCountUp';
@@ -160,14 +144,13 @@ function toBounds(latLngBounds) {
   return { south: sw.lat(), west: sw.lng(), north: ne.lat(), east: ne.lng() };
 }
 
-function labelFor(group, compact = false) {
+function labelFor(group) {
   if (group.isCommune) return communeBubbleLabel(group);
-  if (group.isBuilding && compact) {
-    // "3 unités · dès $650" — half the width of the min–max range.
+  if (group.isBuilding) {
+    // "3 unités · dès $650" — half the width of the min–max range (2026-11-17).
     const from = group.priceMin === null ? '' : ` · dès ${compactPrice(group.priceMin, 'sale')}`;
     return `${group.unitCount} unités${from}`;
   }
-  if (group.isBuilding) return buildingPinLabel(group, (value) => compactPrice(value, 'sale'));
   const listing = group.representative;
   return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
 }
@@ -302,8 +285,6 @@ export default function ListingsMap({
   const markerDataRef = useRef(new Map());
   const requestRef = useRef({ controller: null, timer: null, fetched: null, filterQuery: null, targetKey: null, positioning: false });
   const hoveredRef = useRef(null);
-  // Map preview (?apercu=carte): read when the map is built.
-  const previewRef = useRef(false);
   const selectSeqRef = useRef(0);
   // The view we positioned the map on (null until it has settled there), and
   // the last view reported — see "The list follows the map" above.
@@ -411,7 +392,6 @@ export default function ListingsMap({
     if (!map) return;
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
-    const preview = previewRef.current;
 
     // Listings that only know their commune become one bubble per commune at
     // its centre (lib/communeBubbles.js) instead of a ring of made-up spots.
@@ -454,7 +434,7 @@ export default function ListingsMap({
         id: group.isBuilding ? null : String(r.id),
         lat: position.lat,
         lng: position.lng,
-        label: labelFor(group, preview),
+        label: labelFor(group),
         title: group.isCommune ? group.communeName : group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
         commune: Boolean(group.isCommune),
@@ -625,10 +605,8 @@ export default function ListingsMap({
         // before any marker is fetched (see `positioning` below).
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...homeViewRef.current });
         mapRef.current = map;
-        previewRef.current = mapPreviewOn();
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
-          preview: previewRef.current,
           onClick: (pin) => {
             const { onListingSelect: select, onBuildingSelect: selectBuilding } = propsRef.current;
             if (pin.building) {

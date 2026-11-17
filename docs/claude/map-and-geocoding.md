@@ -52,3 +52,15 @@ commune's centre. Two causes, and the web half: web/CLAUDE.md, same heading.
   spread over ~4 km (1ère to 18ème rue), so no single point is honest; those
   listings place when their text names a street or a landmark.
 - §113.
+
+## Price tag finish (2026-11-17)
+
+Owner choices after three previews at `?apercu=carte` (all removed): **keep
+the crowd** — every price, same places, same overlap; it shows how much is
+available. Rejected: one bubble per commune when zoomed out, compact/layered
+tags tinted by sale vs rent, a lighter "$" and a rounder pill. What went live
+is today's tag finished in `web/app/globals.css` ("Price tag finish"): finer
+edge, two-step shadow so stacked tags stay distinct, weight 800, the hovered
+tag to the front on a mouse, a white halo on the selected one. Building tags
+read "3 unités · dès $650" (`labelFor`, ListingsMap.js). Test:
+`web/tests/unit/commune-bubbles.test.js`.

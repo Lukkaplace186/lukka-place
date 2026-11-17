@@ -37,15 +37,11 @@ export function createPinLayer(map, handlers) {
       this.me = null;
       this.meEl = null;
       this.container = null;
-      // Map preview (?apercu=carte, 2026-11-17): today's tag with a finer
-      // edge, a two-step shadow and hover/selected polish (app/globals.css,
-      // .lkp-layer--preview). Same density, same positions as the live map.
-      this.preview = Boolean(handlers.preview);
     }
 
     onAdd() {
       this.container = document.createElement('div');
-      this.container.className = this.preview ? 'lkp-layer lkp-layer--preview' : 'lkp-layer';
+      this.container.className = 'lkp-layer';
       this.container.style.position = 'absolute';
       this.container.style.left = '0';
       this.container.style.top = '0';

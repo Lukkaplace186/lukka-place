@@ -209,7 +209,11 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               desktop this hidden carousel's priority photo then asks for the
               desktop hero's exact file instead of a second, 1920w copy of the
               same cover (measured 2026-11-06: both were downloaded). */}
-          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority onIndexChange={onMobileIndexChange} />
+          {/* preloadAhead: photos 2–3 are fetched once the cover has painted,
+              so the first swipe lands on a photo instead of a grey frame
+              (owner's iPhone, 2026-11-17: ~1.5 s per photo from Kinshasa).
+              loadingShimmer: a slow photo reads as loading, not as missing. */}
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority preloadAhead={2} loadingShimmer onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (

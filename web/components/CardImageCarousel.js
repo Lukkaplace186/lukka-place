@@ -91,19 +91,29 @@ const DOT_WINDOW = 5;
  * sizing, so the scroller's snap points and scrollWidth stay correct
  * either way.
  *
- * `loadingShimmer` (the phone map's cards only) sweeps a light band across
- * each slide until its photo paints over it, so a slow 4G photo reads as
- * loading rather than as a card with no picture. Off elsewhere: a feed of
- * animated slots costs a low-end phone frames for nothing once cached.
+ * `loadingShimmer` (the phone map's cards and the detail page's phone
+ * gallery) sweeps a light band across each slide until its photo paints, so a
+ * slow 4G photo reads as loading rather than as a card with no picture; the
+ * band stops on a slide once its photo has loaded. Off on feed cards: a feed
+ * of animated slots costs a low-end phone frames.
+ *
+ * Swipes (2026-11-17): the photo being swiped to is mounted on the swipe's
+ * first pixel, and `preloadAhead` fetches the next photos once the cover has
+ * painted (detail page only). See handleScroll / handleSlideLoad.
  */
 export default function CardImageCarousel({
   images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false, loadingShimmer = false,
   // The detail page's full-width carousel: a bigger play badge on a video cover.
   fullWidth = sizes === '100vw',
+  // How many photos after the cover to fetch once it has painted (0 = none).
+  preloadAhead = 0,
 }) {
   const t = useT();
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState(() => new Set([0]));
+  // Slides whose photo has painted: their shimmer stops (an infinite
+  // animation behind an opaque photo still costs a phone frames).
+  const [painted, setPainted] = useState(() => new Set());
   const scrollerRef = useRef(null);
   const total = images.length;
   const lightData = useSaveData();
@@ -174,9 +184,36 @@ export default function CardImageCarousel({
     const scroller = e.currentTarget;
     const width = scroller.clientWidth;
     if (!width) return;
-    const next = Math.min(Math.max(Math.round(scroller.scrollLeft / width), 0), total - 1);
+    const position = scroller.scrollLeft / width;
+    const next = Math.min(Math.max(Math.round(position), 0), total - 1);
     setIndex((current) => (next === current ? current : next));
-    markLoadedAround(next);
+    // The slide being swiped TO starts loading on the swipe's first pixel,
+    // not once it is half on screen (Math.round above). On a ~260 ms Kinshasa
+    // round trip to the Paris server a photo takes ~1.5 s, and starting it
+    // mid-swipe left the visitor on a grey frame (owner's iPhone, 2026-11-17).
+    markLoadedAround(Math.min(Math.max(Math.floor(position), 0), total - 1));
+    markLoadedAround(Math.min(Math.max(Math.ceil(position), 0), total - 1));
+  }
+
+  // `preloadAhead` (the detail page's phone gallery): once the cover has
+  // painted, the next photos are fetched too, so the first swipe lands on a
+  // photo. After the cover, never beside it — it must not compete with the
+  // LCP image. Not with Data Saver, and not while the carousel is
+  // display:none (PhotoGallery renders it on desktop too, hidden).
+  function handleSlideLoad(i) {
+    setPainted((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
+    if (i !== 0 || !preloadAhead || lightData) return;
+    if (!scrollerRef.current?.clientWidth) return;
+    setLoaded((prev) => {
+      let next = prev;
+      for (let k = 1; k <= preloadAhead && k < total; k += 1) {
+        if (!next.has(k)) {
+          if (next === prev) next = new Set(prev);
+          next.add(k);
+        }
+      }
+      return next;
+    });
   }
 
   // Desktop hover reveals the arrow buttons (sm:group-hover/carousel below)
@@ -214,7 +251,7 @@ export default function CardImageCarousel({
         {images.map((src, i) => (
           // `overflow-hidden` keeps the hover zoom below inside its own slide;
           // without it the NEXT slide's scaled photo paints over this one's edge.
-          <div key={`${src}-${i}`} className={`relative h-full w-full flex-shrink-0 snap-center snap-always overflow-hidden${loadingShimmer ? ' lkp-shimmer' : ''}`}>
+          <div key={`${src}-${i}`} className={`relative h-full w-full flex-shrink-0 snap-center snap-always overflow-hidden${loadingShimmer && !painted.has(i) ? ' lkp-shimmer' : ''}`}>
             {loaded.has(i) ? (
               <SafeImage
                 src={src}
@@ -222,6 +259,14 @@ export default function CardImageCarousel({
                 fill
                 sizes={sizes}
                 priority={priority && i === 0}
+                // Slides after the cover mount only when wanted (`loaded`), so
+                // they load at once: lazy loading inside a horizontal scroller
+                // waits until the slide is nearly on screen, the very delay
+                // `loaded` exists to avoid. The cover keeps next/image's
+                // default (lazy, or eager under `priority`) so a feed's
+                // cards below the fold still wait for the scroll.
+                loading={i === 0 ? undefined : 'eager'}
+                onLoad={() => handleSlideLoad(i)}
                 draggable={false}
                 // A slow inner zoom while the pointer is on the card (the card's
                 // Link is the `group`). Tailwind's hover variant is already

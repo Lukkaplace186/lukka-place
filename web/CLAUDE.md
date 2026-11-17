@@ -3454,7 +3454,8 @@ From two phone reports (iPhone, 4G). Tests: `tests/unit/gallery-close-map-card.t
   the first frame; the rest load tapped-card-and-neighbours first and draw
   after each batch. The active card's cover is `priority` (eager, high
   fetch priority) and the photo slot shimmers (`.lkp-shimmer`,
-  `CardImageCarousel loadingShimmer`, map only) until it paints. Photos were
+  `CardImageCarousel loadingShimmer`; the detail page's phone gallery too
+  since 2026-11-17, see "Detail-page photos on a slow link") until it paints. Photos were
   already next/image with `sizes` and q75; there is no blur placeholder
   because no row carries a blurDataURL, and inventing one per photo would
   cost a server pass for a few hundred bytes of saving.
@@ -5384,3 +5385,28 @@ reminder banner (the card's « · Appel vidéo WhatsApp demandé » is the app's
 `lib/agentAvailability.js` reads `video_visits` through `to_jsonb` (works
 before the migration; only an explicit false turns it off).
 `tests/unit/video-visits.test.js`.
+
+## Detail-page photos on a slow link (2026-11-17)
+
+Reported from the owner's iPhone: "2/8 photos" on a grey frame. Measured from
+Kinshasa: ~260 ms round trip to the Paris VPS, ~1.6 s per photo even when the
+optimiser answers from cache (connection, TLS and TCP slow start, not bytes or
+server time). Photo 2 was only mounted once the swipe was half done
+(`Math.round` of the scroll position), so the first swipe always waited.
+
+- `CardImageCarousel` mounts the slide being swiped to on the swipe's first
+  pixel (`Math.floor`/`Math.ceil` of the position), on every carousel.
+- `preloadAhead` (PhotoGallery passes 2): once the cover's `onLoad` fires,
+  photos 2–3 are fetched, never with Data Saver and never while the carousel
+  is `display:none` (it renders hidden on desktop). After the cover, so it
+  never competes with the LCP image.
+- Slides after the cover are `loading="eager"` (they mount only when wanted;
+  lazy loading in a horizontal scroller waited until nearly on screen). The
+  cover keeps next/image's default, so feed cards below the fold stay lazy.
+- The phone gallery shimmers (`loadingShimmer`); the band stops on each slide
+  once its photo has loaded.
+- Checked in a browser at 375 px: photos 1–3 loaded before any swipe; at
+  1024 px the hidden carousel mounted only the cover; /listings cards
+  unchanged (lazy, one photo each). `tests/unit/photo-swipe-preload.test.js`.
+- Not done: a CDN close to Kinshasa (owner decision; it is what would cut the
+  ~1.6 s itself).

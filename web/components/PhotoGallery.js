@@ -284,7 +284,11 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                 index === mobileIndex ? 'ring-2 ring-blue ring-offset-1 ring-offset-canvas' : ''
               }`}
             >
-              <SafeImage src={src} alt="" fill sizes="80px" fetchPriority="low" draggable={false} className="object-cover" />
+              {/* The first six (what a phone shows) load at once: lazy
+                  loading inside this horizontal strip did not start on
+                  lukkaplace.com until the strip was scrolled (grey tiles,
+                  measured 2026-11-17). The rest stay lazy and load on scroll. */}
+              <SafeImage src={src} alt="" fill sizes="80px" fetchPriority="low" loading={index < 6 ? 'eager' : 'lazy'} draggable={false} className="object-cover" />
               {items[index]?.video ? (
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-white">

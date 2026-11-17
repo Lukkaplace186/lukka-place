@@ -67,7 +67,9 @@ test('the phone thumbnail strip is small, low priority, and jumps the carousel',
   const gallery = read('components/PhotoGallery.js');
   const strip = gallery.slice(gallery.indexOf('ref={thumbStripRef}'), gallery.indexOf('<Dialog open={gridOpen}'));
   assert.match(strip, /sm:hidden/);
-  assert.match(strip, /sizes="80px" fetchPriority="low"/);
+  // The first six load at once: lazy loading in the strip did not start
+  // until it was scrolled (grey thumbnails on lukkaplace.com).
+  assert.match(strip, /sizes="80px" fetchPriority="low" loading=\{index < 6 \? 'eager' : 'lazy'\}/);
   assert.match(strip, /onClick=\{\(\) => carouselControl\.current\?\.goTo\(index\)\}/);
   assert.match(strip, /aria-current=\{index === mobileIndex \? 'true' : undefined\}/);
 });

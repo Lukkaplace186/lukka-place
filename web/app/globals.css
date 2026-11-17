@@ -1415,6 +1415,14 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .u-liquid-glass { background: rgb(255 255 255 / 0.94); }
 }
+/* One header on the phone map (2026-11-17, owner: the logo bar and the glass
+   panel together took too much of the screen). While the map is open on a
+   phone, the site's logo bar steps aside; the glass panel carries ☰ (it
+   opens the same drawer, lib/siteMenu.js), the search, filters and chips,
+   and the map runs to the top of the screen (ListingsSplitView, top-0). */
+@media (max-width: 1023.98px) {
+  body:has([data-map-glass]) [data-site-header] { display: none; }
+}
 /* While the visitor drags or pinches the map the panel slides up and fades
    away quickly; when the map settles it drops back in on a soft, slightly
    springy curve (ListingsSplitView, data-away). Reduced motion: no slide,

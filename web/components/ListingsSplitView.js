@@ -248,7 +248,9 @@ export default function ListingsSplitView({
       <div
         className={`flex flex-col ${
           isMapView
-            ? 'fixed inset-x-0 top-16 bottom-0 z-30 bg-canvas'
+            // top-0: the logo bar steps aside on the phone map (2026-11-17,
+            // app/globals.css [data-site-header]); its ☰ is in the glass header.
+            ? 'fixed inset-x-0 top-0 bottom-0 z-30 bg-canvas'
             : 'hidden'
         } lg:inset-auto lg:z-auto lg:flex lg:overflow-hidden lg:rounded-2xl lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]`}
       >
@@ -291,7 +293,7 @@ export default function ListingsSplitView({
             <div
               data-map-glass
               data-away={glassAway ? 'true' : 'false'}
-              className="lkp-glass-wrap pointer-events-none absolute inset-x-0 top-0 z-30 p-2 lg:hidden"
+              className="lkp-glass-wrap pointer-events-none absolute inset-x-0 top-0 z-30 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:hidden"
             >
               <div className="u-liquid-glass pointer-events-auto rounded-[22px] px-2.5 pb-2 pt-2.5">
                 <MobileMapChrome params={params} propertyTypes={propertyTypes} />

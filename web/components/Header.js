@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from '@/components/IntentLink';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, Search, User, Heart, Bell, LogOut, ArrowRight, Mail, ChevronRight, SearchCheck, MessageCircle } from 'lucide-react';
@@ -16,6 +16,7 @@ import { useIsLoggedIn, useIsAgentSignedIn } from '@/lib/customerClient';
 import { useChatUnread, useUnreadTitle } from '@/lib/useChatUnread';
 import UnreadBadge from './chat/UnreadBadge';
 import { logoutAction } from '@/app/(site)/compte/actions';
+import { OPEN_SITE_MENU_EVENT } from '@/lib/siteMenu';
 
 // Keys, not text — see navItems.js on why a module-level constant cannot
 // hold translated copy.
@@ -178,8 +179,16 @@ export default function Header({ hiddenHrefs = [] }) {
     if (open) drawerLinks.forEach(({ href }) => router.prefetch(localizeHref(href, locale)));
   };
 
+  // The phone map hides this bar and carries its own ☰ in its glass header
+  // (MobileMapChrome, lib/siteMenu.js); that button opens this same drawer.
+  useEffect(() => {
+    const open = () => setMenuOpen(true);
+    window.addEventListener(OPEN_SITE_MENU_EVENT, open);
+    return () => window.removeEventListener(OPEN_SITE_MENU_EVENT, open);
+  }, []);
+
   return (
-    <header className="u-header-elevate fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
+    <header data-site-header className="u-header-elevate fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
       <div className="mx-auto flex h-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 lg:w-[76px] lg:shrink-0 lg:pl-0">
           {/* Mobile menu — Radix Sheet owns focus trapping, Escape and

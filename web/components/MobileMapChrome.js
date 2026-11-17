@@ -1,9 +1,10 @@
 'use client';
 
-import { SlidersHorizontal } from 'lucide-react';
+import { Menu, SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import MapQuickFilters from './MapQuickFilters';
 import { openFiltersDrawer } from '@/lib/mapFilterDrawer';
+import { openSiteMenu } from '@/lib/siteMenu';
 import { searchedPlaceLabel } from '@/lib/searchParser';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -33,10 +34,21 @@ import { useT } from '@/lib/i18n/client';
 export default function MobileMapChrome({ params, propertyTypes = [] }) {
   const t = useT();
   return (
-    // Sits on the liquid-glass panel over the phone map (ListingsSplitView,
-    // 2026-11-17); its field and button are lighter panes of the same glass.
+    // The phone map's whole header since 2026-11-17: ☰, search, filters and
+    // the chips on one liquid-glass panel (ListingsSplitView); the site's logo
+    // bar steps aside while the map is open. Fields are lighter glass panes.
     <div className="lg:hidden">
     <div className="flex items-center gap-2">
+      {/* The site's logo bar steps aside while the phone map is open
+          (app/globals.css, [data-site-header]); its menu lives here. */}
+      <button
+        type="button"
+        onClick={() => openSiteMenu()}
+        aria-label={t('nav.openMenu')}
+        className="u-press u-liquid-glass-field pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink"
+      >
+        <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+      </button>
       <LocationAutocomplete
         preserveParams
         initialValue={params.q || params.near || searchedPlaceLabel(params)}

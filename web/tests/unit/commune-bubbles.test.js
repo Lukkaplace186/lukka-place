@@ -101,3 +101,17 @@ test('the glass panel steps aside while the map moves and comes back when it set
   assert.match(css, /\.lkp-glass-wrap\[data-away='true'\] \{/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.lkp-glass-wrap,/);
 });
+
+test('phone map has one glass header: the logo bar steps aside, ☰ opens the same drawer', () => {
+  const css = read('app/globals.css');
+  assert.match(css, /@media \(max-width: 1023\.98px\) \{\s*body:has\(\[data-map-glass\]\) \[data-site-header\] \{ display: none; \}/);
+  const header = read('components/Header.js');
+  assert.match(header, /<header data-site-header className=/);
+  assert.match(header, /window\.addEventListener\(OPEN_SITE_MENU_EVENT, open\)/);
+  const chrome = read('components/MobileMapChrome.js');
+  assert.match(chrome, /onClick=\{\(\) => openSiteMenu\(\)\}/);
+  assert.ok(chrome.indexOf('openSiteMenu()') < chrome.indexOf('<LocationAutocomplete'), '☰ first, then the search');
+  const split = read('components/ListingsSplitView.js');
+  assert.match(split, /\? 'fixed inset-x-0 top-0 bottom-0 z-30 bg-canvas'/, 'the phone map reaches the top of the screen');
+  assert.match(split, /pt-\[max\(0\.5rem,env\(safe-area-inset-top\)\)\]/);
+});

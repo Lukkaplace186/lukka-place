@@ -1422,6 +1422,11 @@
    and the map runs to the top of the screen (ListingsSplitView, top-0). */
 @media (max-width: 1023.98px) {
   body:has([data-map-glass]) [data-site-header] { display: none; }
+  /* Inside the store app the layout shows the app's own top bar
+     ([data-app-top-bar]) instead of the site header: the map keeps its place
+     below it and the ☰ (which opens the site drawer) is not shown. */
+  body:has([data-app-top-bar]) [data-map-layer] { top: 4rem; }
+  body:has([data-app-top-bar]) [data-site-menu-button] { display: none; }
 }
 /* While the visitor drags or pinches the map the panel slides up and fades
    away quickly; when the map settles it drops back in on a soft, slightly

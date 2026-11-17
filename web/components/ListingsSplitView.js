@@ -246,6 +246,7 @@ export default function ListingsSplitView({
           (`absolute bottom-6` *within* this box) already follows this
           box's real bottom edge automatically. */}
       <div
+        data-map-layer
         className={`flex flex-col ${
           isMapView
             // top-0: the logo bar steps aside on the phone map (2026-11-17,

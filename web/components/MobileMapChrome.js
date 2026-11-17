@@ -43,6 +43,7 @@ export default function MobileMapChrome({ params, propertyTypes = [] }) {
           (app/globals.css, [data-site-header]); its menu lives here. */}
       <button
         type="button"
+        data-site-menu-button
         onClick={() => openSiteMenu()}
         aria-label={t('nav.openMenu')}
         className="u-press u-liquid-glass-field pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink"

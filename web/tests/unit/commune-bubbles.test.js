@@ -115,3 +115,11 @@ test('phone map has one glass header: the logo bar steps aside, ☰ opens the sa
   assert.match(split, /\? 'fixed inset-x-0 top-0 bottom-0 z-30 bg-canvas'/, 'the phone map reaches the top of the screen');
   assert.match(split, /pt-\[max\(0\.5rem,env\(safe-area-inset-top\)\)\]/);
 });
+
+test('inside the store app the phone map keeps its place under the app bar, without the site ☰', () => {
+  const css = read('app/globals.css');
+  assert.match(css, /body:has\(\[data-app-top-bar\]\) \[data-map-layer\] \{ top: 4rem; \}/);
+  assert.match(css, /body:has\(\[data-app-top-bar\]\) \[data-site-menu-button\] \{ display: none; \}/);
+  assert.match(read('components/ListingsSplitView.js'), /data-map-layer\n/);
+  assert.match(read('components/MobileMapChrome.js'), /data-site-menu-button\n/);
+});

@@ -902,7 +902,9 @@ export default function ListingsMap({
         // A text-only counter pill, top-centre. Only the pill takes pointer
         // events, so the map stays draggable right up to it.
         // Below the floating search bar on a phone.
-        <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
+        // In the preview the count stays up on a phone, so it sits under the
+        // Prix / Chambres chip row instead of behind it.
+        <div className={`pointer-events-none absolute inset-x-0 ${previewMode ? 'top-[7rem]' : 'top-[4.5rem]'} z-20 flex flex-col items-center gap-2 px-3 lg:top-3`}>
           <p
             aria-live="polite"
             className={`u-tabular rounded-full ${pillTone} px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${

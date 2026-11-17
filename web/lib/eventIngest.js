@@ -1,3 +1,4 @@
+import { clientIpFromHeaders } from './clientIp';
 /**
  * The shared guard rails for the unauthenticated event endpoints —
  * app/api/track and app/api/telemetry/lead-click.
@@ -60,8 +61,7 @@ export function usableAmount(value) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
-/** Behind Traefik, the socket address is the proxy — the real client is in the forwarded header. */
+/** The visitor's address behind Traefik and Cloudflare (lib/clientIp.js). */
 export function clientKey(request) {
-  const forwarded = request.headers.get('x-forwarded-for') || '';
-  return forwarded.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown';
+  return clientIpFromHeaders(request.headers) || 'unknown';
 }

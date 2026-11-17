@@ -5410,3 +5410,22 @@ server time). Photo 2 was only mounted once the swipe was half done
   unchanged (lazy, one photo each). `tests/unit/photo-swipe-preload.test.js`.
 - Not done: a CDN close to Kinshasa (owner decision; it is what would cut the
   ~1.6 s itself).
+
+## Cloudflare in front of lukkaplace.com (2026-11-17)
+
+Owner decision, for photo speed from Kinshasa (~260 ms round trip to the Paris
+VPS, ~1.6 s per photo). The domain is registered at GoDaddy; its nameservers
+moved from Hostinger's `dns-parking.com` to Cloudflare (`gordon` / `natasha`)
+on 2026-11-17, every record copied. Only `@` and `www` go through Cloudflare
+(orange); `engine` (WhatsApp webhooks), `admin` (Hostinger), mail, `ftp`,
+`staging`, `consultancy` stay DNS-only (grey).
+
+- **The visitor's address is `lib/clientIp.js` `clientIpFromHeaders`, every
+  reader.** Measured behind Traefik: it replaces any client-sent
+  X-Forwarded-For / X-Real-IP with the address that connected (one entry,
+  unforgeable) and passes CF-Connecting-IP through untouched. So
+  CF-Connecting-IP is believed only when that connecting address is in
+  Cloudflare's published ranges (`CLOUDFLARE_RANGES`); otherwise a direct
+  request could choose its own address and dodge the admin-login throttle
+  or the referral fraud checks. Before Cloudflare this changes nothing.
+  `tests/unit/client-ip.test.js`.

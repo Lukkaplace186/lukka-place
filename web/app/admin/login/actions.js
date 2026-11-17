@@ -7,6 +7,7 @@ import {
 } from '@/lib/adminAuth';
 import { authenticateAdmin, ipIsThrottled, recordSharedPasswordAttempt } from '@/lib/adminUsers';
 import { recordAudit } from '@/lib/adminAudit';
+import { clientIpFromHeaders } from '@/lib/clientIp';
 
 /**
  * Plain Server Actions with redirect-based errors (`?error=<reason>`), so the
@@ -19,9 +20,7 @@ function safeNext(value) {
 }
 
 async function clientIp() {
-  const h = await headers();
-  const forwarded = h.get('x-forwarded-for');
-  return (forwarded ? forwarded.split(',')[0] : h.get('x-real-ip') || '').trim() || null;
+  return clientIpFromHeaders(await headers());
 }
 
 /** Individual account: email + password, with per-account and per-IP lockout. */

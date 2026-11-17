@@ -1415,6 +1415,30 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .u-liquid-glass { background: rgb(255 255 255 / 0.94); }
 }
+/* While the visitor drags or pinches the map the panel slides up and fades
+   away quickly; when the map settles it drops back in on a soft, slightly
+   springy curve (ListingsSplitView, data-away). Reduced motion: no slide,
+   just a short fade. */
+.lkp-glass-wrap {
+  transition:
+    translate 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    opacity 0.32s ease-out;
+}
+.lkp-glass-wrap[data-away='true'] {
+  translate: 0 calc(-100% - 8px);
+  opacity: 0;
+  transition:
+    translate 0.22s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.18s ease-in;
+}
+.lkp-glass-wrap[data-away='true'] > * { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lkp-glass-wrap,
+  .lkp-glass-wrap[data-away='true'] {
+    translate: none;
+    transition: opacity 0.15s linear;
+  }
+}
 
 /* Price tag finish (2026-11-17, owner — previewed at ?apercu=carte): the
    tag above as it is — same shape, white, dark text, "$" at full strength:

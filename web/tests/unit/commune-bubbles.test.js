@@ -87,3 +87,17 @@ test('phone map: search and chips on a liquid-glass panel the map shows through'
   assert.match(read('components/MapQuickFilters.js'), /'u-liquid-glass-field text-ink'/);
   assert.match(read('components/ListingsMap.js'), /top-\[8rem\] z-20 flex flex-col items-center gap-2 px-3 lg:top-3/, 'the loading pill clears the panel');
 });
+
+test('the glass panel steps aside while the map moves and comes back when it settles', () => {
+  const map = read('components/ListingsMap.js');
+  assert.match(map, /addListener\('dragstart', \(\) => announceMapMoving\(true\)\)/);
+  assert.match(map, /if \(!requestRef\.current\.positioning\) announceMapMoving\(true\);/, 'our own positioning does not hide it');
+  assert.match(map, /announceMapMoving\(false\);/, 'idle brings it back');
+  assert.doesNotMatch(read('components/ListingsSplitView.js'), /from '\.\/ListingsMap'|from '@\/components\/ListingsMap'/, 'the page does not import the map module');
+  const split = read('components/ListingsSplitView.js');
+  assert.match(split, /data-away=\{glassAway \? 'true' : 'false'\}/);
+  assert.match(split, /document\.activeElement\?\.closest\?\.\('\[data-map-glass\]'\)/, 'stays while typing');
+  const css = read('app/globals.css');
+  assert.match(css, /\.lkp-glass-wrap\[data-away='true'\] \{/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.lkp-glass-wrap,/);
+});

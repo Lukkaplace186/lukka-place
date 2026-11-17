@@ -12,6 +12,7 @@ import MobileMapChrome from './MobileMapChrome';
 import MobileMapBar from './MobileMapBar';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { boundsToQuery } from '@/lib/mapViewport';
+import { MAP_MOVING_EVENT } from '@/lib/mapMovingEvent';
 import { useT } from '@/lib/i18n/client';
 
 function buildPageHref(searchParams, page) {
@@ -92,6 +93,31 @@ export default function ListingsSplitView({
   // A pin's preview card sits over the bottom of the map, exactly where the
   // mobile "Liste" button floats — so the button steps aside while it is open.
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // The phone's liquid-glass search panel slides away while the visitor drags
+  // or pinches the map, for a clear view, and comes back once the map has
+  // settled (owner, 2026-11-17; lib/mapMovingEvent.js). It stays while they
+  // are typing in it, and the short wait stops it flickering between gestures.
+  const [glassAway, setGlassAway] = useState(false);
+  useEffect(() => {
+    if (!isMapView) return undefined;
+    let timer = null;
+    const onMoving = (event) => {
+      clearTimeout(timer);
+      if (event.detail?.moving) {
+        const typing = document.activeElement?.closest?.('[data-map-glass]');
+        if (!typing) setGlassAway(true);
+      } else {
+        timer = setTimeout(() => setGlassAway(false), 250);
+      }
+    };
+    window.addEventListener(MAP_MOVING_EVENT, onMoving);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener(MAP_MOVING_EVENT, onMoving);
+      setGlassAway(false);
+    };
+  }, [isMapView]);
 
   // Mobile map mode is a `fixed` fullscreen layer (see the map wrapper
   // below), painted over whatever the document would otherwise show at
@@ -262,7 +288,11 @@ export default function ListingsSplitView({
               the busiest pins. z-30: the search's suggestions open over the
               map. */}
           {isMapView ? (
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 p-2 lg:hidden">
+            <div
+              data-map-glass
+              data-away={glassAway ? 'true' : 'false'}
+              className="lkp-glass-wrap pointer-events-none absolute inset-x-0 top-0 z-30 p-2 lg:hidden"
+            >
               <div className="u-liquid-glass pointer-events-auto rounded-[22px] px-2.5 pb-2 pt-2.5">
                 <MobileMapChrome params={params} propertyTypes={propertyTypes} />
               </div>

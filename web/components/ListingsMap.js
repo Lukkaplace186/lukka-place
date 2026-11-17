@@ -12,6 +12,7 @@ import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding } from '@/lib/buildingGroups';
 import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
+import { announceMapMoving } from '@/lib/mapMovingEvent';
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
 import { useCountUp } from '@/lib/useCountUp';
@@ -633,6 +634,14 @@ export default function ListingsMap({
         listeners.push(map.addListener('idle', () => {
           scheduleFetch();
           reportArea();
+          announceMapMoving(false);
+        }));
+        // The phone's liquid-glass search panel steps aside while the visitor
+        // drags or pinches the map, and comes back when it settles
+        // (ListingsSplitView). Our own positioning is not the visitor moving.
+        listeners.push(map.addListener('dragstart', () => announceMapMoving(true)));
+        listeners.push(map.addListener('zoom_changed', () => {
+          if (!requestRef.current.positioning) announceMapMoving(true);
         }));
 
         setStatus('ready');

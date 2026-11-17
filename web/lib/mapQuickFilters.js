@@ -63,12 +63,16 @@ export function priceRangeLabel(min, max, money) {
   return '';
 }
 
-/** The bedrooms chip's text: '' when no range is set (the chip then says "Chambres"). */
-export function bedsRangeLabel(min, max) {
+/**
+ * The bedrooms chip's text: '' when no range is set (the chip then says
+ * "Chambres"). `unit` is the reader's short word (listings.specs.beds:
+ * "ch" / "bed").
+ */
+export function bedsRangeLabel(min, max, unit = 'ch.') {
   const lo = wholeNumber(min);
   const hi = wholeNumber(max);
-  if (lo != null && hi != null) return lo === hi ? `${lo} ch.` : `${lo} – ${hi} ch.`;
-  if (lo != null) return `${lo}+ ch.`;
-  if (hi != null) return `≤ ${hi} ch.`;
+  if (lo != null && hi != null) return lo === hi ? `${lo} ${unit}` : `${lo} – ${hi} ${unit}`;
+  if (lo != null) return `${lo}+ ${unit}`;
+  if (hi != null) return `≤ ${hi} ${unit}`;
   return '';
 }

@@ -92,6 +92,7 @@ function RangeSelect({ label, value, onChange, options }) {
  */
 export default function MapQuickFilters({ params = {} }) {
   const t = useT();
+  const bedUnit = t('listings.specs.beds');
   const router = useRouter();
   const [open, setOpen] = useState(null);
   const [draft, setDraft] = useState({ min: '', max: '' });
@@ -123,15 +124,15 @@ export default function MapQuickFilters({ params = {} }) {
   const bedHi = Number.parseInt(draft.max, 10);
   const bedMinOptions = [
     { value: '', label: t('listings.filters.min') },
-    ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b} ch.`, disabled: Number.isFinite(bedHi) && b > bedHi })),
+    ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b} ${bedUnit}`, disabled: Number.isFinite(bedHi) && b > bedHi })),
   ];
   const bedMaxOptions = [
     { value: '', label: t('listings.filters.max') },
-    ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b} ch.`, disabled: Number.isFinite(bedLo) && b < bedLo })),
+    ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b} ${bedUnit}`, disabled: Number.isFinite(bedLo) && b < bedLo })),
   ];
 
   const priceText = priceRangeLabel(params.price_min, params.price_max, money);
-  const bedsText = bedsRangeLabel(params.beds_min, params.beds_max);
+  const bedsText = bedsRangeLabel(params.beds_min, params.beds_max, bedUnit);
 
   return (
     <>

@@ -29,6 +29,7 @@ test('chip texts say the range in a few characters', () => {
   assert.equal(bedsRangeLabel('2', '2'), '2 ch.');
   assert.equal(bedsRangeLabel('2', ''), '2+ ch.');
   assert.equal(bedsRangeLabel('', '3'), '≤ 3 ch.');
+  assert.equal(bedsRangeLabel('2', '3', 'bed'), '2 – 3 bed', 'the unit follows the language');
 });
 
 test('Louer / Acheter: picks one, tapping it again clears it, and the price range goes (different scales)', () => {
@@ -66,6 +67,8 @@ test('the map chips are Louer/Acheter, Prix, Chambres; the full filter sheet kee
   assert.doesNotMatch(chips, /Building2|setOpen\('type'\)|property_type/, 'type lives in the filter sheet');
   assert.match(chips, /budgetParams\(draft\.min, draft\.max\)/);
   assert.match(chips, /bedsRangeParams\(draft\.min, draft\.max\)/);
+  assert.match(chips, /bedsRangeLabel\(params\.beds_min, params\.beds_max, bedUnit\)/);
+  assert.doesNotMatch(chips, / ch\.`/, 'no French unit hardcoded in the chips');
   const bar = read('components/FilterBar.js');
   assert.match(bar, /\['beds_max', keptBedsMax\]/);
   assert.match(bar, /if \(keptBedsMax\) qs\.set\('beds_max', keptBedsMax\);/);

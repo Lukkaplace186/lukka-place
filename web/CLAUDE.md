@@ -5429,3 +5429,18 @@ on 2026-11-17, every record copied. Only `@` and `www` go through Cloudflare
   request could choose its own address and dodge the admin-login throttle
   or the referral fraud checks. Before Cloudflare this changes nothing.
   `tests/unit/client-ip.test.js`.
+- **Proxy changes on the VPS (not in git, `/docker/n8n`)**: lukkaplace.com's
+  certificate comes from a second resolver, `myhttpchallenge` (HTTP-01 on
+  :80, storage `/letsencrypt/acme-http.json`), because the original
+  `mytlschallenge` (TLS-ALPN) cannot pass through Cloudflare. Its old
+  lukkaplace.com certificate was removed from `acme.json` so the new
+  resolver would issue one (Traefik skips a domain any stored certificate
+  already covers). `engine` and n8n stay on `mytlschallenge` (grey records).
+  `dynamic/lukkaplace.yml` has a `lukkaplace-images` router for
+  `/_next/image` that sets `Accept: image/webp,…`: Cloudflare's free plan
+  keeps one copy per URL whatever `Vary: Accept` says, so a JPEG fetched by
+  a client without WebP would otherwise be served to every phone. Backups:
+  `~/deploy-backups/20261117-195649-client-ip/`.
+- **Cloudflare cache rule** "Listing photos" (URI Path starts with
+  `/_next/image`, eligible for cache, Edge TTL from Cache-Control) is what
+  keeps photos at the edge; `/_next/static` is cached by extension already.

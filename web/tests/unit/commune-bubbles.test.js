@@ -60,17 +60,17 @@ test('only a changed quartier, reference or commune asks for a new point', () =>
   assert.equal(locationTextChanged(null, before), false);
 });
 
-test('map preview (?apercu=carte) keeps every price and only changes how the tags are drawn', () => {
+test('map preview (?apercu=carte) changes only how a price tag is drawn', () => {
   const map = read('components/ListingsMap.js');
   assert.match(map, /get\('apercu'\) === 'carte'/);
   assert.match(map, /preview: previewRef\.current,/, 'the pin layer is told');
-  assert.match(map, /purpose: group\.isBuilding \? null : r\.purpose \|\| null,/);
-  assert.doesNotMatch(map, /groupByArea|AREA_ZOOM_BELOW/, 'no listing is hidden behind a commune bubble');
+  assert.doesNotMatch(map, /groupByArea|AREA_ZOOM_BELOW|pillTone|purpose: group/, 'same pins, same count pill as the live map');
   const layer = read('lib/mapPinLayer.js');
-  assert.match(layer, /#layerDepth\(\)/);
-  assert.match(layer, /el\.dataset\.purpose = pin\.purpose \|\| '';/);
+  assert.match(layer, /#renderLabel\(labelEl, label\)/);
+  assert.match(layer, /const parts = this\.preview \?/, 'the split label is preview-only');
+  assert.doesNotMatch(layer, /layerDepth|PREVIEW_NEAR_ZOOM|dataset\.purpose/);
   const css = read('app/globals.css');
-  assert.match(css, /\.lkp-layer--preview\[data-band='far'\] \.lkp-pin__body \{/);
-  assert.match(css, /\.lkp-layer--preview \.lkp-pin\[data-behind='true'\]/);
-  assert.match(css, /\.lkp-layer--preview \.lkp-pin\[data-purpose='sale'\]/);
+  assert.match(css, /\.lkp-layer--preview \.lkp-pin__body \{/);
+  assert.match(css, /\.lkp-layer--preview \.lkp-pin__cur,/);
+  assert.doesNotMatch(css, /data-band|data-behind|data-purpose/);
 });

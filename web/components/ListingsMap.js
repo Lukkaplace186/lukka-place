@@ -14,12 +14,12 @@ import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups'
 import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
 
 /**
- * Map preview (2026-11-17): `?apercu=carte` in the address keeps every price
- * but draws the crowd better (lib/mapPinLayer.js, `.lkp-layer--preview` in
- * app/globals.css): compact tags when zoomed out, overlapped tags as a paler
- * back layer, sale vs rent colour, the count always shown, shorter building
- * labels. Replaced the 2026-11-16 one-bubble-per-commune preview (owner: the
- * crowd shows how much is available). Read once when the map is built.
+ * Map preview (2026-11-17): `?apercu=carte` in the address shows the same
+ * crowd as the live map with a more finished price tag (lib/mapPinLayer.js
+ * #renderLabel, `.lkp-layer--preview` in app/globals.css) and shorter
+ * building labels. Owner: keep the density, it shows how much is available
+ * — two earlier previews (commune bubbles, compact/layered tags) were
+ * dropped. Read once when the map is built.
  */
 function mapPreviewOn() {
   try {
@@ -304,7 +304,6 @@ export default function ListingsMap({
   const hoveredRef = useRef(null);
   // Map preview (?apercu=carte): read when the map is built.
   const previewRef = useRef(false);
-  const [previewMode, setPreviewMode] = useState(false);
   const selectSeqRef = useRef(0);
   // The view we positioned the map on (null until it has settled there), and
   // the last view reported — see "The list follows the map" above.
@@ -459,8 +458,6 @@ export default function ListingsMap({
         title: group.isCommune ? group.communeName : group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
         commune: Boolean(group.isCommune),
-        // Preview colour: a sale is pale blue, a rent white.
-        purpose: group.isBuilding ? null : r.purpose || null,
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,
@@ -629,7 +626,6 @@ export default function ListingsMap({
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...homeViewRef.current });
         mapRef.current = map;
         previewRef.current = mapPreviewOn();
-        setPreviewMode(previewRef.current);
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
           preview: previewRef.current,
@@ -876,10 +872,7 @@ export default function ListingsMap({
   else if (view.loaded) pillText = t('listings.map.inArea', { count: shownInView ?? view.inView });
   // On a phone the settled count is the "Voir N biens" button's job, so the
   // pill only appears there for loading, a failure, or a capped answer.
-  // Preview: the count stays up on a phone too, in navy — the crowd and the
-  // number say the same thing.
-  const phoneHidden = !previewMode && view.loaded && !view.failed && !view.truncated;
-  const pillTone = previewMode && view.loaded && !view.failed ? 'bg-blue-deep text-white' : 'bg-surface text-ink';
+  const phoneHidden = view.loaded && !view.failed && !view.truncated;
 
   // No border/rounding of its own — every caller already owns its edge
   // treatment (see PropertyMap's same note).
@@ -902,12 +895,10 @@ export default function ListingsMap({
         // A text-only counter pill, top-centre. Only the pill takes pointer
         // events, so the map stays draggable right up to it.
         // Below the floating search bar on a phone.
-        // In the preview the count stays up on a phone, so it sits under the
-        // Prix / Chambres chip row instead of behind it.
-        <div className={`pointer-events-none absolute inset-x-0 ${previewMode ? 'top-[7rem]' : 'top-[4.5rem]'} z-20 flex flex-col items-center gap-2 px-3 lg:top-3`}>
+        <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
           <p
             aria-live="polite"
-            className={`u-tabular rounded-full ${pillTone} px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${
+            className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${
               view.fetching && view.loaded ? 'opacity-80' : ''
             } ${phoneHidden ? 'hidden lg:block' : ''}`}
           >

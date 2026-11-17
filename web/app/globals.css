@@ -1390,34 +1390,80 @@
 .lkp-pin[data-commune='true'] .lkp-pin__body::before,
 .lkp-pin[data-commune='true'] .lkp-pin__body::after { display: none; }
 
-/* Map preview (?apercu=carte, 2026-11-17, lib/mapPinLayer.js): keeps every
-   price, makes the crowd read as a texture. Zoomed out (data-band="far") the
-   tags are compact pills centred on their point; a tag under another one
-   (data-behind) is the paler back layer; a sale is pale blue, a rent white.
-   Never applies to the active or a visited tag. */
-.lkp-layer--preview[data-band='far'] .lkp-pin__body {
-  height: 20px;
-  padding: 0 6px;
-  font-size: 11px;
+/* Map preview (?apercu=carte, 2026-11-17, lib/mapPinLayer.js): the same
+   crowd as the live map — every price, same places, same overlap — with a
+   more finished tag. A round pill with a fine edge and a two-step shadow
+   (contact + lift) so stacked tags stay distinct; the figure in heavy
+   tabular digits with "$" and "/an" quieter beside it; a slimmer stem; on a
+   mouse, the hovered tag comes to the front. Visited, active and commune
+   tags keep their own colours. */
+.lkp-layer--preview .lkp-pin {
+  --lkp-edge: rgb(15 23 42 / 0.14);
+}
+.lkp-layer--preview .lkp-pin__body {
+  height: 26px;
+  padding: 0 10px;
+  gap: 4px;
   border-radius: 999px;
-  translate: -50% -50%;
-  transform-origin: 50% 50%;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  box-shadow:
+    0 1px 1px rgb(15 23 42 / 0.08),
+    0 3px 10px -2px rgb(15 23 42 / 0.22);
 }
-.lkp-layer--preview[data-band='far'] .lkp-pin__body::before,
-.lkp-layer--preview[data-band='far'] .lkp-pin__body::after { display: none; }
-.lkp-layer--preview .lkp-pin[data-purpose='sale']:not([data-active='true']):not([data-visited='true']):not([data-commune='true']) {
-  --lkp-bg: #e6eefc;
-  --lkp-fg: var(--blue-deep, #0c1d50);
-  --lkp-edge: rgb(20 79 197 / 0.28);
+.lkp-layer--preview .lkp-pin__cur,
+.lkp-layer--preview .lkp-pin__per {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.55;
 }
-.lkp-layer--preview .lkp-pin[data-behind='true']:not([data-active='true']):not([data-commune='true']) .lkp-pin__body {
-  box-shadow: none;
-  opacity: 0.78;
+.lkp-layer--preview .lkp-pin__cur { margin-right: -2px; }
+.lkp-layer--preview .lkp-pin__per { margin-left: -2px; }
+.lkp-layer--preview .lkp-pin__body::before {
+  width: 8px;
+  height: 8px;
+  bottom: -4px;
+  border-bottom-right-radius: 1.5px;
+  box-shadow: 1.5px 1.5px 2px rgb(15 23 42 / 0.1);
 }
-.lkp-layer--preview .lkp-pin[data-behind='true']:not([data-active='true']):not([data-commune='true']):not([data-purpose='sale']) {
-  --lkp-bg: #f1f2f4;
-  --lkp-fg: #5f6675;
+.lkp-layer--preview .lkp-pin__body::after {
+  width: 16px;
+  border-radius: 0 0 999px 999px;
+}
+.lkp-layer--preview .lkp-pin__check {
+  width: 12px;
+  height: 12px;
+  margin-left: -2px;
+}
+.lkp-layer--preview .lkp-pin[data-visited='true'] {
+  --lkp-bg: #f3f4f6;
+  --lkp-fg: #6b7280;
+  --lkp-edge: rgb(15 23 42 / 0.08);
+}
+.lkp-layer--preview .lkp-pin[data-active='true'] {
+  --lkp-bg: var(--blue);
+  --lkp-fg: #fff;
+  --lkp-edge: var(--blue);
+}
+.lkp-layer--preview .lkp-pin[data-active='true'] .lkp-pin__cur,
+.lkp-layer--preview .lkp-pin[data-active='true'] .lkp-pin__per { opacity: 0.8; }
+.lkp-layer--preview .lkp-pin[data-active='true'] .lkp-pin__body {
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.9),
+    0 6px 16px -2px rgb(30 58 168 / 0.45);
+}
+@media (hover: hover) {
+  .lkp-layer--preview .lkp-pin:hover { z-index: 2999999 !important; }
+  .lkp-layer--preview .lkp-pin:not([data-active='true']):hover .lkp-pin__body {
+    translate: -50% calc(-100% - 7px);
+    box-shadow:
+      0 1px 1px rgb(15 23 42 / 0.1),
+      0 8px 18px -4px rgb(15 23 42 / 0.3);
+  }
+}
+.lkp-layer--preview .lkp-pin[data-commune='true'] {
+  --lkp-edge: var(--blue-deep, #0c1d50);
 }
 .lkp-pin[data-visited='true'] {
   --lkp-bg: #eef0f3;

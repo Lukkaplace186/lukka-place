@@ -1390,6 +1390,32 @@
 .lkp-pin[data-commune='true'] .lkp-pin__body::before,
 .lkp-pin[data-commune='true'] .lkp-pin__body::after { display: none; }
 
+/* Liquid glass (2026-11-17, owner: "take inspiration from Apple liquid
+   glass") — the phone map's top panel (ListingsSplitView): a frosted,
+   bright, translucent sheet the map shows through, with a light rim and a
+   soft lift. One blurred element over the map, deliberately on touch
+   screens too (the site's other glass turns opaque there, see .u-glass-*);
+   without backdrop-filter it falls back to near-opaque white. Fields and
+   chips inside use .u-liquid-glass-field: a lighter pane of the same glass. */
+.u-liquid-glass {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.4));
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgb(255 255 255 / 0.65);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 -1px 0 rgb(255 255 255 / 0.25),
+    0 10px 30px -10px rgb(15 23 42 / 0.35);
+}
+.u-liquid-glass-field {
+  background: rgb(255 255 255 / 0.55);
+  border: 1px solid rgb(255 255 255 / 0.8);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(15 23 42 / 0.08);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .u-liquid-glass { background: rgb(255 255 255 / 0.94); }
+}
+
 /* Price tag finish (2026-11-17, owner — previewed at ?apercu=carte): the
    tag above as it is — same shape, white, dark text, "$" at full strength:
    a finer edge, a two-step shadow (contact + lift) so stacked tags stay

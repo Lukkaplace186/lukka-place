@@ -16,8 +16,9 @@ function Chip({ active, icon: Icon, children, onClick }) {
       type="button"
       onClick={onClick}
       className={cn(
-        'u-press u-lift pointer-events-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[0.8125rem] font-semibold',
-        active ? 'bg-ink text-white' : 'bg-surface text-ink',
+        'u-press pointer-events-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[0.8125rem] font-semibold',
+        // On the liquid-glass panel (ListingsSplitView): a lighter pane of glass.
+        active ? 'bg-ink text-white' : 'u-liquid-glass-field text-ink',
       )}
     >
       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />

@@ -76,10 +76,14 @@ test('the polished price tag is the live map: same pins, same label, finish in C
   assert.match(finish, /\.lkp-layer \.lkp-pin:hover \{ z-index: 2999999 !important; \}/);
 });
 
-test('phone map: search and chips are a row above the map, not floating over its pins', () => {
+test('phone map: search and chips on a liquid-glass panel the map shows through', () => {
   const split = read('components/ListingsSplitView.js');
-  assert.match(split, /relative z-30 shrink-0 border-b border-line bg-canvas px-2\.5 pb-2 pt-2\.5 lg:hidden/);
-  assert.doesNotMatch(split, /pointer-events-none absolute inset-x-0 top-0 z-20 p-2\.5 lg:hidden/, 'no floating search over the map');
-  assert.ok(split.indexOf('<MobileMapChrome') < split.indexOf('<ResponsiveMapPane'), 'the row comes before the map');
-  assert.doesNotMatch(read('components/ListingsMap.js'), /top-\[4\.5rem\]/, 'the count pill no longer clears a floating search');
+  assert.match(split, /<div className="u-liquid-glass pointer-events-auto rounded-\[22px\] px-2\.5 pb-2 pt-2\.5">/);
+  assert.ok(split.indexOf('<ResponsiveMapPane') < split.indexOf('<MobileMapChrome'), 'the panel floats over the full-height map');
+  const css = read('app/globals.css');
+  assert.match(css, /\.u-liquid-glass \{[^}]*backdrop-filter: blur\(18px\) saturate\(180%\);/);
+  assert.match(css, /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)/, 'opaque fallback');
+  assert.match(read('components/MobileMapChrome.js'), /u-liquid-glass-field pointer-events-auto min-w-0 flex-1 rounded-full/);
+  assert.match(read('components/MapQuickFilters.js'), /'u-liquid-glass-field text-ink'/);
+  assert.match(read('components/ListingsMap.js'), /top-\[8rem\] z-20 flex flex-col items-center gap-2 px-3 lg:top-3/, 'the loading pill clears the panel');
 });

@@ -873,9 +873,8 @@ export default function ListingsMap({
         // A text-only counter pill, top-centre. Only the pill takes pointer
         // events, so the map stays draggable right up to it.
         // Below the floating search bar on a phone.
-        // The phone's search sits above the map now (ListingsSplitView), so
-        // the pill no longer has to clear it.
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
+        // Below the phone's liquid-glass search panel (ListingsSplitView).
+        <div className="pointer-events-none absolute inset-x-0 top-[8rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
           <p
             aria-live="polite"
             className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${

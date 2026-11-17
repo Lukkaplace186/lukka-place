@@ -33,8 +33,8 @@ import { useT } from '@/lib/i18n/client';
 export default function MobileMapChrome({ params, propertyTypes = [] }) {
   const t = useT();
   return (
-    // A solid row above the phone map since 2026-11-17 (ListingsSplitView);
-    // it used to float over the map and hid its busiest pins.
+    // Sits on the liquid-glass panel over the phone map (ListingsSplitView,
+    // 2026-11-17); its field and button are lighter panes of the same glass.
     <div className="lg:hidden">
     <div className="flex items-center gap-2">
       <LocationAutocomplete
@@ -46,14 +46,14 @@ export default function MobileMapChrome({ params, propertyTypes = [] }) {
         showClear
         rowClassName="flex min-w-0 flex-1 items-center gap-2"
         inputClassName="min-w-0 flex-1 bg-transparent text-[0.875rem] text-ink placeholder:text-ink-25 focus:outline-none"
-        className="u-lift pointer-events-auto min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5"
+        className="u-liquid-glass-field pointer-events-auto min-w-0 flex-1 rounded-full px-4 py-2.5"
       />
 
       <button
         type="button"
         onClick={() => openFiltersDrawer()}
         aria-label={t('listings.filters.moreFilters')}
-        className="u-press u-lift pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink-70"
+        className="u-press u-liquid-glass-field pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-70"
       >
         <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       </button>

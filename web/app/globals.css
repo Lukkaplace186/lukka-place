@@ -1389,6 +1389,36 @@
 }
 .lkp-pin[data-commune='true'] .lkp-pin__body::before,
 .lkp-pin[data-commune='true'] .lkp-pin__body::after { display: none; }
+
+/* Map preview (?apercu=carte, 2026-11-17, lib/mapPinLayer.js): keeps every
+   price, makes the crowd read as a texture. Zoomed out (data-band="far") the
+   tags are compact pills centred on their point; a tag under another one
+   (data-behind) is the paler back layer; a sale is pale blue, a rent white.
+   Never applies to the active or a visited tag. */
+.lkp-layer--preview[data-band='far'] .lkp-pin__body {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 999px;
+  translate: -50% -50%;
+  transform-origin: 50% 50%;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+}
+.lkp-layer--preview[data-band='far'] .lkp-pin__body::before,
+.lkp-layer--preview[data-band='far'] .lkp-pin__body::after { display: none; }
+.lkp-layer--preview .lkp-pin[data-purpose='sale']:not([data-active='true']):not([data-visited='true']):not([data-commune='true']) {
+  --lkp-bg: #e6eefc;
+  --lkp-fg: var(--blue-deep, #0c1d50);
+  --lkp-edge: rgb(20 79 197 / 0.28);
+}
+.lkp-layer--preview .lkp-pin[data-behind='true']:not([data-active='true']):not([data-commune='true']) .lkp-pin__body {
+  box-shadow: none;
+  opacity: 0.78;
+}
+.lkp-layer--preview .lkp-pin[data-behind='true']:not([data-active='true']):not([data-commune='true']):not([data-purpose='sale']) {
+  --lkp-bg: #f1f2f4;
+  --lkp-fg: #5f6675;
+}
 .lkp-pin[data-visited='true'] {
   --lkp-bg: #eef0f3;
   --lkp-fg: #6b7284;

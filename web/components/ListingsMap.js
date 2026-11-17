@@ -11,12 +11,15 @@ import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
-import { splitCommuneBubbles, communeBubbleLabel, groupByArea, AREA_ZOOM_BELOW } from '@/lib/communeBubbles';
+import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
 
 /**
- * Map preview (2026-11-16): `?apercu=carte` in the address shows one bubble
- * per commune below AREA_ZOOM_BELOW and shorter building labels, so the
- * owner can compare it with the live map. Read once when the map is built.
+ * Map preview (2026-11-17): `?apercu=carte` in the address keeps every price
+ * but draws the crowd better (lib/mapPinLayer.js, `.lkp-layer--preview` in
+ * app/globals.css): compact tags when zoomed out, overlapped tags as a paler
+ * back layer, sale vs rent colour, the count always shown, shorter building
+ * labels. Replaced the 2026-11-16 one-bubble-per-commune preview (owner: the
+ * crowd shows how much is available). Read once when the map is built.
  */
 function mapPreviewOn() {
   try {
@@ -301,8 +304,7 @@ export default function ListingsMap({
   const hoveredRef = useRef(null);
   // Map preview (?apercu=carte): read when the map is built.
   const previewRef = useRef(false);
-  const areaModeRef = useRef(false);
-  const lastMarkersRef = useRef([]);
+  const [previewMode, setPreviewMode] = useState(false);
   const selectSeqRef = useRef(0);
   // The view we positioned the map on (null until it has settled there), and
   // the last view reported — see "The list follows the map" above.
@@ -410,27 +412,15 @@ export default function ListingsMap({
     if (!map) return;
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
-    lastMarkersRef.current = markers;
-
-    // Preview (?apercu=carte): zoomed out, one bubble per commune instead of
-    // hundreds of overlapping prices; tapping one zooms in to its prices.
     const preview = previewRef.current;
-    const areaMode = preview && (map.getZoom() ?? 13) < AREA_ZOOM_BELOW;
-    areaModeRef.current = areaMode;
 
     // Listings that only know their commune become one bubble per commune at
     // its centre (lib/communeBubbles.js) instead of a ring of made-up spots.
     // The rest take the same three passes PropertyMap uses: group units of
     // one building, fan listings sharing a base point onto a ring (privacy
     // jitter included), then the screen-space de-overlap net.
-    let groups;
-    if (areaMode) {
-      const { areas, rest } = groupByArea(markers);
-      groups = [...areas, ...groupListingsByBuilding(rest)];
-    } else {
-      const { bubbles, rest } = splitCommuneBubbles(markers);
-      groups = [...bubbles, ...groupListingsByBuilding(rest)];
-    }
+    const { bubbles, rest } = splitCommuneBubbles(markers);
+    const groups = [...bubbles, ...groupListingsByBuilding(rest)];
     const bases = groups.map((group) => {
       const r = group.representative;
       return {
@@ -469,6 +459,8 @@ export default function ListingsMap({
         title: group.isCommune ? group.communeName : group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
         commune: Boolean(group.isCommune),
+        // Preview colour: a sale is pale blue, a rent white.
+        purpose: group.isBuilding ? null : r.purpose || null,
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,
@@ -637,16 +629,12 @@ export default function ListingsMap({
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...homeViewRef.current });
         mapRef.current = map;
         previewRef.current = mapPreviewOn();
+        setPreviewMode(previewRef.current);
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
+          preview: previewRef.current,
           onClick: (pin) => {
             const { onListingSelect: select, onBuildingSelect: selectBuilding } = propsRef.current;
-            if (pin.group?.isArea) {
-              // A commune bubble at city zoom: open its prices.
-              map.panTo({ lat: pin.lat, lng: pin.lng });
-              map.setZoom(AREA_ZOOM_BELOW);
-              return;
-            }
             if (pin.building) {
               // A building opens the unit list rather than a preview card:
               // there is no single listing to preview.
@@ -671,13 +659,6 @@ export default function ListingsMap({
         listeners.push(map.addListener('idle', () => {
           scheduleFetch();
           reportArea();
-        }));
-        // Preview: crossing AREA_ZOOM_BELOW swaps prices ↔ commune bubbles at
-        // once, from the markers already fetched.
-        listeners.push(map.addListener('zoom_changed', () => {
-          if (!previewRef.current) return;
-          const areaMode = (map.getZoom() ?? 13) < AREA_ZOOM_BELOW;
-          if (areaMode !== areaModeRef.current) renderMarkers(lastMarkersRef.current);
         }));
 
         setStatus('ready');
@@ -895,7 +876,10 @@ export default function ListingsMap({
   else if (view.loaded) pillText = t('listings.map.inArea', { count: shownInView ?? view.inView });
   // On a phone the settled count is the "Voir N biens" button's job, so the
   // pill only appears there for loading, a failure, or a capped answer.
-  const phoneHidden = view.loaded && !view.failed && !view.truncated;
+  // Preview: the count stays up on a phone too, in navy — the crowd and the
+  // number say the same thing.
+  const phoneHidden = !previewMode && view.loaded && !view.failed && !view.truncated;
+  const pillTone = previewMode && view.loaded && !view.failed ? 'bg-blue-deep text-white' : 'bg-surface text-ink';
 
   // No border/rounding of its own — every caller already owns its edge
   // treatment (see PropertyMap's same note).
@@ -921,7 +905,7 @@ export default function ListingsMap({
         <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
           <p
             aria-live="polite"
-            className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${
+            className={`u-tabular rounded-full ${pillTone} px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${
               view.fetching && view.loaded ? 'opacity-80' : ''
             } ${phoneHidden ? 'hidden lg:block' : ''}`}
           >

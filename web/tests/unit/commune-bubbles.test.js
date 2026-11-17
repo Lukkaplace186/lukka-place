@@ -60,27 +60,17 @@ test('only a changed quartier, reference or commune asks for a new point', () =>
   assert.equal(locationTextChanged(null, before), false);
 });
 
-test('preview: zoomed out, every listing with a commune is one bubble per commune, at its listings\' median', async () => {
-  const { groupByArea, AREA_ZOOM_BELOW } = await import('@/lib/communeBubbles');
-  const markers = [
-    marker(1, { commune: 'Gombe', lat: -4.30, lng: 15.30 }),
-    marker(2, { commune: 'Gombe', lat: -4.31, lng: 15.31 }),
-    marker(3, { commune: 'Gombe', lat: -4.32, lng: 15.29, approximate: true }),
-    marker(4, { commune: 'Limete', lat: -4.36, lng: 15.34 }),
-    marker(5, { commune: null, address: '', quartier: '', lat: -4.4, lng: 15.4 }),
-  ];
-  const { areas, rest } = groupByArea(markers);
-  assert.equal(AREA_ZOOM_BELOW, 14, 'a searched commune opens at 14, on prices');
-  assert.deepEqual(areas.map((a) => [a.communeName, a.unitCount]), [['Gombe', 3], ['Limete', 1]]);
-  assert.deepEqual([areas[0].representative.lat, areas[0].representative.lng], [-4.31, 15.30]);
-  assert.equal(areas[0].isArea, true);
-  assert.deepEqual(rest.map((m) => m.id), [5], 'no commune → keeps its own price pin');
-});
-
-test('preview is opt-in (?apercu=carte): the live map is unchanged without it', () => {
+test('map preview (?apercu=carte) keeps every price and only changes how the tags are drawn', () => {
   const map = read('components/ListingsMap.js');
   assert.match(map, /get\('apercu'\) === 'carte'/);
-  assert.match(map, /const areaMode = preview && \(map\.getZoom\(\) \?\? 13\) < AREA_ZOOM_BELOW;/);
-  assert.match(map, /if \(pin\.group\?\.isArea\) \{/, 'a commune bubble zooms in to its prices');
-  assert.match(map, /addListener\('zoom_changed'/);
+  assert.match(map, /preview: previewRef\.current,/, 'the pin layer is told');
+  assert.match(map, /purpose: group\.isBuilding \? null : r\.purpose \|\| null,/);
+  assert.doesNotMatch(map, /groupByArea|AREA_ZOOM_BELOW/, 'no listing is hidden behind a commune bubble');
+  const layer = read('lib/mapPinLayer.js');
+  assert.match(layer, /#layerDepth\(\)/);
+  assert.match(layer, /el\.dataset\.purpose = pin\.purpose \|\| '';/);
+  const css = read('app/globals.css');
+  assert.match(css, /\.lkp-layer--preview\[data-band='far'\] \.lkp-pin__body \{/);
+  assert.match(css, /\.lkp-layer--preview \.lkp-pin\[data-behind='true'\]/);
+  assert.match(css, /\.lkp-layer--preview \.lkp-pin\[data-purpose='sale'\]/);
 });

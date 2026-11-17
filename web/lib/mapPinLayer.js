@@ -26,6 +26,9 @@
  * @param {google.maps.Map} map
  * @param {{onClick: (pin) => void, onHover: (pin|null) => void}} handlers
  */
+/** Preview: below this zoom the tags are drawn compact (no stem, smaller). */
+export const PREVIEW_NEAR_ZOOM = 15;
+
 export function createPinLayer(map, handlers) {
   class PinLayer extends google.maps.OverlayView {
     constructor() {
@@ -37,11 +40,14 @@ export function createPinLayer(map, handlers) {
       this.me = null;
       this.meEl = null;
       this.container = null;
+      // Map preview (?apercu=carte, 2026-11-17): compact tags when zoomed
+      // out, overlapped tags drawn as a paler back layer, sale vs rent colour.
+      this.preview = Boolean(handlers.preview);
     }
 
     onAdd() {
       this.container = document.createElement('div');
-      this.container.className = 'lkp-layer';
+      this.container.className = this.preview ? 'lkp-layer lkp-layer--preview' : 'lkp-layer';
       this.container.style.position = 'absolute';
       this.container.style.left = '0';
       this.container.style.top = '0';
@@ -68,6 +74,48 @@ export function createPinLayer(map, handlers) {
       if (this.meEl && this.me) {
         const point = projection.fromLatLngToDivPixel(new google.maps.LatLng(this.me.lat, this.me.lng));
         if (point) this.meEl.style.transform = `translate3d(${point.x.toFixed(1)}px, ${point.y.toFixed(1)}px, 0)`;
+      }
+      if (this.preview) this.#layerDepth();
+    }
+
+    /**
+     * Preview: which tags sit under another one. Front-most first (active,
+     * then the stacking order), each tag's box estimated from its label (no
+     * layout read per pin), a 64 px grid so it stays cheap with 400 tags. A
+     * tag that touches one already in front is drawn as the back layer.
+     */
+    #layerDepth() {
+      const far = (map.getZoom() ?? 13) < PREVIEW_NEAR_ZOOM;
+      if (this.container) this.container.dataset.band = far ? 'far' : 'near';
+      const charW = far ? 6.2 : 7;
+      const h = far ? 20 : 24;
+      const ordered = [...this.entries.values()]
+        .filter((entry) => Number.isFinite(entry.x))
+        .sort((a, b) => Number(b.el.style.zIndex || 0) - Number(a.el.style.zIndex || 0));
+      const grid = new Map();
+      const cell = 64;
+      for (const entry of ordered) {
+        const w = entry.pin.label.length * charW + (far ? 12 : 18);
+        // Far: centred on the point (no stem). Near: above it, stem 6px.
+        const box = far
+          ? { l: entry.x - w / 2, r: entry.x + w / 2, t: entry.y - h / 2, b: entry.y + h / 2 }
+          : { l: entry.x - w / 2, r: entry.x + w / 2, t: entry.y - 6 - h, b: entry.y - 6 };
+        let behind = false;
+        const keys = [];
+        for (let gx = Math.floor(box.l / cell); gx <= Math.floor(box.r / cell); gx += 1) {
+          for (let gy = Math.floor(box.t / cell); gy <= Math.floor(box.b / cell); gy += 1) keys.push(`${gx}:${gy}`);
+        }
+        for (const key of keys) {
+          for (const other of grid.get(key) || []) {
+            if (box.l < other.r - 2 && box.r > other.l + 2 && box.t < other.b - 2 && box.b > other.t + 2) behind = true;
+          }
+          if (behind) break;
+        }
+        entry.el.dataset.behind = String(behind && entry.el.dataset.active !== 'true');
+        for (const key of keys) {
+          if (!grid.has(key)) grid.set(key, []);
+          grid.get(key).push(box);
+        }
       }
     }
 
@@ -229,6 +277,7 @@ export function createPinLayer(map, handlers) {
       el.dataset.visited = String(visited);
       el.dataset.building = String(Boolean(pin.building));
       el.dataset.commune = String(Boolean(pin.commune));
+      el.dataset.purpose = pin.purpose || '';
       if (el.title !== (pin.title || '')) el.title = pin.title || '';
       this.#applyZ(entry);
     }

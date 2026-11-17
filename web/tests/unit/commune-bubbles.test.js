@@ -75,3 +75,11 @@ test('the polished price tag is the live map: same pins, same label, finish in C
   assert.doesNotMatch(finish, /border-radius|opacity|--lkp-bg/, 'same shape, colours and full-strength "$" as before');
   assert.match(finish, /\.lkp-layer \.lkp-pin:hover \{ z-index: 2999999 !important; \}/);
 });
+
+test('phone map: search and chips are a row above the map, not floating over its pins', () => {
+  const split = read('components/ListingsSplitView.js');
+  assert.match(split, /relative z-30 shrink-0 border-b border-line bg-canvas px-2\.5 pb-2 pt-2\.5 lg:hidden/);
+  assert.doesNotMatch(split, /pointer-events-none absolute inset-x-0 top-0 z-20 p-2\.5 lg:hidden/, 'no floating search over the map');
+  assert.ok(split.indexOf('<MobileMapChrome') < split.indexOf('<ResponsiveMapPane'), 'the row comes before the map');
+  assert.doesNotMatch(read('components/ListingsMap.js'), /top-\[4\.5rem\]/, 'the count pill no longer clears a floating search');
+});

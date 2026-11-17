@@ -33,8 +33,8 @@ import { useT } from '@/lib/i18n/client';
 export default function MobileMapChrome({ params, propertyTypes = [] }) {
   const t = useT();
   return (
-    // Floats over the phone map (ListingsSplitView gives it a pointer-events-
-    // none layer, so the map stays draggable around the two controls).
+    // A solid row above the phone map since 2026-11-17 (ListingsSplitView);
+    // it used to float over the map and hid its busiest pins.
     <div className="lg:hidden">
     <div className="flex items-center gap-2">
       <LocationAutocomplete

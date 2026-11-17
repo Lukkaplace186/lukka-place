@@ -234,6 +234,16 @@ export default function ListingsSplitView({
             (badge + Liste button) are siblings sharing this `relative`
             box, so the overlay's `top-4`/`bottom-6` land relative to the
             map's own bounds, not the sticky bar or the whole fixed layer. */}
+        {/* Phone map: the search and the filter chips are a solid row ABOVE
+            the map (2026-11-17, owner: the map loaded with its busiest
+            pins hidden under the floating search). The map starts below
+            them. */}
+        {isMapView ? (
+          // relative z-30: the search's suggestions open downward over the map.
+          <div className="relative z-30 shrink-0 border-b border-line bg-canvas px-2.5 pb-2 pt-2.5 lg:hidden">
+            <MobileMapChrome params={params} propertyTypes={propertyTypes} />
+          </div>
+        ) : null}
         <div className="relative min-h-0 flex-1">
           {/* `filterParams` makes this the viewport map: every listing
               matching the URL's filters inside the visible area, not just
@@ -255,12 +265,6 @@ export default function ListingsSplitView({
               className="h-full w-full"
             />
           </div>
-          {/* Phone map: the search floats over the full-height map. */}
-          {isMapView ? (
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-2.5 lg:hidden">
-              <MobileMapChrome params={params} propertyTypes={propertyTypes} />
-            </div>
-          ) : null}
           {isMapView && !previewOpen ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
         </div>
       </div>

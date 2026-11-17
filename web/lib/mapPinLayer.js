@@ -37,8 +37,8 @@ export function createPinLayer(map, handlers) {
       this.me = null;
       this.meEl = null;
       this.container = null;
-      // Map preview (?apercu=carte, 2026-11-17): the polished price tag —
-      // "$" and "/an" set apart from the figure (app/globals.css,
+      // Map preview (?apercu=carte, 2026-11-17): today's tag with a finer
+      // edge, a two-step shadow and hover/selected polish (app/globals.css,
       // .lkp-layer--preview). Same density, same positions as the live map.
       this.preview = Boolean(handlers.preview);
     }
@@ -91,7 +91,7 @@ export function createPinLayer(map, handlers) {
         let entry = previous.get(pin.key);
         if (entry) {
           previous.delete(pin.key);
-          if (entry.pin.label !== pin.label) this.#renderLabel(entry.labelEl, pin.label);
+          if (entry.pin.label !== pin.label) entry.labelEl.textContent = pin.label;
           if (entry.pin.verified !== pin.verified) this.#setCheck(entry, pin.verified);
           entry.pin = pin;
         } else {
@@ -178,7 +178,7 @@ export function createPinLayer(map, handlers) {
       body.className = 'lkp-pin__body';
       const labelEl = document.createElement('span');
       labelEl.className = 'lkp-pin__label';
-      this.#renderLabel(labelEl, pin.label);
+      labelEl.textContent = pin.label;
       body.appendChild(labelEl);
       el.appendChild(body);
       // Dropped once the entrance is over (a timer, not animationend: reduced
@@ -206,30 +206,6 @@ export function createPinLayer(map, handlers) {
     // "Vérifié par Lukka Place" (properties.verified_at): a small check in
     // the pill. Only a human verification sets it, so on today's data it is
     // rare, and that is what makes it mean something.
-    /**
-     * A price label as figure + quieter "$" and period ("$" "1.5k" "/an") in
-     * the preview; anything else (a building or commune label) as plain text.
-     */
-    #renderLabel(labelEl, label) {
-      const parts = this.preview ? /^(\$)([\d.,]+[kM]?)(\/[a-zé]+)?$/i.exec(label) : null;
-      if (!parts) {
-        labelEl.textContent = label;
-        return;
-      }
-      const cur = document.createElement('span');
-      cur.className = 'lkp-pin__cur';
-      cur.textContent = parts[1];
-      const amount = document.createTextNode(parts[2]);
-      const nodes = [cur, amount];
-      if (parts[3]) {
-        const per = document.createElement('span');
-        per.className = 'lkp-pin__per';
-        per.textContent = parts[3];
-        nodes.push(per);
-      }
-      labelEl.replaceChildren(...nodes);
-    }
-
     #setCheck(entry, verified) {
       if (verified && !entry.checkEl) {
         const svgNs = 'http://www.w3.org/2000/svg';

@@ -1390,67 +1390,27 @@
 .lkp-pin[data-commune='true'] .lkp-pin__body::before,
 .lkp-pin[data-commune='true'] .lkp-pin__body::after { display: none; }
 
-/* Map preview (?apercu=carte, 2026-11-17, lib/mapPinLayer.js): the same
-   crowd as the live map — every price, same places, same overlap — with a
-   more finished tag. A round pill with a fine edge and a two-step shadow
-   (contact + lift) so stacked tags stay distinct; the figure in heavy
-   tabular digits with "$" and "/an" quieter beside it; a slimmer stem; on a
-   mouse, the hovered tag comes to the front. Visited, active and commune
-   tags keep their own colours. */
-.lkp-layer--preview .lkp-pin {
-  --lkp-edge: rgb(15 23 42 / 0.14);
+/* Map preview (?apercu=carte, 2026-11-17, lib/mapPinLayer.js): today's tag
+   as it is — same shape, white, dark text, "$" at full strength — finished:
+   a finer edge, a two-step shadow (contact + lift) so stacked tags stay
+   distinct, a touch more weight on the figure, the hovered tag to the front
+   on a mouse, and a white halo round the selected one. */
+.lkp-layer--preview .lkp-pin:not([data-active='true']):not([data-commune='true']):not([data-visited='true']) {
+  --lkp-edge: rgb(15 23 42 / 0.12);
 }
 .lkp-layer--preview .lkp-pin__body {
-  height: 26px;
-  padding: 0 10px;
-  gap: 4px;
-  border-radius: 999px;
-  font-size: 12.5px;
   font-weight: 800;
   letter-spacing: -0.01em;
   box-shadow:
     0 1px 1px rgb(15 23 42 / 0.08),
-    0 3px 10px -2px rgb(15 23 42 / 0.22);
+    0 3px 8px -2px rgb(15 23 42 / 0.2);
 }
-.lkp-layer--preview .lkp-pin__cur,
-.lkp-layer--preview .lkp-pin__per {
-  font-size: 10.5px;
-  font-weight: 600;
-  opacity: 0.55;
-}
-.lkp-layer--preview .lkp-pin__cur { margin-right: -2px; }
-.lkp-layer--preview .lkp-pin__per { margin-left: -2px; }
 .lkp-layer--preview .lkp-pin__body::before {
-  width: 8px;
-  height: 8px;
-  bottom: -4px;
-  border-bottom-right-radius: 1.5px;
   box-shadow: 1.5px 1.5px 2px rgb(15 23 42 / 0.1);
 }
-.lkp-layer--preview .lkp-pin__body::after {
-  width: 16px;
-  border-radius: 0 0 999px 999px;
-}
-.lkp-layer--preview .lkp-pin__check {
-  width: 12px;
-  height: 12px;
-  margin-left: -2px;
-}
-.lkp-layer--preview .lkp-pin[data-visited='true'] {
-  --lkp-bg: #f3f4f6;
-  --lkp-fg: #6b7280;
-  --lkp-edge: rgb(15 23 42 / 0.08);
-}
-.lkp-layer--preview .lkp-pin[data-active='true'] {
-  --lkp-bg: var(--blue);
-  --lkp-fg: #fff;
-  --lkp-edge: var(--blue);
-}
-.lkp-layer--preview .lkp-pin[data-active='true'] .lkp-pin__cur,
-.lkp-layer--preview .lkp-pin[data-active='true'] .lkp-pin__per { opacity: 0.8; }
 .lkp-layer--preview .lkp-pin[data-active='true'] .lkp-pin__body {
   box-shadow:
-    0 0 0 3px rgb(255 255 255 / 0.9),
+    0 0 0 2px rgb(255 255 255 / 0.95),
     0 6px 16px -2px rgb(30 58 168 / 0.45);
 }
 @media (hover: hover) {
@@ -1459,11 +1419,8 @@
     translate: -50% calc(-100% - 7px);
     box-shadow:
       0 1px 1px rgb(15 23 42 / 0.1),
-      0 8px 18px -4px rgb(15 23 42 / 0.3);
+      0 8px 16px -4px rgb(15 23 42 / 0.28);
   }
-}
-.lkp-layer--preview .lkp-pin[data-commune='true'] {
-  --lkp-edge: var(--blue-deep, #0c1d50);
 }
 .lkp-pin[data-visited='true'] {
   --lkp-bg: #eef0f3;

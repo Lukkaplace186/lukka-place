@@ -66,11 +66,13 @@ test('map preview (?apercu=carte) changes only how a price tag is drawn', () => 
   assert.match(map, /preview: previewRef\.current,/, 'the pin layer is told');
   assert.doesNotMatch(map, /groupByArea|AREA_ZOOM_BELOW|pillTone|purpose: group/, 'same pins, same count pill as the live map');
   const layer = read('lib/mapPinLayer.js');
-  assert.match(layer, /#renderLabel\(labelEl, label\)/);
-  assert.match(layer, /const parts = this\.preview \?/, 'the split label is preview-only');
+  assert.doesNotMatch(layer, /renderLabel|lkp-pin__cur/, 'the price label is the live one, "$" included');
   assert.doesNotMatch(layer, /layerDepth|PREVIEW_NEAR_ZOOM|dataset\.purpose/);
   const css = read('app/globals.css');
   assert.match(css, /\.lkp-layer--preview \.lkp-pin__body \{/);
-  assert.match(css, /\.lkp-layer--preview \.lkp-pin__cur,/);
+  const from = css.indexOf('/* Map preview (?apercu=carte');
+  const previewCss = css.slice(from, css.indexOf(".lkp-pin[data-visited='true'] {", from));
+  assert.ok(previewCss.length > 200, 'preview block found');
+  assert.doesNotMatch(previewCss, /lkp-pin__cur|lkp-pin__per|border-radius|opacity|--lkp-bg/, 'same shape, colours and full-strength "$" as today');
   assert.doesNotMatch(css, /data-band|data-behind|data-purpose/);
 });

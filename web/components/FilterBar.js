@@ -37,7 +37,7 @@ const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin', 'plotMin', 'plo
 // result set, so changing only those shouldn't spawn a new history entry.
 const FILTER_PARAM_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'beds_max', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
 ];
 // Fallback only for the genuinely-empty-catalog case (lib/listings.js's
 // getPriceRange() returns null) — otherwise the real ceiling comes from
@@ -144,6 +144,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // A legacy `deposit_max` link keeps filtering until the visitor picks an
   // Avance exigée band, which replaces it.
   const legacyDepositMax = depositRange ? '' : defaults.depositMax || '';
+  // The phone map's "2 à 3 chambres" (MapQuickFilters) has no field here; it
+  // rides along with every change, and goes when a new minimum passes it.
+  const keptBedsMax =
+    defaults.bedsMax && !(bedsMin && Number(defaults.bedsMax) < Number(bedsMin)) ? String(defaults.bedsMax) : '';
   const [amenities, setAmenities] = useState(defaults.amenities || []);
   // Taille du terrain, m² (lib/listingDetails.js).
   const [plotMin, setPlotMin] = useState(defaults.plotMin || '');
@@ -219,6 +223,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (propertyType) qs.set('property_type', propertyType);
       if (propertyType === 'parcelle' && parcelleSubtype) qs.set('parcelle_subtype', parcelleSubtype);
       if (bedsMin) qs.set('beds_min', bedsMin);
+      if (keptBedsMax) qs.set('beds_max', keptBedsMax);
       if (bathMin) qs.set('bath_min', bathMin);
       if (priceMin) qs.set('price_min', priceMin);
       if (priceMax) qs.set('price_max', priceMax);
@@ -255,6 +260,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     propertyType,
     parcelleSubtype,
     bedsMin,
+    keptBedsMax,
     bathMin,
     priceMin,
     priceMax,
@@ -346,6 +352,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],
     ['beds_min', bedsMin],
+    ['beds_max', keptBedsMax],
     ['bath_min', bathMin],
     ['price_min', priceMin],
     ['price_max', priceMax],

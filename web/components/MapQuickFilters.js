@@ -1,14 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BedDouble, Building2, ChevronDown, Wallet } from 'lucide-react';
+import { BedDouble, ChevronDown, Wallet } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { frNumber } from '@/lib/format';
 import { useT } from '@/lib/i18n/client';
-import { MAP_BED_STEPS, MAP_PRICE_STEPS, mapFilterHref } from '@/lib/mapQuickFilters';
-import { facetLabel } from '@/lib/commercialSpaces';
+import { budgetOptions, budgetParams } from '@/lib/budgetSteps';
+import {
+  MAP_BED_STEPS,
+  bedsRangeLabel,
+  bedsRangeParams,
+  mapFilterHrefMany,
+  priceRangeLabel,
+  transactionHref,
+} from '@/lib/mapQuickFilters';
 
 function Chip({ active, icon: Icon, children, onClick }) {
   return (
@@ -28,99 +36,156 @@ function Chip({ active, icon: Icon, children, onClick }) {
   );
 }
 
-function Option({ on, onClick, children }) {
-  return (
+/** Louer | Acheter as one glass pill; the chosen half is dark. */
+function TransactionToggle({ value, onPick, t }) {
+  const option = (key, label) => (
     <button
       type="button"
-      aria-pressed={on}
-      onClick={onClick}
+      aria-pressed={value === key}
+      onClick={() => onPick(key)}
       className={cn(
-        'u-press inline-flex min-h-11 items-center rounded-full px-4 text-[0.875rem] font-semibold',
-        on ? 'bg-ink text-white' : 'bg-surface text-ink shadow-[inset_0_0_0_1px_var(--ink-25)]',
+        'u-press h-full rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors',
+        value === key ? 'bg-ink text-white' : 'text-ink',
       )}
     >
-      {children}
+      {label}
     </button>
+  );
+  return (
+    <div className="u-liquid-glass-field pointer-events-auto inline-flex h-9 shrink-0 items-center rounded-full p-0.5">
+      {option('location', t('nav.rent'))}
+      {option('vente', t('nav.buy'))}
+    </div>
+  );
+}
+
+function RangeSelect({ label, value, onChange, options }) {
+  return (
+    <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-ink-45">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 w-full rounded-xl border border-line bg-surface px-3 text-[0.9375rem] font-semibold text-ink"
+      >
+        {options.map((o) => (
+          <option key={o.value || 'any'} value={o.value} disabled={o.disabled}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
 /**
- * Prix · Chambres · Type chips under the phone map's search (2026-10-06
- * storefront upgrade). Each opens a small bottom sheet and applies straight
- * to the URL, so a visitor narrows the map without leaving it for the full
- * filter sheet (which the sliders button beside the search still opens).
+ * Louer / Acheter · Prix · Chambres under the phone map's search (2026-10-06
+ * storefront upgrade; ranges and Louer/Acheter 2026-11-17, owner). Prix and
+ * Chambres open a bottom sheet with a "from" and a "to" — "350 $ to 650 $",
+ * "2 to 3 chambres" — applied together with one button, so the map refetches
+ * once. Louer / Acheter applies at once. The property type stays in the full
+ * filter sheet behind the sliders button.
  *
- * Same params as FilterBar (`price_max`, `beds_min`, `property_type`), read
- * from and written to the live query string, so every other filter and the
- * map area (`sw_lat…`, root CLAUDE.md "Viewport fetching") survive — a
- * non-location change keeps the view. `page` is dropped, as FilterBar does.
- * Property types are the real facets the page already loads
- * (getPropertyTypeFacets), never a hardcoded list.
+ * Read from and written to the live query string (`transaction_type`,
+ * `price_min`/`price_max`, `beds_min`/`beds_max`), so every other filter and
+ * the map area (`sw_lat…`) survive; `page` is dropped, as FilterBar does.
  */
-export default function MapQuickFilters({ params = {}, propertyTypes = [] }) {
+export default function MapQuickFilters({ params = {} }) {
   const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(null);
-  const money = (n) => Number(n).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
-  const typeFacet = propertyTypes.find((o) => o.value === params.property_type);
-  const typeLabel = typeFacet ? facetLabel(typeFacet, t) : undefined;
+  const [draft, setDraft] = useState({ min: '', max: '' });
+  const money = (n) => (t.locale === 'en' ? Number(n).toLocaleString('en-GB') : frNumber(Number(n)));
+  const transaction = params.transaction_type || '';
 
-  function apply(key, value) {
+  function go(updates) {
     setOpen(null);
-    router.push(mapFilterHref(window.location.search, key, value), { scroll: false });
+    router.push(mapFilterHrefMany(window.location.search, updates), { scroll: false });
   }
 
-  const sheets = {
-    price: {
-      title: t('listings.map.quick.priceTitle'),
-      options: [{ value: '', label: t('listings.map.quick.any') }, ...MAP_PRICE_STEPS.map((p) => ({ value: String(p), label: `≤ ${money(p)} $` }))],
-      current: params.price_max || '',
-      key: 'price_max',
-    },
-    beds: {
-      title: t('listings.map.quick.bedsTitle'),
-      options: [{ value: '', label: t('listings.map.quick.any') }, ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b}+` }))],
-      current: params.beds_min || '',
-      key: 'beds_min',
-    },
-    type: {
-      title: t('listings.map.quick.typeTitle'),
-      options: [{ value: '', label: t('listings.map.quick.any') }, ...propertyTypes.map((o) => ({ value: o.value, label: facetLabel(o, t) }))],
-      current: params.property_type || '',
-      key: 'property_type',
-    },
-  };
-  const sheet = open ? sheets[open] : null;
+  function openSheet(kind) {
+    setDraft(kind === 'price'
+      ? { min: params.price_min || '', max: params.price_max || '' }
+      : { min: params.beds_min || '', max: params.beds_max || '' });
+    setOpen(kind);
+  }
+
+  const priceOptions = useMemo(() => budgetOptions(transaction, open === 'price' ? draft : {}, money, {
+    minAny: t('home.search.budgetMinAny'),
+    maxAny: t('home.search.budgetMaxAny'),
+    min: (amount) => t('home.search.budgetMin', { amount }),
+    max: (amount) => t('home.search.budgetMax', { amount }),
+    over: (amount) => t('home.search.budgetOver', { amount }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [t, transaction, open, draft]);
+
+  const bedLo = Number.parseInt(draft.min, 10);
+  const bedHi = Number.parseInt(draft.max, 10);
+  const bedMinOptions = [
+    { value: '', label: t('listings.filters.min') },
+    ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b} ch.`, disabled: Number.isFinite(bedHi) && b > bedHi })),
+  ];
+  const bedMaxOptions = [
+    { value: '', label: t('listings.filters.max') },
+    ...MAP_BED_STEPS.map((b) => ({ value: String(b), label: `${b} ch.`, disabled: Number.isFinite(bedLo) && b < bedLo })),
+  ];
+
+  const priceText = priceRangeLabel(params.price_min, params.price_max, money);
+  const bedsText = bedsRangeLabel(params.beds_min, params.beds_max);
 
   return (
     <>
       <div className="no-scrollbar -mx-2.5 mt-2 flex gap-2 overflow-x-auto px-2.5 pb-1 lg:hidden">
-        <Chip active={Boolean(params.price_max)} icon={Wallet} onClick={() => setOpen('price')}>
-          {params.price_max ? `≤ ${money(params.price_max)} $` : t('listings.map.quick.price')}
+        <TransactionToggle
+          value={transaction}
+          t={t}
+          onPick={(key) => router.push(transactionHref(window.location.search, transaction, key), { scroll: false })}
+        />
+        <Chip active={Boolean(priceText)} icon={Wallet} onClick={() => openSheet('price')}>
+          {priceText || t('listings.map.quick.price')}
         </Chip>
-        <Chip active={Boolean(params.beds_min)} icon={BedDouble} onClick={() => setOpen('beds')}>
-          {params.beds_min ? t('listings.map.quick.bedsValue', { count: Number(params.beds_min) }) : t('listings.map.quick.beds')}
+        <Chip active={Boolean(bedsText)} icon={BedDouble} onClick={() => openSheet('beds')}>
+          {bedsText || t('listings.map.quick.beds')}
         </Chip>
-        {propertyTypes.length > 1 ? (
-          <Chip active={Boolean(params.property_type)} icon={Building2} onClick={() => setOpen('type')}>
-            {typeLabel || t('listings.map.quick.type')}
-          </Chip>
-        ) : null}
       </div>
 
-      <Sheet open={Boolean(sheet)} onOpenChange={(next) => !next && setOpen(null)}>
+      <Sheet open={Boolean(open)} onOpenChange={(next) => !next && setOpen(null)}>
         <SheetContent side="bottom" className="rounded-t-2xl border-line bg-surface p-0 pb-[calc(1.25rem+env(safe-area-inset-bottom))] lg:hidden">
-          {sheet ? (
+          {open ? (
             <>
               <SheetHeader className="px-4 pb-1 pt-5">
-                <SheetTitle className="text-[1.0625rem] font-bold text-ink">{sheet.title}</SheetTitle>
+                <SheetTitle className="text-[1.0625rem] font-bold text-ink">
+                  {open === 'price' ? t('listings.map.quick.price') : t('listings.map.quick.beds')}
+                </SheetTitle>
               </SheetHeader>
-              <div className="flex flex-wrap gap-2 px-4 pt-2">
-                {sheet.options.map((o) => (
-                  <Option key={o.value || 'any'} on={sheet.current === o.value} onClick={() => apply(sheet.key, o.value)}>
-                    {o.label}
-                  </Option>
-                ))}
+              <div className="flex gap-3 px-4 pt-2">
+                {open === 'price' ? (
+                  <>
+                    <RangeSelect label={t('listings.filters.min')} value={draft.min} options={priceOptions.minOptions} onChange={(min) => setDraft((d) => ({ ...d, min }))} />
+                    <RangeSelect label={t('listings.filters.max')} value={draft.max} options={priceOptions.maxOptions} onChange={(max) => setDraft((d) => ({ ...d, max }))} />
+                  </>
+                ) : (
+                  <>
+                    <RangeSelect label={t('listings.filters.min')} value={draft.min} options={bedMinOptions} onChange={(min) => setDraft((d) => ({ ...d, min }))} />
+                    <RangeSelect label={t('listings.filters.max')} value={draft.max} options={bedMaxOptions} onChange={(max) => setDraft((d) => ({ ...d, max }))} />
+                  </>
+                )}
+              </div>
+              <div className="flex gap-3 px-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => go(open === 'price' ? { price_min: '', price_max: '' } : { beds_min: '', beds_max: '' })}
+                  className="u-press h-12 flex-1 rounded-full text-[0.9375rem] font-semibold text-ink shadow-[inset_0_0_0_1px_var(--ink-25)]"
+                >
+                  {t('listings.map.quick.any')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go(open === 'price' ? budgetParams(draft.min, draft.max) : bedsRangeParams(draft.min, draft.max))}
+                  className="u-press u-btn-primary h-12 flex-[2] rounded-full bg-blue text-[0.9375rem] font-semibold text-white"
+                >
+                  {t('listings.filters.apply')}
+                </button>
               </div>
             </>
           ) : null}

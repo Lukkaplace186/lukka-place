@@ -540,7 +540,7 @@ function categoryAliasClause(key, params) {
   return `(${clause})`;
 }
 
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bedsMax, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -585,6 +585,14 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   if (Number.isFinite(minBeds) && minBeds > 0) {
     params.push(minBeds);
     where.push(`p.beds >= $${params.length}`);
+  }
+
+  // "2 à 3 chambres" (the phone map's range, 2026-11-17). A maximum below the
+  // minimum is ignored rather than returning nothing.
+  const maxBeds = Number.parseInt(bedsMax, 10);
+  if (Number.isFinite(maxBeds) && maxBeds > 0 && !(Number.isFinite(minBeds) && maxBeds < minBeds)) {
+    params.push(maxBeds);
+    where.push(`p.beds <= $${params.length}`);
   }
 
   const minBath = Number.parseInt(bathMin, 10);

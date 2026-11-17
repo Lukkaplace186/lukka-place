@@ -45,6 +45,8 @@ export function parseListingsSearchParams(searchParamsLike) {
     priceMin: get('price_min'),
     priceMax: get('price_max'),
     bedsMin: get('beds_min'),
+    // "2 à 3 chambres" — the phone map's bedrooms range (2026-11-17).
+    bedsMax: get('beds_max'),
     bathMin: get('bath_min'),
     depositMax: get('deposit_max'),
     depositRange: get('deposit_range'),

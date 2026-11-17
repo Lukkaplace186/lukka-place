@@ -246,6 +246,7 @@ export default async function ListingsPage({ searchParams }) {
             priceMin: params.price_min,
             priceMax: params.price_max,
             bedsMin: params.beds_min,
+            bedsMax: params.beds_max,
             bathMin: params.bath_min,
             depositMax: params.deposit_max,
             depositRange: params.deposit_range,

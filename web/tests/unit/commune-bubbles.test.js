@@ -120,6 +120,6 @@ test('inside the store app the phone map keeps its place under the app bar, with
   const css = read('app/globals.css');
   assert.match(css, /body:has\(\[data-app-top-bar\]\) \[data-map-layer\] \{ top: 4rem; \}/);
   assert.match(css, /body:has\(\[data-app-top-bar\]\) \[data-site-menu-button\] \{ display: none; \}/);
-  assert.match(read('components/ListingsSplitView.js'), /data-map-layer\n/);
-  assert.match(read('components/MobileMapChrome.js'), /data-site-menu-button\n/);
+  assert.match(read('components/ListingsSplitView.js'), /data-map-layer\s/);
+  assert.match(read('components/MobileMapChrome.js'), /data-site-menu-button\s/);
 });

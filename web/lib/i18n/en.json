@@ -911,7 +911,10 @@
       "alert": "Log in or create an account to create an alert",
       "favorite": "Log in or create an account to save this property",
       "continue": "Continue",
-      "alreadyHaveAccount": "Already have an account?"
+      "alreadyHaveAccount": "Already have an account?",
+      "favoriteWhy": "Keep your favourites even if you change phone.",
+      "saveWhy": "Find this search again on any of your devices.",
+      "alertWhy": "Get new matching properties as soon as they are listed."
     },
     "related": {
       "similar": "Similar Properties",
@@ -1126,6 +1129,16 @@
       "lead": "Get new properties like this one on WhatsApp.",
       "button": "Alert me about similar properties",
       "inlineLead": "Nothing quite right? Be told when a similar property is listed."
+    },
+    "quickSignup": {
+      "submit": "Create my account"
+    },
+    "contactSignup": {
+      "title": "Find This Property and the Agent Later",
+      "lead": "Your Lukka Place account: your name, your number and a password, that's all.",
+      "perkSaved": "This property kept in your favourites, on all your devices",
+      "perkAlerts": "Alerts when a property that suits you is listed",
+      "noThanks": "No thanks"
     }
   },
   "enquiry": {
@@ -4313,7 +4326,8 @@
         "direct": "Direct",
         "other": "Other sites"
       }
-    },    "dashboard": {
+    },
+    "dashboard": {
       "title": "Dashboard",
       "basisNote": "Based on real traffic recorded since tracking was introduced — no historical data existed before that.",
       "exportCsv": "Export listings (CSV)",
@@ -7985,7 +7999,8 @@
           "login_page": "Link under login",
           "partner_invite": "Partner invitation",
           "price_guide": "Price guide",
-          "direct": "Direct / other link"
+          "direct": "Direct / other link",
+          "whatsapp": "After a WhatsApp tap"
         },
         "refusals": {
           "name": "Missing name",

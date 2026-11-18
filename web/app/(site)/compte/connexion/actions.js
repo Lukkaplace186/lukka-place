@@ -21,6 +21,7 @@ import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
 import { autoSendMoveProject } from '@/lib/moveProjectRequest';
 import { getT } from '@/lib/i18n/server';
+import { claimRecentContactTaps } from '@/lib/contactTapClaim';
 
 /**
  * A refusal comes back as state with what was typed (2026-11-08: a failed
@@ -111,6 +112,8 @@ export async function loginAction(_prevState, formData) {
   // by a WhatsApp code (/mot-de-passe-oublie) or by the team (/admin/customers).
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
   await rememberCustomerPhone(phone);
+  // This browser's WhatsApp taps of the last day are theirs (lib/contactTapClaim.js). Never throws.
+  await claimRecentContactTaps(customer.id);
 
   // Came from sign-up's "Ce numéro a déjà un compte" after answering the move
   // cards (2026-11-08): those answers become a project now, instead of being

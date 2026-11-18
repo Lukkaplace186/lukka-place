@@ -14,7 +14,9 @@
  *
  * Steps, in order:
  *   prompt_shown  a prompt was put in front of the visitor (modal opened, nudge displayed)
- *   prompt_open   they pressed its button towards the sign-up page
+ *   prompt_open   they pressed its button towards the sign-up page, or (the
+ *                 in-place form of the ♥, alerts and the WhatsApp offer,
+ *                 components/QuickSignup.js) typed their first character
  *   form_view     the sign-up page loaded
  *   form_start    the first character typed in the account form (not focus:
  *                 the name field is autoFocused)
@@ -41,13 +43,14 @@ export const SIGNUP_ENTRIES = [
   'login_page', // "Créer un compte" under the login form
   'partner_invite', // /i/<code>, an agent's or creator's invitation
   'price_guide', // the price guide (reserved for its sign-up hook)
+  'whatsapp', // the offer after a guest's WhatsApp tap (ContactSignupPrompt, 2026-11-18)
   'direct', // anything else: a typed URL, an old link, a shared link
 ];
 
 const ENTRY_SET = new Set(SIGNUP_ENTRIES);
 
 /** Entries that are a prompt (shown, then opened); the others are plain links. */
-export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge']);
+export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge', 'whatsapp']);
 
 /** Steps a browser may report. `refused` and `created` are server-only. */
 export const CLIENT_SIGNUP_STEPS = ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit'];

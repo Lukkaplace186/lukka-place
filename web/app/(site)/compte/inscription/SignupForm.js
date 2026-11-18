@@ -99,6 +99,18 @@ export default function SignupForm({
   hasAnswers = false,
   // Where this sign-up started (lib/signupFunnelRules.js), sent with the form.
   entry = 'direct',
+  // The in-place version (a sheet or a dialog over the page, 2026-11-18,
+  // components/QuickSignup.js): no partner-code field (the partner link this
+  // browser followed still counts, lp_ref), no top margin, field ids
+  // prefixed so they cannot clash with another form on the page, and no
+  // autofocus when the sheet opens by itself (it would pop the keyboard).
+  compact = false,
+  idPrefix = '',
+  autoFocusName = true,
+  submitLabelKey = 'auth.createMyAccount',
+  // Listings the visitor asked to keep by creating this account (the one
+  // they just contacted), saved with any device favourites.
+  alsoSaveIds = [],
   children = null,
 }) {
   const t = useT();
@@ -126,7 +138,8 @@ export default function SignupForm({
     trackCustomerSignup('submit', entry);
     const form = formRef.current;
     if (!form) return;
-    form.favoriteIds.value = getFavoriteIds().join(',');
+    const saveIds = [...getFavoriteIds(), ...alsoSaveIds.map(String)];
+    form.favoriteIds.value = [...new Set(saveIds)].join(',');
     form.savedSearches.value = JSON.stringify(getSavedSearches());
   }
 
@@ -171,7 +184,7 @@ export default function SignupForm({
   const showExists = knownAccount || (!state && initialError === 'exists');
 
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleSubmit} onInput={handleFirstInput} className="mt-6 flex flex-col gap-3">
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} onInput={handleFirstInput} className={compact ? 'flex flex-col gap-3' : 'mt-6 flex flex-col gap-3'}>
       <input type="hidden" name="next" value={next} />
       <input type="hidden" name="entry" value={entry} />
       <input type="hidden" name="favoriteIds" />
@@ -179,18 +192,18 @@ export default function SignupForm({
       {children}
 
       <div>
-        <label htmlFor="fullName" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+        <label htmlFor={`${idPrefix}fullName`} className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
           {t('auth.signup.fullName')}
         </label>
         <input
-          id="fullName"
+          id={`${idPrefix}fullName`}
           type="text"
           name="fullName"
           autoComplete="name"
           required
           minLength={2}
           maxLength={120}
-          autoFocus
+          autoFocus={autoFocusName}
           value={fullName}
           onChange={(event) => setFullName(event.target.value)}
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
@@ -201,7 +214,7 @@ export default function SignupForm({
         <PhoneField
           key={state?.attempt || 'first'}
           name="phone"
-          id="phone"
+          id={`${idPrefix}phone`}
           defaultValue={values ? values.phone : initialPhone}
           defaultCountry={(values && values.phoneCountry) || initialCountry || undefined}
           locale={locale}
@@ -213,11 +226,11 @@ export default function SignupForm({
       {showExists ? <ExistingAccountNotice signInAction={signInAction} hasAnswers={hasAnswers} /> : null}
 
       <div>
-        <label htmlFor="password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+        <label htmlFor={`${idPrefix}password`} className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
           {t('auth.password')}
         </label>
         <PasswordInput
-          id="password"
+          id={`${idPrefix}password`}
           name="password"
           autoComplete="new-password"
           minLength={CUSTOMER_PASSWORD_MIN}
@@ -228,6 +241,7 @@ export default function SignupForm({
         <p className="mt-1 text-xs text-ink-45">{t('auth.minSixChars')}</p>
       </div>
 
+      {compact ? null : (
       <div>
         <label htmlFor="partner_code" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
           {t('auth.partnerCode')}
@@ -246,6 +260,7 @@ export default function SignupForm({
         />
         <p id="partner_code_hint" className="mt-1 text-xs text-ink-45">{t('auth.partnerCodeHint')}</p>
       </div>
+      )}
 
       {error && error !== 'exists' && (
         <p className="text-sm text-red-600" role="alert">
@@ -253,7 +268,7 @@ export default function SignupForm({
         </p>
       )}
 
-      <CreateAccountButton label={t('auth.createMyAccount')} pendingLabel={t('auth.creatingAccount')} />
+      <CreateAccountButton label={t(submitLabelKey)} pendingLabel={t('auth.creatingAccount')} />
     </form>
   );
 }

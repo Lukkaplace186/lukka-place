@@ -2,6 +2,7 @@
 
 import { attributionFromLocation, chooseSessionAttribution, sourceOf } from './attribution';
 import { adEvent } from './adEvents';
+import { WHATSAPP_TAP_EVENT } from './contactSignupPrompt';
 
 /**
  * The one client-side event beacon. `lib/analytics.js` is the READ side and
@@ -259,6 +260,13 @@ export function trackLeadClick(listing, routingType, placement, intent = null) {
     // What the customer chose before WhatsApp opened (lib/whatsappIntent.js); null = not asked.
     intent: intent || undefined,
   });
+  // A guest is offered an account when they come back from WhatsApp
+  // (components/ContactSignupPrompt.js, lib/contactSignupPrompt.js).
+  try {
+    window.dispatchEvent(new CustomEvent(WHATSAPP_TAP_EVENT, { detail: { listingId: listing?.id ?? null } }));
+  } catch {
+    // No window (server) or no CustomEvent: nothing to offer.
+  }
 }
 
 /**

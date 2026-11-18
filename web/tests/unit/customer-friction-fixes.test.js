@@ -23,7 +23,12 @@ const read = (rel) => readFileSync(path.join(process.cwd(), rel), 'utf8');
 // --- sign-up ------------------------------------------------------------------
 
 test('a save (♥, alert) opens sign-up on the account card, not the move questions', () => {
-  assert.match(read('components/AuthPromptModal.js'), /params\.set\('from', 'save'\)/);
+  // Since 2026-11-18 the ♥ / alert prompt creates the account in place
+  // (components/QuickSignup.js): the account form only, never the move cards.
+  const modal = read('components/AuthPromptModal.js');
+  assert.match(modal, /<QuickSignup /);
+  assert.doesNotMatch(read('components/QuickSignup.js'), /MoveOnboarding/);
+  // /compte/inscription?from=save (older links, the login page) still opens on the account card.
   const page = read('app/(site)/compte/inscription/page.js');
   assert.match(page, /const fromSave = params\.from === 'save';/);
   assert.match(page, /startAtEnd=\{Boolean\(error\) \|\| fromSave\}/);
@@ -51,8 +56,11 @@ test('a refused sign-up returns what was typed (never the password) instead of a
 
 test('the cursor starts on the name, the first field', () => {
   const form = read('app/(site)/compte/inscription/SignupForm.js');
-  const name = form.slice(form.indexOf('id="fullName"'), form.indexOf('id="fullName"') + 400);
-  assert.match(name, /autoFocus/);
+  const name = form.slice(form.indexOf('id={`${idPrefix}fullName`}'), form.indexOf('id={`${idPrefix}fullName`}') + 400);
+  assert.match(name, /autoFocus=\{autoFocusName\}/);
+  // On by default (the sign-up page); the sheet after WhatsApp turns it off,
+  // because it opens by itself and would pop the keyboard.
+  assert.match(form, /autoFocusName = true,/);
   const phone = form.slice(form.indexOf('<PhoneField'), form.indexOf('<PhoneField') + 500);
   assert.doesNotMatch(phone, /autoFocus/);
 });

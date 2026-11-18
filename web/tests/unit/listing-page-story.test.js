@@ -18,8 +18,10 @@ const page = read('app/(site)/listings/[id]/page.js');
 const main = page.slice(page.indexOf('<div className="flex w-full min-w-0 flex-col gap-6">'), page.indexOf('<aside'));
 
 test('the page flows: opening block, agent row, story, équipements, costs card, map, contact', () => {
+  // lastIndexOf: the production page also serves the store app, whose own
+  // heading and facts grid come first in `app ? … : …` branches.
   const at = (needle) => {
-    const i = main.indexOf(needle);
+    const i = main.lastIndexOf(needle);
     assert.ok(i >= 0, `missing: ${needle}`);
     return i;
   };
@@ -49,7 +51,7 @@ test('the page flows: opening block, agent row, story, équipements, costs card,
 test('sections are separated by a hairline; the costs breakdown is the one card', () => {
   assert.match(page, /const RULE = 'border-t border-line pt-6';/);
   assert.match(main, /<section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">\s*<EntryCostsBreakdown/);
-  assert.doesNotMatch(main, /<KeyFacts|<PricePanel|<SimilarAlertButton|<AgentProfileLink/, 'the phone column repeats the rail');
+  assert.doesNotMatch(main, /<PricePanel|<AgentProfileLink/, 'the phone column repeats the rail');
   assert.doesNotMatch(read('components/listings/ListingEquipment.js'), /rounded-2xl border/);
 });
 

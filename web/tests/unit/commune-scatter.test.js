@@ -1,46 +1,71 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
+import { scatterCommuneListings, scatterRadiusMeters, SCATTER_MAX_METERS, SCATTER_MIN_METERS } from '@/lib/communeScatter';
+import { COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { locationTextChanged } from '@/lib/agentListings';
 
 // 2026-11-14: 307 of 592 public listings had no stored point and were drawn on
-// their commune's centre, fanned into a ~1 km ring (89 in Limete). Two or
-// more of them in one commune are now one bubble; web-created listings are
-// now located by the engine like WhatsApp ones.
+// their commune's centre, fanned into a ~1 km ring (89 in Limete); web-created
+// listings are now located by the engine like WhatsApp ones. The 2026-11-14
+// "89 biens · Limete" bubble was replaced on 2026-11-18 (owner: it "takes
+// away from the immersion"): each such listing is scattered over its commune
+// with its own price.
 
 const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8');
 const marker = (id, extra) => ({ id, lat: -4.36, lng: 15.34, price: 500, purpose: 'rent', ...extra });
+const METERS_PER_DEG = 111_320;
+const metersFrom = (c, p) => Math.hypot((p.lat - c.lat) * METERS_PER_DEG, (p.lng - c.lng) * METERS_PER_DEG * Math.cos((c.lat * Math.PI) / 180));
 
-test('listings on a commune centre become one bubble per commune; located ones are untouched', () => {
+test('commune-centre listings are scattered over their commune, each its own pin; located ones untouched', () => {
   const markers = [
     marker(1, { approximate: true, commune: 'Limete' }),
     marker(2, { approximate: true, commune: 'Limete', price: 900 }),
-    marker(3, { approximate: true, commune: 'Limete', price: 300 }),
     marker(4, { approximate: false, commune: 'Limete' }),
-    marker(5, { approximate: true, commune: 'Gombe' }),
+    marker(5, { approximate: true, commune: 'Atlantis' }),
   ];
-  const { bubbles, rest } = splitCommuneBubbles(markers);
-  assert.equal(bubbles.length, 1);
-  assert.equal(bubbles[0].communeName, 'Limete');
-  assert.deepEqual(bubbles[0].listings.map((l) => l.id), [1, 2, 3]);
-  assert.equal(bubbles[0].isCommune, true);
-  assert.equal(bubbles[0].isBuilding, true, 'takes the building click path and drawer');
-  assert.deepEqual([bubbles[0].priceMin, bubbles[0].priceMax], [300, 900]);
-  // A lone commune-centre listing keeps its own price pin.
-  assert.deepEqual(rest.map((m) => m.id), [4, 5]);
-  assert.equal(communeBubbleLabel(bubbles[0]), '3 biens · Limete');
+  const out = scatterCommuneListings(markers);
+  assert.equal(out.length, 4, 'no listing is grouped away');
+  assert.deepEqual(out.map((m) => m.id), [1, 2, 4, 5]);
+  assert.equal(out[2], markers[2], 'a located listing keeps its point');
+  assert.equal(out[3], markers[3], 'no centre known: left as it was');
+  const centre = COMMUNE_CENTROIDS.Limete;
+  for (const m of out.slice(0, 2)) {
+    assert.equal(m.scattered, true);
+    assert.ok(metersFrom(centre, m) <= scatterRadiusMeters('Limete') + 1);
+  }
+  assert.notDeepEqual([out[0].lat, out[0].lng], [out[1].lat, out[1].lng]);
 });
 
-test('a commune bubble is drawn at the centre, under located pins, and opens the list', () => {
+test('a scattered spot is stable per listing and does not depend on what else is loaded', () => {
+  const alone = scatterCommuneListings([marker(42, { approximate: true, commune: 'Gombe' })])[0];
+  const crowd = scatterCommuneListings([
+    ...Array.from({ length: 50 }, (_, i) => marker(1000 + i, { approximate: true, commune: 'Gombe' })),
+    marker(42, { approximate: true, commune: 'Gombe' }),
+  ]).at(-1);
+  assert.deepEqual([alone.lat, alone.lng], [crowd.lat, crowd.lng]);
+});
+
+test('spread over the disc, not a ring: many listings fill the middle too', () => {
+  const out = scatterCommuneListings(Array.from({ length: 200 }, (_, i) => marker(i + 1, { approximate: true, commune: 'Limete' })));
+  const r = scatterRadiusMeters('Limete');
+  const inner = out.filter((m) => metersFrom(COMMUNE_CENTROIDS.Limete, m) < r / 2).length;
+  // A uniform disc puts a quarter of its points inside half the radius.
+  assert.ok(inner > 30 && inner < 80, `inner half holds ${inner} of 200`);
+  for (const c of Object.keys(COMMUNE_CENTROIDS)) {
+    const radius = scatterRadiusMeters(c);
+    assert.ok(radius >= SCATTER_MIN_METERS && radius <= SCATTER_MAX_METERS, c);
+  }
+});
+
+test('the map scatters instead of bubbling: no commune pill, no ring on top of the scatter', () => {
   const map = read('components/ListingsMap.js');
-  assert.match(map, /splitCommuneBubbles\(markers\)/);
-  assert.match(map, /exact: Boolean\(group\.isCommune\)/, 'no jitter, no ring for a bubble');
-  assert.match(map, /if \(group\.isCommune\) return 0;/);
-  const drawer = read('components/BuildingUnitsDrawer.js');
-  assert.match(drawer, /emplacement précis non indiqué/);
-  assert.match(read('lib/mapPinLayer.js'), /dataset\.commune/);
-  assert.match(read('app/globals.css'), /\.lkp-pin\[data-commune='true'\]/);
+  assert.ok(map.includes('groupListingsByBuilding(scatterCommuneListings(markers))'));
+  assert.ok(map.includes('exact: group.listings.every((l) => l.exact || l.scattered),'));
+  assert.doesNotMatch(map, /isCommune|communeBubble/);
+  assert.doesNotMatch(read('components/BuildingUnitsDrawer.js'), /isCommune|emplacement précis non indiqué/);
+  assert.doesNotMatch(read('lib/mapPinLayer.js'), /dataset\.commune/);
+  assert.doesNotMatch(read('app/globals.css'), /data-commune/);
 });
 
 test('every web form that writes a listing asks the engine to place it', () => {

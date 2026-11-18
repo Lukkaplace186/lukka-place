@@ -63,4 +63,18 @@ is today's tag finished in `web/app/globals.css` ("Price tag finish"): finer
 edge, two-step shadow so stacked tags stay distinct, weight 800, the hovered
 tag to the front on a mouse, a white halo on the selected one. Building tags
 read "3 unités · dès $650" (`labelFor`, ListingsMap.js). Test:
-`web/tests/unit/commune-bubbles.test.js`.
+`web/tests/unit/commune-scatter.test.js`.
+
+## Commune-only listings scattered, no bubble (2026-11-18)
+
+Owner: the "6 biens · Bandalungwa" bubble "takes away from the immersion";
+every listing should show its own price, "messy but very polished". A
+listing with no stored point (commune known, `approximate`) is drawn at a
+spot uniform over a disc around its commune centre
+(`web/lib/communeScatter.js`): radius 0.45 × the distance to the nearest
+other commune centre, 400 m – 1.8 km, never dependent on what the viewport
+loaded; seeded by the listing id; display only, never stored. Then the
+usual building grouping and de-overlap; no ring, no extra jitter. Kimbanseke
+and Nsele get the 400 m floor (their centres are ~700 m apart). The
+listing page still says the place is approximate. Test:
+`web/tests/unit/commune-scatter.test.js`.

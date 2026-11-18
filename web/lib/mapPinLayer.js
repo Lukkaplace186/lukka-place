@@ -228,7 +228,6 @@ export function createPinLayer(map, handlers) {
       el.dataset.active = String(active);
       el.dataset.visited = String(visited);
       el.dataset.building = String(Boolean(pin.building));
-      el.dataset.commune = String(Boolean(pin.commune));
       if (el.title !== (pin.title || '')) el.title = pin.title || '';
       this.#applyZ(entry);
     }

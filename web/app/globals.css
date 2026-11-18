@@ -1380,15 +1380,6 @@
   color: var(--blue);
 }
 .lkp-pin[data-building='true'] { --lkp-fg: var(--blue-deep, #0c1d50); }
-/* "89 biens · Limete" (lib/communeBubbles.js): listings that only know their
-   commune. Filled navy and no stem — it marks an area, not a spot. */
-.lkp-pin[data-commune='true'] {
-  --lkp-bg: var(--blue-deep, #0c1d50);
-  --lkp-fg: #fff;
-  --lkp-edge: var(--blue-deep, #0c1d50);
-}
-.lkp-pin[data-commune='true'] .lkp-pin__body::before,
-.lkp-pin[data-commune='true'] .lkp-pin__body::after { display: none; }
 
 /* Liquid glass (2026-11-17, owner: "take inspiration from Apple liquid
    glass") — the phone map's top panel (ListingsSplitView): a frosted,
@@ -1458,7 +1449,7 @@
    a finer edge, a two-step shadow (contact + lift) so stacked tags stay
    distinct, a touch more weight on the figure, the hovered tag to the front
    on a mouse, and a white halo round the selected one. */
-.lkp-layer .lkp-pin:not([data-active='true']):not([data-commune='true']):not([data-visited='true']) {
+.lkp-layer .lkp-pin:not([data-active='true']):not([data-visited='true']) {
   --lkp-edge: rgb(15 23 42 / 0.12);
 }
 .lkp-layer .lkp-pin__body {

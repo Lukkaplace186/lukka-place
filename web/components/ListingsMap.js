@@ -11,7 +11,7 @@ import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding } from '@/lib/buildingGroups';
-import { splitCommuneBubbles, communeBubbleLabel } from '@/lib/communeBubbles';
+import { scatterCommuneListings } from '@/lib/communeScatter';
 import { announceMapMoving } from '@/lib/mapMovingEvent';
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
@@ -146,7 +146,6 @@ function toBounds(latLngBounds) {
 }
 
 function labelFor(group) {
-  if (group.isCommune) return communeBubbleLabel(group);
   if (group.isBuilding) {
     // "3 unités · dès $650" — half the width of the min–max range (2026-11-17).
     const from = group.priceMin === null ? '' : ` · dès ${compactPrice(group.priceMin, 'sale')}`;
@@ -159,9 +158,7 @@ function labelFor(group) {
 function zIndexFor(group) {
   // Higher prices in front, so where two tags overlap the pricier one stays
   // readable. A building stands for several listings, so it sits one above
-  // its own most expensive unit's price. A commune bubble sits under every
-  // located pin: it is the least precise thing on the map.
-  if (group.isCommune) return 0;
+  // its own most expensive unit's price.
   return group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(group.representative.price);
 }
 
@@ -394,13 +391,13 @@ export default function ListingsMap({
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
 
-    // Listings that only know their commune become one bubble per commune at
-    // its centre (lib/communeBubbles.js) instead of a ring of made-up spots.
-    // The rest take the same three passes PropertyMap uses: group units of
-    // one building, fan listings sharing a base point onto a ring (privacy
-    // jitter included), then the screen-space de-overlap net.
-    const { bubbles, rest } = splitCommuneBubbles(markers);
-    const groups = [...bubbles, ...groupListingsByBuilding(rest)];
+    // Listings that only know their commune are scattered over it, each with
+    // its own price (lib/communeScatter.js, owner 2026-11-18: no "N biens ·
+    // commune" bubble, no ring). Then the same three passes PropertyMap
+    // uses: group units of one building, fan listings sharing a base point
+    // onto a ring (privacy jitter included), then the screen-space
+    // de-overlap net.
+    const groups = groupListingsByBuilding(scatterCommuneListings(markers));
     const bases = groups.map((group) => {
       const r = group.representative;
       return {
@@ -412,8 +409,8 @@ export default function ListingsMap({
           source: r.approximate ? 'commune_fallback' : 'existing',
           precise: !r.approximate,
           // Every unit of a developer's building shares its exact pin; a
-          // commune bubble sits on the commune's centre, unjittered.
-          exact: Boolean(group.isCommune) || group.listings.every((l) => l.exact),
+          // scattered commune listing is already spread, so no ring either.
+          exact: group.listings.every((l) => l.exact || l.scattered),
         },
       };
     });
@@ -436,9 +433,8 @@ export default function ListingsMap({
         lat: position.lat,
         lng: position.lng,
         label: labelFor(group),
-        title: group.isCommune ? group.communeName : group.isBuilding ? (group.buildingName || r.title) : r.title,
+        title: group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
-        commune: Boolean(group.isCommune),
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,

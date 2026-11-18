@@ -5317,7 +5317,7 @@ From the owner's phone screenshots: prices formed rings around communes.
 307 of 592 public listings had no stored point, so `/listings` drew them on
 their commune's centre and `placeResolvedListings` fanned them onto one ring
 (89 in Limete, ~1 km across). Engine half: docs/claude/map-and-geocoding.md,
-same heading. Tests: `tests/unit/commune-bubbles.test.js`, verify-pipeline §113.
+same heading. Tests: `tests/unit/commune-scatter.test.js`, verify-pipeline §113.
 
 - **Web forms now get a point.** `lib/adminApi.js` `geocodeListing(id,
   { replace })` → engine `POST /admin/properties/:id/geocode` (the
@@ -5327,7 +5327,9 @@ same heading. Tests: `tests/unit/commune-bubbles.test.js`, verify-pipeline §113
   `locationTextChanged`, lib/agentListings.js), admin create, and admin edit
   (fill only: the admin's editor owns coordinates). Project units are never
   touched. 114 of the 307 came from these forms.
-- **Listings that only know their commune are one bubble** (owner choice
+- **(Replaced 2026-11-18 by a scatter, owner: the bubble broke the
+  immersion; see `lib/communeScatter.js` and docs/claude/map-and-geocoding.md,
+  "Commune-only listings scattered". Kept for history.)** **Listings that only know their commune are one bubble** (owner choice
   over a filled-disc scatter): `lib/communeBubbles.js` groups 2+ approximate
   markers per commune into one navy, stemless pill at the centre — "89 biens
   · Limete", z-index under every located pin — that opens

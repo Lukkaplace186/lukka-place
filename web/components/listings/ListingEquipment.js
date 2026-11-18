@@ -38,9 +38,11 @@ export default async function ListingEquipment({ listing }) {
   if (!chips.length && !extras.plotLabel && !extras.perM2 && !extras.installments) return null;
 
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="equipment-title">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="equipment-title" className="u-title-card text-ink">{t('listings.details.form.equipment')}</h2>
+    // A flat section with the page's other headings (2026-11-18): the
+    // listing page separates sections by a hairline, not by cards.
+    <section aria-labelledby="equipment-title">
+      <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="equipment-title" className="u-h2 text-ink">{t('listings.details.form.equipment')}</h2>
         <span className="text-xs text-ink-45">{t('listings.utilities.declared')}</span>
       </div>
       {chips.length ? (

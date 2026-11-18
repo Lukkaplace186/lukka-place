@@ -5479,3 +5479,19 @@ them). `tests/unit/listing-page-story.test.js`.
   The visit dialog stays mounted with a zero-height anchor so the bar's
   "Visiter" (OPEN_VISIT_EVENT, answered by the copy with an offsetParent)
   still opens it. The desktop rail keeps the full card.
+- **Second pass, a smoother flow (same day, owner, after the big portals).**
+  One white column, sections separated by a hairline (`RULE` in the page),
+  in this order: opening block (price, "≈ … FC" as a quiet line with the rate
+  date left to the `<Price>` tooltip, the heading, the address detail,
+  `components/listings/ListingFactsRow.js` — type · rooms · bathrooms ·
+  surface… with the cards' short labels, a guarantee-only deposit, then the
+  reference on its own line), the section strip (Caractéristiques, Coûts,
+  Emplacement; "Aperçu" left it, `#apercu` stays on the facts row), the agent
+  as one row on phones (`ListingAgentRow`), description and features,
+  Équipements (flat now), the market median, **the entry-costs breakdown —
+  the one card left, just before the map** (owner: a selling point), the map,
+  and on phones "Contacter l'agence" with the compact EnquiryCard (no header,
+  no frame). The KeyFacts grid, the dark PricePanel, the phone's "Voir le
+  profil" link and its alert card left the main column; the desktop rail
+  keeps EnquiryCard, the profile link, PricePanel and the alert, and the one
+  phone alert is the one after "Biens similaires".

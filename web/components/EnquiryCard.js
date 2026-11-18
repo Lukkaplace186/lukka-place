@@ -179,9 +179,12 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
 
   return (
     <div
-      className="u-reveal u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
+      // compact: no card frame and no agent header — on the phone page the
+      // agent is ListingAgentRow near the top, and this is the plain contact
+      // block at the end of the page (2026-11-18).
+      className={compact ? 'flex flex-col' : 'u-reveal u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6'}
     >
-      {(() => {
+      {compact ? null : (() => {
         const header = (
           <>
             <AgentMonogram
@@ -211,7 +214,7 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
         );
       })()}
 
-      <div className="h-px bg-line" />
+      {compact ? null : <div className="h-px bg-line" />}
 
       <div className="flex flex-col gap-2.5">
         {visitSent && (

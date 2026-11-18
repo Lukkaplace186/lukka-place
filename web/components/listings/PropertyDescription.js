@@ -53,7 +53,9 @@ export default async function PropertyDescription({ listing }) {
   }[source];
 
   return (
-    <div className="flex flex-col gap-7">
+    // A hairline between the description and the features, like every
+    // section boundary on the listing page (2026-11-18).
+    <div className="flex flex-col gap-6 [&>section+section]:border-t [&>section+section]:border-line [&>section+section]:pt-6">
       {/* Description first since 2026-11-18 (owner, after a reference site):
           the agent's own words right under the price and title, cut to four
           lines, then the scannable list. A wall of prose was the 2025 worry;

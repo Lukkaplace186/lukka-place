@@ -65,7 +65,9 @@ test('key facts are the two-column grid again on phones (rolled back 2026-10-06)
 test('the phone section strip only names sections that render', () => {
   const page = read('app/(site)/listings/[id]/page.js');
   assert.match(page, /entryCostBreakdown\(listing\) \? \{ id: 'couts'/);
-  assert.match(page, /id="apercu"/);
+  // The facts moved into the opening block (ListingFactsRow, 2026-11-18) and
+  // left the strip; the anchor stays for old #apercu links.
+  assert.match(read('components/listings/ListingFactsRow.js'), /id="apercu"/);
   assert.match(page, /id="caracteristiques"/);
   assert.match(page, /id="emplacement"/);
   assert.match(read('components/EntryCostsBreakdown.js'), /id="couts"/);

@@ -5,7 +5,6 @@ import Link from '@/components/LocaleLink';
 import { MapPin, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
-import KeyFacts from '@/components/KeyFacts';
 import EntryCostsBreakdown from '@/components/EntryCostsBreakdown';
 import ProjectFitLine from '@/components/ProjectFitLine';
 import Price from '@/components/Price';
@@ -19,7 +18,7 @@ import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
 import { cache, Suspense } from 'react';
 import { getListingById as readListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, locationLine, specItems, entryCostBreakdown } from '@/lib/listingView';
+import { listingImages, locationLine, entryCostBreakdown } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
@@ -27,6 +26,8 @@ import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import ListingEquipment from '@/components/listings/ListingEquipment';
+import ListingFactsRow from '@/components/listings/ListingFactsRow';
+import ListingAgentRow from '@/components/listings/ListingAgentRow';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
@@ -97,6 +98,9 @@ export async function generateMetadata({ params }) {
  * profile that doesn't exist). Routes to the real /agents/[id] directory
  * page (app/(portfolio)/agents/[id]/page.js), not a guessed id.
  */
+// A section boundary on the listing page: a hairline, not a card (2026-11-18).
+const RULE = 'border-t border-line pt-6';
+
 async function AgentProfileLink({ agentId }) {
   if (!agentId) return null;
   const t = await getT();
@@ -179,23 +183,19 @@ export default async function ListingDetailPage({ params, searchParams }) {
     : listing.purpose === 'sale' ? t('listings.transaction.sale') : null;
   // English pages name the type in English ("Apartment to rent"), lib/listingSeo.js.
   const kindLabel = listingKindLabel(listing, t);
-  // "Appartement à louer" — leads the h1 (see there); the kicker above the
-  // price keeps the room counts.
+  // "Appartement à louer" — leads the h1 (see there); the room counts are in
+  // the facts row under it (ListingFactsRow) since 2026-11-18.
   const kindAndPurpose = [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' ');
-  const kicker = specItems(listing, t)
-    .filter((s) => s.key === 'beds' || s.key === 'bath')
-    .map((s) => `${s.value} ${s.label}`)
-    .join(' · ');
-
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
 
   // The phone's section strip names only sections this listing renders, so
   // a tab never jumps to nothing (components/listings/ListingSectionNav.js).
-  // In page order: the description and features come first since 2026-11-18.
+  // In page order (2026-11-18): the facts are in the opening block above the
+  // strip, so "Aperçu" is gone from it; description and features, then the
+  // costs card just before the map.
   const sectionNav = [
     listing.description ? { id: 'caracteristiques', label: t('listings.detail.sections.features') } : null,
-    { id: 'apercu', label: t('listings.detail.sections.overview') },
     entryCostBreakdown(listing) ? { id: 'couts', label: t('listings.detail.sections.costs') } : null,
     { id: 'emplacement', label: t('listings.detail.sections.location') },
   ].filter(Boolean);
@@ -270,62 +270,36 @@ export default async function ListingDetailPage({ params, searchParams }) {
             percentages so the 40px gap comes out of the tracks instead of
             overflowing the row (68% + 32% + gap > 100%). */}
         <div className="mt-5 grid gap-8 sm:mt-8 sm:gap-10 lg:mt-10 lg:grid-cols-[minmax(0,68fr)_minmax(0,32fr)] lg:items-start">
-          <div className="flex w-full min-w-0 flex-col gap-7">
-            {/* Price leads the page — the design's single loudest number,
-                above the title rather than tucked into the enquiry panel. */}
-            <div className="flex flex-col gap-2.5">
-              {/* Room counts before the price — "2 ch · 2 sdb". What the
-                  property IS ("Appartement à louer") moved into the h1 below
-                  on 2026-10-24. KeyFacts still carries the full grid. */}
-              {kicker ? (
-                <p className="text-[0.8125rem] font-semibold uppercase tracking-[0.06em] text-blue">{kicker}</p>
-              ) : null}
-              {/* Explicit classes, not `.u-price` / `.u-h1`. Those globals are
-                  24px/500 and 20px/500 — the "font-medium, washed out"
-                  pairing this page was called out for — but they are shared
-                  utilities (`.u-h1`/`.u-h2` also set every section heading,
-                  `.u-body` three more files), so thickening them in place
-                  would re-weight surfaces nobody asked to change. The
-                  listing page carries its own weights instead, matched to
-                  the feed card's. */}
+          {/* The main column, phone and desktop (2026-11-18, owner: a smoother
+              page after the big portals). One white page: an opening block,
+              then sections separated by a hairline (RULE), not by cards — the
+              entry costs are the one card left, just before the map. */}
+          <div className="flex w-full min-w-0 flex-col gap-6">
+            {/* Opening block: price, its FC equivalent (the rate date stays in
+                the "≈" tooltip, <Price>), the heading, the address detail, the
+                facts row and the reference. */}
+            <div className="flex flex-col gap-2">
+              {/* Explicit classes, not `.u-price` / `.u-h1`: those globals are
+                  shared utilities, and this page carries its own weights,
+                  matched to the feed card's. */}
               <span className="u-tabular text-[1.75rem] font-semibold leading-tight tracking-normal text-ink sm:text-[2rem]">
                 <Price
                   amount={listing.price}
                   purpose={listing.purpose}
                   pricePeriod={listing.price_period}
                   showSubtext
-                  /* The "≈ 2,5 M FC / mois" pill. Below `sm` it drops to
-                     its own line (`mt-1.5`, no left margin) instead of
-                     sitting beside a $1,100 that is already 1.75rem tall:
-                     at 320px the two together overflow the content box,
-                     and an inline-block that wraps still carries its
-                     `ml-2.5` as a stray indent on the new line. From `sm`
-                     up there is room and it sits inline, as designed. */
-                  subtextClassName="mt-1.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-medium leading-normal tracking-normal text-ink sm:ml-2.5 sm:mt-0"
+                  /* "≈ 2,4 M FC / mois" as a quiet line under the price
+                     (a pill until 2026-11-18). */
+                  subtextClassName="mt-1 block text-[0.875rem] font-normal leading-normal tracking-normal text-ink-45"
                 />
               </span>
 
-              {/* The address is the heading, the way Rightmove leads with
-                  "The Risings, Walthamstow, E17" — and the way this app's own
-                  feed card already does.
-                  
-                  It used to be `listing.title`, the agent-written sentence
-                  ("2 chambres — Appartement à louer à Kalamu"). That sentence
-                  restates, in prose, exactly what the KeyFacts grid two rows
-                  below now states as structured data (Type de bien /
-                  Chambres / Salles de bain), which is the substitution this
-                  change was asked for. `listing.title` is NOT dropped from
-                  the page's identity — it still carries the <title>, the
-                  OpenGraph title and the breadcrumb's final crumb (see
-                  generateMetadata above), so search engines and shared links
-                  keep the descriptive phrasing.
-
-                  Since 2026-10-24 the heading opens with what the property is
-                  and the transaction — "Appartement à louer — Yolo Nord I,
-                  Kalamu" — because the h1 is the strongest on-page signal
-                  search engines read, and "Yolo Nord I, Kalamu" alone matched
-                  nobody's search for an apartment to rent. */}
-              <h1 className="text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
+              {/* The heading leads with what the property is and the
+                  transaction, then the place — "Appartement à louer — Yolo
+                  Nord I, Kalamu" (2026-10-24, the strongest on-page signal
+                  search engines read). `listing.title` still carries the
+                  <title>, OpenGraph title and breadcrumb. */}
+              <h1 className="mt-1 text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
                 {kindAndPurpose && where ? (
                   <>
                     <span className="font-semibold">{kindAndPurpose}</span>
@@ -342,6 +316,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 </p>
               ) : null}
 
+              {/* Type, rooms, bathrooms, surface… in one line, then the
+                  reference (components/listings/ListingFactsRow.js). */}
+              <div className="mt-1.5 empty:hidden">
+                <ListingFactsRow listing={listing} />
+              </div>
+
               {/* The agent's own weekly "still available" answer — only a
                   real one, at most 30 days old; nothing otherwise. */}
               <AvailabilityConfirmedBadge confirmedAt={listing.availability_confirmed_at} listingStatus={listing.listing_status ?? null} />
@@ -353,33 +333,26 @@ export default async function ListingDetailPage({ params, searchParams }) {
               </Suspense>
             </div>
 
-            {/* One card, two halves: the facts grid, then what is due at
-                signing and to whom. The breakdown renders nothing when a
-                listing states only a guarantee — KeyFacts keeps its deposit
-                cell for exactly that case — and drops its own top rule when
-                it is the card's first child. `empty:hidden` covers a listing
-                with neither. */}
             <ListingSectionNav sections={sectionNav} label={t('listings.detail.sections.label')} />
 
-            {/* The story first (2026-11-18, owner): the description, cut to
-                four lines, then the key features — before the facts grid and
-                the agent card, as on the reference site. See
-                components/listings/PropertyDescription.js. */}
-            <div id="caracteristiques" className="scroll-mt-32">
+            {/* Phone: who offers it, one row (the desktop rail has the card). */}
+            <div className={`${RULE} lg:hidden`}>
+              <ListingAgentRow listing={listing} />
+            </div>
+
+            {/* The story: the description, cut to four lines, then the key
+                features (components/listings/PropertyDescription.js). */}
+            <div id="caracteristiques" className={`scroll-mt-32 empty:hidden ${RULE}`}>
               <PropertyDescription listing={listing} />
             </div>
 
             {listing.development_id ? <ProjectUnitStrip developmentId={listing.development_id} listingId={listing.id} /> : null}
 
-            <section id="apercu" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
-              <KeyFacts listing={listing} />
-              <EntryCostsBreakdown listing={listing} />
-            </section>
-
-            {/* "Équipements": power, water, security, access and the practical
-                details (meublé, ménages, compteur, parcelle…) in one list, as
-                the agent declared them, without the same fact twice. */}
-            <ListingEquipment listing={listing} />
+            {/* "Équipements": utilities and practical details in one list, as
+                the agent declared them, each fact once. */}
+            <div className={`empty:hidden ${RULE}`}>
+              <ListingEquipment listing={listing} />
+            </div>
 
             {/* Streams in: a like-for-like median of live listings in the
                 commune, only from 5 comparables up — and nothing at all
@@ -388,20 +361,27 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <MarketMedianLine listing={listing} />
             </Suspense>
 
-            {/* Mobile only: the sticky right rail is off-screen below lg. */}
-            <div className="flex flex-col gap-4 lg:hidden">
-              {/* compact: the agent and WhatsApp only; Visit, Message and Call
-                  are in MobileListingBar for the whole scroll (2026-11-18). */}
-              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} compact />
-              <AgentProfileLink agentId={listing.agent_id} />
-              <PricePanel listing={listing} />
-              <SimilarAlertButton query={alertQuery} />
-            </div>
+            {/* The entry costs (the "3 + 1 + 1" breakdown): the one card left
+                on the page, just before the map (owner, 2026-11-18). Nothing
+                for a listing that states none — a guarantee alone is in the
+                facts row instead. */}
+            <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+              <EntryCostsBreakdown listing={listing} />
+            </section>
 
-            <div id="emplacement" className="flex scroll-mt-32 flex-col gap-3">
+            <div id="emplacement" className={`flex scroll-mt-32 flex-col gap-3 ${RULE}`}>
               <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>
               <ListingLocationMap listing={listing} staticMapSrc={staticMapSrc} />
             </div>
+
+            {/* Phone: contact once, at the end — WhatsApp and "Ajouter à mes
+                visites". Visit, Message and Call are MobileListingBar's for
+                the whole scroll; the visit dialog lives in this compact card.
+                The similar-listings alert is the one after "Biens similaires". */}
+            <section className={`${RULE} lg:hidden`}>
+              <h2 className="u-h2 mb-3.5 text-ink">{t('agent.portfolio.contactCardTitle')}</h2>
+              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} compact />
+            </section>
           </div>
 
           {/* The rail stays docked for the whole scroll — Description,

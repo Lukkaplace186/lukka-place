@@ -52,8 +52,12 @@ export default function FeaturedListingsCarousel({ listings }) {
         'lg:grid-cols-4',
       ].join(' ')}
     >
+      {/* One row at every width (owner, 2026-11-18: several rows of the
+          weekly selection was too much). A phone swipes through all of them;
+          from sm the grid shows exactly one row — 2, then 3 (md), then 4
+          (lg) cards — and "Voir toutes les annonces" leads to the rest. */}
       {listings.map((listing, i) => (
-        <div key={listing.id} className="w-[82vw] max-w-[310px] shrink-0 snap-start sm:contents [&>div]:h-full">
+        <div key={listing.id} className={`w-[82vw] max-w-[310px] shrink-0 snap-start [&>div]:h-full ${i < 2 ? 'sm:contents' : i < 3 ? 'sm:hidden md:contents' : i < 4 ? 'sm:hidden lg:contents' : 'sm:hidden'}`}>
           {/* The first cards (mobile: the one in view plus the peek; desktop:
               the first grid row) are above the fold — `priority` skips
               next/image's lazy-loading so the LCP photo requests immediately. */}

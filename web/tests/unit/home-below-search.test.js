@@ -131,3 +131,9 @@ test('the landing page is shorter: tighter bands, compact promises, guides as a 
   assert.ok(rail.includes('snap-x snap-mandatory'));
   assert.ok(rail.includes('href={`/guides/${article.slug}`}'));
 });
+
+test('the weekly selection is one row at every width', () => {
+  const rail = read('../../components/FeaturedListingsCarousel.js');
+  assert.ok(rail.includes("i < 2 ? 'sm:contents' : i < 3 ? 'sm:hidden md:contents' : i < 4 ? 'sm:hidden lg:contents' : 'sm:hidden'"));
+  assert.ok(rail.includes("'md:grid-cols-3'") && rail.includes("'lg:grid-cols-4'"));
+});

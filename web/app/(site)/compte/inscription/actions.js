@@ -21,7 +21,6 @@ import { autoSendMoveProject } from '@/lib/moveProjectRequest';
 import { getT } from '@/lib/i18n/server';
 import { recordSignupOutcome } from '@/lib/signupFunnel';
 import { passwordLongEnough } from '@/lib/passwordRules';
-import { claimRecentContactTaps } from '@/lib/contactTapClaim';
 
 // Shared connections (a carrier's NAT) carry many people: generous, still far
 // from enough to walk a list of numbers.
@@ -174,9 +173,6 @@ export async function signupAction(_prevState, formData) {
   // owner decision). No code is sent and no verification page follows.
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
   await rememberCustomerPhone(phone);
-  // This browser's WhatsApp taps of the last day become this customer's
-  // (/admin/contacts stops showing them as anonymous). Never throws.
-  await claimRecentContactTaps(customer.id);
   // The ad platforms' CompleteRegistration used to fire at the code step,
   // which no longer exists: an account created is a registration completed.
   await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone });

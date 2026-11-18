@@ -151,10 +151,7 @@ test('the funnel reports accounts created in the window with no recorded entry',
 });
 
 test('every prompt and link carries its entry, and the form sends it to the action', () => {
-  // The ♥ / alert prompt signs up in place since 2026-11-18: its entry rides in the form.
-  assert.match(read('components/AuthPromptModal.js'), /<QuickSignup next=\{next\} entry=\{entry\}/);
-  assert.match(read('components/QuickSignup.js'), /entry=\{entry\}/);
-  assert.match(read('components/ContactSignupPrompt.js'), /entry="whatsapp"/);
+  assert.match(read('components/AuthPromptModal.js'), /params\.set\(SIGNUP_ENTRY_PARAM, entry\)/);
   assert.match(read('components/AuthPromptModal.js'), /trackCustomerSignup\('prompt_shown', entry\)/);
   assert.match(read('components/SignupNudge.js'), /withSignupEntry\(`\/compte\/inscription\?next=\$\{next\}`, 'nudge'\)/);
   assert.match(read('app/(site)/messages/page.js'), /entree=messages/);

@@ -11,7 +11,6 @@ import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import DemoBanner from '@/components/DemoBanner';
 import ContactTapBeacon from '@/components/ContactTapBeacon';
-import ContactSignupPrompt from '@/components/ContactSignupPrompt';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { getI18n } from '@/lib/i18n/server';
@@ -73,7 +72,6 @@ export default async function SiteLayout({ children }) {
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
         <AccountLimitNotice />
-        <ContactSignupPrompt />
         <VisitCartMount />
         <Header hiddenHrefs={[...(features.publicProjects ? [] : ['/projets']), ...(features.publicBlog ? [] : ['/guides'])]} />
         <SiteShell>

@@ -66,7 +66,7 @@ test('the verify page always keeps the WhatsApp proof: first without a sent code
 
 test('the name is required, in the form and in the action', () => {
   const form = read('app/(site)/compte/inscription/SignupForm.js');
-  const field = form.slice(form.indexOf('id={`${idPrefix}fullName`}'), form.indexOf('id={`${idPrefix}fullName`}') + 300);
+  const field = form.slice(form.indexOf('id="fullName"'), form.indexOf('id="fullName"') + 300);
   assert.match(field, /\brequired\b/);
   assert.match(form, /t\('auth\.signup\.fullName'\)/);
   const action = read('app/(site)/compte/inscription/actions.js');

@@ -446,9 +446,6 @@ what happened next. Rules in web `lib/contactLog.js` (pure), reads in
   `whatsapp_clicks.customer_id` and `listing_events.customer_id` (call taps),
   from the customer session cookie (signature checked, not the DB). An
   anonymous tap stays "Anonyme": nothing is asked before WhatsApp opens.
-  Since 2026-11-18 an account made or signed into in the same browser within
-  24 h claims that browser's anonymous taps (see "Turning anonymous contacts
-  into accounts" below).
 - **Taps outside a listing were invisible** after the switch: the agent
   profile, the directory, project pages and the Espace Client visit /
   proposal cards opened the agent's WhatsApp and recorded nothing. Their
@@ -752,40 +749,3 @@ about 40 %; every pre-typed message asked both "disponible ?" and "visiter ?".
   included, stops before the card's link. « Une autre question » ends the
   message on the question line (link before it) so the customer types after it.
 - verify-pipeline §117; web `tests/unit/direct-contact-intent.test.js`.
-
-## Turning anonymous contacts into accounts (2026-11-18)
-
-Owner: "every contact is recording customers as anonymous". A direct tap
-opens the agent's own WhatsApp, so the customer's number never reaches us;
-only a signed-in customer's tap is named. Owner choice: ask AFTER WhatsApp,
-never in front of it, and ask for the account only where it pays the visitor
-back.
-
-- **After a guest's WhatsApp tap** (web `components/ContactSignupPrompt.js`,
-  rules in `lib/contactSignupPrompt.js`): `trackLeadClick` fires
-  `lkp:whatsapp-tap`; when the visitor comes back to the page (tab shown
-  again, or the window refocused on desktop) a bottom sheet offers
-  "Retrouvez ce bien et l'agent plus tard" with the short account form. Never
-  for a signed-in customer or agent; closing it in any way snoozes it 30 days
-  (localStorage `lkp_contact_signup`). The new account keeps the contacted
-  listing as a favourite and lands back on the same page, signed in.
-- **The ♥, "Sauvegarder la recherche" and "Créer une alerte"** create the
-  account in place too (`AuthPromptModal` → `components/QuickSignup.js`),
-  with one line on why ("Gardez vos favoris même si vous changez de
-  téléphone"). They used to take only the number and send the visitor to
-  /compte/inscription to type it again with the rest. The resume markers
-  (`next`) are unchanged, so the save still happens after signing up.
-  Favourites were already account-only, so the ♥ asks on the first tap.
-- **The form** is `SignupForm` in `compact` mode (no partner-code field; the
-  partner link cookie still counts) and the same `signupAction`: name, number,
-  password. The name stays required (2026-11-04: agents call the customer back
-  by it).
-- **Claiming taps** (`lib/contactTapClaim.js`, called by signupAction and the
-  customer login after the session is set): `whatsapp_clicks` and
-  `agent_contact_taps` rows with this browser's `lp_vid`, `viewer_kind =
-  'visitor'`, no customer yet, from the last 24 h get the customer id. Older
-  taps on a shared phone stay anonymous. Never throws.
-- **Funnel**: entry `whatsapp` (`lib/signupFunnelRules.js`); for the in-place
-  forms `prompt_open` is the first character typed (there is no button towards
-  the sign-up page any more), so /admin/croissance's "Cliqué" means "started".
-- web `tests/unit/contact-signup-prompt.test.js`.

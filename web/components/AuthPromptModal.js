@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { trackCustomerSignup } from '@/lib/analyticsClient';
-import { entryForPromptTrigger } from '@/lib/signupFunnelRules';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
-import QuickSignup from './QuickSignup';
-import { useT } from '@/lib/i18n/client';
+import { SIGNUP_ENTRY_PARAM, entryForPromptTrigger } from '@/lib/signupFunnelRules';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import PhoneField from './PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 /*
  * Keys, not text — see components/navItems.js. They must be RESOLVED through
@@ -24,30 +27,25 @@ const TITLE_KEYS = {
   favorite: 'listings.authPrompt.favorite',
 };
 
-// Why an account, in the visitor's terms (2026-11-18), one line per trigger.
-const WHY_KEYS = {
-  save: 'listings.authPrompt.saveWhy',
-  alert: 'listings.authPrompt.alertWhy',
-  favorite: 'listings.authPrompt.favoriteWhy',
-};
-
 /**
- * Rightmove-style auth gate for the ♥ (FavoriteButton), "Sauvegarder la
- * recherche" and "Créer une alerte" (SaveSearchButton, QueryAlertButton).
+ * Rightmove-style auth gate for SaveSearchButton's guest path.
  *
- * Since 2026-11-18 the account is created right here (components/QuickSignup.js:
- * name, number, password — the same form and action as /compte/inscription),
- * instead of a number field that sent the visitor to the sign-up page to type
- * it again with the rest. "Already have an account? Sign in" still goes to the
- * login page.
+ * This app's real customer accounts are phone + password
+ * (lib/customerAuth.js) — there is no email field anywhere in the schema, so
+ * this asks for the same real phone number field /compte/inscription itself
+ * collects, not an email address the backend has nowhere to put.
  *
- * `next` (passed in by the caller) carries both the return URL and the
- * `lkp_auth_return` / favourite-resume marker: signupAction redirects there
- * with a session, and SaveSearchButton / FavoriteResumeHandler then perform
- * the save that was asked. This modal never saves anything itself.
+ * "Continuer" hands off to the real signup page with the phone prefilled.
+ * `next` (passed in by the caller) already carries both the return URL and a
+ * `lkp_auth_return` marker — SaveSearchButton reads that marker back once
+ * the visitor lands here again with a genuine session, and only then
+ * performs the actual save. See SaveSearchButton.js's own doc comment for
+ * the full round trip; this modal never saves anything itself.
  */
 export default function AuthPromptModal({ open, onClose, trigger, next }) {
   const t = useT();
+  const router = useRouter();
+  const locale = useLocale();
   // The sign-up funnel (lib/signupFunnelRules.js): which prompt this is.
   const entry = entryForPromptTrigger(trigger);
 
@@ -56,16 +54,59 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
     if (open) trackCustomerSignup('prompt_shown', entry);
   }, [open, entry]);
 
+  // Read straight off the form rather than from controlled state: PhoneField
+  // owns two values (the typed number and the picked country) and both have
+  // to reach the signup page, or the country the visitor chose here is lost
+  // and their number gets re-guessed as a DRC one on the next screen.
+  function handleSubmit(e) {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const phone = String(data.get('phone') || '').trim();
+    const country = String(data.get('phoneCountry') || '');
+    trackCustomerSignup('prompt_open', entry);
+
+    const params = new URLSearchParams();
+    params.set('next', next);
+    params.set(SIGNUP_ENTRY_PARAM, entry);
+    // Straight to the account card: they came to save, not for the move
+    // questions (2026-11-08) — app/(site)/compte/inscription/page.js.
+    params.set('from', 'save');
+    if (phone) params.set('phone', phone);
+    if (phone && country) params.set('country', country);
+    router.push(`/compte/inscription?${params.toString()}`);
+  }
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-h-[92dvh] gap-4 overflow-y-auto p-6">
+      <DialogContent className="gap-5 p-6">
         <DialogTitle className="text-left font-bold text-lg leading-snug tracking-[-0.01em] text-ink">
           {t(TITLE_KEYS[trigger] || TITLE_KEYS.save)}
         </DialogTitle>
-        <DialogDescription className="text-left text-sm text-ink-70">
-          {t(WHY_KEYS[trigger] || WHY_KEYS.save)}
-        </DialogDescription>
-        {open ? <QuickSignup next={next} entry={entry} idPrefix={`auth-prompt-${trigger || 'save'}-`} autoFocusName /> : null}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <PhoneField
+            name="phone"
+            id="auth-prompt-phone"
+            locale={locale}
+            labels={phoneFieldLabels(t)}
+            autoFocus
+            required
+          />
+
+          <button
+            type="submit"
+            className="u-press u-btn-primary mt-1 rounded-md bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+          >
+            {t('listings.authPrompt.continue')}
+          </button>
+        </form>
+
+        <p className="text-center text-sm text-ink-45">
+          {t('listings.authPrompt.alreadyHaveAccount')}{' '}
+          <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
+            {t('common.shared.signIn')}
+          </Link>
+        </p>
       </DialogContent>
     </Dialog>
   );

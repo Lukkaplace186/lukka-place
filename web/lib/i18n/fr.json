@@ -912,10 +912,7 @@
       "alert": "Se connecter ou créer un compte pour créer une alerte",
       "favorite": "Se connecter ou créer un compte pour enregistrer ce bien en favori",
       "continue": "Continuer",
-      "alreadyHaveAccount": "Déjà un compte ?",
-      "favoriteWhy": "Gardez vos favoris même si vous changez de téléphone.",
-      "saveWhy": "Retrouvez cette recherche sur tous vos appareils.",
-      "alertWhy": "Recevez les nouveaux biens qui correspondent dès qu'ils sont publiés."
+      "alreadyHaveAccount": "Déjà un compte ?"
     },
     "related": {
       "similar": "Biens Similaires",
@@ -1130,16 +1127,6 @@
       "lead": "Recevez sur WhatsApp les nouveaux biens qui ressemblent à celui-ci.",
       "button": "M'alerter des biens similaires",
       "inlineLead": "Rien qui vous convienne ? Soyez prévenu quand un bien similaire est publié."
-    },
-    "quickSignup": {
-      "submit": "Créer mon espace"
-    },
-    "contactSignup": {
-      "title": "Retrouvez ce bien et l'agent plus tard",
-      "lead": "Votre espace Lukka Place : votre nom, votre numéro et un mot de passe, c'est tout.",
-      "perkSaved": "Ce bien gardé dans vos favoris, sur tous vos appareils",
-      "perkAlerts": "Des alertes quand un bien qui vous correspond est publié",
-      "noThanks": "Non merci"
     }
   },
   "enquiry": {
@@ -8000,8 +7987,7 @@
           "login_page": "Lien sous la connexion",
           "partner_invite": "Invitation partenaire",
           "price_guide": "Guide des prix",
-          "direct": "Direct / autre lien",
-          "whatsapp": "Après un WhatsApp"
+          "direct": "Direct / autre lien"
         },
         "refusals": {
           "name": "Nom manquant",

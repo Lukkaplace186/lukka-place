@@ -26,8 +26,7 @@ import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
-import UtilityBadges from '@/components/listings/UtilityBadges';
-import PracticalDetails from '@/components/listings/PracticalDetails';
+import ListingEquipment from '@/components/listings/ListingEquipment';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
@@ -193,10 +192,11 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
   // The phone's section strip names only sections this listing renders, so
   // a tab never jumps to nothing (components/listings/ListingSectionNav.js).
+  // In page order: the description and features come first since 2026-11-18.
   const sectionNav = [
+    listing.description ? { id: 'caracteristiques', label: t('listings.detail.sections.features') } : null,
     { id: 'apercu', label: t('listings.detail.sections.overview') },
     entryCostBreakdown(listing) ? { id: 'couts', label: t('listings.detail.sections.costs') } : null,
-    listing.description ? { id: 'caracteristiques', label: t('listings.detail.sections.features') } : null,
     { id: 'emplacement', label: t('listings.detail.sections.location') },
   ].filter(Boolean);
 
@@ -361,6 +361,14 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 with neither. */}
             <ListingSectionNav sections={sectionNav} label={t('listings.detail.sections.label')} />
 
+            {/* The story first (2026-11-18, owner): the description, cut to
+                four lines, then the key features — before the facts grid and
+                the agent card, as on the reference site. See
+                components/listings/PropertyDescription.js. */}
+            <div id="caracteristiques" className="scroll-mt-32">
+              <PropertyDescription listing={listing} />
+            </div>
+
             {listing.development_id ? <ProjectUnitStrip developmentId={listing.development_id} listingId={listing.id} /> : null}
 
             <section id="apercu" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
@@ -368,12 +376,10 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <EntryCostsBreakdown listing={listing} />
             </section>
 
-            {/* Power, water, security, access — as the agent declared them. */}
-            <UtilityBadges utilities={listing.utilities} />
-
-            {/* Meublé, the parcelle's households, toilet / shower, meter, plot
-                size and price per m², paiement échelonné — as declared. */}
-            <PracticalDetails listing={listing} />
+            {/* "Équipements": power, water, security, access and the practical
+                details (meublé, ménages, compteur, parcelle…) in one list, as
+                the agent declared them, without the same fact twice. */}
+            <ListingEquipment listing={listing} />
 
             {/* Streams in: a like-for-like median of live listings in the
                 commune, only from 5 comparables up — and nothing at all
@@ -384,20 +390,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">
-              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} />
+              {/* compact: the agent and WhatsApp only; Visit, Message and Call
+                  are in MobileListingBar for the whole scroll (2026-11-18). */}
+              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} compact />
               <AgentProfileLink agentId={listing.agent_id} />
               <PricePanel listing={listing} />
               <SimilarAlertButton query={alertQuery} />
-            </div>
-
-            {/* Key features first, description under it — see
-                components/listings/PropertyDescription.js. This replaces
-                BOTH the bare description block that used to sit here and
-                the separate "Équipements confirmés" chip section that used
-                to follow it; rendering either alongside this would state
-                the same amenities twice on one page. */}
-            <div id="caracteristiques" className="scroll-mt-32">
-              <PropertyDescription listing={listing} />
             </div>
 
             <div id="emplacement" className="flex scroll-mt-32 flex-col gap-3">

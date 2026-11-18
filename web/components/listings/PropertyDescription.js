@@ -2,8 +2,13 @@ import { Check } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import { listingFeatures } from '@/lib/descriptionParser';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import ReadMoreText from './ReadMoreText';
 
 /**
+ * (Order reversed 2026-11-18: description first, cut to four lines, then the
+ * features — see the comment in the render. The history below explains why
+ * the two are one component.)
+ *
  * "Caractéristiques principales" + the full description, in that order —
  * the Zoopla/Rightmove "Features and description" block, asked for directly
  * off a Zoopla screenshot.
@@ -49,6 +54,24 @@ export default async function PropertyDescription({ listing }) {
 
   return (
     <div className="flex flex-col gap-7">
+      {/* Description first since 2026-11-18 (owner, after a reference site):
+          the agent's own words right under the price and title, cut to four
+          lines, then the scannable list. A wall of prose was the 2025 worry;
+          the cut answers it without burying the story. The read-more labels
+          are the agent profile's ("Lire la suite" / "Réduire"), resolved
+          here on the server. */}
+      {listing.description ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="u-h2 text-ink">{t('listings.detail.description')}</h2>
+          <ReadMoreText
+            text={listing.description}
+            moreLabel={t('agent.portfolio.readMore')}
+            lessLabel={t('agent.portfolio.readLess')}
+            className="u-body max-w-[46rem] whitespace-pre-line text-ink-70"
+          />
+        </section>
+      ) : null}
+
       {items.length > 0 ? (
         <section className="flex flex-col gap-3.5">
           <h2 className="u-h2 text-ink">{t('listings.detail.keyFeatures')}</h2>
@@ -80,13 +103,6 @@ export default async function PropertyDescription({ listing }) {
           {captionKey ? (
             <p className="max-w-[42rem] text-[0.8125rem] leading-[1.5] text-ink-35">{t(captionKey)}</p>
           ) : null}
-        </section>
-      ) : null}
-
-      {listing.description ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="u-h2 text-ink">{t('listings.detail.description')}</h2>
-          <p className="u-body max-w-[46rem] whitespace-pre-line text-ink-70">{listing.description}</p>
         </section>
       ) : null}
     </div>

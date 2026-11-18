@@ -68,7 +68,8 @@ test('every code and chip has a label in both languages', () => {
 });
 
 test('the listing page says "déclaré", never "vérifié"', () => {
-  const badges = read('components/listings/UtilityBadges.js');
+  // One "Équipements" section since 2026-11-18 (utility tags + practical details).
+  const badges = read('components/listings/ListingEquipment.js');
   assert.match(badges, /listings\.utilities\.declared/);
   assert.ok(!/verified|vérifi/i.test(badges.replace(/\/\*[\s\S]*?\*\//g, '')));
 });

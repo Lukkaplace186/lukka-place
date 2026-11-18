@@ -1,20 +1,22 @@
 import { Banknote, Bed, Dumbbell, Fuel, Home, Ruler, Sun, Users, WavesLadder, Zap } from 'lucide-react';
 import Price from '@/components/Price';
-import { getT } from '@/lib/i18n/server';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { detailsOf, plotAreaLabel, plotAreaOf, pricePerM2 } from '@/lib/listingDetails';
 
 /**
- * "Détails pratiques" on the listing page (lib/listingDetails.js): meublé,
- * households sharing the parcelle, landlord on site, generator, pool, gym, solar,
- * electricity meter, plot size with its price per m² on a sale, paiement
- * échelonné. Captioned "Déclaré par l'agent" like the utility tags — nobody
- * from Lukka Place has checked them. Only stated facts render; nothing at all
- * renders for a listing that states none.
+ * The "practical details" the agent stated (lib/listingDetails.js): meublé,
+ * households sharing the parcelle, landlord on site, generator, pool, gym,
+ * solar, electricity meter, plot size with its price per m² on a sale,
+ * paiement échelonné. Only stated facts — nothing for a fact not stated.
+ *
+ * Since 2026-11-18 these render inside the listing page's single
+ * "Équipements" section (ListingEquipment.js) with the utility tags, instead
+ * of a "Détails pratiques" card of their own, so this file holds the pieces.
  */
-export default async function PracticalDetails({ listing }) {
+
+/** The chips: [{ key, icon, label }], stated facts only. */
+export function practicalDetailItems(listing, t) {
   const d = detailsOf(listing);
-  const t = await getT();
   const items = [];
   if (d.furnished === true) items.push({ key: 'furnished', icon: Bed, label: t('listings.details.furnished') });
   if (d.furnished === false) items.push({ key: 'furnished', icon: Bed, label: t('listings.details.unfurnished') });
@@ -30,30 +32,27 @@ export default async function PracticalDetails({ listing }) {
   if (['prepaye', 'individuel', 'partage'].includes(d.electricity_meter)) {
     items.push({ key: 'meter', icon: Zap, label: t(`listings.details.meter.${d.electricity_meter}`) });
   }
+  return items;
+}
 
+/** The lines that are not chips: plot size (and price per m²), installments. */
+export function practicalExtrasOf(listing, t) {
+  const d = detailsOf(listing);
   const plotM2 = Number(d.plot_area_m2) > 0 ? Number(d.plot_area_m2) : null;
-  const plotLabel = plotM2 ? plotAreaLabel(plotM2, t.locale) : d.plot_dimensions || null;
-  const perM2 = pricePerM2(listing);
-  const installments = d.installments_available === true;
+  return {
+    d,
+    plotM2,
+    plotLabel: plotM2 ? plotAreaLabel(plotM2, t.locale) : d.plot_dimensions || null,
+    perM2: pricePerM2(listing),
+    installments: d.installments_available === true,
+  };
+}
 
-  if (!items.length && !plotLabel && !perM2 && !installments) return null;
-
+export function PracticalExtras({ listing, extras, t }) {
+  const { d, plotM2, plotLabel, perM2, installments } = extras;
+  if (!plotLabel && !perM2 && !installments) return null;
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="practical-details-title">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="practical-details-title" className="u-title-card text-ink">{t('listings.details.title')}</h2>
-        <span className="text-xs text-ink-45">{t('listings.details.declared')}</span>
-      </div>
-      {items.length ? (
-        <ul className="flex flex-wrap gap-2">
-          {items.map(({ key, icon: Icon, label }) => (
-            <li key={key} className="inline-flex items-center gap-1.5 rounded-full bg-canvas-alt px-3 py-1.5 text-sm font-semibold text-ink">
-              <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-blue-deep" aria-hidden="true" />
-              {label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+    <>
       {plotLabel || perM2 ? (
         <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink">
           <Ruler strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-blue-deep" aria-hidden="true" />
@@ -75,6 +74,6 @@ export default async function PracticalDetails({ listing }) {
           </span>
         </p>
       ) : null}
-    </section>
+    </>
   );
 }

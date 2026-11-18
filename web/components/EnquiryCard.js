@@ -41,7 +41,7 @@ const VISIT_ERROR_KEYS = {
  * parent is CSS-hidden for the current viewport; auto-reopening both on error
  * would show two stacked dialogs at once.
  */
-function VisitRequestButton({ propertyId }) {
+function VisitRequestButton({ propertyId, hiddenTrigger = false }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
@@ -58,6 +58,20 @@ function VisitRequestButton({ propertyId }) {
     window.addEventListener(OPEN_VISIT_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_VISIT_EVENT, onOpen);
   }, [propertyId]);
+
+  // The compact phone card shows no button of its own (MobileListingBar's
+  // "Visiter" is the trigger there), but keeps this dialog and its listener.
+  // A zero-height block still has an offsetParent while the card is on
+  // screen, and none inside the desktop rail's display:none, so the rule
+  // above keeps exactly one copy answering.
+  if (hiddenTrigger) {
+    return (
+      <>
+        <span ref={triggerRef} aria-hidden="true" className="block h-0" />
+        <VisitRequestDialog propertyId={propertyId} open={open} onOpenChange={setOpen} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -132,7 +146,12 @@ function VisitRequestButton({ propertyId }) {
 // `placement` names the copy in the tap log (lib/leadClicks.js): the desktop
 // rail passes 'listing_desktop'; the phone copy passes none (no value in the
 // vocabulary describes it, and calling it the bottom bar would be false).
-export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitError, saveShare = true, placement = null }) {
+// `compact` (the phone copy, 2026-11-18, owner): the agent, then WhatsApp
+// only, and "Ajouter à mes visites" as a small link. Visit, Message and Call
+// are MobileListingBar's, on screen for the whole scroll under the same
+// conditions; five stacked buttons here repeated them (~250 px). The desktop
+// rail has no bottom bar and keeps every action.
+export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitError, saveShare = true, placement = null, compact = false }) {
   const t = useT();
   const {
     id, title,
@@ -254,7 +273,7 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
             messages — the same verified, routing-enabled rule as the number
             above, so the server never refuses the first message. A guest is
             sent to sign in and back. */}
-        {canMessageListing(listing) ? (
+        {!compact && canMessageListing(listing) ? (
           <Link
             href={chatStartHref({ propertyId: id })}
             className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue/40 bg-surface px-5 py-3 text-sm font-semibold text-blue-deep transition-colors hover:bg-blue-tint"
@@ -264,9 +283,10 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
           </Link>
         ) : null}
 
-        <VisitRequestButton propertyId={id} />
+        <VisitRequestButton propertyId={id} hiddenTrigger={compact} />
         {/* "Mes visites": several listings, one request (lib/visitCart.js). */}
         <AddToVisitCartButton
+          variant={compact ? 'link' : 'button'}
           listing={{
             id,
             title: listing.title,
@@ -278,7 +298,7 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
 
         {/* Real per-listing number only — renders nothing at all rather than
             a tel: link to a number we don't have. */}
-        {agentPhone ? (
+        {!compact && agentPhone ? (
           <a
             href={telHref(agentPhone)}
             onClick={() => trackCallClick(listing)}

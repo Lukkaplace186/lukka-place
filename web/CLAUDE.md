@@ -5455,3 +5455,27 @@ on 2026-11-17, every record copied. Only `@` and `www` go through Cloudflare
 - **Cloudflare cache rule** "Listing photos" (URI Path starts with
   `/_next/image`, eligible for cache, Edge TTL from Cache-Control) is what
   keeps photos at the edge; `/_next/static` is cached by extension already.
+
+## Listing page: story first, one "Équipements", compact phone card (2026-11-18)
+
+Owner, after a reference site (sleek photos, the description right under
+them). `tests/unit/listing-page-story.test.js`.
+
+- **Story first.** The section menu, then `PropertyDescription` right under
+  the price and title: the description cut to four lines with "Lire la suite"
+  (`components/listings/ReadMoreText.js`: CSS line-clamp, the button only when
+  a ResizeObserver sees more text than the cut; labels `agent.portfolio.readMore`
+  / `readLess` resolved on the server), then the key features. The menu lists
+  Caractéristiques first, in page order. Most live descriptions are one or two
+  lines, so the button is rare.
+- **One "Équipements" card** (`components/listings/ListingEquipment.js`) for
+  the utility codes and the practical details (`PracticalDetails.js` now holds
+  helpers only); `UtilityBadges.js` is gone. A utility code wins over the
+  detail flag it repeats (`groupe` / `has_generator`, `solaire` /
+  `has_solar`). Captioned "Déclaré par l’agent", never "vérifié".
+- **Compact phone agent card** (`EnquiryCard compact`): agent, WhatsApp, and
+  "Ajouter à mes visites" as a link (`AddToVisitCartButton variant="link"`).
+  Message, Visit and Call are MobileListingBar's under the same conditions.
+  The visit dialog stays mounted with a zero-height anchor so the bar's
+  "Visiter" (OPEN_VISIT_EVENT, answered by the copy with an offsetParent)
+  still opens it. The desktop rail keeps the full card.

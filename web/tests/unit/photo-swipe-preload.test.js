@@ -66,11 +66,14 @@ test('no arrows or counter on the phone photo: a swipe hint until the first swip
   }
 });
 
-test('the visits pill and the agency band stay off a listing page', async () => {
+test('no visits pill anywhere; the agency band stays off a listing page', async () => {
   const { isListingPagePath } = await import('../../lib/listingPagePath.js');
   for (const p of ['/listings/1124-appartement', '/en/listings/1124-appartement', '/listings/7']) assert.equal(isListingPagePath(p), true, p);
   for (const p of ['/listings', '/en/listings', '/listings?commune=gombe', '/', '/agents/5', null]) assert.equal(isListingPagePath(p), false, String(p));
-  assert.match(read('components/VisitCartSheet.js'), /cart\.length > 0 && !onListingPage \?/);
+  // The floating "Mes visites" pill is gone everywhere (owner, 2026-11-18).
+  const sheet = read('components/VisitCartSheet.js');
+  assert.ok(!sheet.includes("enquiry.cart.pill"), 'the visits pill is back');
+  assert.ok(sheet.includes('OPEN_VISIT_CART_EVENT'), 'the sheet still opens from Ajouter a mes visites');
   const footer = read('components/Footer.js');
   assert.ok(footer.indexOf('<HideOnListingPage>') < footer.indexOf("footer.partnerBand.cta"));
 });

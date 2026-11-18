@@ -73,16 +73,17 @@ test('the market section shows nothing it was not given', () => {
 test('the homepage wires the decluttered sections in order', () => {
   const page = read('../../app/(site)/(home)/page.js');
   assert.match(page, /<RecentlyViewed variant="strip" minItems=\{2\} \/>/);
-  assert.match(page, /<HomeDiscovery propertyTypes=\{propertyTypes\} \/>/);
+  // No type chips since 2026-11-18: the hero's select has the types.
+  assert.match(page, /<HomeDiscovery \/>/);
   assert.doesNotMatch(page, /<PropertyTypeTiles|import PropertyTypeTiles/);
-  const order = ['<RecentlyViewed', '<FeaturedListings', '<HomeAlertBand', '<HomeDiscovery', '<HomeMarketBand', '<ValueProposition'];
+  const order = ['<RecentlyViewed', '<FeaturedListings', '<HomeAlertBand', '<HomeDiscovery', '<HomeMarketBand', '<HomeGuidesRail', '<ValueProposition'];
   const positions = order.map((tag) => page.indexOf(tag));
   assert.ok(positions.every((p) => p > 0), 'every section is rendered');
   assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'in this order');
 });
 
 test('every homepage band below the search uses the one section header', () => {
-  for (const file of ['FeaturedListings', 'SavedListings', 'HomeDiscovery', 'HomeMarketBand', 'ValueProposition', 'projects/NewProjectsStrip']) {
+  for (const file of ['FeaturedListings', 'SavedListings', 'HomeDiscovery', 'HomeMarketBand', 'HomeGuidesRail', 'ValueProposition', 'projects/NewProjectsStrip']) {
     const source = read(`../../components/${file}.js`);
     assert.match(source, /<HomeSectionHeader /, file);
     assert.match(source, /HOME_SECTION/, file);
@@ -113,4 +114,20 @@ test('every new homepage string exists in French and English', () => {
     }
     assert.ok(dict.home.value.aboutLink);
   }
+});
+
+// The smoother landing page (2026-11-18, owner): half the vertical rhythm on
+// a phone, "Notre approche" as one row of three compact badges, no type
+// chips under Explorer, and the newest guides as a swipe row.
+test('the landing page is shorter: tighter bands, compact promises, guides as a swipe row', () => {
+  const header = read('../../components/HomeSectionHeader.js');
+  assert.ok(header.includes("HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'"));
+  const value = read('../../components/ValueProposition.js');
+  assert.ok(value.includes('<ul className="grid grid-cols-3 '));
+  assert.ok(value.includes('hidden text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty sm:block'), 'the one-line explanation shows from sm up');
+  assert.ok(!read('../../components/HomeDiscovery.js').includes('property_type='), 'type chips are back');
+  const rail = read('../../components/HomeGuidesRail.js');
+  assert.ok(rail.includes('mergeArticles(GUIDES, posts, locale).slice(0, MAX_CARDS)'));
+  assert.ok(rail.includes('snap-x snap-mandatory'));
+  assert.ok(rail.includes('href={`/guides/${article.slug}`}'));
 });

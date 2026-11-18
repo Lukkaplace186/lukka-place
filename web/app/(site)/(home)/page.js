@@ -8,6 +8,7 @@ import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import HomeDiscovery from '@/components/HomeDiscovery';
 import HomeAlertBand from '@/components/HomeAlertBand';
 import HomeMarketBand from '@/components/HomeMarketBand';
+import HomeGuidesRail from '@/components/HomeGuidesRail';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -167,10 +168,12 @@ export default async function HomePage() {
       {/* Why an account is worth having (an alert) and the no-account request: one royal band. */}
       <HomeAlertBand />
       <NewProjectsStrip />
-      {/* Explorer: collections as photo tiles, then one row of type chips (same facets as the hero dropdown). */}
-      <HomeDiscovery propertyTypes={propertyTypes} />
+      {/* Explorer: collections as photo tiles, and the video chip (the type chips left: the hero's select has them). */}
+      <HomeDiscovery />
       {/* The price guides as figures. */}
       <HomeMarketBand />
+      {/* The newest guides and news as a swipe row (owner, 2026-11-18). */}
+      <HomeGuidesRail />
       <ValueProposition />
     </>
   );

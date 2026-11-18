@@ -14,7 +14,9 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * gutters and vertical rhythm. Sections are told apart by their ground
  * (white, the royal alert band, the chalk market band), never by a border.
  */
-export const HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-16 lg:px-8';
+// Half the vertical rhythm it had on a phone (py-10 → py-6, owner
+// 2026-11-18: a shorter, smoother landing page, as on the listing page).
+export const HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14';
 
 export default function HomeSectionHeader({ title, href, linkLabel, className = '' }) {
   return (

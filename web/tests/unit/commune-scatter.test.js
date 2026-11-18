@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { scatterCommuneListings, scatterRadiusMeters, SCATTER_MAX_METERS, SCATTER_MIN_METERS } from '@/lib/communeScatter';
+import { scatterCommuneListings, scatterSharedBuildingPoints, scatterRadiusMeters, SCATTER_MAX_METERS, SCATTER_MIN_METERS } from '@/lib/communeScatter';
 import { COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { locationTextChanged } from '@/lib/agentListings';
 
@@ -60,12 +60,32 @@ test('spread over the disc, not a ring: many listings fill the middle too', () =
 
 test('the map scatters instead of bubbling: no commune pill, no ring on top of the scatter', () => {
   const map = read('components/ListingsMap.js');
-  assert.ok(map.includes('groupListingsByBuilding(scatterCommuneListings(markers))'));
-  assert.ok(map.includes('exact: group.listings.every((l) => l.exact || l.scattered),'));
+  assert.ok(map.includes('scatterSharedBuildingPoints(scatterCommuneListings(markers))'));
+  assert.ok(map.includes('exact: Boolean(r.exact || r.scattered),'));
   assert.doesNotMatch(map, /isCommune|communeBubble/);
+  // 2026-11-18, owner: no "3 unités · dès $650" pin either; each unit is a tag.
+  assert.doesNotMatch(map, /groupListingsByBuilding|isBuilding|unités\$\{|pin\.building/);
+  assert.ok(map.includes('onClick: (pin) => selectListing(pin.id),'));
   assert.doesNotMatch(read('components/BuildingUnitsDrawer.js'), /isCommune|emplacement précis non indiqué/);
   assert.doesNotMatch(read('lib/mapPinLayer.js'), /dataset\.commune/);
   assert.doesNotMatch(read('app/globals.css'), /data-commune/);
+});
+
+test("a development's units on one exact point are spread around it, each its own tag", () => {
+  const point = { lat: -4.3, lng: 15.3 };
+  const units = Array.from({ length: 9 }, (_, i) => marker(100 + i, { ...point, exact: true, parent_building_id: 7 }));
+  const agentUnits = [marker(200, { ...point, parent_building_id: 8 }), marker(201, { ...point, parent_building_id: 8 })];
+  const lone = marker(300, { lat: -4.31, lng: 15.31, exact: true });
+  const out = scatterSharedBuildingPoints([...units, ...agentUnits, lone]);
+  assert.equal(out.length, 12);
+  const spread = out.slice(0, 9);
+  assert.ok(spread.every((m) => m.scattered));
+  assert.equal(new Set(spread.map((m) => `${m.lat}:${m.lng}`)).size, 9, 'no two on one spot');
+  // radius 60 m × √9 = 180 m
+  assert.ok(spread.every((m) => metersFrom(point, m) <= 181));
+  assert.equal(out[9], agentUnits[0], "an agent's units keep the usual privacy jitter path");
+  assert.equal(out[11], lone, 'a lone exact point stays where it is');
+  assert.deepEqual(scatterSharedBuildingPoints(units)[0], spread[0], 'stable per listing');
 });
 
 test('every web form that writes a listing asks the engine to place it', () => {
@@ -88,7 +108,6 @@ test('only a changed quartier, reference or commune asks for a new point', () =>
 test('the polished price tag is the live map: same pins, same label, finish in CSS only', () => {
   const map = read('components/ListingsMap.js');
   assert.doesNotMatch(map, /apercu|previewRef|mapPreviewOn|groupByArea|pillTone|purpose: group/);
-  assert.match(map, /return `\$\{group\.unitCount\} unités\$\{from\}`;/, 'building tag: "3 unités · dès $650"');
   const layer = read('lib/mapPinLayer.js');
   assert.match(layer, /this\.container\.className = 'lkp-layer';/);
   assert.doesNotMatch(layer, /renderLabel|lkp-pin__cur|layerDepth/, 'the price label is plain text, "$" included');

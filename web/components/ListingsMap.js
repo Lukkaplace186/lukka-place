@@ -10,8 +10,7 @@ import { compactPrice, priceZIndex } from '@/lib/mapIcons';
 import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
-import { groupListingsByBuilding } from '@/lib/buildingGroups';
-import { scatterCommuneListings } from '@/lib/communeScatter';
+import { scatterCommuneListings, scatterSharedBuildingPoints } from '@/lib/communeScatter';
 import { announceMapMoving } from '@/lib/mapMovingEvent';
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
@@ -146,20 +145,14 @@ function toBounds(latLngBounds) {
 }
 
 function labelFor(group) {
-  if (group.isBuilding) {
-    // "3 unités · dès $650" — half the width of the min–max range (2026-11-17).
-    const from = group.priceMin === null ? '' : ` · dès ${compactPrice(group.priceMin, 'sale')}`;
-    return `${group.unitCount} unités${from}`;
-  }
   const listing = group.representative;
   return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
 }
 
 function zIndexFor(group) {
   // Higher prices in front, so where two tags overlap the pricier one stays
-  // readable. A building stands for several listings, so it sits one above
-  // its own most expensive unit's price.
-  return group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(group.representative.price);
+  // readable.
+  return priceZIndex(group.representative.price);
 }
 
 /** One geocode → the place's point, or null for no match or a city-level answer. */
@@ -270,7 +263,7 @@ function fitTo(map, bounds, { exact = false, home = KINSHASA_DEFAULT_VIEW } = {}
 }
 
 export default function ListingsMap({
-  params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onInViewChange,
+  params, pageListings, hoveredId, onMarkerHover, onListingSelect, onAreaChange, onInViewChange,
   onVisibleIdsChange, revealId, onNearChange,
 }) {
   const t = useT();
@@ -320,7 +313,7 @@ export default function ListingsMap({
   const hadUrlAreaRef = useRef(hasUrlArea);
 
   useEffect(() => {
-    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onVisibleIdsChange };
+    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onAreaChange, onVisibleIdsChange };
   });
 
   const updateCounts = useCallback((viewport) => {
@@ -391,13 +384,14 @@ export default function ListingsMap({
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
 
-    // Listings that only know their commune are scattered over it, each with
-    // its own price (lib/communeScatter.js, owner 2026-11-18: no "N biens ·
-    // commune" bubble, no ring). Then the same three passes PropertyMap
-    // uses: group units of one building, fan listings sharing a base point
-    // onto a ring (privacy jitter included), then the screen-space
-    // de-overlap net.
-    const groups = groupListingsByBuilding(scatterCommuneListings(markers));
+    // Every listing is its own price tag (owner 2026-11-18: no "N biens ·
+    // commune" bubble, no "N unités" building pin). Listings that only know
+    // their commune are scattered over it, a development's units around
+    // their building (lib/communeScatter.js). Then: fan listings sharing a
+    // base point onto a ring (privacy jitter included), then the
+    // screen-space de-overlap net.
+    const groups = scatterSharedBuildingPoints(scatterCommuneListings(markers))
+      .map((listing) => ({ key: `listing:${listing.id}`, listings: [listing], representative: listing }));
     const bases = groups.map((group) => {
       const r = group.representative;
       return {
@@ -408,9 +402,9 @@ export default function ListingsMap({
           lng: r.lng,
           source: r.approximate ? 'commune_fallback' : 'existing',
           precise: !r.approximate,
-          // Every unit of a developer's building shares its exact pin; a
-          // scattered commune listing is already spread, so no ring either.
-          exact: group.listings.every((l) => l.exact || l.scattered),
+          // A developer's exact point gets no jitter; a scattered listing
+          // is already spread, so no ring either.
+          exact: Boolean(r.exact || r.scattered),
         },
       };
     });
@@ -429,13 +423,12 @@ export default function ListingsMap({
       const r = group.representative;
       pins.push({
         key: group.key,
-        id: group.isBuilding ? null : String(r.id),
+        id: String(r.id),
         lat: position.lat,
         lng: position.lng,
         label: labelFor(group),
-        title: group.isBuilding ? (group.buildingName || r.title) : r.title,
-        building: group.isBuilding,
-        verified: !group.isBuilding && Boolean(r.verified),
+        title: r.title,
+        verified: Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,
       });
@@ -604,19 +597,9 @@ export default function ListingsMap({
         mapRef.current = map;
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
-          onClick: (pin) => {
-            const { onListingSelect: select, onBuildingSelect: selectBuilding } = propsRef.current;
-            if (pin.building) {
-              // A building opens the unit list rather than a preview card:
-              // there is no single listing to preview.
-              selectSeqRef.current += 1;
-              select?.(null);
-              selectBuilding?.(pin.group);
-              return;
-            }
-            selectListing(pin.id);
-          },
-          onHover: (pin) => propsRef.current.onMarkerHover?.(pin && !pin.building ? pin.group.representative.id : null),
+          // Every pin is one listing (2026-11-18): a tap opens its preview.
+          onClick: (pin) => selectListing(pin.id),
+          onHover: (pin) => propsRef.current.onMarkerHover?.(pin ? pin.group.representative.id : null),
         });
         layerRef.current.setVisited([...getRecentIds(), ...tappedThisSession]);
 

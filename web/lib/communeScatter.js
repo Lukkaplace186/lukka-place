@@ -99,3 +99,40 @@ export function scatterCommuneListings(markers) {
     return { ...marker, lat: point.lat, lng: point.lng, scattered: true };
   });
 }
+
+/**
+ * Units of one building on the map, each its own price tag (2026-11-18,
+ * owner: "split them", replacing the "3 unités · dès $650" pin).
+ *
+ * A developer's units are `exact`: they share the building's real point and
+ * get no privacy jitter, so they would stack into one tag. Every group of
+ * two or more exact markers on one spot (~22 m) is spread over a small disc
+ * around it: radius 60 m × √units, 80–300 m, seeded per listing id, display
+ * only. They are then `scattered` like commune listings (no ring on top).
+ * An agent's units are not exact; the map's usual privacy jitter already
+ * fans them apart, so they are left as they are.
+ */
+const SHARED_POINT_DEG = 0.0002;
+
+export function scatterSharedBuildingPoints(markers) {
+  const list = markers || [];
+  const groups = new Map();
+  for (const marker of list) {
+    if (!marker?.exact || marker.scattered) continue;
+    if (!Number.isFinite(marker.lat) || !Number.isFinite(marker.lng)) continue;
+    const key = `${Math.round(marker.lat / SHARED_POINT_DEG)}:${Math.round(marker.lng / SHARED_POINT_DEG)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(marker);
+  }
+  const moved = new Map();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const center = { lat: group[0].lat, lng: group[0].lng };
+    const radius = Math.min(300, Math.max(80, 60 * Math.sqrt(group.length)));
+    for (const marker of group) {
+      const point = scatterPoint(center, radius, `unit:${marker.id}`);
+      moved.set(marker, { ...marker, lat: point.lat, lng: point.lng, scattered: true });
+    }
+  }
+  return list.map((marker) => moved.get(marker) || marker);
+}

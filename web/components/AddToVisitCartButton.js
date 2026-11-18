@@ -44,7 +44,7 @@ export default function AddToVisitCartButton({ listing, variant = 'button' }) {
   if (variant === 'link') {
     return (
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center justify-center gap-x-4">
+        <div className="flex flex-wrap items-center gap-x-4">
           <button
             type="button"
             onClick={toggle}
@@ -65,7 +65,7 @@ export default function AddToVisitCartButton({ listing, variant = 'button' }) {
           ) : null}
         </div>
         {full ? (
-          <p className="text-center text-xs text-danger" role="alert">{t('enquiry.cart.full', { max: VISIT_CART_MAX })}</p>
+          <p className="text-xs text-danger" role="alert">{t('enquiry.cart.full', { max: VISIT_CART_MAX })}</p>
         ) : null}
       </div>
     );

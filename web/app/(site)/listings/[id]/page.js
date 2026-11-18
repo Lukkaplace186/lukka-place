@@ -12,7 +12,6 @@ import PricePanel from '@/components/PricePanel';
 import EnquiryCard from '@/components/EnquiryCard';
 import ListingLocationMap from '@/components/ListingLocationMap';
 import RelatedListings from '@/components/RelatedListings';
-import RecentlyViewed from '@/components/RecentlyViewed';
 import MobileListingBar from '@/components/MobileListingBar';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
@@ -335,9 +334,14 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             <ListingSectionNav sections={sectionNav} label={t('listings.detail.sections.label')} />
 
-            {/* Phone: who offers it, one row (the desktop rail has the card). */}
-            <div className={`${RULE} lg:hidden`}>
+            {/* Phone: who offers it, one row (the desktop rail has the card),
+                then the compact EnquiryCard: only the visit-request feedback,
+                the visit dialog the bottom bar's "Visiter" opens, and "Ajouter
+                à mes visites". WhatsApp, Message, Visit and Call are the bottom
+                bar's (owner, 2026-11-18: no second contact block). */}
+            <div className={`flex flex-col gap-1 ${RULE} lg:hidden`}>
               <ListingAgentRow listing={listing} />
+              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} compact />
             </div>
 
             {/* The story: the description, cut to four lines, then the key
@@ -374,14 +378,6 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <ListingLocationMap listing={listing} staticMapSrc={staticMapSrc} />
             </div>
 
-            {/* Phone: contact once, at the end — WhatsApp and "Ajouter à mes
-                visites". Visit, Message and Call are MobileListingBar's for
-                the whole scroll; the visit dialog lives in this compact card.
-                The similar-listings alert is the one after "Biens similaires". */}
-            <section className={`${RULE} lg:hidden`}>
-              <h2 className="u-h2 mb-3.5 text-ink">{t('agent.portfolio.contactCardTitle')}</h2>
-              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} compact />
-            </section>
           </div>
 
           {/* The rail stays docked for the whole scroll — Description,
@@ -404,7 +400,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
         <RelatedSection listing={listing} alertQuery={alertQuery} />
       </Suspense>
 
-      <RecentlyViewed excludeId={listing.id} />
+      {/* No "Récemment consultés" here (2026-11-18, owner): it made every
+          listing page longer, and the home page already shows it. */}
 
       <MobileListingBar listing={listing} />
     </div>

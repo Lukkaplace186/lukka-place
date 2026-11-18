@@ -151,6 +151,9 @@ function VisitRequestButton({ propertyId, hiddenTrigger = false }) {
 // are MobileListingBar's, on screen for the whole scroll under the same
 // conditions; five stacked buttons here repeated them (~250 px). The desktop
 // rail has no bottom bar and keeps every action.
+// Since the second 2026-11-18 pass compact keeps only what the bar cannot
+// carry: the visit-request feedback, the visit dialog (hidden anchor) and
+// "Ajouter à mes visites". It sits under the agent row; no WhatsApp button.
 export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitError, saveShare = true, placement = null, compact = false }) {
   const t = useT();
   const {
@@ -241,7 +244,9 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
           </p>
         )}
 
-        {whatsappHref ? (
+        {/* compact (the phone page): no WhatsApp button either — the bottom
+            bar carries it for the whole scroll (2026-11-18, owner). */}
+        {compact ? null : whatsappHref ? (
           /* The detail page's primary conversion action. It reported
              nothing until now, which is precisely the number
              lib/analytics.js's getWhatsAppConversionRate claims to

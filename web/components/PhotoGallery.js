@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, Play, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, Play, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import VideoPlayBadge from './VideoPlayBadge';
@@ -250,16 +250,9 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           <span className="absolute right-3.5 top-3.5 z-10 flex gap-2">{mobileActions}</span>
         ) : null}
 
-        {total > 2 ? (
-          <button
-            type="button"
-            onClick={() => setGridOpen(true)}
-            className="u-press absolute bottom-3.5 left-3.5 z-10 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/95 px-3.5 text-[0.8125rem] font-bold text-ink shadow-sm"
-          >
-            <LayoutGrid strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            {t('listings.gallery.seeAllCount', { count: total })}
-          </button>
-        ) : null}
+        {/* No "Voir les N photos" button on the photo any more (2026-11-18,
+            owner): the swipe, the arrows and the thumbnail strip below already
+            reach every photo, and the button covered part of it. */}
       </div>
 
       {/* Thumbnails, phone only. Small files (sizes 80px, low fetch

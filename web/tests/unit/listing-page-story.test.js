@@ -30,11 +30,11 @@ test('the page flows: opening block, agent row, story, équipements, costs card,
     '<ListingFactsRow listing={listing} />',
     '<ListingSectionNav',
     '<ListingAgentRow listing={listing} />',
+    '<EnquiryCard',
     '<div id="caracteristiques"',
     '<ListingEquipment listing={listing} />',
     '<EntryCostsBreakdown listing={listing} />',
     '<div id="emplacement"',
-    '<EnquiryCard',
   ].map(at);
   assert.deepEqual(order, [...order].sort((a, b) => a - b), 'sections out of order');
   assert.equal(page.split('<div id="caracteristiques"').length, 2, 'the story renders once');
@@ -101,4 +101,17 @@ test('the phone agent card is compact; the desktop rail keeps every action', () 
   // listener on a phone: the compact card keeps it with a hidden anchor.
   assert.match(card, /<VisitRequestButton propertyId=\{id\} hiddenTrigger=\{compact\} \/>/);
   assert.match(card, /<span ref=\{triggerRef\} aria-hidden="true" className="block h-0" \/>/);
+});
+
+// Third pass (2026-11-18, owner: the page was too long): no "Voir les N
+// photos" button on the photo, no second contact block, no recently viewed.
+test('the listing page drops what the bar, the strip and the home page already give', () => {
+  const gallery = read('components/PhotoGallery.js');
+  assert.ok(!gallery.includes('onClick={() => setGridOpen(true)}'), 'the "see all photos" button is back');
+  assert.ok(!page.includes('contactCardTitle'), 'a second contact block is back');
+  assert.ok(!page.includes('<RecentlyViewed excludeId={listing.id} />'), 'recently viewed is back on the website page');
+  // The compact card keeps the visit feedback and dialog, without WhatsApp.
+  const card = read('components/EnquiryCard.js');
+  assert.ok(card.includes('{compact ? null : whatsappHref ? ('));
+  assert.ok(card.includes('{visitSent && ('));
 });

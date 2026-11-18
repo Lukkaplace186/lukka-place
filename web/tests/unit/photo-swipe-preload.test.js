@@ -51,16 +51,28 @@ test('feed cards neither preload ahead nor shimmer', () => {
 // Phone gallery, thumbnails and visible arrows (2026-11-17, owner's reference
 // site). Cards must keep their hidden arrows (see CardImageCarousel's TOUCH
 // note): only the detail page opts in.
-test('only the detail page shows tappable arrows on a phone; cards keep hover arrows', () => {
+// Arrows on the phone photo were tried and removed the same day (owner): a
+// swipe hint replaces them and the "1/N photos" counter.
+test('no arrows or counter on the phone photo: a swipe hint until the first swipe', () => {
   assert.match(carousel, /arrows = 'hover',/);
-  const always = carousel.match(/const alwaysArrowClass =\s*'([^']+)'/)?.[1] || '';
-  for (const token of ['flex', 'u-hit', 'h-10', 'w-10']) assert.ok(always.split(/\s+/).includes(token), `always-arrow class lacks ${token}`);
-  assert.ok(!always.split(/\s+/).includes('hidden') && !always.includes('opacity-0'), 'always-visible arrows are hidden');
   const gallery = read('components/PhotoGallery.js');
-  assert.match(gallery, /<CardImageCarousel [^>]*arrows="always" showDots=\{false\} controlRef=\{carouselControl\}/);
+  assert.doesNotMatch(gallery, /arrows="always"/);
+  assert.match(gallery, /<CardImageCarousel [^>]*showDots=\{false\} controlRef=\{carouselControl\}/);
+  assert.match(gallery, /\{total > 1 && mobileIndex === 0 \? \(/);
+  assert.match(gallery, /t\('listings\.gallery\.swipeHint'\)/);
+  assert.doesNotMatch(gallery, /\{mobileIndex \+ 1\}\/\{total\}|1\/\{total\}/, 'a photo counter is back');
   for (const file of ['components/PropertyCard.js', 'components/MapCardCarousel.js']) {
     assert.doesNotMatch(read(file), /arrows="always"/, `${file} must not show phone arrows`);
   }
+});
+
+test('the visits pill and the agency band stay off a listing page', async () => {
+  const { isListingPagePath } = await import('../../lib/listingPagePath.js');
+  for (const p of ['/listings/1124-appartement', '/en/listings/1124-appartement', '/listings/7']) assert.equal(isListingPagePath(p), true, p);
+  for (const p of ['/listings', '/en/listings', '/listings?commune=gombe', '/', '/agents/5', null]) assert.equal(isListingPagePath(p), false, String(p));
+  assert.match(read('components/VisitCartSheet.js'), /cart\.length > 0 && !onListingPage \?/);
+  const footer = read('components/Footer.js');
+  assert.ok(footer.indexOf('<HideOnListingPage>') < footer.indexOf("footer.partnerBand.cta"));
 });
 
 test('the phone thumbnail strip is small, low priority, and jumps the carousel', () => {

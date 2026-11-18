@@ -1,4 +1,5 @@
 import Link from '@/components/IntentLink';
+import HideOnListingPage from '@/components/HideOnListingPage';
 import { getSupportWhatsAppHref } from '@/lib/whatsapp';
 import { cachedSeoFacets } from '@/lib/listingsCached';
 import { OVERLAY_PROPERTY_TYPES, seoPath } from '@/lib/seoPages';
@@ -244,24 +245,28 @@ export default async function Footer() {
             reading as a link rather than the section's action. It is now
             full-width and centred until sm, at h-12 (48px, the documented tap
             target), which is the only real CTA treatment on a stacked layout. */}
-        <div className="border-y border-white/15 bg-blue">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-            <div className="min-w-0 max-w-[40rem]">
-              <p className="font-bold text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
-                {t('footer.partnerBand.title')}
-              </p>
-              <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
-                {t('footer.partnerBand.subtitle')}
-              </p>
+        {/* Not on a listing's own page (owner, 2026-11-18): the visitor is
+            deciding on one home there; the band added a screen of height. */}
+        <HideOnListingPage>
+          <div className="border-y border-white/15 bg-blue">
+            <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+              <div className="min-w-0 max-w-[40rem]">
+                <p className="font-bold text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
+                  {t('footer.partnerBand.title')}
+                </p>
+                <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
+                  {t('footer.partnerBand.subtitle')}
+                </p>
+              </div>
+              <Link
+                href="/compte/agent/inscription"
+                className="u-press inline-flex h-12 w-full flex-none items-center justify-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue transition-colors hover:bg-blue-tint sm:w-auto"
+              >
+                {t('footer.partnerBand.cta')}
+              </Link>
             </div>
-            <Link
-              href="/compte/agent/inscription"
-              className="u-press inline-flex h-12 w-full flex-none items-center justify-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue transition-colors hover:bg-blue-tint sm:w-auto"
-            >
-              {t('footer.partnerBand.cta')}
-            </Link>
           </div>
-        </div>
+        </HideOnListingPage>
 
         {/* pb-28 below md: FloatingControlBar (Carte / Trier / Alerte) and
             MobileListingBar are fixed to the bottom of a phone screen, and

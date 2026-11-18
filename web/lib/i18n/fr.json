@@ -831,6 +831,7 @@
       "nextPhoto": "Photo suivante",
       "allPhotos": "Toutes les photos",
       "close": "Fermer",
+      "swipeHint": "Glissez pour voir",
       "seeAllCount": {
         "one": "Voir la photo",
         "other": "Voir les {count} photos"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from '@/components/LocaleLink';
 import { CalendarClock, CheckCircle2, ListChecks, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -10,6 +11,7 @@ import { useVisitCart } from '@/lib/useVisitCart';
 import { OPEN_VISIT_CART_EVENT, removeFromCart, writeCart } from '@/lib/visitCart';
 import { VISIT_CART_MAX, tightPairs } from '@/lib/visitSlots';
 import { formatVisitSlot } from '@/lib/visitAgenda';
+import { isListingPagePath } from '@/lib/listingPagePath';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { submitVisitBatchAction } from '@/app/(site)/listings/visitBatchActions';
 import SafeImage from './SafeImage';
@@ -34,6 +36,10 @@ export default function VisitCartSheet() {
   const [error, setError] = useState(null);
   const [sent, setSent] = useState(null);
   const [pending, startTransition] = useTransition();
+  // No floating pill on a listing's own page (owner, 2026-11-18): it sat
+  // over the photo. The sheet still opens there from "Ajouter à mes
+  // visites" → "Voir" (OPEN_VISIT_CART_EVENT).
+  const onListingPage = isListingPagePath(usePathname());
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
@@ -70,7 +76,7 @@ export default function VisitCartSheet() {
 
   return (
     <>
-      {cart.length > 0 ? (
+      {cart.length > 0 && !onListingPage ? (
         <button
           type="button"
           onClick={() => setOpen(true)}

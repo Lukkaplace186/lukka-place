@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, Play, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, MoveHorizontal, Play, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import VideoPlayBadge from './VideoPlayBadge';
@@ -226,9 +226,10 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               so the first swipe lands on a photo instead of a grey frame
               (owner's iPhone, 2026-11-17: ~1.5 s per photo from Kinshasa).
               loadingShimmer: a slow photo reads as loading, not as missing. */}
-          {/* arrows="always": visible ← → on the phone photo (the cards keep
-              theirs hidden); the thumbnail strip below replaces the dots. */}
-          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority preloadAhead={2} loadingShimmer arrows="always" showDots={false} controlRef={carouselControl} onIndexChange={onMobileIndexChange} />
+          {/* No arrows and no "1/N photos" on the phone photo (owner,
+              2026-11-18): the swipe hint below says it moves, and the
+              thumbnail strip shows where you are and replaces the dots. */}
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority preloadAhead={2} loadingShimmer showDots={false} controlRef={carouselControl} onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (
@@ -237,14 +238,13 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           </span>
         ) : null}
 
-        {/* Live count, not a static "1/N" — CardImageCarousel already
-            reports the on-screen index via onIndexChange, so this can track
-            an actual swipe instead of freezing at photo 1. The dot row
-            beneath it is CardImageCarousel's own; this badge is additive,
-            same composition PropertyCard.js already uses. */}
-        <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
-          {mobileIndex + 1}/{total}{hasVideo ? '' : ` photo${total !== 1 ? 's' : ''}`}
-        </span>
+        {/* "Glissez pour voir" where the counter was, until the first swipe. */}
+        {total > 1 && mobileIndex === 0 ? (
+          <span className="u-glass-royal pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.8125rem] font-semibold">
+            <MoveHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+            {t('listings.gallery.swipeHint')}
+          </span>
+        ) : null}
 
         {mobileActions ? (
           <span className="absolute right-3.5 top-3.5 z-10 flex gap-2">{mobileActions}</span>
@@ -347,10 +347,9 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                 <Badge tone="white">{t('listings.gallery.verified')}</Badge>
               </span>
             ) : null}
-
-            <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
-              1/{total}{hasVideo ? '' : ` photo${total !== 1 ? 's' : ''}`}
-            </span>
+            {/* No "1/N photos" badge here either (owner, 2026-11-18): the
+                mosaic shows the next photos, and "Toutes les photos" opens
+                them all. */}
           </button>
 
           {hasGrid ? (

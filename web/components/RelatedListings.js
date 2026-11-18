@@ -43,7 +43,7 @@ export default async function RelatedListings({ listings, commune, widened = fal
   const lead = widened && commune ? t('listings.related.noneLeftIn', { commune }) : undefined;
 
   return (
-    <section className="border-t border-line bg-canvas-alt py-16">
+    <section className="border-t border-line bg-canvas-alt py-8 lg:py-16">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
         <SectionHeading eyebrow={eyebrow} title={title} lead={lead} href="/listings" className="mb-8" />
         {/* Each card needs an explicit width here: a plain flex row gives

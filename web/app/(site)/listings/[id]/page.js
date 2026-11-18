@@ -438,7 +438,7 @@ async function RelatedSection({ listing, alertQuery }) {
     }
   }
   return (
-    <div className="mt-16">
+    <div className="mt-8 lg:mt-16">
       <RelatedListings
         listings={related}
         commune={listing.commune}

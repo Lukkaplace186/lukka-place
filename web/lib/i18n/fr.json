@@ -1150,6 +1150,13 @@
       "clear": "Effacer la zone",
       "draw": "Dessiner une zone",
       "redraw": "Redessiner la zone"
+    },
+    "contactSignup": {
+      "title": "Retrouvez ce bien et l'agent plus tard",
+      "lead": "Votre numéro, puis un code depuis votre WhatsApp. Pas de mot de passe.",
+      "perkSaved": "Ce bien gardé dans vos favoris, sur tous vos appareils",
+      "perkAlerts": "Des alertes quand un bien qui vous correspond est publié",
+      "noThanks": "Non merci"
     }
   },
   "enquiry": {
@@ -7941,7 +7948,8 @@
           "direct": "Direct / autre lien",
           "whatsapp": "Connexion WhatsApp",
           "visit": "Après une demande de visite",
-          "onboarding": "Questions de bienvenue (app)"
+          "onboarding": "Questions de bienvenue (app)",
+          "after_whatsapp": "Après un WhatsApp à un agent"
         },
         "refusals": {
           "name": "Nom manquant",

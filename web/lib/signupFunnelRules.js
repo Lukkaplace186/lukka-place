@@ -44,13 +44,14 @@ export const SIGNUP_ENTRIES = [
   'whatsapp', // "Continuer avec WhatsApp" on the login page (2026-11-12)
   'visit', // after a visit request, to follow the agency's answer
   'onboarding', // the app's first-open questions
+  'after_whatsapp', // the offer after a guest's WhatsApp tap on a listing (ContactSignupPrompt, 2026-11-18)
   'direct', // anything else: a typed URL, an old link, a shared link
 ];
 
 const ENTRY_SET = new Set(SIGNUP_ENTRIES);
 
 /** Entries that are a prompt (shown, then opened); the others are plain links. */
-export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge']);
+export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge', 'after_whatsapp']);
 
 /** Steps a browser may report. `refused` and `created` are server-only. */
 export const CLIENT_SIGNUP_STEPS = ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit'];

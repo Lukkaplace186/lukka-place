@@ -19,6 +19,7 @@ import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 import { recordSignupOutcome } from '@/lib/signupFunnel';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { safeSignInNext, cleanFullName, isNewAccount } from '@/lib/whatsappSignInRules';
+import { claimRecentContactTaps } from '@/lib/contactTapClaim';
 
 /**
  * "Continuer avec WhatsApp" (UX pass 2026-11-12): sign in — or open an
@@ -106,6 +107,8 @@ export async function checkWhatsAppSignInAction(nextParam, localData = {}) {
   await clearVerifyAttemptCookie();
   await establishCustomerSession({ id: attempt.id, tokenVersion: customer.token_version });
   await rememberCustomerPhone(attempt.phone);
+  // This browser's WhatsApp taps of the last day are theirs (lib/contactTapClaim.js). Never throws.
+  await claimRecentContactTaps(attempt.id);
 
   const favoriteIds = Array.isArray(localData?.favoriteIds) ? localData.favoriteIds.map(String).filter(Boolean).slice(0, 200) : [];
   const savedSearches = Array.isArray(localData?.savedSearches) ? localData.savedSearches.slice(0, 20) : [];

@@ -592,3 +592,32 @@ cherche plus".
 
 `REQUEST_FOLLOWUP=off` stops the job; answers already sent are still handled.
 verify-pipeline §102; web `tests/unit/push-notifications.test.js`.
+
+## Turning anonymous contacts into accounts (2026-11-18)
+
+Owner: "every contact is recording customers as anonymous". A direct tap
+opens the agent's own WhatsApp, so the customer's number never reaches us;
+only a signed-in customer's tap is named (`whatsapp_clicks.customer_id`,
+`agent_contact_taps.customer_id`, /admin/contacts). Owner choice: ask AFTER
+WhatsApp, never in front of it.
+
+- **After a guest's WhatsApp tap on a listing** (web
+  `components/ContactSignupPrompt.js`, rules in `lib/contactSignupPrompt.js`):
+  `trackLeadClick` fires `lkp:whatsapp-tap`; when the visitor comes back to
+  the page (tab shown again, or the window refocused on desktop) a bottom
+  sheet offers "Retrouvez ce bien et l'agent plus tard" with "Continuer avec
+  WhatsApp" — the same no-password sign-in as the ♥ / alert prompt
+  (`WhatsAppSignInForm`, entry `after_whatsapp`). Never for a signed-in
+  customer or agent; closing it in any way snoozes it 30 days (localStorage
+  `lkp_contact_signup`). `next` carries the favourite-resume marker
+  (`lkp_fav_return`), so the contacted listing is saved once signed in.
+- **Claiming taps** (`lib/contactTapClaim.js`), called after the session is
+  set by every customer sign-in: `checkWhatsAppSignInAction`, the password
+  login and `signupAction`. `whatsapp_clicks` and `agent_contact_taps` rows
+  with this browser's `lp_vid`, `viewer_kind = 'visitor'`, no customer yet,
+  from the last 24 h get the customer id. Older taps on a shared phone stay
+  anonymous. Never throws; a missing table/column (42P01/42703) is silent.
+- The ♥ / alert prompt is unchanged. A first version built on master
+  (7eb444e, a name + number + password form in that prompt) was never
+  deployed: production already had "Continuer avec WhatsApp" there.
+- web `tests/unit/contact-signup-prompt.test.js`.

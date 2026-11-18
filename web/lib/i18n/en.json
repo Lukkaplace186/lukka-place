@@ -1150,6 +1150,13 @@
       "clear": "Clear the zone",
       "draw": "Draw a zone",
       "redraw": "Redraw the zone"
+    },
+    "contactSignup": {
+      "title": "Find This Property and the Agent Later",
+      "lead": "Your number, then a code from your WhatsApp. No password.",
+      "perkSaved": "This property kept in your favourites, on all your devices",
+      "perkAlerts": "Alerts when a property that suits you is listed",
+      "noThanks": "No thanks"
     }
   },
   "enquiry": {
@@ -7941,7 +7948,8 @@
           "direct": "Direct / other link",
           "whatsapp": "WhatsApp sign-in",
           "visit": "After a visit request",
-          "onboarding": "App welcome questions"
+          "onboarding": "App welcome questions",
+          "after_whatsapp": "After a WhatsApp to an agent"
         },
         "refusals": {
           "name": "Missing name",

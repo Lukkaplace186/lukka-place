@@ -13,6 +13,7 @@ import AppPullToRefresh from '@/components/app/AppPullToRefresh';
 import { isAppRequest } from '@/lib/appMode';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
+import ContactSignupPrompt from '@/components/ContactSignupPrompt';
 import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
@@ -84,6 +85,7 @@ export default async function SiteLayout({ children }) {
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
         <AccountLimitNotice />
+        <ContactSignupPrompt />
         <VisitCartMount />
         {/* The app's list screens refresh on a pull down (a WebView has no such gesture of its own). */}
         {app ? <AppPullToRefresh /> : null}

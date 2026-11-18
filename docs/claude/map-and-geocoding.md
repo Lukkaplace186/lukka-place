@@ -78,12 +78,3 @@ usual building grouping and de-overlap; no ring, no extra jitter. Kimbanseke
 and Nsele get the 400 m floor (their centres are ~700 m apart). The
 listing page still says the place is approximate. Test:
 `web/tests/unit/commune-scatter.test.js`.
-
-Same day, owner ("split them"): no "3 unités · dès $650" building pin on
-`/listings` either — every unit is its own price tag and opens its own
-preview. A developer's units share an exact point with no jitter, so
-`scatterSharedBuildingPoints` spreads two or more on one spot over a disc
-of 60 m × √units (80–300 m), seeded per id, display only; an agent's units
-already get the usual privacy jitter ring. `BuildingUnitsDrawer` is no
-longer opened from this map (ResponsiveMapPane still mounts it; the
-listing page's PropertyMap still groups).

@@ -147,9 +147,10 @@ function toBounds(latLngBounds) {
 
 function labelFor(group) {
   if (group.isBuilding) {
-    // "3 unités · dès $650" — half the width of the min–max range (2026-11-17).
-    const from = group.priceMin === null ? '' : ` · dès ${compactPrice(group.priceMin, 'sale')}`;
-    return `${group.unitCount} unités${from}`;
+    // "dès $650" beside the building badge (navy, glyph + unit count:
+    // mapPinLayer `units`), owner's pick B 2026-11-18. It replaced the text
+    // "3 unités · dès $650" (2026-11-17). No price: the badge alone.
+    return group.priceMin === null ? '' : `dès ${compactPrice(group.priceMin, 'sale')}`;
   }
   const listing = group.representative;
   return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
@@ -435,6 +436,7 @@ export default function ListingsMap({
         label: labelFor(group),
         title: group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
+        units: group.isBuilding ? group.unitCount : 0,
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,

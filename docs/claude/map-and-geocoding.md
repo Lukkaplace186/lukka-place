@@ -78,3 +78,11 @@ usual building grouping and de-overlap; no ring, no extra jitter. Kimbanseke
 and Nsele get the 400 m floor (their centres are ~700 m apart). The
 listing page still says the place is approximate. Test:
 `web/tests/unit/commune-scatter.test.js`.
+
+Same day: splitting building tags into one tag per unit was tried and
+reverted (owner: the building tag "was great and looked amazing"). Its
+polish, the owner's pick B of three mock-ups: a navy badge with a
+building glyph and the unit count, then "dès $650" (`mapPinLayer`
+`#setUnits`, `pin.units`; `.lkp-pin__units` in globals.css; the pin's
+aria-label says "3 unités, dès $650"). Not chosen: a stack of tag edges
+behind the tag, and stack + badge.

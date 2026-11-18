@@ -1380,6 +1380,33 @@
   color: var(--blue);
 }
 .lkp-pin[data-building='true'] { --lkp-fg: var(--blue-deep, #0c1d50); }
+/* Building badge (owner's pick B, 2026-11-18): a navy box with a building
+   glyph and the unit count, then "dès $650" in the tag's navy. */
+.lkp-pin[data-building='true'] .lkp-pin__body { padding-left: 3px; gap: 6px; }
+.lkp-pin__units {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 5px 0 4px;
+  border-radius: 4px;
+  background: var(--blue-deep, #16307e);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+.lkp-pin__units svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lkp-pin__label:empty { display: none; }
 
 /* Liquid glass (2026-11-17, owner: "take inspiration from Apple liquid
    glass") — the phone map's top panel (ListingsSplitView): a frosted,

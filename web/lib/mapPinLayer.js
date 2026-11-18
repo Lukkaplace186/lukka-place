@@ -76,7 +76,7 @@ export function createPinLayer(map, handlers) {
      * pan never makes the whole map blink; a new one gets the entrance.
      *
      * @param {Array<{key: string, id: string|null, lat: number, lng: number,
-     *   label: string, title: string, building: boolean,
+     *   label: string, title: string, building: boolean, units: number,
      *   verified: boolean, zIndex: number, payload: any}>} pins
      */
     setPins(pins) {
@@ -89,6 +89,7 @@ export function createPinLayer(map, handlers) {
           previous.delete(pin.key);
           if (entry.pin.label !== pin.label) entry.labelEl.textContent = pin.label;
           if (entry.pin.verified !== pin.verified) this.#setCheck(entry, pin.verified);
+          if (entry.pin.units !== pin.units) this.#setUnits(entry, pin.units);
           entry.pin = pin;
         } else {
           // New pins drop in one after another, 28ms apart (capped), rather
@@ -181,8 +182,9 @@ export function createPinLayer(map, handlers) {
       // motion runs no animation and would never fire it).
       setTimeout(() => el.classList.remove('is-new'), delayMs + 450);
 
-      const entry = { pin, el, body, labelEl, checkEl: null };
+      const entry = { pin, el, body, labelEl, checkEl: null, unitsEl: null };
       this.#setCheck(entry, pin.verified);
+      this.#setUnits(entry, pin.units);
 
       // Clicks stop at the pin (the map's own click closes the preview), but
       // drags do not: on a phone a pan that starts on a pill still pans.
@@ -221,6 +223,36 @@ export function createPinLayer(map, handlers) {
       }
     }
 
+    // A building's badge (owner's pick B, 2026-11-18): a small navy box with
+    // a building glyph and the unit count, before "dès $650".
+    #setUnits(entry, units) {
+      const count = Number(units) > 1 ? Number(units) : 0;
+      if (!count) {
+        entry.unitsEl?.remove();
+        entry.unitsEl = null;
+        return;
+      }
+      if (!entry.unitsEl) {
+        const svgNs = 'http://www.w3.org/2000/svg';
+        const badge = document.createElement('span');
+        badge.className = 'lkp-pin__units';
+        const svg = document.createElementNS(svgNs, 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('aria-hidden', 'true');
+        // lucide building-2, drawn inline (the layer is plain DOM, no React).
+        for (const d of ['M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z', 'M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2', 'M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2', 'M10 6h4M10 10h4M10 14h4M10 18h4']) {
+          const path = document.createElementNS(svgNs, 'path');
+          path.setAttribute('d', d);
+          svg.appendChild(path);
+        }
+        const text = document.createElement('span');
+        badge.append(svg, text);
+        entry.body.insertBefore(badge, entry.body.firstChild);
+        entry.unitsEl = badge;
+      }
+      entry.unitsEl.lastChild.textContent = String(count);
+    }
+
     #applyState(entry) {
       const { pin, el } = entry;
       const active = !pin.building && pin.id != null && pin.id === this.activeId;
@@ -229,6 +261,10 @@ export function createPinLayer(map, handlers) {
       el.dataset.visited = String(visited);
       el.dataset.building = String(Boolean(pin.building));
       if (el.title !== (pin.title || '')) el.title = pin.title || '';
+      // The badge is a number and a glyph; say what it means to a reader.
+      const spoken = pin.building && pin.units > 1 ? `${pin.units} unités${pin.label ? `, ${pin.label}` : ''}` : null;
+      if (spoken) el.setAttribute('aria-label', spoken);
+      else el.removeAttribute('aria-label');
       this.#applyZ(entry);
     }
 

@@ -88,8 +88,14 @@ test('only a changed quartier, reference or commune asks for a new point', () =>
 test('the polished price tag is the live map: same pins, same label, finish in CSS only', () => {
   const map = read('components/ListingsMap.js');
   assert.doesNotMatch(map, /apercu|previewRef|mapPreviewOn|groupByArea|pillTone|purpose: group/);
-  assert.match(map, /return `\$\{group\.unitCount\} unités\$\{from\}`;/, 'building tag: "3 unités · dès $650"');
+  // Building tag, owner's pick B (2026-11-18): navy badge (glyph + count), then "dès $650".
+  assert.ok(map.includes("return group.priceMin === null ? '' : `dès ${compactPrice(group.priceMin, 'sale')}`;"));
+  assert.ok(map.includes('units: group.isBuilding ? group.unitCount : 0,'));
   const layer = read('lib/mapPinLayer.js');
+  assert.match(layer, /#setUnits\(entry, units\) \{/);
+  assert.match(layer, /badge\.className = 'lkp-pin__units';/);
+  assert.match(layer, /if \(entry\.pin\.units !== pin\.units\) this\.#setUnits\(entry, pin\.units\);/);
+  assert.match(read('app/globals.css'), /\.lkp-pin__units \{/);
   assert.match(layer, /this\.container\.className = 'lkp-layer';/);
   assert.doesNotMatch(layer, /renderLabel|lkp-pin__cur|layerDepth/, 'the price label is plain text, "$" included');
   const css = read('app/globals.css');

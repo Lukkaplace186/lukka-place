@@ -900,6 +900,19 @@ loading or error boundary anywhere outside the client portal and `/admin`.
   `[vitals] {json}` line per metric to the web process log, with no table and
   no migration. Read with
   `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[vitals\]'`.
+  - **A TTFB line also says where the wait went (2026-11-19)**: `parts`
+    `{ wait, dns, conn, req, proto }` in ms — before the request for our URL
+    (redirects, the in-app browser), DNS, TCP + TLS, request → first byte
+    (`ttfbParts` in the component, `sanitizeTtfbParts` in the route). Added
+    because the home page's field TTFB doubled to ~2.1 s (p75 2.8 s, LCP p75
+    4.9 s) the day ads started landing on it, while the server renders it in
+    50 ms; no access log exists to tell a redirect from a slow handshake.
+    Read `parts` per route before changing anything for "slow" pages.
+  - **The home rails preload nothing (same day)**: `FeaturedListingsCarousel`
+    and `SavedListingsRail` sit below the first phone screen, so `priority`
+    there put four listing photos (~280 KB) in the head against the hero.
+    The hero is the page's one high-priority photo.
+    `tests/unit/home-landing-speed.test.js`.
 - **Open: React hydration error #418 on lukkaplace.com.** It predates this
   pass: the pre-deploy build, run on the VPS and reached through an SSH tunnel,
   throws it too. One cause is found and fixed. Listing dates were formatted in

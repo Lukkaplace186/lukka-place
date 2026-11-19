@@ -25,6 +25,7 @@ export function sanitizeVital(metric, device) {
   const value = Number(metric.value);
   if (!Number.isFinite(value) || value < 0 || value > 600_000) return null;
   const route = typeof metric.route === 'string' && /^\/[\w\-/:.]{0,120}$/.test(metric.route) ? metric.route : null;
+  const parts = metric.name === 'TTFB' ? sanitizeTtfbParts(metric.parts) : null;
   return {
     name: metric.name,
     value: metric.name === 'CLS' ? Math.round(value * 1000) / 1000 : Math.round(value),
@@ -34,7 +35,31 @@ export function sanitizeVital(metric, device) {
     net: NET_TYPES.has(metric.net) ? metric.net : null,
     saveData: metric.saveData === true,
     device,
+    // Only on a TTFB line that carries a breakdown, so every other line
+    // keeps the shape the log readers already parse.
+    ...(parts ? { parts } : {}),
   };
+}
+
+const PROTOCOLS = new Set(['h2', 'h3', 'http/1.1']);
+const PART_KEYS = ['wait', 'dns', 'conn', 'req'];
+
+/*
+ * The first-byte breakdown from components/WebVitals.js (`ttfbParts`): four
+ * durations in whole milliseconds and the protocol. Same rule as the rest of
+ * this route — numbers in a sane range and values from a closed list, never
+ * free text. Anything else drops the whole breakdown, not the metric.
+ */
+export function sanitizeTtfbParts(parts) {
+  if (!parts || typeof parts !== 'object') return null;
+  const clean = {};
+  for (const key of PART_KEYS) {
+    const value = Number(parts[key]);
+    if (!Number.isFinite(value) || value < 0 || value > 600_000) return null;
+    clean[key] = Math.round(value);
+  }
+  clean.proto = PROTOCOLS.has(parts.proto) ? parts.proto : null;
+  return clean;
 }
 
 export async function POST(request) {

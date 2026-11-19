@@ -19230,14 +19230,21 @@ console.log('\n2. services/openai.js');
     const keys121 = ['RELAY_NUMBERS', 'RELAY_SOURCES', 'GROUP_CAPTURE_PUBLISH', 'GROUP_CAPTURE_PUBLISH_GROUPS'];
     const saved121 = Object.fromEntries(keys121.map((k) => [k, process.env[k]]));
     process.env.RELAY_NUMBERS = `+${RELAY121}`;
-    process.env.RELAY_SOURCES = `${RELAY121}|${JID121}|0824121121|JOKER AGENCY`;
+    const PRINCE_JID121 = '120363000000000122@g.us';
+    process.env.RELAY_SOURCES = `${RELAY121}|${JID121}|0824121121|JOKER AGENCY; ${RELAY121}|${PRINCE_JID121}|0999121121|Prince Immo Tout Kin`;
     delete process.env.GROUP_CAPTURE_PUBLISH;
-    process.env.GROUP_CAPTURE_PUBLISH_GROUPS = JID121;
+    process.env.GROUP_CAPTURE_PUBLISH_GROUPS = `${JID121},${PRINCE_JID121}`;
     const lastListing121 = () => dbService.getListing(dbService.db.prepare('SELECT MAX(id) AS id FROM listings').get().id);
     try {
       check('RELAY_SOURCES names the group and its agent; another relay stands for none', () => {
         assert.deepStrictEqual(relay121.relaySource(RELAY121), { groupJid: JID121, groupName: 'JOKER AGENCY', agentNumber: AGENT121 });
         assert.strictEqual(relay121.relaySource('243850006201'), null);
+      });
+      check('with several groups: the "Agent : …" number, else the group named in the text, else the first', () => {
+        assert.strictEqual(relay121.relaySource(RELAY121, '0999121121').groupJid, PRINCE_JID121);
+        assert.strictEqual(relay121.relaySource(RELAY121, null, 'PRINCE IMMO TOUT KIN vous suggère 1 appartement à Limete').groupJid, PRINCE_JID121);
+        assert.strictEqual(relay121.relaySource(RELAY121, null, 'Appartement à Limete, loyer 400$').groupJid, JID121);
+        assert.strictEqual(relay121.relaySource(RELAY121, '243897000000', 'Prince immo tout kin').groupJid, PRINCE_JID121, 'an unknown agent number falls through to the text');
       });
 
       completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', price: 1500, bedrooms: 2 }, '…'));
@@ -19255,6 +19262,21 @@ console.log('\n2. services/openai.js');
       check('it is filed under the group\'s agent, not the number in the text nor the relay', () => {
         assert.strictEqual(first121.wa_id, AGENT121);
         assert.strictEqual(first121.parsed_json.poster_phone, AGENT121);
+      });
+      check('the receipt names the group each listing was filed for', () => {
+        const receipt = httpCalls.filter((c) => c.method === 'post' && c.data?.to === RELAY121).map((c) => c.data?.text?.body || '').pop() || '';
+        assert.ok(receipt.includes(`n° ${first121.id}) · JOKER AGENCY`), receipt);
+      });
+
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Limete', price: 400, bedrooms: 2 }, '…'));
+      await post('/webhook', inbound('wamid.R121P', 'PRINCE IMMO TOUT KIN vous suggère 1 appartement mis en location à Limete 1ère rue industrielle, 2 chambres, 1 salon, loyer 400$ garantie 3+1', RELAY121));
+      await post('/webhook', inboundImage('wamid.R121P1', 'media_121p', null, RELAY121));
+      await settle(1200);
+      check('a Prince post forwarded with no agent line is Prince\'s group, filed under Prince', () => {
+        const prince121 = lastListing121();
+        assert.strictEqual(prince121.status, 'published');
+        assert.strictEqual(prince121.parsed_json.group_jid, PRINCE_JID121);
+        assert.strictEqual(prince121.wa_id, '243999121121');
       });
 
       completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'parcelle', commune: 'Limete', price: 600, bedrooms: 3 }, '…'));

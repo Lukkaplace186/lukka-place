@@ -188,10 +188,15 @@ brings them in. `services/groupRelay.js` is the one path for both ways in:
   +44 7932 673460 — which is also their own agent #115 and customer #15 —
   until a new SIM is linked). Entries `relay|groupJid|agentNumber|group name`,
   split by `;`, read at call time; the number must ALSO be in
-  `RELAY_NUMBERS`. Its bursts are that group's posts: published when the JID
-  is in `GROUP_CAPTURE_PUBLISH_GROUPS`, the group named in the record and the
-  moderator's note, and filed under the agent number (Joker: Jonas #107,
-  243824276930) unless an "Agent : …" line names another poster. Numbers in
+  `RELAY_NUMBERS`. A relay may stand for several groups (Joker first, then
+  Prince Immo Tout Kin, 243999384203, the same day): a post belongs to the
+  group whose agent an "Agent : …" line names, else the group whose name its
+  own text carries ("PRINCE IMMO TOUT KIN vous suggère…"), else the first
+  entry. Its posts are that group's posts: published when the JID
+  is in `GROUP_CAPTURE_PUBLISH_GROUPS`, the group named in the record, the
+  moderator's note and the relay's receipt, and filed under the agent number
+  (Joker: Jonas #107, 243824276930) unless an "Agent : …" line names another
+  poster. Numbers in
   the post's text do not decide attribution there. While the owner's number
   is a relay, everything it sends to the intake number is read as forwarded
   group posts, never as agent #115's own listings or a customer's message.

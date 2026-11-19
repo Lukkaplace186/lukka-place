@@ -90,34 +90,45 @@ function isRelaySender(from) {
 }
 
 /**
- * A relay number that stands for ONE group (owner, 2026-11-19: the annonces
- * SIM was lost, so the owner forwards JOKER AGENCY's posts from their own
- * number until a new SIM is linked). RELAY_SOURCES, read at call time:
- * entries split by ";", fields by "|": relay number | group JID | agent number
- * | group name, e.g.
+ * A relay number that stands for a group (owner, 2026-11-19: the annonces
+ * SIM was lost, so the owner forwards JOKER AGENCY's and Prince Immo Tout
+ * Kin's posts from their own number until a new SIM is linked).
+ * RELAY_SOURCES, read at call time: entries split by ";", fields by "|":
+ * relay number | group JID | agent number | group name, e.g.
  *   447932673460|120363319857460518@g.us|243824276930|JOKER AGENCY
- * A burst from that relay is a post of that group — published when the group
- * is in GROUP_CAPTURE_PUBLISH_GROUPS, named in the moderator's note — and is
- * filed under the agent number unless an "Agent : …" line names another
- * poster. Numbers written in the post's text do not decide who it is filed
- * under (they are often the agency's other, unverified phones), so a forward
- * is never left unattributed or filed under the relay's own account. The
- * number must also be in RELAY_NUMBERS: this only says what its bursts are.
+ * A relay may have several entries. A post is the group whose agent an
+ * "Agent : …" line before it names; else the group whose name the post's own
+ * text carries ("PRINCE IMMO TOUT KIN vous suggère…"); else the relay's FIRST
+ * entry's group. It is published when that group
+ * is in GROUP_CAPTURE_PUBLISH_GROUPS, the group is named in the moderator's
+ * note, and it is filed under the "Agent : …" number, else the entry's agent.
+ * Numbers written in the post's text do not decide who it is filed under
+ * (they are often the agency's other, unverified phones), so a forward is
+ * never left unattributed or filed under the relay's own account. The number
+ * must also be in RELAY_NUMBERS: this only says what its bursts are.
  */
-function relaySource(from) {
+function relaySource(from, posterPhone = null, text = '') {
   const n = normaliseOpsNumber(from);
   if (!n) return null;
+  const poster = normaliseOpsNumber(posterPhone);
+  const own = ownNumbers();
+  const entries = [];
   for (const entry of String(process.env.RELAY_SOURCES || '').split(';')) {
     const [relay, groupJid, agent, ...name] = entry.split('|').map((part) => part.trim());
     if (normaliseOpsNumber(relay) !== n) continue;
     const agentNumber = normaliseOpsNumber(agent);
-    return {
+    entries.push({
       groupJid: groupJid || null,
       groupName: name.join('|').trim() || null,
-      agentNumber: agentNumber && !ownNumbers().has(agentNumber) ? agentNumber : null,
-    };
+      agentNumber: agentNumber && !own.has(agentNumber) ? agentNumber : null,
+    });
   }
-  return null;
+  if (!entries.length) return null;
+  const words = (value) => fold(value).replace(/[^a-z0-9]+/g, ' ').trim();
+  const body = ` ${words(text)} `;
+  return (poster && entries.find((e) => e.agentNumber === poster))
+    || entries.find((e) => words(e.groupName).length >= 6 && body.includes(` ${words(e.groupName)} `))
+    || entries[0];
 }
 
 /** Our own numbers, never taken for a poster's. */
@@ -467,8 +478,7 @@ async function handleRelayBurst({ from, messages, download, downloadVideos, repl
   // eslint-disable-next-line global-require
   const { isVideoMime } = require('./listingMedia');
   const { posts } = splitBurst(messages);
-  const source = relaySource(from);
-  const label = `relay ${from}${source?.groupName ? ` (${source.groupName})` : ''}`;
+  const label = `relay ${from}`;
   const results = [];
   for (const post of posts) {
     const imageRefs = post.refs.filter((ref) => !/pdf|audio|ogg|opus/i.test(ref.mimeType || '') && !isVideoMime(ref.mimeType));
@@ -477,11 +487,12 @@ async function handleRelayBurst({ from, messages, download, downloadVideos, repl
     const images = imageRefs.length ? await download(imageRefs) : [];
     // eslint-disable-next-line no-await-in-loop
     const videos = videoRefs.length && downloadVideos ? await downloadVideos(videoRefs) : [];
+    const source = relaySource(from, post.posterPhone, post.text);
     // eslint-disable-next-line no-await-in-loop
     results.push(await ingestPost({ ...post, images, videos }, {
       via: 'relay',
       relayFrom: from,
-      label,
+      label: `${label}${source?.groupName ? ` (${source.groupName})` : ''}`,
       groupJid: source?.groupJid || null,
       groupName: source?.groupName || null,
       agentNumber: source?.agentNumber || null,
@@ -539,7 +550,7 @@ function relayReceipt(results) {
   }
   if (sent.length) {
     lines.push(`✅ *${sent.length} annonce${sent.length > 1 ? 's' : ''} envoyée${sent.length > 1 ? 's' : ''} en modération*`);
-    sent.forEach((row, i) => lines.push(`${i + 1}. ${listingCard.listingSummaryLine(row)} (n° ${row.id})`));
+    sent.forEach((row, i) => lines.push(`${i + 1}. ${listingCard.listingSummaryLine(row)} (n° ${row.id})${row.parsed_json?.group_name ? ` · ${row.parsed_json.group_name}` : ''}`));
   }
   if (drafts.length) {
     lines.push(`📷 Sans photo ni vidéo, gardée${drafts.length > 1 ? 's' : ''} en brouillon : ${drafts.map((row) => `n° ${row.id}`).join(', ')} — transférez ses photos ou sa vidéo avec le texte.`);

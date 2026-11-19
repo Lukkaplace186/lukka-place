@@ -64,7 +64,7 @@ import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscript
 import { getT } from '@/lib/i18n/server';
 import { revokeDevice } from '@/lib/pushNotifications';
 import { PUSH_TOKEN_COOKIE } from '@/lib/pushRules';
-import { normaliseArea } from '@/lib/listingView';
+import { MAX_ENTRY_MONTHS, normaliseArea } from '@/lib/listingView';
 import { getListingQuota } from '@/lib/listingQuota';
 import { findOwnedLead } from '@/lib/agentLeadOwnership';
 import { quotaRefusal } from '@/lib/listingQuotaRules';
@@ -1021,6 +1021,17 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     [commissionMonths ?? null, 'errors.fieldCommissionMonths'],
   ]) {
     if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
+    }
+  }
+  // A number of months, never the amount: agents typed "9000" (3 months of a
+  // 3 000 $ rent) into "Loyer d'avance (mois)" and tenants were shown 9 000 mois.
+  for (const [value, fieldKey] of [
+    [depositMonths, 'errors.fieldDepositMonths'],
+    [advanceMonths ?? null, 'errors.fieldAdvanceMonths'],
+    [commissionMonths ?? null, 'errors.fieldCommissionMonths'],
+  ]) {
+    if (value !== null && value > MAX_ENTRY_MONTHS) {
       return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
     }
   }

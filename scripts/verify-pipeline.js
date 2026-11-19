@@ -19169,6 +19169,53 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §120 Entry costs are month counts, never amounts (2026-11-19)
+  // 20 live listings showed "9000 mois d'avance", "500 mois de garantie" or
+  // "20 mois de commission": amounts typed into the dashboard's months fields,
+  // and two misreadings of WhatsApp text by the additive rule.
+  console.log('\n§120 a garantie, avance or commission is a number of months (0–12), never a dollar amount');
+  check('"garantie 4+1 + 20$ eau et courant": the 20 $ charge is not 20 months of commission', () => {
+    const r = openaiService.normaliseEntryCosts(
+      { deposit_months: 4, advance_months: 1, commission_months: 20 },
+      'Loyer 400$ garantie 4+1\n+ 20$ eau et courant',
+    );
+    assert.strictEqual(r.deposit_months, 4);
+    assert.strictEqual(r.advance_months, 1);
+    assert.strictEqual(r.commission_months, null, 'not stated, never 20');
+  });
+  check('"Prix 500+4": a rent plus a duration is not 500 months of garantie', () => {
+    const r = openaiService.normaliseEntryCosts(
+      { deposit_months: null, advance_months: null, commission_months: null },
+      'Appartement Kasa-Vubu 2 chambres. Prix. 500+4',
+    );
+    assert.strictEqual(r.deposit_months, null);
+    assert.strictEqual(r.advance_months, null);
+  });
+  check('a months value above 12 from the model is dropped to "not stated"', () => {
+    const r = openaiService.normaliseEntryCosts(
+      { deposit_months: 3, advance_months: 9000, commission_months: 1 },
+      'Loyer mensuel : 3000$ / Garantie : 3 mois commission : 1 mois',
+    );
+    assert.strictEqual(r.deposit_months, 3);
+    assert.strictEqual(r.advance_months, null);
+    assert.strictEqual(r.commission_months, 1);
+  });
+  check('real notations still split as before (3+1+1, 12+1)', () => {
+    const a = openaiService.normaliseEntryCosts({}, 'Garantie : 3 + 1 + 1');
+    assert.deepStrictEqual([a.deposit_months, a.advance_months, a.commission_months], [3, 1, 1]);
+    const b = openaiService.normaliseEntryCosts({}, 'garantie 12+1');
+    assert.deepStrictEqual([b.deposit_months, b.advance_months, b.commission_months], [12, 1, null]);
+  });
+  check('the agent and admin forms refuse more than 12 months, and the page ignores it', () => {
+    const agent = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'compte', 'agent', 'actions.js'), 'utf8');
+    assert.match(agent, /value > MAX_ENTRY_MONTHS/);
+    const admin = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'admin', 'listings', '[id]', 'actions.js'), 'utf8');
+    assert.match(admin, /value > MAX_ENTRY_MONTHS/);
+    const view = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'listingView.js'), 'utf8');
+    assert.match(view, /export const MAX_ENTRY_MONTHS = 12;/);
+    assert.match(view, /months <= MAX_ENTRY_MONTHS/);
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

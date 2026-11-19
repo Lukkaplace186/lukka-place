@@ -459,10 +459,12 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               name="deposit_months"
               type="number"
               min="0"
+              max="12"
               step="1"
               defaultValue={listing.deposit_months ?? ''}
               className={FIELD_CLASS}
             />
+            <p className={HINT_CLASS}>Nombre de mois (ex. 3), pas le montant en $.</p>
           </div>
           <div>
             <label htmlFor="advance_months" className={LABEL_CLASS}>Loyer d&apos;avance (mois)</label>
@@ -471,10 +473,12 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               name="advance_months"
               type="number"
               min="0"
+              max="12"
               step="1"
               defaultValue={listing.advance_months ?? ''}
               className={FIELD_CLASS}
             />
+            <p className={HINT_CLASS}>Nombre de mois (ex. 3), pas le montant en $.</p>
           </div>
           <div>
             <label htmlFor="commission_months" className={LABEL_CLASS}>Commission (mois)</label>
@@ -483,10 +487,12 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               name="commission_months"
               type="number"
               min="0"
+              max="12"
               step="1"
               defaultValue={listing.commission_months ?? ''}
               className={FIELD_CLASS}
             />
+            <p className={HINT_CLASS}>Nombre de mois (ex. 3), pas le montant en $.</p>
           </div>
         </div>
 

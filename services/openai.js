@@ -803,6 +803,7 @@ function draftContextFromListing(row) {
  */
 function normaliseEntryCosts(extracted, rawText) {
   if (!extracted) return extracted;
+  dropImpossibleMonths(extracted);
   const text = String(rawText || '');
   if (!text.trim()) return extracted;
 
@@ -817,7 +818,13 @@ function normaliseEntryCosts(extracted, rawText) {
   // live with figures the agent had just corrected. Two different expressions
   // → the model's reading stands.
   // "3 plus 1 plus 1" is how the same terms come out of a transcribed voice note.
-  const additives = [...normalised.matchAll(/(\d+)\s*(?:\+|plus)\s*(\d+)(?:\s*(?:\+|plus)\s*(\d+))?/g)];
+  // Only month counts qualify (2026-11-19): "Prix 500+4" is a rent plus a
+  // duration, not 500 months of garantie, and in "garantie 4+1 + 20$ eau et
+  // courant" the 20 $ is a monthly charge, not 20 months of commission. A
+  // figure above MAX_ENTRY_MONTHS, or followed by a currency, is an amount.
+  const additives = [...normalised.matchAll(/(\d+)\s*(?:\+|plus)\s*(\d+)(?:\s*(?:\+|plus)\s*(\d+)(\s*(?:\$|usd|dollars?|fc|cdf|francs?))?)?/g)]
+    .filter((m) => Number(m[1]) <= MAX_ENTRY_MONTHS && Number(m[2]) <= MAX_ENTRY_MONTHS)
+    .map((m) => (m[3] !== undefined && (m[4] || Number(m[3]) > MAX_ENTRY_MONTHS) ? [m[0], m[1], m[2], undefined] : m));
   const distinct = new Set(additives.map((m) => `${m[1]}+${m[2]}+${m[3] ?? ''}`));
   if (distinct.size > 1) return extracted;
   const additive = additives[0];
@@ -852,6 +859,22 @@ function normaliseEntryCosts(extracted, rawText) {
     extracted.deposit_months = 1;
   }
 
+  return extracted;
+}
+
+/**
+ * No entry cost runs past a year: the press reports 8–12 months of garantie at
+ * the very worst, and every real value on the site is 10 or less. A larger
+ * figure in a *_months field is an amount the agent wrote in dollars ("avance
+ * 9000"), so it is dropped to NULL ("not stated") rather than shown as months.
+ * Same limit as web lib/listingView.js MAX_ENTRY_MONTHS.
+ */
+const MAX_ENTRY_MONTHS = 12;
+function dropImpossibleMonths(extracted) {
+  for (const key of ['deposit_months', 'advance_months', 'commission_months']) {
+    const v = extracted[key];
+    if (v !== null && v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0 || Number(v) > MAX_ENTRY_MONTHS)) extracted[key] = null;
+  }
   return extracted;
 }
 

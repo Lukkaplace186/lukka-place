@@ -336,15 +336,15 @@ function QuickEdit({ item, editing, t, pending, apiRef, onCancel, onSubmit }) {
         <div className="grid grid-cols-3 gap-2">
           <label>
             <span className={LABEL}>{field('deposit')}</span>
-            <input name="deposit_months" type="number" min="0" defaultValue={initial.deposit_months} className={`${FIELD} u-tabular`} />
+            <input name="deposit_months" type="number" min="0" max="12" defaultValue={initial.deposit_months} className={`${FIELD} u-tabular`} />
           </label>
           <label>
             <span className={LABEL}>{field('advance')}</span>
-            <input name="advance_months" type="number" min="0" defaultValue={initial.advance_months} className={`${FIELD} u-tabular`} />
+            <input name="advance_months" type="number" min="0" max="12" defaultValue={initial.advance_months} className={`${FIELD} u-tabular`} />
           </label>
           <label>
             <span className={LABEL}>{field('commission')}</span>
-            <input name="commission_months" type="number" min="0" defaultValue={initial.commission_months} className={`${FIELD} u-tabular`} />
+            <input name="commission_months" type="number" min="0" max="12" defaultValue={initial.commission_months} className={`${FIELD} u-tabular`} />
           </label>
         </div>
       ) : null}

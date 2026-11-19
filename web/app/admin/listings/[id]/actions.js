@@ -9,7 +9,7 @@ import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { setListingGallery } from '@/lib/agentListings';
 import { geocodeListing } from '@/lib/adminApi';
 import { getT } from '@/lib/i18n/server';
-import { normaliseArea } from '@/lib/listingView';
+import { MAX_ENTRY_MONTHS, normaliseArea } from '@/lib/listingView';
 
 const LISTING_STATUSES = ['active', 'under_offer', 'closed'];
 const PURPOSES = ['rent', 'sale'];
@@ -120,6 +120,17 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       latitude: text(formData, 'latitude', 32),
       longitude: text(formData, 'longitude', 32),
     };
+    // A number of months, never the amount ("9000" typed as the avance of a
+    // 3 000 $ rent was shown to tenants as 9 000 mois, 2026-11-19).
+    for (const [value, fieldKey] of [
+      [patch.depositMonths, 'errors.fieldDepositMonths'],
+      [patch.advanceMonths, 'errors.fieldAdvanceMonths'],
+      [patch.commissionMonths, 'errors.fieldCommissionMonths'],
+    ]) {
+      if (value != null && (value < 0 || value > MAX_ENTRY_MONTHS)) {
+        return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
+      }
+    }
     let updated;
     try {
       updated = await adminUpdateListing(propertyId, patch);

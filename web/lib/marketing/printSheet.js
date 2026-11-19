@@ -36,7 +36,8 @@ const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 function monthsValue(value) {
   if (value === null || value === undefined || value === '') return null;
   const months = Number(value);
-  return Number.isFinite(months) && months >= 0 ? months : null;
+  // above 12 it is an amount typed into a months field, not a month count (lib/listingView.js)
+  return Number.isFinite(months) && months >= 0 && months <= 12 ? months : null;
 }
 
 /**

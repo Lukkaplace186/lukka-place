@@ -28,9 +28,20 @@
     commission NULL; a plain "Garantie : 3 mois" leaves the other two NULL
     (NULL = not stated, which is not the same claim as 0 = none required). Any
     total is derived at render time from the three, never stored.
-    Not yet carried to Supabase: `properties` has `deposit_months` only, so
-    `syncListingToPostgres` still syncs that one field (now correct) and drops
-    the other two — they need an `ALTER TABLE` before the sync can include them.
+    (Stale: all three columns are on `properties` and synced since
+    `scripts/migrate-entry-cost-columns.js`.)
+  - **Each is a month count from 0 to 12, never an amount** (2026-11-19).
+    20 live listings showed "9 000 mois d'avance", "500 mois de garantie" or
+    "20 mois de commission": agents typed dollars into the dashboard's
+    "(mois)" fields, and the additive rule read "Prix 500+4" as 500 months and
+    the "+ 20$ eau et courant" after "garantie 4+1" as 20 months of
+    commission. Now: `MAX_ENTRY_MONTHS = 12` in engine `services/openai.js`
+    (the additive rule skips numbers above it or followed by a currency; any
+    larger value from the model becomes NULL) and web `lib/listingView.js`
+    (`monthsValue` reads it as not stated); the agent, admin and review-mode
+    forms refuse it (`max="12"` + server check). The rows were corrected by
+    `scripts/fix-entry-cost-amounts.js` (amount ÷ rent where it is a whole
+    number of rents; otherwise NULL). verify-pipeline §120.
   - `reference` — the listing's **own** explicit code (e.g. "Réf: LKP-2026-0091"), distinct from `quartier`. Never conflate the two: `quartier` is a place/landmark, `reference` is an identifier for the listing itself.
   - `features` (array) — the storefront's "Caractéristiques principales"
     bullets, extracted from the agent's own message. **Not a synonym for

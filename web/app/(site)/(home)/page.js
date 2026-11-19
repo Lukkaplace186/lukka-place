@@ -9,6 +9,7 @@ import HomeDiscovery from '@/components/HomeDiscovery';
 import HomeAlertBand from '@/components/HomeAlertBand';
 import HomeMarketBand from '@/components/HomeMarketBand';
 import HomeGuidesRail from '@/components/HomeGuidesRail';
+import PopularSearches from '@/components/PopularSearches';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -175,6 +176,8 @@ export default async function HomePage() {
       {/* The newest guides and news as a swipe row (owner, 2026-11-18). */}
       <HomeGuidesRail />
       <ValueProposition />
+      {/* Links to the search landing pages that have listings ("Appartements à louer à Gombe"), for Google (owner, 2026-11-19). */}
+      <PopularSearches />
     </>
   );
 }

@@ -240,6 +240,68 @@ export function landingPathsFromFacets(facets) {
   return [...paths];
 }
 
+/**
+ * How many links of each kind the homepage's "Recherches populaires" block
+ * shows, in this order: the most specific searches first ("appartements à
+ * louer à Gombe"), then whole communes, types across Kinshasa, other cities.
+ */
+const POPULAR_SEARCH_QUOTAS = { typeCommune: 14, commune: 8, type: 6, city: 4, cityType: 4 };
+
+/**
+ * The homepage's "Recherches populaires" links (owner, 2026-11-19: as many
+ * links to our search pages as Google will follow). Every link is a landing
+ * page that has listings right now — the sitemap's own rule
+ * (landingPathsFromFacets), never an empty page — ranked by how many it has.
+ * `excludeCities` leaves a whole city out (Goma, owner: there is a war there).
+ *
+ * @returns {Array<{kind: string, href: string, transaction: string, propertyType: string|null, commune: string|null, city: string|null, count: number}>}
+ */
+export function popularSearchLinks(facets, { excludeCities = [] } = {}) {
+  const rows = new Map();
+  const add = (key, entry, count) => {
+    const row = rows.get(key) || { propertyType: null, commune: null, city: null, ...entry, count: 0 };
+    row.count += count;
+    rows.set(key, row);
+  };
+  for (const f of facets || []) {
+    if (!(f.count > 0)) continue;
+    const transaction = Object.keys(SEO_TRANSACTIONS).find((k) => SEO_TRANSACTIONS[k].purpose === f.purpose);
+    if (!transaction) continue;
+    const city = facetCity(f);
+    if (excludeCities.includes(city)) continue;
+    const typed = typeSlugFor(f.propertyType) ? f.propertyType : null;
+    // Parcelle and commercial re-count listings already counted under a
+    // category: fine as a page of their own, not in an all-types total.
+    const overlay = OVERLAY_PROPERTY_TYPES.has(f.propertyType);
+    if (city !== DEFAULT_CITY) {
+      if (!overlay) add(`${transaction}|city|${city}`, { kind: 'city', transaction, city }, f.count);
+      if (typed) add(`${transaction}|${typed}|city|${city}`, { kind: 'cityType', transaction, propertyType: typed, city }, f.count);
+      continue;
+    }
+    if (typed) {
+      add(`${transaction}|${typed}`, { kind: 'type', transaction, propertyType: typed }, f.count);
+      if (f.commune) add(`${transaction}|${typed}|${f.commune}`, { kind: 'typeCommune', transaction, propertyType: typed, commune: f.commune }, f.count);
+    }
+    if (f.commune && !overlay) add(`${transaction}|c|${f.commune}`, { kind: 'commune', transaction, commune: f.commune }, f.count);
+  }
+  const byCount = (a, b) => b.count - a.count || a.href.localeCompare(b.href);
+  const out = [];
+  const seen = new Set();
+  for (const [kind, quota] of Object.entries(POPULAR_SEARCH_QUOTAS)) {
+    const picked = [...rows.values()]
+      .filter((r) => r.kind === kind)
+      .map((r) => ({ ...r, href: seoPath(r) }))
+      .filter((r) => r.href && !seen.has(r.href))
+      .sort(byCount)
+      .slice(0, quota);
+    for (const r of picked) {
+      seen.add(r.href);
+      out.push(r);
+    }
+  }
+  return out;
+}
+
 /** The /listings URL with the same filters — "affiner / voir sur la carte". */
 export function listingsHrefFor({ transactionType, propertyType, commune, ville = null }) {
   const qs = new URLSearchParams();

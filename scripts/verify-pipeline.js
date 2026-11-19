@@ -19216,6 +19216,66 @@ console.log('\n2. services/openai.js');
     assert.match(view, /months <= MAX_ENTRY_MONTHS/);
   });
 
+  // §121 A relay number that stands for one group (2026-11-19)
+  // The annonces SIM was lost; the owner forwards JOKER AGENCY's posts from
+  // their own number (an agent account of its own) until a new SIM is linked.
+  // Those forwards must publish like the group's own posts and be filed under
+  // Joker's agent, never under the relay's account or an unverified number.
+  console.log('\n§121 a forward from a relay that stands for a group is that group\'s post, filed under its agent');
+  {
+    const relay121 = require('../services/groupRelay');
+    const RELAY121 = '447900121121';
+    const AGENT121 = '243824121121';
+    const JID121 = '120363000000000121@g.us';
+    const keys121 = ['RELAY_NUMBERS', 'RELAY_SOURCES', 'GROUP_CAPTURE_PUBLISH', 'GROUP_CAPTURE_PUBLISH_GROUPS'];
+    const saved121 = Object.fromEntries(keys121.map((k) => [k, process.env[k]]));
+    process.env.RELAY_NUMBERS = `+${RELAY121}`;
+    process.env.RELAY_SOURCES = `${RELAY121}|${JID121}|0824121121|JOKER AGENCY`;
+    delete process.env.GROUP_CAPTURE_PUBLISH;
+    process.env.GROUP_CAPTURE_PUBLISH_GROUPS = JID121;
+    const lastListing121 = () => dbService.getListing(dbService.db.prepare('SELECT MAX(id) AS id FROM listings').get().id);
+    try {
+      check('RELAY_SOURCES names the group and its agent; another relay stands for none', () => {
+        assert.deepStrictEqual(relay121.relaySource(RELAY121), { groupJid: JID121, groupName: 'JOKER AGENCY', agentNumber: AGENT121 });
+        assert.strictEqual(relay121.relaySource('243850006201'), null);
+      });
+
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', price: 1500, bedrooms: 2 }, '…'));
+      await post('/webhook', inbound('wamid.R121A', 'Appartement à louer à Gombe, 2 chambres, salon, cuisine, loyer 1500$ par mois, garantie 3+1. Contact : 0815 121 121', RELAY121));
+      await post('/webhook', inboundImage('wamid.R121A1', 'media_121a', null, RELAY121));
+      await settle(1200);
+      const first121 = lastListing121();
+      check('the forward is published as the group\'s post (the group is published), named in its record', () => {
+        assert.strictEqual(first121.status, 'published');
+        assert.strictEqual(first121.parsed_json.source_via, 'relay');
+        assert.strictEqual(first121.parsed_json.group_jid, JID121);
+        assert.strictEqual(first121.parsed_json.group_name, 'JOKER AGENCY');
+        assert.strictEqual(first121.parsed_json.relay_from, RELAY121);
+      });
+      check('it is filed under the group\'s agent, not the number in the text nor the relay', () => {
+        assert.strictEqual(first121.wa_id, AGENT121);
+        assert.strictEqual(first121.parsed_json.poster_phone, AGENT121);
+      });
+
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'parcelle', commune: 'Limete', price: 600, bedrooms: 3 }, '…'));
+      await post('/webhook', inbound('wamid.R121B0', 'Agent : 0897 121 121', RELAY121));
+      await post('/webhook', inbound('wamid.R121B', 'Maison à louer à Limete 9e rue, 3 chambres, 2 salles de bain, grande cour, loyer 600$ par mois, garantie 4+1.', RELAY121));
+      await post('/webhook', inboundImage('wamid.R121B1', 'media_121b', null, RELAY121));
+      await settle(1200);
+      check('an "Agent : …" line still names another poster', () => {
+        const second121 = lastListing121();
+        assert.notStrictEqual(second121.id, first121.id);
+        assert.strictEqual(second121.wa_id, '243897121121');
+        assert.strictEqual(second121.parsed_json.group_name, 'JOKER AGENCY');
+      });
+    } finally {
+      for (const k of keys121) {
+        if (saved121[k] === undefined) delete process.env[k];
+        else process.env[k] = saved121[k];
+      }
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

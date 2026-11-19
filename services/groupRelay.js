@@ -89,6 +89,37 @@ function isRelaySender(from) {
   return Boolean(n) && relayNumbers().includes(n);
 }
 
+/**
+ * A relay number that stands for ONE group (owner, 2026-11-19: the annonces
+ * SIM was lost, so the owner forwards JOKER AGENCY's posts from their own
+ * number until a new SIM is linked). RELAY_SOURCES, read at call time:
+ * entries split by ";", fields by "|": relay number | group JID | agent number
+ * | group name, e.g.
+ *   447932673460|120363319857460518@g.us|243824276930|JOKER AGENCY
+ * A burst from that relay is a post of that group — published when the group
+ * is in GROUP_CAPTURE_PUBLISH_GROUPS, named in the moderator's note — and is
+ * filed under the agent number unless an "Agent : …" line names another
+ * poster. Numbers written in the post's text do not decide who it is filed
+ * under (they are often the agency's other, unverified phones), so a forward
+ * is never left unattributed or filed under the relay's own account. The
+ * number must also be in RELAY_NUMBERS: this only says what its bursts are.
+ */
+function relaySource(from) {
+  const n = normaliseOpsNumber(from);
+  if (!n) return null;
+  for (const entry of String(process.env.RELAY_SOURCES || '').split(';')) {
+    const [relay, groupJid, agent, ...name] = entry.split('|').map((part) => part.trim());
+    if (normaliseOpsNumber(relay) !== n) continue;
+    const agentNumber = normaliseOpsNumber(agent);
+    return {
+      groupJid: groupJid || null,
+      groupName: name.join('|').trim() || null,
+      agentNumber: agentNumber && !ownNumbers().has(agentNumber) ? agentNumber : null,
+    };
+  }
+  return null;
+}
+
 /** Our own numbers, never taken for a poster's. */
 function ownNumbers() {
   return new Set([
@@ -226,7 +257,7 @@ function loadPhotos(photoPaths) {
  * @returns {Promise<{outcome: 'stored'|'duplicate'|'not-a-listing'|'failed', listingId?: number,
  *   ids?: number[], published?: boolean, reason?: string}>}
  */
-async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) {
+async function ingestPost(post, { via, relayFrom, groupName, groupJid, label, agentNumber = null }) {
   // eslint-disable-next-line global-require
   const { parseMessage } = require('./openai');
   // eslint-disable-next-line global-require
@@ -252,7 +283,11 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
     if (already) return { outcome: 'duplicate', listingId: already.id };
   }
 
-  const posterPhone = normaliseOpsNumber(post.posterPhone) || phonesIn(text)[0] || null;
+  // A relay that stands for a group (RELAY_SOURCES) files under its agent
+  // unless an "Agent : …" line names the poster; the text's numbers are not read.
+  const posterPhone = normaliseOpsNumber(post.posterPhone)
+    || (agentNumber || phonesIn(text)[0])
+    || null;
   const waId = posterPhone || normaliseOpsNumber(relayFrom) || 'group';
 
   if (!capturesPublish(groupJid)) {
@@ -432,7 +467,8 @@ async function handleRelayBurst({ from, messages, download, downloadVideos, repl
   // eslint-disable-next-line global-require
   const { isVideoMime } = require('./listingMedia');
   const { posts } = splitBurst(messages);
-  const label = `relay ${from}`;
+  const source = relaySource(from);
+  const label = `relay ${from}${source?.groupName ? ` (${source.groupName})` : ''}`;
   const results = [];
   for (const post of posts) {
     const imageRefs = post.refs.filter((ref) => !/pdf|audio|ogg|opus/i.test(ref.mimeType || '') && !isVideoMime(ref.mimeType));
@@ -442,7 +478,14 @@ async function handleRelayBurst({ from, messages, download, downloadVideos, repl
     // eslint-disable-next-line no-await-in-loop
     const videos = videoRefs.length && downloadVideos ? await downloadVideos(videoRefs) : [];
     // eslint-disable-next-line no-await-in-loop
-    results.push(await ingestPost({ ...post, images, videos }, { via: 'relay', relayFrom: from, label }));
+    results.push(await ingestPost({ ...post, images, videos }, {
+      via: 'relay',
+      relayFrom: from,
+      label,
+      groupJid: source?.groupJid || null,
+      groupName: source?.groupName || null,
+      agentNumber: source?.agentNumber || null,
+    }));
   }
 
   const reply = relayReceipt(results);
@@ -553,6 +596,7 @@ module.exports = {
   capturesPublish,
   isRelaySender,
   relayNumbers,
+  relaySource,
   ownNumbers,
   splitBurst,
   phonesIn,

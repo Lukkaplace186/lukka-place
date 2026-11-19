@@ -183,6 +183,19 @@ brings them in. `services/groupRelay.js` is the one path for both ways in:
   `splitBurst`: each text message opens a post, a photo joins the post it
   follows, photos before any text join the first post, a lone "Agent :
   0812…" line names the poster of the posts after it.
+- **A relay that stands for one group** (`RELAY_SOURCES`, 2026-11-19, owner:
+  the annonces SIM was lost, so the owner forwards JOKER AGENCY's posts from
+  +44 7932 673460 — which is also their own agent #115 and customer #15 —
+  until a new SIM is linked). Entries `relay|groupJid|agentNumber|group name`,
+  split by `;`, read at call time; the number must ALSO be in
+  `RELAY_NUMBERS`. Its bursts are that group's posts: published when the JID
+  is in `GROUP_CAPTURE_PUBLISH_GROUPS`, the group named in the record and the
+  moderator's note, and filed under the agent number (Joker: Jonas #107,
+  243824276930) unless an "Agent : …" line names another poster. Numbers in
+  the post's text do not decide attribution there. While the owner's number
+  is a relay, everything it sends to the intake number is read as forwarded
+  group posts, never as agent #115's own listings or a customer's message.
+  Remove it from both variables once the new SIM's reader is linked. §121.
 - **Reader** (`group-reader/`, a Baileys linked device of the same SIM,
   unofficial: the SIM can be banned): `POST /internal/group-posts`
   (requireApiKey; `{groupJid, groupName, posterPhone, posterName, text,

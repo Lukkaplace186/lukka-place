@@ -19357,8 +19357,10 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(lead.status, 'NEW');
         assert.ok(dbService.DIRECTED_LEAD_SOURCES.includes('listing-direct-visit'), 'never dispatched to other agencies in waves');
         const body = JSON.stringify(toAgent122().map((c) => c.data));
-        assert.match(body, /Client: Kera · \+243812122122/);
-        assert.match(body, /contact_tap_visit:/);
+        // Session text "Client: Kera · +243…" or, with CONTACT_TAP_TEMPLATE set
+        // and the agent outside the window, the template's {{3}} "client : Kera · +243…".
+        assert.match(body, /[Cc]lient ?: Kera · \+243812122122/);
+        if (!/"type":"template"/.test(body)) assert.match(body, /contact_tap_visit:/);
       });
 
       check('an enquiry tap never carries a number, and a bad number is dropped', () => {

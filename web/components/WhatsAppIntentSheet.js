@@ -12,7 +12,11 @@ import { normalizePhone, telHref } from '@/lib/phone';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { RETURN_PROMPT_MAX_MS, RETURN_PROMPT_MIN_MS, VISIT_CONTACT_STORAGE_KEY, cleanVisitName, isVisitIntent } from '@/lib/visitContact';
+import { isAgentSignedInClient, isLoggedInClient } from '@/lib/customerClient';
+import {
+  ACCOUNT_OFFER_STORAGE_KEY, RETURN_PROMPT_MAX_MS, RETURN_PROMPT_MIN_MS, VISIT_CONTACT_STORAGE_KEY,
+  accountOfferWillShow, cleanVisitName, isVisitIntent,
+} from '@/lib/visitContact';
 
 const OPTIONS = [
   { intent: 'visit', Icon: CalendarClock },
@@ -41,6 +45,17 @@ function readStoredContact() {
   } catch {
     return null;
   }
+}
+
+/** Whether the app branch's account offer opens on this return (lib/visitContact.js). */
+function accountOfferOpens() {
+  let stored = null;
+  try {
+    stored = JSON.parse(window.localStorage.getItem(ACCOUNT_OFFER_STORAGE_KEY) || 'null');
+  } catch {
+    stored = null;
+  }
+  return accountOfferWillShow({ signedIn: isLoggedInClient() || isAgentSignedInClient(), stored });
 }
 
 function storeContact(contact) {
@@ -84,6 +99,8 @@ function storeContact(contact) {
  * customer comes back to this page 3 s – 30 min after WhatsApp opened, a small
  * card asks; the answer is a listing event (whatsapp_sent / whatsapp_not_sent),
  * and "Je n'ai pas réussi" offers to try again, call, or ask for a visit here.
+ * Not when the account offer opens on that return (a guest who has not said
+ * « Non merci »): one sheet at a time (lib/visitContact.js accountOfferWillShow).
  *
  * @param {{listing: Object, placement?: string, className: string, children: React.ReactNode, ariaLabel?: string}} props
  */
@@ -109,6 +126,8 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
       if (elapsed < RETURN_PROMPT_MIN_MS) return;
       openedRef.current = null;
       if (elapsed > RETURN_PROMPT_MAX_MS) return;
+      // A guest gets the account offer on this return instead; never two sheets.
+      if (accountOfferOpens()) return;
       setPrompt({ stage: 'ask', intent: opened.intent, href: opened.href });
     }
     document.addEventListener('visibilitychange', onVisible);

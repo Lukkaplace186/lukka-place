@@ -21,6 +21,28 @@ export const VISIT_CONTACT_STORAGE_KEY = 'lukka_visit_contact';
 export const RETURN_PROMPT_MIN_MS = 3_000;
 export const RETURN_PROMPT_MAX_MS = 30 * 60_000;
 
+/*
+ * The app branch's account offer (feat/agent-app-push d8adb9c, live since
+ * 2026-11-18: components/ContactSignupPrompt.js, lib/contactSignupPrompt.js)
+ * opens a sheet when a GUEST comes back from WhatsApp, unless they said
+ * « Non merci » in the last 30 days. « Votre message est parti ? » must not
+ * open on top of it: when that offer will show, ours stays quiet. Same
+ * storage key and snooze as that module — change them together.
+ */
+export const ACCOUNT_OFFER_STORAGE_KEY = 'lkp_contact_signup';
+export const ACCOUNT_OFFER_SNOOZE_DAYS = 30;
+
+/**
+ * @param {{signedIn: boolean, stored: {dismissedAt?: number}|null, now?: number}} state
+ * @returns {boolean} whether the account offer will open on this return
+ */
+export function accountOfferWillShow({ signedIn, stored, now = Date.now() }) {
+  if (signedIn) return false;
+  const at = Number(stored?.dismissedAt);
+  if (!Number.isFinite(at) || at <= 0) return true;
+  return now - at >= ACCOUNT_OFFER_SNOOZE_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export function cleanVisitName(value) {
   const name = String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
   return name || null;

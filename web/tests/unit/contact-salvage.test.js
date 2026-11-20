@@ -121,3 +121,14 @@ test('every new label exists in both languages', () => {
     assert.ok(dict.admin.contacts.surface.directVisit);
   }
 });
+
+test('« message parti ? » never opens on top of the account offer a guest gets on the same return', async () => {
+  const { accountOfferWillShow, ACCOUNT_OFFER_STORAGE_KEY } = await import('../../lib/visitContact.js');
+  const now = Date.parse('2026-11-20T12:00:00Z');
+  assert.equal(ACCOUNT_OFFER_STORAGE_KEY, 'lkp_contact_signup');
+  assert.equal(accountOfferWillShow({ signedIn: false, stored: null, now }), true, 'a guest gets the offer: ours waits');
+  assert.equal(accountOfferWillShow({ signedIn: true, stored: null, now }), false);
+  assert.equal(accountOfferWillShow({ signedIn: false, stored: { dismissedAt: now - 2 * 86400000 }, now }), false, '« Non merci » 2 days ago');
+  assert.equal(accountOfferWillShow({ signedIn: false, stored: { dismissedAt: now - 31 * 86400000 }, now }), true);
+  assert.match(read('components/WhatsAppIntentSheet.js'), /if \(accountOfferOpens\(\)\) return;/);
+});

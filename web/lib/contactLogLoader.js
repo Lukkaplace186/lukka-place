@@ -3,7 +3,7 @@ import { getPool } from './db';
 import { getContactLog } from './adminApi';
 import { getAgentNamesByIds } from './agents';
 import { getListingLabels } from './adminLeadRouting';
-import { buildContactRows } from './contactLog';
+import { attachJourneys, buildContactRows } from './contactLog';
 
 /**
  * Reads behind /admin/contacts and its CSV export; lib/contactLog.js merges
@@ -66,6 +66,57 @@ export const CUSTOMERS_SQL = 'SELECT id, phone, full_name FROM customers WHERE i
 export const PROPERTY_AGENTS_SQL = 'SELECT id, agent_id FROM properties WHERE id = ANY($1::bigint[])';
 export const DEVELOPMENTS_SQL = 'SELECT id, slug, name FROM developments WHERE id = ANY($1::bigint[]) OR LOWER(slug) = ANY($2::text[])';
 
+/*
+ * The journey of each contact's device (lib/contactLog.js attachJourneys).
+ * Every read is by visitor id; a missing table (visitor_touches,
+ * search_events, account_acquisitions before their migrations) is no journey,
+ * never an error.
+ */
+export const JOURNEY_TOUCHES_SQL = `
+  SELECT visitor_id, first_source, first_medium, first_campaign, first_click_id_type, first_referrer_host,
+         last_source, last_medium, last_campaign, last_click_id_type, last_referrer_host
+    FROM visitor_touches WHERE visitor_id = ANY($1::text[])`;
+export const JOURNEY_SEARCHES_SQL = `
+  SELECT DISTINCT ON (visitor_id) visitor_id, purpose, communes, property_type, beds_min, price_max
+    FROM search_events WHERE visitor_id = ANY($1::text[])
+   ORDER BY visitor_id, created_at DESC`;
+export const JOURNEY_SAVES_SQL = `
+  SELECT visitor_id, count(*)::int AS saves
+    FROM listing_events WHERE event = 'listing_saved' AND visitor_id = ANY($1::text[])
+   GROUP BY visitor_id`;
+export const JOURNEY_ACCOUNTS_SQL = `
+  SELECT DISTINCT ON (a.visitor_id) a.visitor_id, a.account_id, c.full_name, c.phone
+    FROM account_acquisitions a JOIN customers c ON c.id = a.account_id
+   WHERE a.account_type = 'customer' AND a.visitor_id = ANY($1::text[])
+   ORDER BY a.visitor_id, a.id`;
+
+/** At most this many devices get a journey per load (a 90-day window is a few thousand). */
+const JOURNEY_VISITOR_CAP = 5000;
+
+async function loadJourneys(pool, rows) {
+  const visitors = [...new Set(rows.map((r) => r.visitorId).filter(Boolean))].slice(0, JOURNEY_VISITOR_CAP);
+  if (!visitors.length) return {};
+  const [touchesR, searchesR, savesR, accountsR] = await Promise.allSettled([
+    optionalTable(pool, 'public.visitor_touches', JOURNEY_TOUCHES_SQL, [visitors]),
+    optionalTable(pool, 'public.search_events', JOURNEY_SEARCHES_SQL, [visitors]),
+    pool.query(JOURNEY_SAVES_SQL, [visitors]),
+    optionalTable(pool, 'public.account_acquisitions', JOURNEY_ACCOUNTS_SQL, [visitors]),
+  ]);
+  const byVisitor = (r, pick = (row) => row) => {
+    if (r.status === 'rejected') {
+      console.error(`[admin/contacts] journey read failed: ${r.reason?.message}`);
+      return new Map();
+    }
+    return new Map(r.value.rows.map((row) => [row.visitor_id, pick(row)]));
+  };
+  return {
+    touches: byVisitor(touchesR),
+    searches: byVisitor(searchesR),
+    saves: byVisitor(savesR, (row) => row.saves),
+    accounts: byVisitor(accountsR),
+  };
+}
+
 const MISSING_TABLE = '42P01';
 
 async function optionalTable(pool, table, sql, params) {
@@ -119,6 +170,7 @@ export async function loadContactLog({ days }) {
   const propertyAgents = new Map(value(propertyAgentsR, { rows: [] }).rows.map((r) => [Number(r.id), r.agent_id == null ? null : Number(r.agent_id)]));
 
   const rows = buildContactRows({ engine, waTaps, callTaps, otherTaps, chats, customers, propertyAgents });
+  attachJourneys(rows, await loadJourneys(pool, rows));
   return { rows, errors, capped };
 }
 

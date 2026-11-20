@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import StatusCheckBoard from '@/components/statusCheck/StatusCheckBoard';
+import ContactOutcomes from '@/components/statusCheck/ContactOutcomes';
+import { getWeeklyContacts } from '@/lib/contactOutcomes';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getStatusBoardItems } from '@/lib/statusCheckItems';
 
@@ -16,10 +18,11 @@ export const metadata = { title: 'Faites le point — Lukka Place' };
 export default async function AgentStatusPage() {
   const agentId = await getCurrentAgentId();
   if (!agentId) redirect('/compte/agent/connexion');
-  const items = await getStatusBoardItems(agentId);
+  const [items, contacts] = await Promise.all([getStatusBoardItems(agentId), getWeeklyContacts(agentId)]);
   return (
     <div className="mx-auto max-w-xl px-3 py-4 sm:px-0 sm:py-6">
       <StatusCheckBoard token={null} items={items} />
+      <ContactOutcomes token={null} items={contacts.items} unavailable={contacts.unavailable} />
     </div>
   );
 }

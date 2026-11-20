@@ -55,6 +55,10 @@ export const LISTING_EVENT_TYPES = [
   'gallery_open',
   'gallery_complete',
   'share_click',
+  // « Votre message est parti ? » after a WhatsApp tap (2026-11-20): the
+  // customer's own answer, Oui / Je n'ai pas réussi.
+  'whatsapp_sent',
+  'whatsapp_not_sent',
 ];
 
 /** `listing_events.routing_type` — only ever set on a call_click. */

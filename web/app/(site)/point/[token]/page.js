@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StatusCheckBoard from '@/components/statusCheck/StatusCheckBoard';
+import ContactOutcomes from '@/components/statusCheck/ContactOutcomes';
+import { getWeeklyContacts } from '@/lib/contactOutcomes';
 import { markStatusRequestOpened, resolveStatusRequest } from '@/lib/statusCheck';
 import { getStatusBoardItems } from '@/lib/statusCheckItems';
 
@@ -41,11 +43,15 @@ export default async function StatusLinkPage({ params }) {
   }
 
   await markStatusRequestOpened(request.requestId);
-  const items = await getStatusBoardItems(request.agentId);
+  const [items, contacts] = await Promise.all([
+    getStatusBoardItems(request.agentId),
+    getWeeklyContacts(request.agentId),
+  ]);
 
   return (
     <div className="mx-auto max-w-xl px-3 py-5 sm:px-6 sm:py-8">
       <StatusCheckBoard token={token} items={items} firstName={request.firstName} />
+      <ContactOutcomes token={token} items={contacts.items} unavailable={contacts.unavailable} />
     </div>
   );
 }

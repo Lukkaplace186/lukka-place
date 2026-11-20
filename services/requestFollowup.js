@@ -114,6 +114,10 @@ function dueLeads(now = new Date()) {
           AND COALESCE(source, '') NOT IN (${placeholders})
           AND (agent_id IS NOT NULL OR assigned_agent IS NOT NULL)
           AND wa_id IS NOT NULL AND wa_id <> ''
+          -- A direct-contact visit request whose visit the agent already set
+          -- (services/directVisit.js) has its own loop: no "un agent vous a-t-il contacté ?".
+          AND NOT (COALESCE(source, '') = 'listing-direct-visit'
+                   AND EXISTS (SELECT 1 FROM viewing_requests v WHERE v.lead_id = leads.id))
         ORDER BY created_at
         LIMIT 50`,
     )

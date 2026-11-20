@@ -1,13 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, CalendarClock, ChevronRight, CircleHelp, MapPin, MessageCircle, Video } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, CalendarClock, ChevronRight, CircleHelp, MapPin, MessageCircle, Phone, Video, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import PhoneField from '@/components/PhoneField';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
-import { trackLeadClick } from '@/lib/analyticsClient';
+import { trackCallClick, trackLeadClick, trackWhatsAppOutcome } from '@/lib/analyticsClient';
 import { whatsappIntentEnabled } from '@/lib/whatsappIntent';
+import { normalizePhone, telHref } from '@/lib/phone';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { RETURN_PROMPT_MAX_MS, RETURN_PROMPT_MIN_MS, VISIT_CONTACT_STORAGE_KEY, cleanVisitName, isVisitIntent } from '@/lib/visitContact';
 
 const OPTIONS = [
   { intent: 'visit', Icon: CalendarClock },
@@ -21,8 +26,29 @@ const VISIT_OPTIONS = [
   { intent: 'video_visit', Icon: Video, labels: 'listings.waIntent.options.video_visit' },
 ];
 
+// Same name as EnquiryCard's OPEN_VISIT_EVENT (imported there from here would be a cycle).
+const OPEN_VISIT_EVENT = 'lukka:open-visit';
+
 function openWhatsApp(href) {
   window.open(href, '_blank', 'noopener,noreferrer');
+}
+
+function readStoredContact() {
+  try {
+    const raw = window.localStorage.getItem(VISIT_CONTACT_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeContact(contact) {
+  try {
+    window.localStorage.setItem(VISIT_CONTACT_STORAGE_KEY, JSON.stringify(contact));
+  } catch {
+    // Private mode or blocked storage: the next visit asks again, nothing else changes.
+  }
 }
 
 /**
@@ -45,19 +71,58 @@ function openWhatsApp(href) {
  * `video_visit`. Not known yet (the read still running or failed) → no
  * second step, the visit is asked as before.
  *
+ * THE CUSTOMER'S NUMBER, OPTIONAL (2026-11-20, owner). Before WhatsApp opens
+ * on a visit, the customer may leave a name and a WhatsApp number "to receive
+ * the visit confirmation" — or skip. It goes with the tap to the engine (never
+ * into the analytics tables): the agent's alert names them, a lead is made in
+ * the agent's Demandes, and when the agent answers « Visite fixée » the visit
+ * is created under that number (engine services/directVisit.js), so the
+ * confirmation, reminders and bon de visite reach the customer. Remembered on
+ * this device (localStorage) to prefill the next time.
+ *
+ * « VOTRE MESSAGE EST PARTI ? » (2026-11-20). A tap is not a message. When the
+ * customer comes back to this page 3 s – 30 min after WhatsApp opened, a small
+ * card asks; the answer is a listing event (whatsapp_sent / whatsapp_not_sent),
+ * and "Je n'ai pas réussi" offers to try again, call, or ask for a visit here.
+ *
  * @param {{listing: Object, placement?: string, className: string, children: React.ReactNode, ariaLabel?: string}} props
  */
 export default function WhatsAppIntentButton({ listing, placement, className, children, ariaLabel }) {
   const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState('intent');
   const [videoOffered, setVideoOffered] = useState(false);
+  const [pendingIntent, setPendingIntent] = useState(null);
+  const [contactError, setContactError] = useState(null);
+  const [stored, setStored] = useState(null);
+  const [prompt, setPrompt] = useState(null);
+  const openedRef = useRef(null);
   const { href, routingType } = resolveWhatsAppRouting(listing);
+
+  // Back from WhatsApp: ask once whether the message left.
+  useEffect(() => {
+    function onVisible() {
+      const opened = openedRef.current;
+      if (document.visibilityState !== 'visible' || !opened) return;
+      const elapsed = Date.now() - opened.at;
+      if (elapsed < RETURN_PROMPT_MIN_MS) return;
+      openedRef.current = null;
+      if (elapsed > RETURN_PROMPT_MAX_MS) return;
+      setPrompt({ stage: 'ask', intent: opened.intent, href: opened.href });
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   if (!href) return null;
 
   function show(next) {
     setOpen(next);
-    if (!next) setStep('intent');
+    if (!next) {
+      setStep('intent');
+      setContactError(null);
+    }
   }
 
   // Whether the agent takes video visits — read while the customer reads the
@@ -82,11 +147,21 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
     show(true);
   }
 
-  function go(intent) {
+  function go(intent, contact = null) {
     const chosen = resolveWhatsAppRouting(listing, intent);
-    trackLeadClick(listing, chosen.routingType, placement, intent);
+    const target = chosen.href || href;
+    trackLeadClick(listing, chosen.routingType, placement, intent, contact);
     show(false);
-    openWhatsApp(chosen.href || href);
+    openWhatsApp(target);
+    openedRef.current = { at: Date.now(), intent, href: target };
+  }
+
+  // A visit (on site or by video) asks for the optional number first.
+  function toVisitContact(intent) {
+    setPendingIntent(intent);
+    setStored(readStoredContact());
+    setContactError(null);
+    setStep('contact');
   }
 
   function choose(intent) {
@@ -94,12 +169,66 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
       setStep('visitMode');
       return;
     }
+    if (isVisitIntent(intent)) {
+      toVisitContact(intent);
+      return;
+    }
     go(intent);
+  }
+
+  function submitContact(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const form = new FormData(event.currentTarget);
+    const typed = String(form.get('visitPhone') || '').trim();
+    const country = String(form.get('visitPhoneCountry') || '') || null;
+    const name = cleanVisitName(form.get('visitName'));
+    if (!typed) {
+      go(pendingIntent);
+      return;
+    }
+    const phone = normalizePhone(typed, country);
+    if (!phone) {
+      setContactError(t('listings.waIntent.contact.invalidPhone'));
+      return;
+    }
+    storeContact({ name, phone: typed, country });
+    go(pendingIntent, { name, phone });
+  }
+
+  function answerPrompt(sent) {
+    trackWhatsAppOutcome(listing, sent, prompt?.intent || null);
+    if (sent) {
+      setPrompt(null);
+      return;
+    }
+    setPrompt((current) => (current ? { ...current, stage: 'failed' } : null));
+  }
+
+  function retry() {
+    const again = prompt?.href || href;
+    setPrompt(null);
+    openWhatsApp(again);
+    openedRef.current = { at: Date.now(), intent: prompt?.intent || null, href: again };
+  }
+
+  function askVisitHere() {
+    setPrompt(null);
+    const onListingPage = typeof window !== 'undefined' && window.location.pathname === `/listings/${listing.id}`;
+    if (onListingPage) window.dispatchEvent(new CustomEvent(OPEN_VISIT_EVENT, { detail: { propertyId: listing.id } }));
+    else window.location.assign(`/listings/${listing.id}`);
   }
 
   // The agency's name when the listing has a routable agent (lib/listings.js
   // AGENCY_NAME_EXPR); "l'agent" otherwise — we never name someone we don't route to.
   const who = listing?.agent_phone && listing?.agency_name ? listing.agency_name : t('listings.waIntent.theAgent');
+
+  const titleKey = step === 'visitMode'
+    ? 'listings.waIntent.visitMode.title'
+    : step === 'contact' ? 'listings.waIntent.contact.title' : 'listings.waIntent.title';
+  const lead = step === 'visitMode'
+    ? t('listings.waIntent.visitMode.lead')
+    : step === 'contact' ? t('listings.waIntent.contact.lead', { who }) : t('listings.waIntent.lead', { who });
 
   return (
     <>
@@ -110,7 +239,8 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
           through this tree — up to the card's <Link>. This wrapper stops every
           click from the sheet, the dimmed backdrop included (it stays mounted
           for its exit animation, so a tap outside lands on it), so neither a
-          choice nor a dismissal ever opens the listing behind. */}
+          choice nor a dismissal ever opens the listing behind. Same for the
+          « message parti ? » card below. */}
       <span className="contents" onClick={(event) => event.stopPropagation()}>
       <Sheet open={open} onOpenChange={show}>
         <SheetContent
@@ -118,21 +248,66 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
           className="mx-auto w-full rounded-t-2xl px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md"
         >
           <SheetHeader className="p-0 text-left">
-            <SheetTitle className="text-lg font-semibold text-ink">
-              {t(step === 'visitMode' ? 'listings.waIntent.visitMode.title' : 'listings.waIntent.title')}
-            </SheetTitle>
-            <SheetDescription className="text-sm text-ink-70">
-              {step === 'visitMode' ? t('listings.waIntent.visitMode.lead') : t('listings.waIntent.lead', { who })}
-            </SheetDescription>
+            <SheetTitle className="text-lg font-semibold text-ink">{t(titleKey)}</SheetTitle>
+            <SheetDescription className="text-sm text-ink-70">{lead}</SheetDescription>
           </SheetHeader>
-          {step === 'visitMode' ? (
+          {step === 'contact' ? (
+            <form onSubmit={submitContact} className="flex flex-col gap-3" noValidate>
+              <div>
+                <label htmlFor="wa-visit-name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                  {t('listings.waIntent.contact.name')}
+                </label>
+                <input
+                  id="wa-visit-name"
+                  name="visitName"
+                  autoComplete="name"
+                  maxLength={80}
+                  defaultValue={stored?.name || ''}
+                  className="h-11 w-full rounded-lg border border-line bg-surface px-3 text-base text-ink sm:text-sm"
+                />
+              </div>
+              <PhoneField
+                name="visitPhone"
+                id="wa-visit-phone"
+                locale={locale}
+                defaultValue={stored?.phone || ''}
+                defaultCountry={stored?.country || undefined}
+                labels={{ ...phoneFieldLabels(t), label: t('listings.waIntent.contact.phone') }}
+                labelClassName="mb-1.5 text-[0.8125rem] font-semibold normal-case tracking-normal text-ink-70"
+                fieldClassName="h-11 rounded-lg bg-surface"
+              />
+              {contactError ? <p className="text-sm text-danger" role="alert">{contactError}</p> : null}
+              <p className="text-xs text-ink-45">{t('listings.waIntent.contact.privacy', { who })}</p>
+              <button
+                type="submit"
+                className="u-press u-focus-ring inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-green px-4 text-[0.9375rem] font-semibold text-white transition-colors hover:bg-green-deep"
+              >
+                {t('listings.waIntent.contact.continue')}
+              </button>
+              <button
+                type="button"
+                onClick={() => go(pendingIntent)}
+                className="u-focus-ring inline-flex min-h-11 items-center justify-center text-sm font-semibold text-ink-70 underline-offset-2 hover:underline"
+              >
+                {t('listings.waIntent.contact.skip')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(pendingIntent === 'video_visit' || videoOffered ? 'visitMode' : 'intent')}
+                className="u-focus-ring inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-semibold text-ink-70"
+              >
+                <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                {t('listings.waIntent.visitMode.back')}
+              </button>
+            </form>
+          ) : step === 'visitMode' ? (
             <>
               <ul className="flex flex-col gap-2">
                 {VISIT_OPTIONS.map(({ intent, Icon, labels }) => (
                   <li key={intent}>
                     <button
                       type="button"
-                      onClick={() => go(intent)}
+                      onClick={() => toVisitContact(intent)}
                       className="u-press u-focus-ring flex min-h-14 w-full items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-green"
                     >
                       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 shrink-0 text-green-deep" aria-hidden="true" />
@@ -175,9 +350,65 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
             ))}
           </ul>
           )}
-          <p className="text-xs text-ink-45">{t('listings.waIntent.footer')}</p>
+          {step === 'contact' ? null : <p className="text-xs text-ink-45">{t('listings.waIntent.footer')}</p>}
         </SheetContent>
       </Sheet>
+      {prompt && typeof document !== 'undefined'
+        ? createPortal(
+          <div
+            role="dialog"
+            aria-live="polite"
+            aria-label={t('listings.waIntent.returnPrompt.title')}
+            onClick={(event) => event.stopPropagation()}
+            className="u-rise fixed inset-x-3 bottom-24 z-50 mx-auto max-w-md rounded-2xl border border-line bg-surface p-4 shadow-lg lg:bottom-6"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[0.9375rem] font-semibold text-ink">
+                {prompt.stage === 'ask' ? t('listings.waIntent.returnPrompt.title') : t('listings.waIntent.returnPrompt.failedTitle')}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPrompt(null)}
+                aria-label={t('listings.waIntent.returnPrompt.close')}
+                className="u-hit relative -m-1 rounded-full p-1 text-ink-45 hover:text-ink"
+              >
+                <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            {prompt.stage === 'ask' ? (
+              <div className="mt-3 flex gap-2">
+                <button type="button" onClick={() => answerPrompt(true)} className="u-press min-h-11 flex-1 rounded-xl bg-green px-3 text-sm font-semibold text-white hover:bg-green-deep">
+                  {t('listings.waIntent.returnPrompt.yes')}
+                </button>
+                <button type="button" onClick={() => answerPrompt(false)} className="u-press min-h-11 flex-1 rounded-xl border border-line px-3 text-sm font-semibold text-ink hover:border-blue">
+                  {t('listings.waIntent.returnPrompt.no')}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-col gap-2">
+                <button type="button" onClick={retry} className="u-press min-h-11 rounded-xl bg-green px-3 text-sm font-semibold text-white hover:bg-green-deep">
+                  {t('listings.waIntent.returnPrompt.retry')}
+                </button>
+                {listing?.agent_phone ? (
+                  <a
+                    href={telHref(listing.agent_phone)}
+                    onClick={() => { trackCallClick(listing); setPrompt(null); }}
+                    className="u-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold text-ink hover:border-blue"
+                  >
+                    <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                    {t('listings.waIntent.returnPrompt.call')}
+                  </a>
+                ) : null}
+                <button type="button" onClick={askVisitHere} className="u-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold text-ink hover:border-blue">
+                  <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                  {t('listings.waIntent.returnPrompt.visit')}
+                </button>
+              </div>
+            )}
+          </div>,
+          document.body,
+        )
+        : null}
       </span>
     </>
   );

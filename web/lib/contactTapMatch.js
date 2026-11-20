@@ -100,6 +100,14 @@ export function matchTapAlerts(clicks, alerts, { kind = 'whatsapp' } = {}) {
       used.add(own.id);
       result.set(String(tap.click.id), {
         state: alertState(own), via: own.sent_via || null, answeredAt: own.answered_at || null, alertAt: own.created_at,
+        // 2026-11-20: the customer's optional name + number from « Je veux le
+        // visiter », the visit « Visite fixée » created, and what came of it.
+        alertId: own.id ?? null,
+        customer: own.customer_phone
+          ? { customerId: null, phone: String(own.customer_phone).replace(/\D/g, ''), name: own.customer_name || null }
+          : null,
+        viewingId: own.viewing_request_id ?? null,
+        outcome: own.outcome || null,
       });
       continue;
     }

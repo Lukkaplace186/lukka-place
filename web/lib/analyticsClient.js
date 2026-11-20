@@ -249,7 +249,7 @@ export function listingEventPayload(listing) {
  *   which button was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS); the
  *   server stores an unknown value as none.
  */
-export function trackLeadClick(listing, routingType, placement, intent = null) {
+export function trackLeadClick(listing, routingType, placement, intent = null, contact = null) {
   if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
   beacon('/api/telemetry/lead-click', {
     event: 'whatsapp_cta_clicked',
@@ -257,6 +257,21 @@ export function trackLeadClick(listing, routingType, placement, intent = null) {
     routingType,
     placement,
     // What the customer chose before WhatsApp opened (lib/whatsappIntent.js); null = not asked.
+    intent: intent || undefined,
+    // A visit's optional name + number (lib/visitContact.js): forwarded to the
+    // agent's alert, never stored with the tap.
+    contact: contact && contact.phone ? { name: contact.name || null, phone: contact.phone } : undefined,
+  });
+}
+
+/**
+ * « Votre message est parti ? » — the customer's own answer after coming back
+ * from WhatsApp (components/WhatsAppIntentSheet.js): a listing event,
+ * whatsapp_sent or whatsapp_not_sent.
+ */
+export function trackWhatsAppOutcome(listing, sent, intent = null) {
+  trackEvent(sent ? 'whatsapp_sent' : 'whatsapp_not_sent', {
+    ...listingEventPayload(listing),
     intent: intent || undefined,
   });
 }

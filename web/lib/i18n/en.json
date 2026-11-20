@@ -519,6 +519,26 @@
           "label": "In person",
           "hint": "You go to the property with the agent"
         }
+      },
+      "contact": {
+        "title": "Get the Visit Confirmation?",
+        "lead": "Optional. Leave your name and WhatsApp number: {who} will know who you are, and Lukka Place will send you the confirmation and the viewing record.",
+        "name": "Your name (optional)",
+        "phone": "Your WhatsApp number (optional)",
+        "privacy": "Your number is passed to {who} and only used to follow this visit. Every message lets you stop receiving them.",
+        "continue": "Continue on WhatsApp",
+        "skip": "Skip — write without leaving my number",
+        "invalidPhone": "This number is not recognised. Check the country code and the number, or skip this step."
+      },
+      "returnPrompt": {
+        "title": "Did Your Message Go Through?",
+        "failedTitle": "Other Ways to Reach the Agent",
+        "yes": "Yes, it’s sent",
+        "no": "It didn’t work",
+        "retry": "Try WhatsApp again",
+        "call": "Call the agent",
+        "visit": "Request a visit here",
+        "close": "Close"
       }
     },
     "filters": {
@@ -8171,7 +8191,8 @@
         "project": "Project page",
         "client_visit": "Customer space · visit",
         "client_inquiry": "Customer space · proposal",
-        "video": "Video visit"
+        "video": "Video visit",
+        "directVisit": "Visit set after a direct contact"
       },
       "status": {
         "replied": "Agent replied",
@@ -8209,7 +8230,31 @@
           "question": "Question",
           "video_visit": "Video visit"
         }
-      }
+      },
+      "journey": {
+        "col": "Journey",
+        "help": "What the same device did on the site: how it arrived, its latest search, the other listings it contacted and its saves. Nothing is guessed.",
+        "channelUnknown": "Arrival not recorded",
+        "searched": "Looking for: {what}",
+        "beds": "{n}+ bd",
+        "budget": "≤ ${amount}",
+        "otherListings": "+{n} other listing(s) contacted",
+        "saves": "{n} saved",
+        "purpose": {
+          "rent": "rent",
+          "sale": "buy"
+        }
+      },
+      "outcome": {
+        "VISIT_PLANNED": "Agent: visit planned",
+        "VISITED": "Agent: visit done",
+        "TALKING": "Agent: talking",
+        "NOT_INTERESTED": "Agent: customer not interested",
+        "CLOSED": "Agent: let / sold"
+      },
+      "viewingLink": "Visit no. {id}",
+      "fromDevice": "Account created on the same device",
+      "fromDeviceHelp": "The customer left no number at the time, but a customer account was created from the same device."
     },
     "interactions": {
       "title": "Customer → Agent Interactions",

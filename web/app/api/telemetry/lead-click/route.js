@@ -1,6 +1,7 @@
 import { after } from 'next/server';
 import { getPool } from '@/lib/db';
 import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
+import { visitContactFromBody } from '@/lib/visitContact';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
@@ -81,7 +82,10 @@ export async function POST(request) {
   // Tell the agent a customer is about to write to them, once the response
   // has left (lib/contactTapAlert.js): the tap is the only moment we know.
   const tapKind = contactTapKind({ event: 'whatsapp_cta_clicked', routingType, viewerKind, recorded });
-  if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId, intent }));
+  // A visit's optional name + number (lib/visitContact.js, 2026-11-20) goes to
+  // the engine with the alert only — never into whatsapp_clicks.
+  const contact = visitContactFromBody(body, intent);
+  if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId, intent, contact }));
 
   return Response.json({ success: true, recorded });
 }

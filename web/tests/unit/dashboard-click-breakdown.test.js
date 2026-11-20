@@ -162,7 +162,7 @@ test('a tap records which button it came from, and falls back before the migrati
   assert.match(cta, /<WhatsAppIntentButton\s+listing=\{listing\}\s+placement=\{placement\}/);
   const sheet = readFileSync(new URL('../../components/WhatsAppIntentSheet.js', import.meta.url), 'utf8');
   assert.match(sheet, /trackLeadClick\(listing, routingType, placement\)/, 'the chooser switched off still sends the placement');
-  assert.match(sheet, /trackLeadClick\(listing, chosen\.routingType, placement, intent\)/);
+  assert.match(sheet, /trackLeadClick\(listing, chosen\.routingType, placement, intent(, contact)?\)/);
   const bar = readFileSync(new URL('../../components/MobileListingBar.js', import.meta.url), 'utf8');
   assert.match(bar, /placement="listing_mobile_bar"/);
   const page = readFileSync(new URL('../../app/(site)/listings/[id]/page.js', import.meta.url), 'utf8');

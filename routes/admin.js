@@ -1429,8 +1429,68 @@ router.post('/contact-taps', async (req, res) => {
     visitorKey: req.body?.visitor_key || null,
     // What the customer chose before WhatsApp opened (2026-11-16); unknown → none.
     intent: req.body?.intent || null,
+    // Optional, « Je veux le visiter » only (2026-11-20): who to confirm the visit to.
+    customerName: req.body?.customer_name || null,
+    customerPhone: req.body?.customer_phone || null,
   });
   return res.json({ success: true, ...result });
+});
+
+/**
+ * One agent's "Un client vous contacte" alerts since `since` — "Faites le
+ * point" lists them as « Vos contacts de la semaine » (2026-11-20). The
+ * customer's name and number are included only when they left them.
+ */
+router.get('/contact-taps/agent/:agentId', (req, res) => {
+  const agentId = Number.parseInt(req.params.agentId, 10);
+  const since = Date.parse(String(req.query.since || ''));
+  if (!Number.isInteger(agentId) || agentId <= 0) return res.status(400).json({ success: false, error: 'agentId must be a positive integer.' });
+  if (!Number.isFinite(since)) return res.status(400).json({ success: false, error: 'since must be an ISO date.' });
+  try {
+    return res.json({ success: true, alerts: db.listContactTapAlertsForAgent(agentId, new Date(since).toISOString()) });
+  } catch (err) {
+    console.error(`[admin] GET /contact-taps/agent/${agentId} failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read contact-tap alerts.' });
+  }
+});
+
+/**
+ * What came of one contact, from the agent ("Faites le point"): body
+ * `{ agent_id, outcome }`, outcome one of db.CONTACT_TAP_OUTCOMES. Only the
+ * alert's own agent. « Visite prévue » / « Visite faite » create the visit
+ * (services/directVisit.js) — "faite" also records the agent's DONE on it.
+ * Sends nothing to anybody.
+ */
+router.post('/contact-taps/:id/outcome', async (req, res) => {
+  const alertId = Number.parseInt(req.params.id, 10);
+  const agentId = Number.parseInt(req.body?.agent_id, 10);
+  const outcome = String(req.body?.outcome || '');
+  if (!Number.isInteger(alertId) || alertId <= 0) return res.status(400).json({ success: false, error: 'id must be a positive integer.' });
+  if (!db.CONTACT_TAP_OUTCOMES.includes(outcome)) return res.status(400).json({ success: false, error: 'unknown outcome.' });
+  const alert = db.getContactTapAlert(alertId);
+  if (!alert || !Number.isInteger(agentId) || Number(alert.agent_id) !== agentId) {
+    return res.status(404).json({ success: false, error: 'Contact not found for this agent.' });
+  }
+  try {
+    const now = new Date();
+    db.recordContactTapOutcome(alertId, outcome, 'POINT', now.toISOString());
+    let viewingRequestId = alert.viewing_request_id || null;
+    if (outcome === 'VISIT_PLANNED' || outcome === 'VISITED') {
+      db.answerContactTapAlert(alertId, 'VISIT_SET', now.toISOString());
+      // eslint-disable-next-line global-require
+      const visit = await require('../services/directVisit').ensureDirectVisit(alert, { by: 'AGENT_DASHBOARD' });
+      viewingRequestId = visit?.id || viewingRequestId;
+      if (visit && outcome === 'VISITED') db.recordAgentVisitOutcome(visit.id, { outcome: 'DONE', at: now.toISOString() });
+      // ensureDirectVisit stamps VISIT_PLANNED only through onVisitSet; keep the agent's word.
+      db.recordContactTapOutcome(alertId, outcome, 'POINT', now.toISOString());
+    } else {
+      db.answerContactTapAlert(alertId, 'REPLIED', now.toISOString());
+    }
+    return res.json({ success: true, outcome, viewingRequestId });
+  } catch (err) {
+    console.error(`[admin] POST /contact-taps/${alertId}/outcome failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the outcome.' });
+  }
 });
 
 /**

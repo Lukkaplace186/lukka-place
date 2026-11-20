@@ -749,3 +749,78 @@ about 40 %; every pre-typed message asked both "disponible ?" and "visiter ?".
   included, stops before the card's link. « Une autre question » ends the
   message on the question line (link before it) so the customer types after it.
 - verify-pipeline §117; web `tests/unit/direct-contact-intent.test.js`.
+
+## Direct contacts become visits and outcomes (2026-11-20)
+
+Owner, after reading the contacts export: customers ask for visits on
+`/admin/contacts` but none reach the viewings page; "salvage more information
+from the interactions". Measured 2026-11-15 → 20: 82 direct WhatsApp taps from
+50 people, none with a number; 81 alerts, 28 button answers (43 % with
+buttons, 24 % as a template); **0 « Visite fixée »** (the visit template
+`client_veut_visiter_agent` is not switched on, so a template alert has no
+visit button); 0 visit requests since 2026-11-15; agents typed "c'est
+disponible", "nous nous sommes fixés pour une visite aujourd'hui", "donné moi
+les images" to our number and nothing read it. Owner chose: the customer may
+leave a name and number, optional.
+
+- **The customer's number, optional** (web `components/WhatsAppIntentSheet.js`,
+  `lib/visitContact.js`): « Je veux le visiter » (and the video step) shows
+  name + WhatsApp number "pour recevoir la confirmation de la visite", or
+  « Passer ». Remembered per device (localStorage `lukka_visit_contact`).
+  Sent with the tap to `/api/telemetry/lead-click`, forwarded to the engine
+  (`customer_name` / `customer_phone` on `POST /admin/contact-taps`), never
+  written to `whatsapp_clicks`. Engine `services/contactTapAlert.js`: stored on
+  `contact_tap_alerts`, the alert names the customer (session text and the
+  template's {{3}}), and a lead is made (source `listing-direct-visit`, in
+  `DIRECTED_LEAD_SOURCES` — never dispatched in waves) → the agent's
+  Demandes and the 24 h « Un agent vous a-t-il contacté ? ». A repeat tap by
+  the same visitor that brings the number attaches it to the earlier alert
+  and tells the agent; another visitor's 30-minute dedupe never swallows a
+  customer who left a number.
+- **« Visite fixée » is a visit** (`services/directVisit.js`): the alert's lead
+  (or a new one, wa_id '' when the customer left no number — "client du
+  site"), a PENDING viewing request, routing DIRECT_WA, direct contact
+  recorded (so the 15-min SLA and the 2-hour check skip it), linked on the
+  alert. Then the agent is asked « Quand a-t-elle lieu ? »; a typed day + hour
+  (`visitSchedule.parseFrenchSlot`, never a guessed hour; a day alone is asked
+  again) confirms it: CONFIRMED + `scheduled_at`, response via WHATSAPP, the
+  customer told when we have the number. From there it is an ordinary visit:
+  `visite_effectuee_agent`, check-in, bon de visite, rating, "déjà loué".
+  Customer sends skip an empty number (`tellCustomer`, `trySend`). The
+  24 h follow-up skips a `listing-direct-visit` lead that has a visit.
+- **Typed replies to the alert** (`services/contactTapReplies.js`, webhook after
+  the availability handler): within 24 h of an alert to that number, short
+  text (≤ 200), no media, no other question open. visit words / a day + hour →
+  « Visite fixée » (confirmed at once when the text has both); "déjà loué",
+  "plus disponible", "vendu" → answer + outcome CLOSED + « Retirer l'annonce du
+  site ? » (`contact_tap_off|keep:<id>`, closes for its own agent, else under
+  offer); "rien reçu" → NOTHING; "disponible", "dispo" → REPLIED and
+  `availability_confirmed_at` stamped. Money or property words (an advert) and
+  a bare "ok" are never an answer. Once per alert the agent is told our number
+  is not the customer's; an unread short text gets that line and still falls
+  through.
+- **Outcomes** (`contact_tap_alerts.outcome`: VISIT_PLANNED, VISITED, TALKING,
+  NOT_INTERESTED, CLOSED; latest stands): from typed replies and from "Faites
+  le point" — « Vos contacts de la semaine » under the board, on the link page
+  and `/compte/agent/point` (web `components/statusCheck/ContactOutcomes.js`,
+  `lib/contactOutcomeRules.js`, engine `GET /admin/contact-taps/agent/:id`,
+  `POST /admin/contact-taps/:id/outcome`, own agent only). Visite prévue /
+  faite create the visit; faite also records the agent's DONE.
+- **« Votre message est parti ? »** (the sheet): back on the page 3 s – 30 min
+  after WhatsApp opened, Oui / Je n'ai pas réussi → `listing_events`
+  `whatsapp_sent` / `whatsapp_not_sent`; a failure offers WhatsApp again, a
+  call, or the visit form.
+- **`/admin/contacts`**: the customer from the alert, the outcome and the visit
+  link under the status, a « Parcours » column (`attachJourneys`: channel of
+  arrival by `lib/trafficChannels.js`, latest search, other listings
+  contacted, saves, a customer account later created on the same device —
+  which then names an anonymous contact, marked "même appareil"); CSV gains
+  outcome, viewing_id, arrived_by, journey, other_listings_contacted, saves,
+  customer_from_device_account. Visits made this way show as "Visite fixée
+  après un contact direct". `/admin/viewings` search matches a request id.
+  Index migration `migrations/20261120_contact_journey_indexes.sql`.
+- **Not switched on**: `CONTACT_TAP_VISIT_TEMPLATE` (`client_veut_visiter_agent`,
+  draft in whatsapp-delivery.md "Two drafts for direct contact") — until it is
+  approved, an agent outside the 24 h window gets no « Visite fixée » button,
+  but a typed "visite demain 10h" or "Faites le point" still makes the visit.
+- verify-pipeline §122; web `tests/unit/contact-salvage.test.js`.

@@ -2342,7 +2342,7 @@ function listContactLog({ since, limit = 3000 } = {}) {
       // every database yet. The COALESCEd agent/listing come after it and win.
       `SELECT vr.*, COALESCE(vr.agent_id, l.agent_id) AS agent_id,
               COALESCE(vr.property_id, l.property_id) AS property_id,
-              l.wa_id, l.name
+              l.wa_id, l.name, l.source AS lead_source
          FROM viewing_requests vr
          LEFT JOIN leads l ON l.id = vr.lead_id
         WHERE vr.created_at >= datetime(@since)
@@ -2352,7 +2352,8 @@ function listContactLog({ since, limit = 3000 } = {}) {
     .all(p);
   const tapAlerts = db
     .prepare(
-      `SELECT id, property_id, agent_id, kind, intent, visitor_key, created_at, sent_via, answer, answered_at
+      `SELECT id, property_id, agent_id, kind, intent, visitor_key, created_at, sent_via, answer, answered_at,
+              customer_name, customer_phone, lead_id, viewing_request_id, outcome, outcome_at
          FROM contact_tap_alerts
         WHERE datetime(created_at) >= datetime(@since, '-1 day')
         ORDER BY created_at DESC, id DESC
@@ -2899,6 +2900,9 @@ function getDemandReport({ since, limit = 40 } = {}) {
  */
 const DIRECTED_LEAD_SOURCES = [
   'listing-visit-request',
+  // A customer who tapped an agent's WhatsApp and left their number, or a
+  // visit the agent set after such a tap (services/directVisit.js, 2026-11-20).
+  'listing-direct-visit',
   'listing-whatsapp-enquiry',
   'agent-profile-inquiry',
   'agent-profile-whatsapp',
@@ -4396,12 +4400,47 @@ function recordViewingDirectContact(id, { channel, by, at = new Date().toISOStri
  * NULL for a call tap or a tap made before the chooser. Their own tap, never
  * inferred.
  */
+/*
+ * 2026-11-20 (owner: "get the customer's number for visits … optional to give
+ * name and phone number"; visits agreed on WhatsApp never reached the visit
+ * pipeline):
+ *   customer_name / customer_phone  what the customer typed in « Je veux le
+ *                         visiter », optional — NULL when they skipped it
+ *   lead_id               the lead made from that number (24 h follow-up,
+ *                         agent's Demandes), or by « Visite fixée »
+ *   viewing_request_id    the visit « Visite fixée » created
+ *                         (services/directVisit.js)
+ *   visit_time_asked_at   when the agent was asked « Quand a lieu la visite ? »
+ *   clarified_at          when the agent was told once that our number is not
+ *                         the customer's (they answered the alert as if it were)
+ *   outcome / outcome_at / outcome_via   what came of the contact, from the
+ *                         agent's typed reply or "Faites le point"
+ */
+const CONTACT_TAP_ALERT_COLUMNS = [
+  ['intent', 'TEXT'],
+  ['customer_name', 'TEXT'],
+  ['customer_phone', 'TEXT'],
+  ['lead_id', 'INTEGER'],
+  ['viewing_request_id', 'INTEGER'],
+  ['visit_time_asked_at', 'TEXT'],
+  ['clarified_at', 'TEXT'],
+  ['outcome', 'TEXT'],
+  ['outcome_at', 'TEXT'],
+  ['outcome_via', 'TEXT'],
+];
+
 function migrateContactTapAlerts() {
   const existing = new Set(db.prepare('PRAGMA table_info(contact_tap_alerts)').all().map((c) => c.name));
-  if (existing.has('intent')) return [];
-  db.exec('ALTER TABLE contact_tap_alerts ADD COLUMN intent TEXT');
-  console.log('[db] contact_tap_alerts schema migrated — added column(s): intent');
-  return ['intent'];
+  const added = [];
+  for (const [name, type] of CONTACT_TAP_ALERT_COLUMNS) {
+    if (existing.has(name)) continue;
+    db.exec(`ALTER TABLE contact_tap_alerts ADD COLUMN ${name} ${type}`);
+    added.push(name);
+  }
+  if (added.length) console.log(`[db] contact_tap_alerts schema migrated — added column(s): ${added.join(', ')}`);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_contact_tap_alerts_agent_wa ON contact_tap_alerts (agent_wa, created_at)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_contact_tap_alerts_agent ON contact_tap_alerts (agent_id, created_at)');
+  return added;
 }
 
 migrateContactTapAlerts();
@@ -4426,17 +4465,139 @@ function recentContactTapAlert({ propertyId, visitorKey, sameVisitorSince, sameL
 
 /** @returns {number} the new alert id. */
 function createContactTapAlert({
-  propertyId, agentId, agentWa, kind, visitorKey = null, intent = null, at = new Date().toISOString(),
+  propertyId, agentId, agentWa, kind, visitorKey = null, intent = null, customerName = null, customerPhone = null,
+  at = new Date().toISOString(),
 }) {
   return Number(
     db
       .prepare(
-        `INSERT INTO contact_tap_alerts (property_id, agent_id, agent_wa, kind, visitor_key, intent, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO contact_tap_alerts (property_id, agent_id, agent_wa, kind, visitor_key, intent,
+                                         customer_name, customer_phone, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(Number(propertyId), agentId == null ? null : Number(agentId), String(agentWa), String(kind), visitorKey, intent || null, at)
+      .run(
+        Number(propertyId), agentId == null ? null : Number(agentId), String(agentWa), String(kind), visitorKey,
+        intent || null, customerName || null, customerPhone || null, at,
+      )
       .lastInsertRowid,
   );
+}
+
+/** The alert a repeated tap by the same visitor was deduped against (the newest). */
+function findContactTapAlertForVisitor({ propertyId, visitorKey, since }) {
+  if (!visitorKey) return undefined;
+  return db
+    .prepare(
+      `SELECT * FROM contact_tap_alerts WHERE property_id = ? AND visitor_key = ? AND created_at >= ?
+        ORDER BY created_at DESC, id DESC LIMIT 1`,
+    )
+    .get(Number(propertyId), String(visitorKey), since);
+}
+
+/** The customer's name / number on an alert; never overwrites what is there. */
+function attachCustomerToContactTapAlert(id, { name = null, phone = null } = {}) {
+  return db
+    .prepare(
+      `UPDATE contact_tap_alerts
+          SET customer_name = COALESCE(customer_name, ?), customer_phone = COALESCE(customer_phone, ?)
+        WHERE id = ?`,
+    )
+    .run(name || null, phone || null, Number(id)).changes > 0;
+}
+
+function setContactTapAlertLead(id, leadId) {
+  db.prepare('UPDATE contact_tap_alerts SET lead_id = COALESCE(lead_id, ?) WHERE id = ?').run(Number(leadId), Number(id));
+}
+
+function setContactTapAlertViewing(id, viewingRequestId) {
+  db.prepare('UPDATE contact_tap_alerts SET viewing_request_id = COALESCE(viewing_request_id, ?) WHERE id = ?')
+    .run(Number(viewingRequestId), Number(id));
+}
+
+function markContactTapVisitTimeAsked(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE contact_tap_alerts SET visit_time_asked_at = ? WHERE id = ?').run(at, Number(id));
+}
+
+/** Stamped once: the agent is told only once per alert that our number is not the customer's. */
+function markContactTapClarified(id, at = new Date().toISOString()) {
+  return db.prepare('UPDATE contact_tap_alerts SET clarified_at = ? WHERE id = ? AND clarified_at IS NULL')
+    .run(at, Number(id)).changes > 0;
+}
+
+/**
+ * What came of a contact, as the agent tells it (typed reply, "Faites le
+ * point"). Unlike the alert's answer it can move on — "en discussion" one day,
+ * "visite faite" the next — so the latest stands.
+ */
+const CONTACT_TAP_OUTCOMES = ['VISIT_PLANNED', 'VISITED', 'TALKING', 'NOT_INTERESTED', 'CLOSED'];
+function recordContactTapOutcome(id, outcome, via, at = new Date().toISOString()) {
+  if (!CONTACT_TAP_OUTCOMES.includes(outcome)) {
+    throw new Error(`recordContactTapOutcome: unknown outcome '${outcome}' (expected one of ${CONTACT_TAP_OUTCOMES.join(', ')})`);
+  }
+  return db.prepare('UPDATE contact_tap_alerts SET outcome = ?, outcome_at = ?, outcome_via = ? WHERE id = ?')
+    .run(outcome, at, via || null, Number(id)).changes > 0;
+}
+
+/** The newest alert sent to this agent number since `since` (their typed reply is about it). */
+function latestContactTapAlertTo(agentWa, since) {
+  const wa = String(agentWa || '').replace(/\D/g, '');
+  if (!wa) return undefined;
+  return db
+    .prepare(
+      `SELECT * FROM contact_tap_alerts
+        WHERE agent_wa = ? AND created_at >= ? AND sent_via IS NOT NULL
+        ORDER BY created_at DESC, id DESC LIMIT 1`,
+    )
+    .get(wa, since);
+}
+
+/** The alert whose « Quand a lieu la visite ? » this agent still owes, if any. */
+function contactTapAwaitingVisitTime(agentWa, since) {
+  const wa = String(agentWa || '').replace(/\D/g, '');
+  if (!wa) return undefined;
+  return db
+    .prepare(
+      `SELECT a.*, v.status AS viewing_status, v.scheduled_at AS viewing_scheduled_at
+         FROM contact_tap_alerts a
+         JOIN viewing_requests v ON v.id = a.viewing_request_id
+        WHERE a.agent_wa = ? AND a.visit_time_asked_at >= ?
+          AND v.status = 'PENDING' AND v.scheduled_at IS NULL
+        ORDER BY a.visit_time_asked_at DESC LIMIT 1`,
+    )
+    .get(wa, since);
+}
+
+/** An agent's alerts since `since`, newest first ("Faites le point": vos contacts de la semaine). */
+function listContactTapAlertsForAgent(agentId, since, limit = 60) {
+  if (!agentId || !since) return [];
+  return db
+    .prepare(
+      `SELECT id, property_id, kind, intent, created_at, answer, answered_at, customer_name, customer_phone,
+              viewing_request_id, outcome, outcome_at
+         FROM contact_tap_alerts
+        WHERE agent_id = ? AND created_at >= ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?`,
+    )
+    .all(Number(agentId), String(since), Math.min(Math.max(Number(limit) || 60, 1), 200));
+}
+
+/**
+ * The lead behind a direct contact: the customer's number when they left it,
+ * else none (wa_id '' — createLead refuses an empty number on purpose, and
+ * every customer-facing send skips an empty one). Status CONTACTED when the
+ * agent already says a visit is set, else NEW.
+ */
+function createDirectContactLead({ waId = '', name = null, propertyId, agentId, status = 'NEW', summary = null }) {
+  const info = db
+    .prepare(
+      `INSERT INTO leads (wa_id, name, source, property_id, requirements_summary, status, last_interaction_at)
+       VALUES (?, ?, 'listing-direct-visit', ?, ?, ?, CURRENT_TIMESTAMP)`,
+    )
+    .run(String(waId || ''), name || null, propertyId == null ? null : Number(propertyId), summary || null, status);
+  const id = Number(info.lastInsertRowid);
+  if (agentId != null) db.prepare('UPDATE leads SET agent_id = ? WHERE id = ?').run(Number(agentId), id);
+  return getLead(id);
 }
 
 /** How the alert left (buttons | text), or NULL when it did not. */
@@ -4457,9 +4618,14 @@ function answerContactTapAlert(id, answer, at = new Date().toISOString()) {
   if (!CONTACT_TAP_ANSWERS.includes(answer)) {
     throw new Error(`answerContactTapAlert: unknown answer '${answer}' (expected one of ${CONTACT_TAP_ANSWERS.join(', ')})`);
   }
+  // The first answer stands — except that a visit set upgrades a plain
+  // "J'ai répondu" (the agent answered, then fixed the visit).
   return db
-    .prepare('UPDATE contact_tap_alerts SET answer = ?, answered_at = ? WHERE id = ? AND answer IS NULL')
-    .run(answer, at, Number(id)).changes > 0;
+    .prepare(
+      `UPDATE contact_tap_alerts SET answer = ?, answered_at = ?
+        WHERE id = ? AND (answer IS NULL OR (? = 'VISIT_SET' AND answer = 'REPLIED'))`,
+    )
+    .run(answer, at, Number(id), answer).changes > 0;
 }
 
 /**
@@ -4475,7 +4641,8 @@ function listContactTapAlerts({ propertyIds = [], since, limit = 500 } = {}) {
   const cap = Math.min(Math.max(Number(limit) || 500, 1), 2000);
   return db
     .prepare(
-      `SELECT id, property_id, agent_id, kind, intent, visitor_key, created_at, sent_via, answer, answered_at
+      `SELECT id, property_id, agent_id, kind, intent, visitor_key, created_at, sent_via, answer, answered_at,
+              customer_name, customer_phone, lead_id, viewing_request_id, outcome, outcome_at
          FROM contact_tap_alerts
         WHERE property_id IN (${ids.map(() => '?').join(',')}) AND created_at >= ?
         ORDER BY created_at DESC, id DESC
@@ -4728,6 +4895,12 @@ function listAllViewingRequests({
   if (term) {
     searchParts.push(`COALESCE(l.name, '') LIKE @q ESCAPE '\\'`, `l.wa_id LIKE @q ESCAPE '\\'`);
     params.q = term;
+    // A short number is also a request id (the contacts page links "Visite n° 42";
+    // a visit from a direct contact may have no customer to search by).
+    if (/^\d{1,7}$/.test(String(q).trim())) {
+      searchParts.push('vr.id = @qid');
+      params.qid = Number(String(q).trim());
+    }
   }
   if (ids.length) {
     searchParts.push(`vr.agent_id IN (${ids.map((_, i) => `@agent${i}`).join(', ')})`);
@@ -5301,6 +5474,18 @@ module.exports = {
   getContactTapAlert,
   answerContactTapAlert,
   listContactTapAlerts,
+  findContactTapAlertForVisitor,
+  attachCustomerToContactTapAlert,
+  setContactTapAlertLead,
+  setContactTapAlertViewing,
+  markContactTapVisitTimeAsked,
+  markContactTapClarified,
+  recordContactTapOutcome,
+  CONTACT_TAP_OUTCOMES,
+  latestContactTapAlertTo,
+  contactTapAwaitingVisitTime,
+  listContactTapAlertsForAgent,
+  createDirectContactLead,
   CONTACT_TAP_ANSWERS,
   listViewingRequestsDueForContactCheck,
   markContactCheckSent,

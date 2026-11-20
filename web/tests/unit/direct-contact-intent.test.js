@@ -84,13 +84,14 @@ test('the WhatsApp buttons open the chooser: cards, the phone bar and the deskto
     assert.doesNotMatch(src, /trackLeadClick\(/, `${file}: the chooser sends the tap`);
   }
   const sheet = read('components/WhatsAppIntentSheet.js');
-  assert.match(sheet, /trackLeadClick\(listing, chosen\.routingType, placement, intent\)/);
+  assert.match(sheet, /trackLeadClick\(listing, chosen\.routingType, placement, intent(, contact)?\)/);
   // A card button sits inside the card's <Link>: clicks must stop at the sheet.
   // …the dimmed backdrop included: the wrapper around the whole <Sheet> stops them.
   assert.match(sheet, /<span className="contents" onClick=\{\(event\) => event\.stopPropagation\(\)\}>\s*<Sheet /);
   assert.match(sheet, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);/);
   const route = read('app/api/telemetry/lead-click/route.js');
-  assert.match(route, /alertAgentOfContactTap\(\{ listingId: id, kind: tapKind, visitorId, intent \}\)/);
+  // 2026-11-20: a visit's optional name + number rides along (lib/visitContact.js).
+  assert.match(route, /alertAgentOfContactTap\(\{ listingId: id, kind: tapKind, visitorId, intent(, contact)? \}\)/);
 });
 
 // --- /admin/contacts --------------------------------------------------------

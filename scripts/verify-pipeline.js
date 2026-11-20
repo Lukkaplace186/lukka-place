@@ -19298,6 +19298,207 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §122 Direct contacts become visits and outcomes (2026-11-20)
+  // ---------------------------------------------------------------------------
+  // Since WhatsApp goes straight to the agent, a visit agreed there never
+  // reached viewing_requests (0 since 2026-11-15) and agents' typed answers to
+  // "Un client vous contacte" were dropped. Owner, 2026-11-20: get the
+  // customer's number (optional), make « Visite fixée » a visit, read typed
+  // replies, record outcomes from "Faites le point".
+  console.log('\n§122 a customer\'s optional number, « Visite fixée » as a visit, and an agent\'s typed reply are kept');
+  {
+    const tap122 = require('../services/contactTapAlert');
+    const replies122 = require('../services/contactTapReplies');
+    const direct122 = require('../services/directVisit');
+    const repoListing122 = propertyRepo.getListingContactById;
+    const repoAgent122 = propertyRepo.getAgentContactById;
+    const flag122 = process.env.CONTACT_TAP_ALERT;
+    const CUSTOMER122 = '243812122122';
+    const toAgent122 = () => httpCalls.filter((c) => c.data && String(c.data.to) === AGENT_WA);
+    const clearQuestions122 = () => {
+      dbService.clearPendingAgentAction(AGENT_WA);
+      dbService.clearPendingListingAction(AGENT_WA);
+    };
+    try {
+      delete process.env.CONTACT_TAP_ALERT;
+      propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+      propertyRepo.getAgentContactById = async () => ({ agent_id: 43, deleted: false });
+
+      check('typed replies are read conservatively: adverts and bare "ok" are never answers', () => {
+        const now = new Date('2026-11-20T09:00:00Z');
+        assert.strictEqual(replies122.classifyAgentReply('Bsr oui c\'est disponible', now), 'available');
+        assert.strictEqual(replies122.classifyAgentReply('C\'est disponible', now), 'available');
+        assert.strictEqual(replies122.classifyAgentReply('Nous nous sommes fixés pour une visite aujourd\'hui', now), 'visit');
+        assert.strictEqual(replies122.classifyAgentReply('demain 10h', now), 'visit');
+        assert.strictEqual(replies122.classifyAgentReply('Désolé il est déjà loué', now), 'gone');
+        assert.strictEqual(replies122.classifyAgentReply('il n\'est plus disponible', now), 'gone', '"plus disponible" is not "disponible"');
+        assert.strictEqual(replies122.classifyAgentReply('Je n\'ai pas encore reçu son message', now), 'nothing');
+        assert.strictEqual(replies122.classifyAgentReply('Ok', now), null);
+        assert.strictEqual(replies122.classifyAgentReply('Donné moi les images ou le texte svp', now), null);
+        assert.strictEqual(replies122.classifyAgentReply('Appartement 2 chambres disponible à Gombe 600$, visite 10$', now), null, 'a short advert is intake');
+        assert.strictEqual(replies122.classifyAgentReply('Studio à louer, prix fixe', now), null);
+      });
+
+      // 1. The customer leaves a name and number with « Je veux le visiter ».
+      httpCalls.length = 0;
+      const withNumber = await tap122.alertAgentOfTap({
+        propertyId: 12201, kind: 'whatsapp', visitorKey: 'v-122a', intent: 'visit', customerName: 'Kera', customerPhone: CUSTOMER122,
+      });
+      const alertA = dbService.getContactTapAlert(withNumber.alertId);
+      check('the number travels with the visit tap: on the alert, in the agent\'s message, and as a lead', () => {
+        assert.strictEqual(withNumber.sent, true);
+        assert.strictEqual(alertA.customer_phone, CUSTOMER122);
+        assert.strictEqual(alertA.customer_name, 'Kera');
+        assert.ok(alertA.lead_id, 'a lead is made from the number');
+        const lead = dbService.getLead(alertA.lead_id);
+        assert.strictEqual(lead.source, 'listing-direct-visit');
+        assert.strictEqual(lead.wa_id, CUSTOMER122);
+        assert.strictEqual(Number(lead.agent_id), 43);
+        assert.strictEqual(lead.status, 'NEW');
+        assert.ok(dbService.DIRECTED_LEAD_SOURCES.includes('listing-direct-visit'), 'never dispatched to other agencies in waves');
+        const body = JSON.stringify(toAgent122().map((c) => c.data));
+        assert.match(body, /Client: Kera · \+243812122122/);
+        assert.match(body, /contact_tap_visit:/);
+      });
+
+      check('an enquiry tap never carries a number, and a bad number is dropped', () => {
+        assert.strictEqual(tap122.cleanCustomerPhone('12'), null);
+        assert.strictEqual(tap122.cleanCustomerPhone('+243 812 122 122'), CUSTOMER122);
+      });
+
+      // 2. Another visitor within the 30 minutes, WITH a number, is not swallowed by the 30-minute dedupe.
+      httpCalls.length = 0;
+      const second = await tap122.alertAgentOfTap({
+        propertyId: 12201, kind: 'whatsapp', visitorKey: 'v-122b', intent: 'visit', customerPhone: '243812122123',
+      });
+      const anon = await tap122.alertAgentOfTap({
+        propertyId: 12201, kind: 'whatsapp', visitorKey: 'v-122c', intent: 'availability',
+      });
+      check('a customer who left a number always reaches the agent; an anonymous tap still waits 30 min', () => {
+        assert.strictEqual(second.sent, true);
+        assert.strictEqual(anon.sent, false);
+        assert.strictEqual(anon.reason, 'recent-alert');
+      });
+
+      // 3. Same visitor taps again, this time leaving a number: it joins the first alert.
+      const firstAnon = await tap122.alertAgentOfTap({ propertyId: 12202, kind: 'whatsapp', visitorKey: 'v-122d', intent: 'visit' });
+      httpCalls.length = 0;
+      const repeat = await tap122.alertAgentOfTap({
+        propertyId: 12202, kind: 'whatsapp', visitorKey: 'v-122d', intent: 'visit', customerName: 'Mbuyi', customerPhone: '243812122124',
+      });
+      check('a repeat tap that brings the number attaches it to the alert the agent already has', () => {
+        assert.strictEqual(repeat.customerAttached, true);
+        assert.strictEqual(repeat.alertId, firstAnon.alertId);
+        const row = dbService.getContactTapAlert(firstAnon.alertId);
+        assert.strictEqual(row.customer_phone, '243812122124');
+        assert.ok(row.lead_id);
+        assert.match(JSON.stringify(toAgent122().map((c) => c.data)), /a laissé son numéro/);
+      });
+
+      // 4. « Visite fixée » → a visit under the customer's lead, then « Quand ? ».
+      clearQuestions122();
+      httpCalls.length = 0;
+      await post('/webhook', inboundButton('wamid.T122A', `contact_tap_visit:${alertA.id}`, AGENT_WA));
+      await settle(600);
+      const afterSet = dbService.getContactTapAlert(alertA.id);
+      const visit122 = afterSet.viewing_request_id ? dbService.getViewingRequestWithLead(afterSet.viewing_request_id) : null;
+      check('« Visite fixée » creates the visit: PENDING, direct to the agent, contact recorded, under the customer\'s lead', () => {
+        assert.strictEqual(afterSet.answer, 'VISIT_SET');
+        assert.strictEqual(afterSet.outcome, 'VISIT_PLANNED');
+        assert.ok(visit122, 'a viewing request exists');
+        assert.strictEqual(visit122.status, 'PENDING');
+        assert.strictEqual(visit122.routing_type, 'DIRECT_WA');
+        assert.strictEqual(Number(visit122.agent_id), 43);
+        assert.ok(visit122.direct_contact_at, 'the SLA and the 2-hour check leave it alone');
+        assert.strictEqual(visit122.lead_row_id, alertA.lead_id);
+        assert.strictEqual(visit122.lead_wa_id, CUSTOMER122);
+        assert.strictEqual(dbService.getLead(alertA.lead_id).status, 'CONTACTED');
+        assert.match(JSON.stringify(toAgent122().map((c) => c.data)), /Quand a-t-elle lieu/);
+      });
+
+      // 5. The agent types the day and hour.
+      clearQuestions122();
+      await post('/webhook', inbound('wamid.T122B', 'demain 10h', AGENT_WA));
+      await settle(800);
+      const confirmed122 = dbService.getViewingRequestWithLead(visit122.id);
+      check('a typed "demain 10h" confirms the visit at that instant — the visit-done question can follow', () => {
+        assert.strictEqual(confirmed122.status, 'CONFIRMED');
+        assert.ok(confirmed122.scheduled_at, 'scheduled_at pinned');
+        assert.ok(Date.parse(confirmed122.scheduled_at) > Date.now());
+        assert.strictEqual(confirmed122.agent_response_via, 'WHATSAPP');
+        assert.match(JSON.stringify(toAgent122().map((c) => c.data)), /notée/);
+      });
+
+      // 6. A typed "c'est disponible" after an anonymous alert.
+      const availTap = await tap122.alertAgentOfTap({
+        propertyId: 12203, kind: 'whatsapp', visitorKey: 'v-122e', intent: 'availability',
+      });
+      clearQuestions122();
+      httpCalls.length = 0;
+      const typedAvail = await replies122.handleContactTapTextReply({ from: AGENT_WA, text: 'Bsr oui c\'est disponible' });
+      check('"c\'est disponible" typed to our number counts as "J\'ai répondu", and the agent is told once we are not the customer', () => {
+        assert.strictEqual(typedAvail.handled, true);
+        assert.strictEqual(typedAvail.kind, 'available');
+        assert.strictEqual(dbService.getContactTapAlert(availTap.alertId).answer, 'REPLIED');
+        const body = JSON.stringify(toAgent122().map((c) => c.data));
+        assert.match(body, /celui de Lukka Place, pas celui du client/);
+      });
+      httpCalls.length = 0;
+      const typedAgain = await replies122.handleContactTapTextReply({ from: AGENT_WA, text: 'Donné moi les images ou le texte svp' });
+      check('an unread short text falls through, and the clarification is not repeated', () => {
+        assert.strictEqual(typedAgain.handled, false);
+        assert.doesNotMatch(JSON.stringify(toAgent122().map((c) => c.data)), /pas celui du client/);
+      });
+      const advert122 = await replies122.handleContactTapTextReply({ from: AGENT_WA, text: 'Appartement 2 chambres disponible à Gombe 600$' });
+      check('a short advert reaches intake untouched', () => assert.strictEqual(advert122.handled, false));
+
+      // 7. "déjà loué" → offer to take the listing off.
+      const goneTap = await tap122.alertAgentOfTap({ propertyId: 12204, kind: 'whatsapp', visitorKey: 'v-122f', intent: 'question' });
+      clearQuestions122();
+      httpCalls.length = 0;
+      const typedGone = await replies122.handleContactTapTextReply({ from: AGENT_WA, text: 'Désolé il est déjà loué' });
+      check('"déjà loué" records the outcome and asks whether to take the listing off', () => {
+        assert.strictEqual(typedGone.kind, 'gone');
+        const row = dbService.getContactTapAlert(goneTap.alertId);
+        assert.strictEqual(row.outcome, 'CLOSED');
+        assert.match(JSON.stringify(toAgent122().map((c) => c.data)), new RegExp(`contact_tap_off:${goneTap.alertId}`));
+        assert.deepStrictEqual(replies122.parseGoneButtonId(`contact_tap_keep:${goneTap.alertId}`), { takeOff: false, alertId: goneTap.alertId });
+      });
+      const strangerGone = await replies122.handleGoneButtonReply({ from: '243899999999', replyId: `contact_tap_off:${goneTap.alertId}` });
+      check('only the alerted number may take a listing off', () => assert.strictEqual(strangerGone.ignored, 'not-this-agent'));
+
+      // 8. "Faites le point": outcomes, and « Visite faite » makes a visit marked done.
+      const pointTap = await tap122.alertAgentOfTap({ propertyId: 12205, kind: 'call', visitorKey: 'v-122g' });
+      const pointAlert = dbService.getContactTapAlert(pointTap.alertId);
+      dbService.recordContactTapOutcome(pointAlert.id, 'VISITED', 'POINT');
+      const pointVisit = await direct122.ensureDirectVisit(pointAlert, { by: 'AGENT_DASHBOARD' });
+      check('a visit from "Faites le point" with no customer number is a "client du site" visit — no customer send can find it', () => {
+        assert.ok(pointVisit);
+        assert.strictEqual(pointVisit.lead_wa_id, '');
+        assert.strictEqual(pointVisit.direct_contact_by, 'AGENT_DASHBOARD');
+        assert.strictEqual(dbService.getContactTapAlert(pointAlert.id).viewing_request_id, pointVisit.id);
+        const again = dbService.getContactTapAlert(pointAlert.id);
+        assert.strictEqual(again.outcome, 'VISITED');
+      });
+      check('the agent\'s week lists their alerts with the customer when known', () => {
+        const week = dbService.listContactTapAlertsForAgent(43, new Date(Date.now() - 86400000).toISOString());
+        const mine = week.find((a) => a.id === alertA.id);
+        assert.ok(mine);
+        assert.strictEqual(mine.customer_phone, CUSTOMER122);
+        assert.throws(() => dbService.recordContactTapOutcome(alertA.id, 'MAYBE', 'POINT'));
+      });
+      check('the 24 h follow-up skips a direct-contact lead whose visit is set', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'requestFollowup.js'), 'utf8');
+        assert.match(src, /listing-direct-visit[\s\S]*viewing_requests v WHERE v\.lead_id = leads\.id/);
+      });
+    } finally {
+      propertyRepo.getListingContactById = repoListing122;
+      propertyRepo.getAgentContactById = repoAgent122;
+      if (flag122 === undefined) delete process.env.CONTACT_TAP_ALERT;
+      else process.env.CONTACT_TAP_ALERT = flag122;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

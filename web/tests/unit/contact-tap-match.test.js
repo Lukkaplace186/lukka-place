@@ -40,7 +40,11 @@ test('a tap gets the alert written just after it, with the agent\'s answer', () 
     [tap(1, 0)],
     [alert(7, 800, { answer: 'REPLIED', answered_at: iso(600_000) })],
   );
-  assert.deepEqual(matched.get('1'), { state: 'replied', via: 'buttons', answeredAt: iso(600_000), alertAt: iso(800) });
+  assert.deepEqual(matched.get('1'), {
+    state: 'replied', via: 'buttons', answeredAt: iso(600_000), alertAt: iso(800),
+    // 2026-11-20: the alert's customer (when left), visit and outcome ride along.
+    alertId: 7, customer: null, viewingId: null, outcome: null,
+  });
 });
 
 test('states: no answer yet, "rien reçu", a send that failed', () => {

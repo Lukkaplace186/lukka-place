@@ -303,6 +303,15 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   visitor's last page view before it. ChatGPT tags its links
   `utm_source=chatgpt.com`; on launch it was the second channel by visitors
   and the first by WhatsApp clicks. `tests/unit/traffic-sources.test.js`.
+- **Direct contacts become visits** (2026-11-20, root
+  docs/claude/leads-and-enquiries.md, "Direct contacts become visits and
+  outcomes"): « Je veux le visiter » offers an optional name + WhatsApp number
+  (`lib/visitContact.js`, sent to the engine with the tap, never stored in
+  `whatsapp_clicks`); back from WhatsApp the sheet asks « Votre message est
+  parti ? » (`listing_events` whatsapp_sent / whatsapp_not_sent);
+  `/admin/contacts` has a « Parcours » column (`attachJourneys`) and the
+  outcome; "Faites le point" lists « Vos contacts de la semaine »
+  (`components/statusCheck/ContactOutcomes.js`).
 - **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
   Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
   direct-to-agent tap is invisible to us and is shown beside the rate, never in

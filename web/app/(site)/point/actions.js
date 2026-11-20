@@ -9,6 +9,8 @@ import { updateListingPrice } from '@/lib/agentListings';
 import { PriceSyncError } from '@/lib/enginePrice';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
+import { recordContactTapOutcome } from '@/lib/adminApi';
+import { isContactOutcome } from '@/lib/contactOutcomeRules';
 
 /**
  * The answers on "Faites le point" (lib/statusCheck.js). Who is answering
@@ -40,6 +42,30 @@ async function whoIsAnswering(token) {
   }
   const agentId = await getCurrentAgentId();
   return agentId ? { agentId, request: null } : null;
+}
+
+/**
+ * « Vos contacts de la semaine »: what came of one contact
+ * (lib/contactOutcomeRules.js). The agent comes from the link or the session;
+ * the engine refuses an alert that is not theirs.
+ *
+ * @param {string|null} token
+ * @param {number} alertId
+ * @param {string} outcome one of CONTACT_OUTCOMES
+ */
+export async function contactOutcomeAction(token, alertId, outcome) {
+  const who = await whoIsAnswering(token);
+  if (!who) return { ok: false, error: ERRORS.session };
+  if (!isContactOutcome(outcome) || !Number.isInteger(Number(alertId))) return { ok: false, error: ERRORS.bad_answer };
+  try {
+    const result = await recordContactTapOutcome({ alertId: Number(alertId), agentId: who.agentId, outcome });
+    if (!result?.success) return { ok: false, error: ERRORS.not_found };
+    revalidatePath('/compte/agent/point');
+    return { ok: true, outcome, viewingRequestId: result.viewingRequestId || null };
+  } catch (err) {
+    console.error(`[status-check] contact #${alertId} outcome failed: ${err.message}`);
+    return { ok: false, error: err?.status === 404 ? ERRORS.not_found : ERRORS.generic };
+  }
 }
 
 function revalidateSurfaces(propertyId) {

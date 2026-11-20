@@ -193,13 +193,19 @@ export default async function AdminContactsPage({ searchParams }) {
         ) : null}
 
         <TableFrame
-          minWidth="72rem"
+          minWidth="84rem"
           footer={<Pagination pathname={PATH} params={params} total={filtered.length} page={paging.page} pageSize={paging.pageSize} />}
         >
           <thead>
             <tr>
               <th className={TH_STICKY}>{t('admin.contacts.colDate')}</th>
               <th className={TH_STICKY}>{t('admin.contacts.colCustomer')}</th>
+              <th className={TH_STICKY}>
+                <span className="inline-flex items-center gap-1">
+                  {t('admin.contacts.journey.col')}
+                  <InfoTip label={t('admin.contacts.journey.col')}>{t('admin.contacts.journey.help')}</InfoTip>
+                </span>
+              </th>
               <th className={TH_STICKY}>{t('admin.contacts.colAgent')}</th>
               <th className={TH_STICKY}>{t('admin.contacts.colWhat')}</th>
               <th className={TH_STICKY}>{t('admin.contacts.colChannel')}</th>
@@ -214,7 +220,7 @@ export default async function AdminContactsPage({ searchParams }) {
           </thead>
           <tbody>
             {pageRows.length === 0 ? (
-              <EmptyRow colSpan={7}>{t('admin.contacts.empty', { days })}</EmptyRow>
+              <EmptyRow colSpan={8}>{t('admin.contacts.empty', { days })}</EmptyRow>
             ) : pageRows.map((row) => {
               const listing = row.listingId ? listings.get(row.listingId) : null;
               const project = row.projectSlug
@@ -228,6 +234,9 @@ export default async function AdminContactsPage({ searchParams }) {
                   </td>
                   <td className={TD_DENSE}>
                     <CustomerCell t={t} customer={row.customer} />
+                  </td>
+                  <td className={TD_DENSE}>
+                    <JourneyCell t={t} journey={row.journey} />
                   </td>
                   <td className={TD_DENSE}>
                     {row.agentId ? (
@@ -271,6 +280,14 @@ export default async function AdminContactsPage({ searchParams }) {
                     <div className="flex flex-col items-start gap-0.5">
                       <Chip tone={STATUS_TONE[row.status] || 'neutral'}>{t(`admin.contacts.status.${row.status}`)}</Chip>
                       {row.statusAt ? <span className="text-[0.75rem] text-ink-45">{formatKinshasa(row.statusAt)}</span> : null}
+                      {row.outcome ? (
+                        <span className="text-[0.75rem] font-semibold text-ink-70">{t(`admin.contacts.outcome.${row.outcome}`)}</span>
+                      ) : null}
+                      {row.viewingId && row.channel !== 'visitRequest' ? (
+                        <Link href={`/admin/viewings?q=${row.viewingId}`} className="text-[0.75rem] text-blue-deep hover:underline">
+                          {t('admin.contacts.viewingLink', { id: row.viewingId })}
+                        </Link>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -279,6 +296,30 @@ export default async function AdminContactsPage({ searchParams }) {
           </tbody>
         </TableFrame>
       </section>
+    </div>
+  );
+}
+
+/**
+ * How the device behind the contact reached the site and what it was looking
+ * for (lib/contactLog.js attachJourneys). "—" when the row has no visitor id.
+ */
+function JourneyCell({ t, journey }) {
+  if (!journey) return <span className="text-ink-35">—</span>;
+  const search = journey.search;
+  const wants = [];
+  if (search?.purpose) wants.push(t(`admin.contacts.journey.purpose.${search.purpose}`));
+  if (search?.bedsMin) wants.push(t('admin.contacts.journey.beds', { n: search.bedsMin }));
+  if (search?.priceMax) wants.push(t('admin.contacts.journey.budget', { amount: fmt(search.priceMax) }));
+  if (search?.communes?.length) wants.push(search.communes.join(', '));
+  return (
+    <div className="flex max-w-[15rem] flex-col gap-0.5 text-[0.8125rem]">
+      {journey.channel ? (
+        <span className="font-semibold text-ink">{t(`admin.trafficSources.channels.${journey.channel}`)}</span>
+      ) : <span className="text-ink-35">{t('admin.contacts.journey.channelUnknown')}</span>}
+      {wants.length ? <span className="text-ink-70">{t('admin.contacts.journey.searched', { what: wants.join(' · ') })}</span> : null}
+      {journey.otherListings ? <span className="text-ink-45">{t('admin.contacts.journey.otherListings', { n: journey.otherListings })}</span> : null}
+      {journey.saves ? <span className="text-ink-45">{t('admin.contacts.journey.saves', { n: journey.saves })}</span> : null}
     </div>
   );
 }
@@ -301,6 +342,9 @@ function CustomerCell({ t, customer }) {
         <Link href={`/admin/customers?q=${encodeURIComponent(customer.phone)}`} className="text-[0.75rem] text-ink-45 hover:text-ink hover:underline">
           {t('admin.contacts.account')}
         </Link>
+      ) : null}
+      {customer.fromDevice ? (
+        <span className="text-[0.75rem] text-ink-45" title={t('admin.contacts.fromDeviceHelp')}>{t('admin.contacts.fromDevice')}</span>
       ) : null}
     </div>
   );

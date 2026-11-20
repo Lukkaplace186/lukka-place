@@ -47,6 +47,18 @@
  * One alert per listing per visitor per 24 h, and at most one per listing
  * every 30 minutes whoever tapped: a popular listing must not turn into a
  * stream of messages. CONTACT_TAP_ALERT=off stops it (read at call time).
+ *
+ * THE CUSTOMER'S NUMBER, WHEN THEY GIVE IT (2026-11-20, owner)
+ * « Je veux le visiter » now offers two optional fields, name and WhatsApp
+ * number, "pour recevoir la confirmation de la visite". When filled:
+ *   - the alert names the customer (session text, and the template's {{3}});
+ *   - a lead is made with that number (source 'listing-direct-visit', the
+ *     agent's Demandes; the 24 h « Un agent vous a-t-il contacté ? » follows);
+ *   - a tap that would be deduped still attaches the number to the alert it
+ *     was deduped against, and a 30-minute listing dedupe (another visitor)
+ *     never swallows a customer who left their number.
+ * « Visite fixée » then creates the visit (services/directVisit.js) under that
+ * lead, so the customer gets the confirmation, the reminders and the check-in.
  */
 
 const dbService = require('./db');
@@ -97,6 +109,47 @@ function digits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+/** A customer number as sent by web (E.164 digits); 7–15 digits or nothing. */
+function cleanCustomerPhone(value) {
+  const d = digits(value);
+  return d.length >= 7 && d.length <= 15 ? d : null;
+}
+
+function cleanCustomerName(value) {
+  const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return name || null;
+}
+
+/** "Kera · +243812345678" for the agent, or null. */
+function customerLabel({ name = null, phone = null } = {}) {
+  if (!phone) return null;
+  return `${name ? `${name} · ` : ''}+${phone}`;
+}
+
+/**
+ * The lead a customer's number makes at the tap (once per alert): the agent's
+ * Demandes, the 24 h follow-up to the customer, the visit's lead later.
+ */
+function leadForCustomer({ alertId, propertyId, agentId, name, phone }) {
+  try {
+    const existing = dbService.getContactTapAlert(alertId);
+    if (existing?.lead_id) return existing.lead_id;
+    const lead = dbService.createDirectContactLead({
+      waId: phone,
+      name,
+      propertyId,
+      agentId,
+      status: 'NEW',
+      summary: 'Demande de visite via le bouton WhatsApp de l’annonce (le client écrit à l’agent sur WhatsApp)',
+    });
+    dbService.setContactTapAlertLead(alertId, lead.id);
+    return lead.id;
+  } catch (err) {
+    console.error(`[contact-tap] alert #${alertId}: lead for the customer's number failed — ${err.message}`);
+    return null;
+  }
+}
+
 function buttons(alertId, kind, intent = null) {
   if (kind !== 'call' && VISIT_INTENTS.includes(intent)) {
     return [
@@ -117,12 +170,13 @@ function buttons(alertId, kind, intent = null) {
 }
 
 /** The alert. `withQuestion` false is the plain-text fallback. */
-function alertText({ listing, propertyId, kind, intent = null, withQuestion = true }) {
+function alertText({ listing, propertyId, kind, intent = null, withQuestion = true, customer = null }) {
   const wanted = kind === 'call' ? null : cleanIntent(intent);
   const lines = [
     `${HEADER_BRAND} ${wanted ? INTENT_TITLE[wanted] : 'Un client vous contacte'}`,
     '',
     `📍 Bien: ${listingLabel(listing, propertyId)}`,
+    ...(customer ? [`👤 Client: ${customer}`] : []),
     '',
     kind === 'call'
       ? "Il vient d'appuyer sur « Appeler » sur votre annonce Lukka Place : attendez-vous à son appel."
@@ -153,7 +207,9 @@ const THANKS = {
  *   intent?: 'visit'|'video_visit'|'availability'|'question'|null, now?: Date}} input
  * @returns {Promise<{sent: boolean, reason?: string, alertId?: number, channel?: string}>}
  */
-async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = null, now = new Date() } = {}) {
+async function alertAgentOfTap({
+  propertyId, kind, visitorKey = null, intent = null, customerName = null, customerPhone = null, now = new Date(),
+} = {}) {
   try {
     if (!enabled()) return { sent: false, reason: 'disabled' };
     const id = Number.parseInt(propertyId, 10);
@@ -161,15 +217,41 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = n
     if (!KINDS.includes(kind)) return { sent: false, reason: 'invalid-kind' };
     const visitor = visitorKey ? String(visitorKey).slice(0, 80) : null;
     const wanted = kind === 'call' ? null : cleanIntent(intent);
+    // The number is only asked with « Je veux le visiter »; anything else carries none.
+    const phone = VISIT_INTENTS.includes(wanted) ? cleanCustomerPhone(customerPhone) : null;
+    const name = phone ? cleanCustomerName(customerName) : null;
 
     // Cheap SQLite checks first: a repeated tap costs no Postgres round trip.
+    const sameVisitorSince = new Date(now.getTime() - SAME_VISITOR_MS).toISOString();
     const recent = dbService.recentContactTapAlert({
       propertyId: id,
       visitorKey: visitor,
-      sameVisitorSince: new Date(now.getTime() - SAME_VISITOR_MS).toISOString(),
+      sameVisitorSince,
       sameListingSince: new Date(now.getTime() - SAME_LISTING_MS).toISOString(),
     });
-    if (recent) return { sent: false, reason: recent };
+    if (recent === 'duplicate-visitor' && phone) {
+      // Same customer again, this time with their number: it goes on the
+      // alert the agent already has, and the agent is told who it is.
+      const earlier = dbService.findContactTapAlertForVisitor({ propertyId: id, visitorKey: visitor, since: sameVisitorSince });
+      if (earlier && !earlier.customer_phone) {
+        dbService.attachCustomerToContactTapAlert(earlier.id, { name, phone });
+        leadForCustomer({ alertId: earlier.id, propertyId: id, agentId: earlier.agent_id, name, phone });
+        try {
+          // eslint-disable-next-line global-require
+          await require('./chakra').sendWhatsAppMessage(earlier.agent_wa, [
+            `${HEADER_BRAND} Le client qui veut visiter votre bien a laissé son numéro`,
+            '',
+            `👤 ${customerLabel({ name, phone })}`,
+            `📍 Bien n° ${id}`,
+          ].join('\n'));
+        } catch (err) {
+          console.warn(`[contact-tap] alert #${earlier.id}: customer-number note not sent (${err.message})`);
+        }
+        return { sent: false, reason: recent, alertId: earlier.id, customerAttached: true };
+      }
+    }
+    // Another visitor's alert 30 min ago never swallows a customer who left their number.
+    if (recent && !(recent === 'recent-alert' && phone)) return { sent: false, reason: recent };
 
     // The public gate (getListingContactById) and the shared agent gate:
     // verified number, routing not switched off, account not deleted.
@@ -189,8 +271,12 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = n
       kind,
       visitorKey: visitor,
       intent: wanted,
+      customerName: name,
+      customerPhone: phone,
       at: now.toISOString(),
     });
+    const customer = customerLabel({ name, phone });
+    if (phone) leadForCustomer({ alertId, propertyId: id, agentId: listing.agent_id, name, phone });
 
     const chakra = require('./chakra');
     let channel = null;
@@ -210,7 +296,10 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = n
       envName: 'CONTACT_TAP_VISIT_TEMPLATE',
       bodyParams: [
         firstName(listing.agent_name, 'cher partenaire'),
-        wanted === 'video_visit' ? `${listingLabel(listing, id)} · par appel vidéo` : listingLabel(listing, id),
+        [
+          wanted === 'video_visit' ? `${listingLabel(listing, id)} · par appel vidéo` : listingLabel(listing, id),
+          customer ? `client : ${customer}` : null,
+        ].filter(Boolean).join(' · '),
       ],
       buttons: buttons(alertId, kind, wanted),
       label: `contact tap #${alertId} (visit)`,
@@ -225,7 +314,10 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = n
       bodyParams: [
         firstName(listing.agent_name, 'cher partenaire'),
         kind === 'call' ? 'Appeler' : 'WhatsApp',
-        wanted ? `${INTENT_PURPOSE[wanted]} — ${listingLabel(listing, id)}` : listingLabel(listing, id),
+        [
+          wanted ? `${INTENT_PURPOSE[wanted]} — ${listingLabel(listing, id)}` : listingLabel(listing, id),
+          customer ? `client : ${customer}` : null,
+        ].filter(Boolean).join(' · '),
       ],
       // The approved template has two quick replies: never the visit button.
       buttons: buttons(alertId, kind),
@@ -235,13 +327,13 @@ async function alertAgentOfTap({ propertyId, kind, visitorKey = null, intent = n
       channel = 'template';
     }
     if (!channel) try {
-      await chakra.sendInteractiveButtons(to, alertText({ listing, propertyId: id, kind, intent: wanted }), buttons(alertId, kind, wanted));
+      await chakra.sendInteractiveButtons(to, alertText({ listing, propertyId: id, kind, intent: wanted, customer }), buttons(alertId, kind, wanted));
       channel = 'buttons';
     } catch (err) {
       console.warn(`[contact-tap] alert #${alertId}: interactive failed (${err.message}) — plain text`);
       try {
         await chakra.sendWhatsAppMessage(to, alertText({
-          listing, propertyId: id, kind, intent: wanted, withQuestion: false,
+          listing, propertyId: id, kind, intent: wanted, withQuestion: false, customer,
         }), { previewUrl: true });
         channel = 'text';
       } catch (textErr) {
@@ -281,6 +373,15 @@ async function handleTapButtonReply({ from, replyId }) {
     return { handled: true, ignored: 'not-this-agent' };
   }
   const recorded = dbService.answerContactTapAlert(row.id, parsed.answer);
+  if (parsed.answer === 'VISIT_SET') {
+    // The visit itself, then « Quand a lieu la visite ? » (services/directVisit.js).
+    // eslint-disable-next-line global-require
+    const visit = await require('./directVisit').onVisitSet(row, { from });
+    if (visit.ok) {
+      console.log(`[contact-tap] alert #${row.id}: agent answered VISIT_SET — visit #${visit.viewingRequestId}`);
+      return { handled: true, answer: parsed.answer, recorded, viewingRequestId: visit.viewingRequestId };
+    }
+  }
   try {
     // eslint-disable-next-line global-require
     await require('./chakra').sendWhatsAppMessage(digits(from), THANKS[parsed.answer]);
@@ -298,6 +399,11 @@ module.exports = {
   alertText,
   buttons,
   cleanIntent,
+  cleanCustomerPhone,
+  customerLabel,
+  THANKS,
+  HEADER_BRAND,
+  VISIT_INTENTS,
   KINDS,
   INTENTS,
   SAME_VISITOR_MS,

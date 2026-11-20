@@ -11,7 +11,7 @@ import { listMembershipsForAdmin } from '@/lib/adminBilling';
 import { listConversations, listLeadMatches, listViewingFeed } from '@/lib/adminApi';
 import { getInvestorMonthlyRows } from '@/lib/investorMetrics';
 import { listProspects } from '@/lib/marketProspects';
-import { contactWindow, filterContactRows } from '@/lib/contactLog';
+import { contactWindow, filterContactRows, journeySummary } from '@/lib/contactLog';
 import { getContactLabels, loadContactLog } from '@/lib/contactLogLoader';
 
 export const dynamic = 'force-dynamic';
@@ -187,6 +187,11 @@ const DATASETS = {
       ['customer_account_id', (r) => r.customer?.customerId || ''], ['agent_id', (r) => r.agentId || ''], ['agent', (r) => r.agentName || ''],
       ['listing_id', (r) => r.listingId || ''], ['listing_reference', (r) => r.listingReference || ''], ['listing_title', (r) => r.listingTitle || ''],
       ['project', (r) => r.projectName || ''], ['status', (r) => r.status], ['status_at', (r) => r.statusAt || ''], ['repeat_tap', (r) => Boolean(r.repeat)],
+      // 2026-11-20: what came of it, the visit made from it, and the device's journey.
+      ['outcome', (r) => r.outcome || ''], ['viewing_id', (r) => r.viewingId || ''],
+      ['customer_from_device_account', (r) => Boolean(r.customer?.fromDevice)],
+      ['arrived_by', (r) => r.journey?.channel || ''], ['journey', (r) => journeySummary(r.journey)],
+      ['other_listings_contacted', (r) => r.journey?.otherListings ?? ''], ['saves', (r) => r.journey?.saves ?? ''],
     ],
   },
   conversations: {

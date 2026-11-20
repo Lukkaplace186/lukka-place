@@ -878,6 +878,10 @@ async function processGroup(messages) {
       // (services/contactTapAlert.js). Only the alerted number may answer.
       const tap = await handleTapButtonReply({ from, replyId: buttonReplyId });
       if (tap.handled) return;
+      // « Retirer l'annonce du site ? » after a typed "déjà loué" (services/contactTapReplies.js).
+      // eslint-disable-next-line global-require
+      const gone = await require('../services/contactTapReplies').handleGoneButtonReply({ from, replyId: buttonReplyId });
+      if (gone.handled) return;
     } catch (err) {
       console.error(`[contact-tap] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
@@ -1189,6 +1193,19 @@ async function processGroup(messages) {
         if (availability.handled) return;
       } catch (err) {
         console.error(`[availability] typed reply from ${from} failed: ${err.message}`);
+      }
+      try {
+        // What an agent types after "Un client vous contacte" — "c'est
+        // disponible", "visite demain 10h", "déjà loué" (2026-11-20). Only
+        // within 24 h of an alert to this number, short text, no other
+        // question of ours open; an advert or anything unread falls through.
+        // eslint-disable-next-line global-require
+        const tapReply = await require('../services/contactTapReplies').handleContactTapTextReply({
+          from, text, hasMedia: mediaRefs.length > 0,
+        });
+        if (tapReply.handled) return;
+      } catch (err) {
+        console.error(`[contact-tap-reply] typed reply from ${from} failed: ${err.message}`);
       }
     }
 

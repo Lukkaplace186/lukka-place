@@ -24,6 +24,7 @@
 import { matchTapAlerts } from './contactTapMatch';
 import { INTERACTION_CHANNELS, LEAD_SOURCE_CHANNEL } from './interactionCounts';
 import { cleanWhatsAppIntent, contactIntentGroup } from './whatsappIntent';
+import { trafficChannelOf } from './trafficChannels';
 
 export const CONTACT_CHANNELS = INTERACTION_CHANNELS.map((c) => c.key);
 export const CONTACT_WINDOWS = [7, 30, 90];
@@ -103,9 +104,11 @@ export function buildContactRows({
     rows.push({
       key: `wa:${tap.id}`, at: toIso(tap.created_at), channel: 'whatsappDirect', surface: 'listing',
       intent: cleanWhatsAppIntent(tap.intent),
-      customer: customerFrom(customers, tap.customer_id), visitorId: tap.visitor_id || null,
+      // Signed in, else the name + number left in « Je veux le visiter » (on the alert).
+      customer: customerFrom(customers, tap.customer_id) || match?.customer || null, visitorId: tap.visitor_id || null,
       agentId: agentOf(tap.agent_id, tap.listing_id), listingId: num(tap.listing_id),
       status: tapStatus(match), statusAt: match?.answeredAt || null,
+      viewingId: num(match?.viewingId), outcome: match?.outcome || null,
     });
   }
 
@@ -117,7 +120,7 @@ export function buildContactRows({
       key: `call:${tap.id}`, at: toIso(tap.created_at), channel: 'callDirect', surface: 'listing',
       customer: customerFrom(customers, tap.customer_id), visitorId: tap.visitor_id || null,
       agentId: agentOf(tap.agent_id, tap.listing_id), listingId: num(tap.listing_id),
-      status: tapStatus(match), statusAt: match?.answeredAt || null,
+      status: tapStatus(match), statusAt: match?.answeredAt || null, outcome: match?.outcome || null,
     });
   }
 
@@ -155,7 +158,10 @@ export function buildContactRows({
 
   for (const visit of engine.viewings || []) {
     rows.push({
-      key: `visit:${visit.id}`, at: toIso(visit.created_at), channel: 'visitRequest', surface: visit.visit_mode === 'video' ? 'video' : null,
+      // A visit « Visite fixée » made from a direct WhatsApp contact (engine
+      // services/directVisit.js) says so; the tap it came from is its own row.
+      key: `visit:${visit.id}`, at: toIso(visit.created_at), channel: 'visitRequest',
+      surface: visit.lead_source === 'listing-direct-visit' ? 'directVisit' : visit.visit_mode === 'video' ? 'video' : null,
       // "Demander une visite": an appointment asked for, by construction.
       intent: 'visit',
       customer: visit.wa_id ? { customerId: null, phone: digits(visit.wa_id), name: visit.name || null } : null,
@@ -171,6 +177,78 @@ export function buildContactRows({
   }
   rows.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')) || a.key.localeCompare(b.key));
   return markRepeats(rows);
+}
+
+/**
+ * Each contact's journey, from what the same device (lp_vid) did on the site
+ * (2026-11-20, owner: link contacts to traffic sources and demand):
+ *   channel        how they arrived (lib/trafficChannels.js on the visitor's
+ *                  latest external touch, else their first)
+ *   search         their latest search: purpose, communes, rooms, budget
+ *   otherListings  other listings this visitor contacted in the window
+ *   saves          listings they saved, ever
+ *   account        a customer account created on that device — and when the
+ *                  contact had no customer, that account becomes its customer
+ *                  (`fromDevice`), the "who was it" the owner asked for.
+ * Facts recorded by the site only; a row with no visitor id has no journey.
+ *
+ * @param {Object[]} rows from buildContactRows
+ * @param {{touches?: Map, searches?: Map, saves?: Map, accounts?: Map}} sources keyed by visitor id
+ */
+export function attachJourneys(rows, { touches = new Map(), searches = new Map(), saves = new Map(), accounts = new Map() } = {}) {
+  const contacted = new Map();
+  for (const row of rows) {
+    if (!row.visitorId || !row.listingId || row.repeat) continue;
+    if (!contacted.has(row.visitorId)) contacted.set(row.visitorId, new Set());
+    contacted.get(row.visitorId).add(row.listingId);
+  }
+  for (const row of rows) {
+    if (!row.visitorId) continue;
+    const touch = touches.get(row.visitorId);
+    const hasLast = touch && (touch.last_source || touch.last_referrer_host || touch.last_click_id_type);
+    const last = !touch ? null : hasLast
+      ? { source: touch.last_source, medium: touch.last_medium, campaign: touch.last_campaign, clickIdType: touch.last_click_id_type, referrerHost: touch.last_referrer_host }
+      : { source: touch.first_source, medium: touch.first_medium, campaign: touch.first_campaign, clickIdType: touch.first_click_id_type, referrerHost: touch.first_referrer_host };
+    const search = searches.get(row.visitorId) || null;
+    const account = accounts.get(row.visitorId) || null;
+    const listings = contacted.get(row.visitorId);
+    row.journey = {
+      channel: last ? trafficChannelOf(last) : null,
+      search: search
+        ? {
+          purpose: search.purpose || null,
+          communes: Array.isArray(search.communes) ? search.communes.filter(Boolean).slice(0, 3) : [],
+          bedsMin: search.beds_min == null ? null : Number(search.beds_min),
+          priceMax: search.price_max == null ? null : Number(search.price_max),
+          propertyType: search.property_type || null,
+        }
+        : null,
+      otherListings: listings ? Math.max(0, listings.size - (row.listingId && listings.has(row.listingId) ? 1 : 0)) : 0,
+      saves: Number(saves.get(row.visitorId) || 0),
+      account: account ? { customerId: num(account.account_id), name: account.full_name || null, phone: account.phone ? digits(account.phone) : null } : null,
+    };
+    if (account && (!row.customer || (!row.customer.phone && !row.customer.customerId))) {
+      row.customer = { ...row.journey.account, fromDevice: true };
+    }
+  }
+  return rows;
+}
+
+/** "ChatGPT · location · 2+ ch. · ≤ 400 $ · Lingwala" — the journey in one line, for the CSV. */
+export function journeySummary(journey, channelLabel = (c) => c) {
+  if (!journey) return '';
+  const parts = [];
+  if (journey.channel) parts.push(channelLabel(journey.channel));
+  const search = journey.search;
+  if (search) {
+    if (search.purpose) parts.push(search.purpose);
+    if (search.bedsMin) parts.push(`${search.bedsMin}+ ch.`);
+    if (search.priceMax) parts.push(`≤ ${search.priceMax} $`);
+    if (search.communes?.length) parts.push(search.communes.join(', '));
+  }
+  if (journey.otherListings) parts.push(`+${journey.otherListings} autre(s) annonce(s) contactée(s)`);
+  if (journey.saves) parts.push(`${journey.saves} favori(s)`);
+  return parts.join(' · ');
 }
 
 /** The same visitor tapping the same agent and listing again within REPEAT_MINUTES. */

@@ -3060,4 +3060,10 @@ module.exports = {
   sendWithButtons,
   withAgent,
   pickedSlot,
+  // Shared with services/directVisit.js (« Visite fixée » on a direct contact).
+  confirmedTemplate,
+  markCustomerNotified,
+  schedulerLink,
+  visitClock,
+  HEADER_BRAND,
 };

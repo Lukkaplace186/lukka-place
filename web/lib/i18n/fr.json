@@ -519,6 +519,26 @@
           "label": "Sur place",
           "hint": "Vous allez au bien avec l’agent"
         }
+      },
+      "contact": {
+        "title": "Recevoir la confirmation de la visite ?",
+        "lead": "Facultatif. Laissez votre nom et votre numéro WhatsApp : {who} saura qui vous êtes, et Lukka Place vous enverra la confirmation et le bon de visite.",
+        "name": "Votre nom (facultatif)",
+        "phone": "Votre numéro WhatsApp (facultatif)",
+        "privacy": "Votre numéro est transmis à {who} et sert seulement à suivre cette visite. Chaque message permet de ne plus en recevoir.",
+        "continue": "Continuer sur WhatsApp",
+        "skip": "Passer — écrire sans laisser mon numéro",
+        "invalidPhone": "Ce numéro n’est pas reconnu. Vérifiez l’indicatif et le numéro, ou passez cette étape."
+      },
+      "returnPrompt": {
+        "title": "Votre message est parti ?",
+        "failedTitle": "Autres façons de joindre l’agent",
+        "yes": "Oui, c’est envoyé",
+        "no": "Je n’ai pas réussi",
+        "retry": "Réessayer sur WhatsApp",
+        "call": "Appeler l’agent",
+        "visit": "Demander une visite ici",
+        "close": "Fermer"
       }
     },
     "filters": {
@@ -8171,7 +8191,8 @@
         "project": "Page projet",
         "client_visit": "Espace Client · visite",
         "client_inquiry": "Espace Client · proposition",
-        "video": "Visite en vidéo"
+        "video": "Visite en vidéo",
+        "directVisit": "Visite fixée après un contact direct"
       },
       "status": {
         "replied": "L'agent a répondu",
@@ -8209,7 +8230,31 @@
           "question": "Question",
           "video_visit": "Visite vidéo"
         }
-      }
+      },
+      "journey": {
+        "col": "Parcours",
+        "help": "Ce que le même appareil a fait sur le site : comment il est arrivé, sa dernière recherche, les autres annonces contactées et ses favoris. Rien n’est deviné.",
+        "channelUnknown": "Arrivée non enregistrée",
+        "searched": "Cherche : {what}",
+        "beds": "{n}+ ch.",
+        "budget": "≤ {amount} $",
+        "otherListings": "+{n} autre(s) annonce(s) contactée(s)",
+        "saves": "{n} favori(s)",
+        "purpose": {
+          "rent": "location",
+          "sale": "achat"
+        }
+      },
+      "outcome": {
+        "VISIT_PLANNED": "Agent : visite prévue",
+        "VISITED": "Agent : visite faite",
+        "TALKING": "Agent : en discussion",
+        "NOT_INTERESTED": "Agent : client pas intéressé",
+        "CLOSED": "Agent : bien loué / vendu"
+      },
+      "viewingLink": "Visite n° {id}",
+      "fromDevice": "Compte créé sur le même appareil",
+      "fromDeviceHelp": "Le client n’a pas laissé de numéro à ce moment-là, mais un compte client a été créé depuis le même appareil."
     },
     "interactions": {
       "title": "Interactions clients → agents",

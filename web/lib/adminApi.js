@@ -740,11 +740,40 @@ export async function getContactLog({ days = 30 } = {}) {
  * @param {{listingId: number, kind: 'whatsapp'|'call', visitorKey?: string|null}} input
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function notifyAgentOfContactTap({ listingId, kind, visitorKey = null, intent = null }) {
+export async function notifyAgentOfContactTap({
+  listingId, kind, visitorKey = null, intent = null, customerName = null, customerPhone = null,
+}) {
   return engineFetch('/admin/contact-taps', {
     method: 'POST',
     // intent: visit | availability | question (lib/whatsappIntent.js) — the alert leads with it.
-    body: JSON.stringify({ listing_id: listingId, kind, visitor_key: visitorKey, intent: intent || undefined }),
+    // customer_*: a visit's optional name + number (lib/visitContact.js, 2026-11-20).
+    body: JSON.stringify({
+      listing_id: listingId,
+      kind,
+      visitor_key: visitorKey,
+      intent: intent || undefined,
+      customer_name: customerPhone ? customerName || undefined : undefined,
+      customer_phone: customerPhone || undefined,
+    }),
+  });
+}
+
+/**
+ * One agent's "Un client vous contacte" alerts since `since` (engine
+ * GET /admin/contact-taps/agent/:id) — "Faites le point", vos contacts de la semaine.
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getAgentContactTapAlerts({ agentId, since }) {
+  const params = new URLSearchParams({ since });
+  const { alerts } = await engineFetch(`/admin/contact-taps/agent/${Number(agentId)}?${params}`);
+  return alerts || [];
+}
+
+/** What came of one contact, from its agent (engine POST /admin/contact-taps/:id/outcome). */
+export async function recordContactTapOutcome({ alertId, agentId, outcome }) {
+  return engineFetch(`/admin/contact-taps/${Number(alertId)}/outcome`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: Number(agentId), outcome }),
   });
 }
 

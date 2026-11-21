@@ -695,8 +695,14 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
   // not a special case. A listing with no photo stays pending instead, so the
   // registration still completes (the account is theirs either way) and the
   // agent can send a photo and confirm normally afterwards.
+  //
+  // Through the same gate as every other confirmation (services/draftPublish.js,
+  // 2026-11-21): this path used to call db.publishListing directly, skipping the
+  // plan limit, the re-send guard and the multi-unit expansion — a new agent's
+  // building went out as one listing.
   let listingQueued = false;
   let photoNeeded = false;
+  let gateReply = null;
   if (pendingListingId) {
     try {
       const listing = db.getListing(pendingListingId);
@@ -706,9 +712,15 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
         photoNeeded = true;
         console.log(`[onboarding] listing #${pendingListingId} left pending — no photo or video`);
       } else {
-        db.publishListing(pendingListingId);
-        listingQueued = true;
-        console.log(`[onboarding] listing #${pendingListingId} published on ${waId}'s registration`);
+        // eslint-disable-next-line global-require
+        const result = await require('./draftPublish').publishDraft(pendingListingId, { sender: waId });
+        if (result.outcome === 'published') {
+          listingQueued = true;
+          console.log(`[onboarding] listing #${pendingListingId} published on ${waId}'s registration (${result.ids.length} row(s))`);
+        } else {
+          gateReply = result.reply || null;
+          console.log(`[onboarding] listing #${pendingListingId} left pending — ${result.outcome}`);
+        }
       }
     } catch (err) {
       console.error(`[onboarding] could not publish listing #${pendingListingId}: ${err.message}`);
@@ -733,7 +745,9 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
   const link = activationLink(waId, token);
   await chakra.sendWhatsAppMessage(
     waId,
-    activationMessage({ fullName: parsed.fullName, link, listingQueued, photoNeeded }),
+    // A plan-limit or re-send refusal is said after the welcome, word for word.
+    [activationMessage({ fullName: parsed.fullName, link, listingQueued, photoNeeded }), gateReply]
+      .filter(Boolean).join('\n\n'),
     { previewUrl: true },
   );
 

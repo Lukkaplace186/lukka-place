@@ -69,6 +69,9 @@ const COMMUNE_ALIASES = {
   ndjili: 'Ndjili',
   nsele: 'Nsele',
   kin: 'Kinshasa',
+  // How agents spell Limete (4 of 30 listings without a commune, Oct–Nov 2026:
+  // "Limite Salongo", "limite industrielle", "limite kingambwa", "limite funa").
+  limite: 'Limete',
 };
 
 const QUARTIER_ALIASES = {
@@ -302,6 +305,21 @@ const GENERIC_KEYS = new Set([
 /** Words that put a NAME on a street, not on a place: "avenue Kalamu" is not Kalamu. */
 const STREET_WORDS = new Set(['av', 'ave', 'avenue', 'rue', 'bd', 'boulevard', 'blvd', 'route', 'croisement', 'arret']);
 
+/** "1ere", "7eme", "17e", "2er": a street known by its NUMBER (folded tokens). */
+const ORDINAL_TOKEN = /^\d+(?:e|eme|er|ere|re|ieme|em)$/;
+
+/**
+ * Is the name at tokens[start] a street's name rather than a place? "avenue
+ * Kalamu", "rue Funa" — yes. But a NUMBERED street names no place, so what
+ * follows it is one: "1ère rue Funa" is Funa, "7ème rue Limete" is Limete
+ * (2026-11-21 — the place was dropped, and the card asked for a commune the
+ * agent had written).
+ */
+function namesAStreet(tokens, start) {
+  if (start === 0 || !STREET_WORDS.has(tokens[start - 1])) return false;
+  return !(start > 1 && ORDINAL_TOKEN.test(tokens[start - 2]));
+}
+
 /** key → Map(commune → canonical official quartier, or null for "a place in that commune") */
 const PLACE_INDEX = new Map();
 /** keys that came from the alias file (short curated names like "GB" are allowed inside text). */
@@ -408,8 +426,28 @@ function inferCommune(text, { allowFuzzy = true, city = null } = {}) {
     if (result.status !== 'unknown') return result;
   }
 
-  // 3. Known names inside a longer text, longest first.
   const tokens = key.split(' ');
+
+  // 2b. The text OPENS with a commune, then the place in it: "Limite Salongo",
+  // "Limete Funa", "Lemba Righini" (2026-11-21 — "Limite industrielle" and
+  // "Limite funa" left the commune empty though the agent wrote it). Only
+  // with more words after it (the whole text alone is step 2), never the
+  // city's own name ("Kinshasa Gombe" is not the commune Kinshasa), and not a
+  // street ("avenue Kalamu" does not open with a commune).
+  if (tokens.length > 1) {
+    for (let n = Math.min(3, tokens.length - 1); n >= 1; n -= 1) {
+      const candidate = tokens.slice(0, n).join(' ');
+      if (candidate === 'kinshasa') continue;
+      const named = COMMUNE_ALIASES[candidate] && (!city || city === cities.DEFAULT_CITY)
+        ? [COMMUNE_ALIASES[candidate]]
+        : preferCity(COMMUNES.filter((c) => placeKey(cities.communeLabel(c)) === candidate), city);
+      if (named.length === 1 && named[0] !== 'Kinshasa') {
+        return { status: 'unique', commune: named[0], quartier: null, how: 'leading', matched: candidate };
+      }
+    }
+  }
+
+  // 3. Known names inside a longer text, longest first.
   const covered = new Array(tokens.length).fill(false);
   const hits = [];
   for (let size = Math.min(5, tokens.length); size >= 1; size -= 1) {
@@ -417,7 +455,7 @@ function inferCommune(text, { allowFuzzy = true, city = null } = {}) {
       if (covered.slice(start, start + size).some(Boolean)) continue;
       const phrase = tokens.slice(start, start + size).join(' ');
       if (!PLACE_INDEX.has(phrase)) continue;
-      if (start > 0 && STREET_WORDS.has(tokens[start - 1])) continue;
+      if (namesAStreet(tokens, start)) continue;
       const curated = ALIAS_KEYS.has(phrase);
       if (!curated && (GENERIC_KEYS.has(phrase) || phrase.length < 4)) continue;
       hits.push(phrase);
@@ -643,7 +681,7 @@ function quartierNamedIn(text, commune) {
       if (covered.slice(start, start + size).some(Boolean)) continue;
       const phrase = tokens.slice(start, start + size).join(' ');
       if (!PLACE_INDEX.has(phrase)) continue;
-      if (start > 0 && STREET_WORDS.has(tokens[start - 1])) continue;
+      if (namesAStreet(tokens, start)) continue;
       const quartier = quartierForKey(phrase, commune);
       // Short names count when they are this commune's own ("UPN" in Ngaliema).
       if (!ALIAS_KEYS.has(phrase) && (GENERIC_KEYS.has(phrase) || phrase.length < (quartier ? 3 : 4))) continue;

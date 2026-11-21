@@ -478,6 +478,114 @@ function publishedReply(ids = []) {
 }
 
 /**
+ * Confirm a pending draft and tell the agent the outcome — the "OK" path,
+ * "c'est bon, publiez", and the Publier / commune buttons all end here
+ * (services/draftPublish.js holds the checks).
+ *
+ * @returns {Promise<string>} the gate's outcome
+ */
+async function confirmDraft(listingId, { from, text = '', primaryWamid, via }) {
+  // eslint-disable-next-line global-require
+  const { publishDraft } = require('../services/draftPublish');
+  const result = await publishDraft(listingId, { sender: from, text });
+  const replyTo = { replyToMessageId: primaryWamid || undefined };
+  if (result.outcome === 'published') {
+    await chakra.sendWhatsAppMessage(from, publishedReply(result.ids), replyTo);
+    console.log(`[db] listing #${listingId} published (${via} from ${from})`);
+  } else if (result.outcome === 'no_media') {
+    // Deliberately still pending: the agent sends a photo and confirms again.
+    await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, replyTo);
+    console.log(`[db] listing #${listingId} NOT published — no photo or video (${via} from ${from})`);
+  } else if (result.outcome === 'quota' || result.outcome === 'held') {
+    await chakra.sendWhatsAppMessage(from, result.reply, { ...replyTo, previewUrl: true });
+  } else {
+    // A tap on an old card: the draft was already sent, or is gone.
+    await chakra.sendWhatsAppMessage(from, ALREADY_SENT_REPLY, replyTo);
+    console.log(`[draft] ${via} from ${from} on listing #${listingId}, which is no longer a draft`);
+  }
+  return result.outcome;
+}
+
+/** INTAKE_BUTTONS=off sends the card as text ending on "Répondez OK" (read at call time). */
+function intakeButtonsEnabled() {
+  return String(process.env.INTAKE_BUTTONS || '').trim().toLowerCase() !== 'off';
+}
+
+/**
+ * Send a draft's card: with its buttons when they are on and fit (1,024
+ * characters), else — or when the interactive send fails — as plain text
+ * ending on the typed instruction. Never leaves the agent without the card.
+ *
+ * @returns {Promise<'buttons'|'text'>}
+ */
+async function sendIntakeReply(from, { text, buttons, fallbackText }, { primaryWamid, suffix = null } = {}) {
+  const withSuffix = (body) => (suffix ? `${body}\n\n${suffix}` : body);
+  if (buttons?.length && intakeButtonsEnabled()) {
+    const body = withSuffix(text);
+    if (body.length <= 1024) {
+      try {
+        await chakra.sendInteractiveButtons(from, body, buttons);
+        return 'buttons';
+      } catch (err) {
+        console.error(`[intake] card buttons to ${from} failed, sending text: ${err.message}`);
+      }
+    }
+  }
+  await chakra.sendWhatsAppMessage(from, withSuffix(fallbackText ?? text), {
+    replyToMessageId: primaryWamid || undefined,
+  });
+  return 'text';
+}
+
+const FIX_PROMPT_REPLY =
+  "Écrivez ici ce qu'il faut corriger (ex. : « 4 chambres », « 1 200 $ », « c'est à Kintambo »). Je mets la fiche à jour.";
+const PHOTOS_PROMPT_REPLY = 'Envoyez vos photos ou vidéos ici : je les ajoute à la fiche.';
+const COMMUNE_PROMPT_REPLY = 'Dans quelle commune se trouve le bien ? Répondez avec le nom de la commune.';
+
+/**
+ * The draft card's buttons (listingCard.DRAFT_BUTTON). Only the number the
+ * draft came from may act on it; a tap on an old card is answered, never
+ * re-published.
+ *
+ * @returns {Promise<{handled: boolean}>}
+ */
+async function handleDraftButtonReply({ from, replyId, primaryWamid }) {
+  const tap = listingCard.parseDraftButton(replyId);
+  if (!tap) return { handled: false };
+  const listing = getListing(tap.listingId);
+  if (!listing || String(listing.wa_id) !== String(from)) {
+    console.warn(`[draft] ${from} tapped ${replyId} on a listing that is not theirs — ignored`);
+    return { handled: true };
+  }
+  const replyTo = { replyToMessageId: primaryWamid || undefined };
+  const pendingDraft = listing.status === 'pending_confirmation';
+
+  if (tap.action === 'publish' || (tap.action === 'commune' && !pendingDraft)) {
+    await confirmDraft(listing.id, { from, primaryWamid, via: `${tap.action} button` });
+  } else if (tap.action === 'fix') {
+    await chakra.sendWhatsAppMessage(from, FIX_PROMPT_REPLY, replyTo);
+  } else if (tap.action === 'photos') {
+    await chakra.sendWhatsAppMessage(from, pendingDraft ? PHOTOS_PROMPT_REPLY : ALREADY_SENT_REPLY, replyTo);
+  } else if (tap.action === 'commune') {
+    // eslint-disable-next-line global-require
+    const commune = tap.commune === '*' ? null : require('../services/locations').resolveCommune(tap.commune);
+    if (!commune) {
+      await chakra.sendWhatsAppMessage(from, COMMUNE_PROMPT_REPLY, replyTo);
+    } else {
+      // The commune button IS the confirmation: the card was just above it.
+      applyListingCorrection(listing.id, { commune }, null, [], [], []);
+      console.log(`[draft] listing #${listing.id}: commune ${commune} chosen by ${from}`);
+      await confirmDraft(listing.id, { from, primaryWamid, via: 'commune button' });
+    }
+  }
+  return { handled: true };
+}
+
+/** A tap on a card whose draft was already sent to moderation (or withdrawn). */
+const ALREADY_SENT_REPLY =
+  'Cette annonce a déjà été envoyée en vérification ✅ Je vous préviens ici dès sa mise en ligne.';
+
+/**
  * A listing with no photo is not publishable — a storefront card with no image
  * is worse than no card. Sent instead of publishing, on every confirmation
  * path, so the draft stays pending and the agent can still send the photo.
@@ -506,7 +614,7 @@ const VIDEO_DOWNLOAD_FAILED_REPLY =
  * noticeable few seconds to tens of seconds, and a WhatsApp user staring at
  * silence has no other signal that anything is happening.
  */
-const ACK_REPLY = 'Message reçu, un instant pendant que nous traitons votre annonce... ⏳';
+const ACK_REPLY = 'Bien reçu ✅ Je prépare votre fiche… ⏳';
 
 /** Sent when the extraction call fails, so the agent is never left on the ack above. */
 const EXTRACTION_FAILED_REPLY =
@@ -519,6 +627,8 @@ const STATUS_ASK_PRICE_REPLY =
   + '(ex. _1200_) pour finaliser, ou _passer_ si vous préférez ne pas le communiquer.';
 
 const STATUS_CLOSED_REPLY = 'Merci ! La transaction est enregistrée. 🎉';
+
+const DRAFT_WITHDRAWN_REPLY = "C'est noté : cette annonce ne sera pas publiée. ✅";
 
 const STATUS_SKIPPED_REPLY =
   'Très bien, le bien reste retiré des recherches. Merci de nous avoir prévenus ! 🙌';
@@ -646,6 +756,17 @@ function enqueueMessage(message) {
   }
 
   const key = message.from;
+
+  // A button tap is a complete answer on its own (2026-11-21, the card's
+  // Publier / Corriger buttons): whatever is buffered goes first as its own
+  // burst, then the tap at once — never merged into a burst, where the tap
+  // handler would answer and the buffered messages would be dropped, and never
+  // kept waiting the 8 s idle time.
+  if (message.replyId) {
+    flushSender(key, 'before a button tap');
+    return processGroup([message]);
+  }
+
   let group = pendingGroups.get(key);
 
   if (!group) {
@@ -674,7 +795,17 @@ function enqueueMessage(message) {
     // "nous traitons votre annonce" is the agent's ack (2026-11-10, a
     // customer's screenshot got it). Decided after the role lookup, so it is
     // still fire-and-forget.
-    if (message.media?.length && !findLatestPendingListing(key) && !(message.text && carriesEnquiryOpening(message.text))) {
+    // Since 2026-11-21 a text that stands alone as a listing ("Appartement 2
+    // chambres à louer, Gombe, 800$") is acked too — a text-first agent used
+    // to wait 20-45 s in silence — and so is a NEW listing sent while an older
+    // draft is pending. Plain chat (no media, not a listing) still gets none,
+    // which keeps the human-handoff silence above intact.
+    const looksLikeListing = Boolean(message.text) && listingBoundary.standsAloneAsListing(message.text);
+    if ((message.media?.length || looksLikeListing)
+      && (!findLatestPendingListing(key) || looksLikeListing)
+      // Staff forwarding group posts get one receipt per burst, nothing else.
+      && !groupRelay.isRelaySender(key)
+      && !(message.text && carriesEnquiryOpening(message.text))) {
       customerIdentity.senderRole(key)
         .catch(() => null)
         .then((role) => {
@@ -803,6 +934,16 @@ async function processGroup(messages) {
   // correction to that draft.
   const buttonReplyId = messages.map((m) => m.replyId).find(Boolean);
   if (buttonReplyId) {
+    try {
+      // The intake card's Publier / Corriger / Ajouter des photos / commune
+      // buttons (services/listingCard.js). Only `draft_*` ids; the rest fall through.
+      const draftTap = await handleDraftButtonReply({ from, replyId: buttonReplyId, primaryWamid });
+      if (draftTap.handled) return;
+    } catch (err) {
+      console.error(`[draft] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      await chakra.sendWhatsAppMessage(from, EXTRACTION_FAILED_REPLY).catch(() => {});
+      return;
+    }
     try {
       const outcome = await handleViewingButtonReply({ from, replyId: buttonReplyId });
       if (outcome.handled) return;
@@ -1103,49 +1244,10 @@ async function processGroup(messages) {
         }
       }
 
-      if (!hasMedia) {
-        // Deliberately NOT published, and deliberately still pending: the agent
-        // can send a photo and confirm again without re-sending the listing.
-        await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, {
-          replyToMessageId: primaryWamid || undefined,
-        });
-        console.log(`[db] listing #${pending.id} NOT published — no photo or video (confirmed by ${from})`);
-        return;
-      }
-
-      // PLAN LISTING LIMIT. After the photo gate (a refusal for a missing
-      // photo is the more useful message), before anything is published. The
-      // draft stays pending, so archiving a listing or upgrading and replying
-      // OK again publishes it. Fails open — see services/listingQuota.js.
-      const quota = await listingQuota.checkQuotaForSender(from, listingQuota.listingsToPublish(pending));
-      if (quota?.blocked) {
-        await chakra.sendWhatsAppMessage(from, listingQuota.limitReachedReply(quota), {
-          replyToMessageId: primaryWamid || undefined,
-          previewUrl: true,
-        });
-        console.log(`[quota] listing #${pending.id} NOT published — ${quota.used}/${quota.limit} used (confirmed by ${from})`);
-        return;
-      }
-
-      // SAME AGENT, SAME LISTING (owner decision 2026-11-10). Held, not
-      // published; the draft stays pending and "AUTRE" releases it.
-      const resend = await resendGuard.gateBeforePublish(getListing(pending.id), text);
-      if (resend.hold) {
-        await chakra.sendWhatsAppMessage(from, resend.reply, {
-          replyToMessageId: primaryWamid || undefined,
-          previewUrl: true,
-        });
-        return;
-      }
-
-      // Expands a multi-unit building into one published row per layout, and
-      // is an ordinary publish for everything else.
-      const { ids: publishedIds } = expandAndPublishListing(pending.id);
-      await chakra.sendWhatsAppMessage(from, publishedReply(publishedIds), {
-        replyToMessageId: primaryWamid || undefined,
-      });
-      console.log(`[db] listing #${pending.id} published (confirmed by ${from})`);
-      console.log(`[chakra] reply sent to ${from}`);
+      // Photo, plan limit, re-send guard, then the publish itself — the same
+      // gate every confirmation path uses (services/draftPublish.js). Every
+      // refusal leaves the draft pending: the agent fixes it and confirms again.
+      await confirmDraft(pending.id, { from, text, primaryWamid, via: 'OK' });
       return;
     }
 
@@ -1416,12 +1518,16 @@ async function processGroup(messages) {
         applyListingCorrection(pending.id, null, null, wamids, [], videoPaths);
         const updated = getListing(pending.id);
         console.log(`[db] listing #${pending.id} gained ${videoPaths.length} video(s)`);
-        await chakra.sendWhatsAppMessage(
+        await sendIntakeReply(
           from,
           listingCard.isGroupedListing(updated)
-            ? '🎬 Vidéo ajoutée à votre annonce. Répondez *OK* pour la publier.'
-            : listingCard.composeIntakeReply('🎬 Vidéo ajoutée à votre annonce.', updated),
-          { replyToMessageId: primaryWamid || undefined },
+            ? {
+              text: '🎬 Vidéo ajoutée à votre annonce.',
+              buttons: listingCard.groupedIntakeButtons(updated),
+              fallbackText: '🎬 Vidéo ajoutée à votre annonce. Répondez *OK* pour la publier.',
+            }
+            : listingCard.composeIntakeMessage(updated, { intro: '🎬 Vidéo ajoutée à votre annonce.' }),
+          { primaryWamid },
         );
       } else {
         await chakra.sendWhatsAppMessage(from, VIDEO_NEEDS_TEXT_REPLY, {
@@ -1537,6 +1643,9 @@ async function processGroup(messages) {
     // (services/listingCard.js) — so the card the agent approves is exactly
     // what gets published, not the model's own retelling of it.
     let reply = modelReply;
+    // The short card with its buttons (listingCard.composeIntakeMessage), when
+    // the answer is a draft's card; sent by sendIntakeReply at the end.
+    let intakeMessage = null;
 
     console.log(
       `[openai] ${label} — listing=${extracted.is_listing} intent=${extracted.intent} ` +
@@ -1661,6 +1770,17 @@ async function processGroup(messages) {
     // that figure. So the listing is retired immediately — which needs no
     // figure — and the price is asked for; answering upgrades it to a properly
     // recorded 'closed' (see the sale-price branch above).
+    // "C'est loué" about a draft never sent to moderation: there is nothing on
+    // the site to retire. It used to answer "retiré des recherches", ask the
+    // closing price, and leave the draft to be auto-submitted 3 h later.
+    if (pending && contextListing === pending && extracted.listing_status_update
+      && extracted.listing_status_update !== 'disponible') {
+      // eslint-disable-next-line global-require
+      require('../services/db').withdrawDraft(pending.id);
+      console.log(`[status] draft #${pending.id} withdrawn — ${extracted.listing_status_update} before confirmation (from ${from})`);
+      await chakra.sendWhatsAppMessage(from, DRAFT_WITHDRAWN_REPLY, { replyToMessageId: primaryWamid || undefined });
+      return;
+    }
     if (contextListing && extracted.listing_status_update) {
       const pg = require('../services/postgres');
       const update = extracted.listing_status_update;
@@ -1702,7 +1822,11 @@ async function processGroup(messages) {
       resyncListing(recentlyPublished.id);
       const corrected = getListing(recentlyPublished.id);
       if (!listingCard.isGroupedListing(corrected)) {
-        reply = listingCard.composeIntakeReply(modelReply, corrected, { mode: 'published' });
+        // No "déjà en ligne": `published` here may still be awaiting moderation.
+        reply = listingCard.composeIntakeMessage(corrected, {
+          mode: 'published',
+          intro: listingCard.introFrom(modelReply, null),
+        }).text;
       }
       console.log(`[db] published listing #${recentlyPublished.id} corrected by ${from}`);
       await chakra.sendWhatsAppMessage(from, reply, {
@@ -1729,34 +1853,13 @@ async function processGroup(messages) {
     // answering the name question IS the confirmation (see CLAUDE.md, "WhatsApp
     // Agent Onboarding"), and that path must keep priority.
     if (pending && extracted.is_confirmed && !extracted.is_listing) {
-      // Same mandatory-photo gate as the regex path above. Photos from this
-      // burst are already downloaded and persisted by now (photoPaths), so
-      // both sources are simply counted together.
-      if (!listingMedia.hasVisualMedia(pending) && !photoPaths.length && !videoPaths.length) {
-        await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, {
-          replyToMessageId: primaryWamid || undefined,
-        });
-        console.log(`[db] listing #${pending.id} NOT published — no photo or video (conversational confirmation from ${from})`);
-        return;
-      }
+      // Photos from this burst are already downloaded and persisted
+      // (photoPaths): attached first, then the same gate as the "OK" path —
+      // the plan limit included, which this path used to skip.
       if (photoPaths.length || videoPaths.length) {
         applyListingCorrection(pending.id, null, null, wamids, photoPaths, videoPaths);
       }
-      // Same re-send gate as the "OK" path above.
-      const resend = await resendGuard.gateBeforePublish(getListing(pending.id), text);
-      if (resend.hold) {
-        await chakra.sendWhatsAppMessage(from, resend.reply, {
-          replyToMessageId: primaryWamid || undefined,
-          previewUrl: true,
-        });
-        return;
-      }
-      const { ids: confirmedIds } = expandAndPublishListing(pending.id);
-      await chakra.sendWhatsAppMessage(from, publishedReply(confirmedIds), {
-        replyToMessageId: primaryWamid || undefined,
-      });
-      console.log(`[db] listing #${pending.id} published (conversational confirmation from ${from})`);
-      console.log(`[chakra] reply sent to ${from}`);
+      await confirmDraft(pending.id, { from, text, primaryWamid, via: 'conversational confirmation' });
       return;
     }
 
@@ -1835,9 +1938,10 @@ async function processGroup(messages) {
         // `{}` for the listing: the reply above already carries the full card
         // from the row, and the short card these used to append repeated it.
         if (identity.registered) {
+          // Attributed silently: the "reconnu et lié à votre compte" paragraph
+          // under every card was noise the agent scrolled past (2026-11-21).
           attributeListingToAgent(id, identity.agentId);
           console.log(`[recognition] listing #${id} from ${from} attributed to agent #${identity.agentId}`);
-          intakeSuffix = onboarding.recognitionNote(identity, {}, 0);
           suffixKind = 'recognition';
         } else if (await onboarding.shouldOnboard(from, { agent: identity.agent })) {
           const prompt = onboarding.startOnboarding(from, {}, 0);
@@ -1856,10 +1960,17 @@ async function processGroup(messages) {
       }
 
       const stored = getListing(id);
+      const onboardingMode = suffixKind === 'registration';
       if (!listingCard.isGroupedListing(stored)) {
-        reply = listingCard.composeIntakeReply(modelReply, stored, {
-          mode: suffixKind === 'registration' ? 'onboarding' : 'draft',
-        });
+        intakeMessage = listingCard.composeIntakeMessage(stored, { mode: onboardingMode ? 'onboarding' : 'draft' });
+      } else if (!onboardingMode) {
+        // The model's itemised recap stays; its own "Répondez OK" line gives
+        // way to the buttons (kept in the text fallback).
+        intakeMessage = {
+          text: String(modelReply || '').split('\n').filter((line) => !/r[ée]pondez/i.test(line)).join('\n').trim() || modelReply,
+          buttons: listingCard.groupedIntakeButtons(stored),
+          fallbackText: modelReply,
+        };
       }
     } else if (pending) {
       // Doesn't stand alone as a listing, but a prior one is still pending —
@@ -1870,7 +1981,7 @@ async function processGroup(messages) {
       // that reply stands. A real correction gets the card from the row.
       const updated = getListing(pending.id);
       if (extracted.is_correction && !listingCard.isGroupedListing(updated)) {
-        reply = listingCard.composeIntakeReply(modelReply, updated);
+        intakeMessage = listingCard.composeIntakeMessage(updated, { intro: listingCard.introFrom(modelReply, null) });
       }
     } else if (onboarding.getSession(from)?.state !== 'AWAITING_NAME') {
       // A known customer whose message reached this far (it read as an
@@ -1900,6 +2011,11 @@ async function processGroup(messages) {
       reply = FALLBACK_REPLY;
     }
 
+    if (intakeMessage) {
+      const how = await sendIntakeReply(from, intakeMessage, { primaryWamid, suffix: intakeSuffix });
+      console.log(`[chakra] card sent to ${from} as ${how}${suffixKind ? ` (${suffixKind})` : ''}`);
+      return;
+    }
     await chakra.sendWhatsAppMessage(from, intakeSuffix ? `${reply}
 
 ${intakeSuffix}` : reply, {
@@ -2028,6 +2144,11 @@ module.exports.isDeclined = isDeclined;
 module.exports.looksLikePdf = looksLikePdf;
 module.exports.STATUS_ASK_PRICE_REPLY = STATUS_ASK_PRICE_REPLY;
 module.exports.STATUS_CLOSED_REPLY = STATUS_CLOSED_REPLY;
+module.exports.ACK_REPLY = ACK_REPLY;
+module.exports.ALREADY_SENT_REPLY = ALREADY_SENT_REPLY;
+module.exports.DRAFT_WITHDRAWN_REPLY = DRAFT_WITHDRAWN_REPLY;
+module.exports.FIX_PROMPT_REPLY = FIX_PROMPT_REPLY;
+module.exports.PHOTOS_PROMPT_REPLY = PHOTOS_PROMPT_REPLY;
 module.exports.STATUS_AVAILABLE_REPLY = STATUS_AVAILABLE_REPLY;
 module.exports.PDF_UNREADABLE_REPLY = PDF_UNREADABLE_REPLY;
 module.exports.PUBLISHED_REPLY = PUBLISHED_REPLY;

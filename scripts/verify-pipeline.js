@@ -219,6 +219,8 @@ stubPackage('openai', FakeOpenAI);
 // ---------------------------------------------------------------------------
 
 const httpCalls = [];
+/** A sent message's text, plain or interactive (the intake card has buttons since §123). */
+const bodyOf = (call) => call?.data?.text?.body ?? call?.data?.interactive?.body?.text ?? '';
 
 // Fake media store — Chakra's real media endpoints (both the by-id /show route
 // and the attachments?mid= proxy) stream bytes back directly, one hop.
@@ -2996,10 +2998,14 @@ console.log('\n2. services/openai.js');
   check('called gpt-4o exactly once', () => assert.strictEqual(openaiCalls.length - aiBefore, 1));
   check('saved exactly one listing', () =>
     assert.strictEqual(dbService.countListings() - rowsBefore, 1));
-  check('sent exactly one Chakra reply', () => assert.strictEqual(httpCalls.length, 1));
-  check('reply went to the sender with the model-written text', () => {
-    assert.strictEqual(httpCalls[0].data.to, '243840000000');
-    assert.ok(httpCalls[0].data.text.body.includes('Annonce reçue'));
+  check('sends the "Bien reçu" ack, then the card (§123)', () => {
+    assert.strictEqual(httpCalls.length, 2);
+    assert.strictEqual(bodyOf(httpCalls[0]), webhookRouter.ACK_REPLY);
+  });
+  check('the card goes to the sender, built from the stored row', () => {
+    const card = httpCalls[httpCalls.length - 1];
+    assert.strictEqual(card.data.to, '243840000000');
+    assert.match(bodyOf(card), /Villa/);
   });
   check('stored row is linked to the inbound wamid', () => {
     const found = dbService.findByWamid('wamid.E2E');
@@ -3306,7 +3312,7 @@ console.log('\n2. services/openai.js');
     const posts = httpCalls.filter((c) => c.method === 'post');
     assert.strictEqual(posts.length, 2, 'expected an immediate ack plus the real listing reply');
     assert.strictEqual(posts[0].data.to, '243850000000');
-    assert.ok(posts[0].data.text.body.includes('Message reçu'), 'first post should be the burst-start ack');
+    assert.strictEqual(bodyOf(posts[0]), webhookRouter.ACK_REPLY, 'first post should be the burst-start ack');
     assert.strictEqual(posts[1].data.to, '243850000000');
   });
 
@@ -3399,8 +3405,8 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(openaiCalls.length - aiBeforeImg, 1));
   check('4 photos become ONE database row', () =>
     assert.strictEqual(dbService.countListings() - rowsBeforeImg, 1));
-  check('4 photos get ONE reply', () =>
-    assert.strictEqual(httpCalls.filter((c) => c.method === 'post').length, 1));
+  check('4 photos get ONE card (after at most one "Bien reçu")', () =>
+    assert.strictEqual(httpCalls.filter((c) => c.method === 'post' && bodyOf(c) !== webhookRouter.ACK_REPLY).length, 1));
   check('all 4 images are sent to the vision model together', () => {
     const parts = lastUserParts();
     assert.strictEqual(parts.filter((p) => p.type === 'image_url').length, 4);
@@ -3565,7 +3571,7 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(row.agent_name, 'Agent Chakra');
   });
   check('reply is addressed to the msisdn', () => {
-    const posts = httpCalls.filter((c) => c.method === 'post');
+    const posts = httpCalls.filter((c) => c.method === 'post' && bodyOf(c) !== webhookRouter.ACK_REPLY);
     assert.strictEqual(posts.length, 1);
     assert.strictEqual(posts[0].data.to, '243860000000');
   });
@@ -3926,10 +3932,13 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(bldDraft.parsed_json.units.length, 4);
   });
   check('the agent gets an itemised recap, not a single collapsed listing', () => {
-    const body = httpCalls[0].data.text.body;
-    for (const needle of ['4 typologies', '1500$', '900$', '700$', '600$', '4 annonces liées']) {
+    const recap = httpCalls.filter((c) => bodyOf(c) !== webhookRouter.ACK_REPLY).pop();
+    const body = bodyOf(recap);
+    for (const needle of ['4 typologies', '1500$', '900$', '700$', '600$']) {
       assert.ok(body.includes(needle), `recap missing "${needle}"`);
     }
+    // §123: one tap publishes all four; the model's own "Répondez OK" line gives way.
+    assert.deepStrictEqual(recap.data.interactive.action.buttons.map((b) => b.reply.title), ['Tout publier', 'Corriger']);
   });
 
   attachPhoto(bldDraft.id, 'building');
@@ -5678,16 +5687,14 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(row.agent_id, 91);
   });
 
-  check('the agent is greeted by name and told the listing is on their account', () => {
-    assert.strictEqual(httpCalls.length, 1, 'expected exactly one Chakra reply');
-    const body = httpCalls[0].data.text.body;
-    assert.match(body, /Annonce reçue/);
-    assert.match(body, /Bonjour Sarah/);
-    assert.match(body, /lié à votre compte/);
+  check('a recognised agent gets the card alone: attributed silently, no account paragraph (§123)', () => {
+    const cards = httpCalls.filter((c) => bodyOf(c) !== webhookRouter.ACK_REPLY);
+    assert.strictEqual(cards.length, 1, 'expected exactly one card');
+    assert.doesNotMatch(bodyOf(cards[0]), /lié à votre compte/);
   });
 
   check('a recognised agent is never also asked to register', () => {
-    assert.doesNotMatch(httpCalls[0].data.text.body, /nom de votre agence/);
+    assert.ok(httpCalls.every((c) => !/nom de votre agence/.test(bodyOf(c))));
   });
 
   httpCalls.length = 0;
@@ -9135,12 +9142,14 @@ console.log('\n2. services/openai.js');
     assert.ok(sql.includes('pk.number_of_property > 0'));
   });
 
-  check('the webhook checks the limit after the photo gate and before anything is published', () => {
-    const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
-    const photoGate = source.indexOf('PHOTO_REQUIRED_REPLY, {');
-    const quotaAt = source.indexOf('listingQuota.checkQuotaForSender(from');
-    const publishAt = source.indexOf('expandAndPublishListing(pending.id)');
-    assert.ok(photoGate > 0 && quotaAt > photoGate && publishAt > quotaAt);
+  check('the publish gate checks the limit after the photo gate and before anything is published', () => {
+    // §123: one gate for every confirmation path (services/draftPublish.js).
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'draftPublish.js'), 'utf8');
+    const photoGate = source.indexOf('hasVisualMedia(draft)');
+    const quotaAt = source.indexOf('checkQuotaForSender(');
+    const resendAt = source.indexOf('gateBeforePublish(');
+    const publishAt = source.indexOf('expandAndPublishListing(draft.id)');
+    assert.ok(photoGate > 0 && quotaAt > photoGate && resendAt > quotaAt && publishAt > resendAt);
   });
 
   check('lead search matches name, number and commune, treats % and _ as text, and filters unassigned', () => {
@@ -11092,7 +11101,7 @@ console.log('\n2. services/openai.js');
       assert.strictEqual(draft47.commune, null);
       assert.strictEqual(draft47.quartier, 'Funa');
       const replies = httpCalls.filter((c) => c.data?.to === AGENT47);
-      assert.ok(replies.some((c) => /existe à Barumbu et à Limete/.test(c.data.text?.body || '')), 'the question was sent');
+      assert.ok(replies.some((c) => /existe à Barumbu et à Limete/.test(bodyOf(c))), 'the question was sent');
     });
 
     httpCalls.length = 0;
@@ -11106,8 +11115,8 @@ console.log('\n2. services/openai.js');
       const after = dbService.getListing(draft47.id);
       assert.strictEqual(after.commune, 'Limete');
       assert.strictEqual(after.quartier, 'Funa', 'the quartier the agent wrote is kept');
-      const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map((c) => c.data.text?.body || '');
-      assert.ok(replies.some((t) => /\*Commune\* : Limete/.test(t)));
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map(bodyOf);
+      assert.ok(replies.some((t) => /📍 Funa, Limete/.test(t)));
       assert.ok(!replies.some((t) => /existe à/.test(t)));
     });
 
@@ -11119,7 +11128,7 @@ console.log('\n2. services/openai.js');
       const row = dbService.findLatestPendingListing(AGENT47);
       assert.strictEqual(row.commune, 'Ngaliema');
       assert.strictEqual(row.parsed_json.commune_inferred_from, 'GB');
-      const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map((c) => c.data.text?.body || '');
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map(bodyOf);
       assert.ok(replies.some((t) => /déduite de « GB »/.test(t)));
     });
   }
@@ -11541,8 +11550,8 @@ console.log('\n2. services/openai.js');
     await settle(400);
 
     check('a failed extraction tells the sender to resend instead of leaving them in silence', () => {
-      const replies = httpCalls.filter((c) => c.data?.to === AGENT52).map((c) => c.data.text?.body || '');
-      assert.strictEqual(replies.length, 1, `expected one reply, got ${replies.length}`);
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT52).map(bodyOf).filter((t) => t !== webhookRouter.ACK_REPLY);
+      assert.strictEqual(replies.length, 1, `expected one reply after the ack, got ${replies.length}`);
       assert.match(replies[0], /renvoyer/);
       assert.strictEqual(dbService.countListings(), rowsBefore52, 'nothing is stored from a failed extraction');
     });
@@ -12950,9 +12959,9 @@ console.log('\n2. services/openai.js');
         assert.ok(!JSON.stringify(userContent).includes('video'), 'the video is never sent to the model');
       });
       check('the card the agent reads counts the video and asks for no photo', () => {
-        const reply = textOf(sendsTo(FROM63).filter((c) => /Vidéos/.test(textOf(c)))[0]);
-        assert.match(reply, /\*Vidéos\* : 1/);
-        assert.ok(!reply.includes('aucune'));
+        const reply = bodyOf(sendsTo(FROM63).filter((c) => /vidéo/.test(bodyOf(c)))[0]);
+        assert.match(reply, /📸 1 vidéo/);
+        assert.ok(!/Aucune photo/.test(reply));
       });
 
       httpCalls.length = 0;
@@ -12961,7 +12970,7 @@ console.log('\n2. services/openai.js');
       check('a captionless video joins the draft awaiting OK, with no model call', () => {
         assert.strictEqual(dbService.getListing(row.id).videos.length, 2);
         assert.strictEqual(openaiCalls.length - calls63, 1);
-        assert.ok(sendsTo(FROM63).some((c) => /Vidéo ajoutée/.test(textOf(c))));
+        assert.ok(sendsTo(FROM63).some((c) => /Vidéo ajoutée/.test(bodyOf(c))));
       });
 
       httpCalls.length = 0;
@@ -16883,7 +16892,7 @@ console.log('\n2. services/openai.js');
       await post('/webhook', inboundImage('wamid.C96_82', 'media_c96_82', null, C8));
       await settle(600);
       check('…and its photo still gets the listing ack', () => {
-        assert.ok(sent96(C8).some((c) => /un instant pendant que nous traitons votre annonce/.test(c.data.text?.body || '')));
+        assert.ok(sent96(C8).some((c) => bodyOf(c) === webhookRouter.ACK_REPLY));
       });
       completionQueue.length = 0;
 
@@ -19498,6 +19507,240 @@ console.log('\n2. services/openai.js');
       propertyRepo.getAgentContactById = repoAgent122;
       if (flag122 === undefined) delete process.env.CONTACT_TAP_ALERT;
       else process.env.CONTACT_TAP_ALERT = flag122;
+    }
+  }
+
+  // §123 One short card with buttons; one publish gate (2026-11-21)
+  // ---------------------------------------------------------------------------
+  // A third of WhatsApp listings (71/220 in two weeks) went out without the
+  // agent answering the long card. Owner: one message, the commune filled in
+  // when the place names one, asked with buttons only when it names several;
+  // Publier / Corriger / Ajouter des photos. Every confirmation path goes
+  // through services/draftPublish.js.
+  console.log('\n§123 the intake card: short, with buttons; one publish gate for every path');
+  {
+    const card123 = require('../services/listingCard');
+    const draftPublish123 = require('../services/draftPublish');
+    const quota123 = require('../services/listingQuota');
+    const base123 = {
+      id: 91230, transaction_type: 'location', property_type: 'appartement', bedrooms: 2, bathrooms: 3,
+      furnished: false, commune: 'Gombe', quartier: null, reference: 'PANORAMIQUE', price: 3000, currency: 'USD',
+      price_period: 'mois', deposit_months: 4, advance_months: null, commission_months: 1,
+      amenities: ['piscine', 'salle de sport'], photos: ['/uploads/a.jpg', '/uploads/b.jpg'], videos: [],
+      parsed_json: { commune_inferred_from: 'Gare Centrale' },
+    };
+
+    check('the card is five short lines: what, where, price and entry costs, rooms, media', () => {
+      const lines = card123.renderShortCard(base123).split('\n');
+      assert.strictEqual(lines.length, 5);
+      assert.strictEqual(lines[0], '*Appartement 2 ch. à louer*');
+      assert.match(lines[1], /^📍 Gombe _\(commune déduite de « Gare Centrale »\)_ · réf\. PANORAMIQUE$/);
+      assert.match(lines[2], /^💰 3\s000 \$.*mois · garantie 4 · commission 1$/);
+      assert.strictEqual(lines[3], '🏠 3 sdb · non meublé · piscine, salle de sport');
+      assert.strictEqual(lines[4], '📸 2 photos');
+    });
+    check('"sans commission" for a stated zero; nothing invented for an unstated one', () => {
+      assert.match(card123.renderShortCard({ ...base123, commission_months: 0 }), /sans commission/);
+      assert.doesNotMatch(card123.renderShortCard({ ...base123, commission_months: null }), /commission/);
+    });
+    check('a complete draft: Publier / Corriger / Ajouter des photos, each id naming the draft', () => {
+      const msg = card123.composeIntakeMessage(base123);
+      assert.deepStrictEqual(msg.buttons.map((b) => b.title), ['Publier', 'Corriger', 'Ajouter des photos']);
+      assert.deepStrictEqual(msg.buttons.map((b) => b.id), ['draft_pub:91230', 'draft_fix:91230', 'draft_pic:91230']);
+      assert.ok(msg.text.length <= 1024);
+      assert.match(msg.fallbackText, /Répondez \*OK\* pour publier/);
+      assert.doesNotMatch(msg.text, /Répondez/);
+    });
+    check('no photo yet: Ajouter des photos / Corriger, never Publier', () => {
+      const msg = card123.composeIntakeMessage({ ...base123, photos: [] });
+      assert.deepStrictEqual(msg.buttons.map((b) => b.title), ['Ajouter des photos', 'Corriger']);
+      assert.match(msg.text, /Aucune photo/);
+    });
+    check('a place in two communes: one button per commune, then "Autre commune"', () => {
+      const msg = card123.composeIntakeMessage({ ...base123, commune: null, quartier: 'Funa', reference: null, parsed_json: {} });
+      assert.deepStrictEqual(msg.buttons.map((b) => b.title), ['Barumbu', 'Limete', 'Autre commune']);
+      assert.deepStrictEqual(msg.buttons.map((b) => b.id), ['draft_com:91230:Barumbu', 'draft_com:91230:Limete', 'draft_com:91230:*']);
+      assert.match(msg.text, /« Funa » existe à Barumbu et à Limete/);
+      assert.match(msg.fallbackText, /Répondez simplement avec le nom de la commune/);
+    });
+    check('no commune and no place we know: the one typed question, no buttons', () => {
+      const msg = card123.composeIntakeMessage({ ...base123, commune: null, quartier: null, reference: 'Chez Mama Lola', parsed_json: {} });
+      assert.strictEqual(msg.buttons, null);
+      assert.match(msg.text, /Dans quelle commune se trouve le bien \?/);
+    });
+    check('parseDraftButton reads our ids back and leaves every other button alone', () => {
+      assert.deepStrictEqual(card123.parseDraftButton('draft_pub:12'), { action: 'publish', listingId: 12, commune: null });
+      assert.deepStrictEqual(card123.parseDraftButton('draft_com:12:Limete'), { action: 'commune', listingId: 12, commune: 'Limete' });
+      assert.strictEqual(card123.parseDraftButton('viewing_accept:12'), null);
+    });
+    check('places: a numbered street names no place ("1ère rue Funa" asks Barumbu/Limete); "avenue Kalamu" is still a street', () => {
+      const loc123 = require('../services/locations');
+      assert.deepStrictEqual(loc123.inferCommune('1ère Rue Funa').communes, ['Barumbu', 'Limete']);
+      assert.strictEqual(loc123.inferCommune('7ème rue Limete').commune, 'Limete');
+      assert.strictEqual(loc123.inferCommune('avenue Kalamu').status, 'unknown');
+    });
+    check('places: a text opening with its commune names it ("Limite Salongo", "Lemba Righini"), never the city', () => {
+      const loc123 = require('../services/locations');
+      assert.strictEqual(loc123.inferCommune('Limite Salongo').commune, 'Limete');
+      assert.strictEqual(loc123.inferCommune('limite industrielle').commune, 'Limete');
+      assert.strictEqual(loc123.inferCommune('Lemba Righini').commune, 'Lemba');
+      assert.notStrictEqual(loc123.inferCommune('Kinshasa Gombe').commune, 'Kinshasa');
+    });
+    check('places: "Gare Centrale" is Gombe, quartier Gare (owner, 2026-11-21), and stays the reference', () => {
+      const located = require('../services/locations').inferListingLocation({ commune: null, quartier: null, reference: 'Gare Centrale', city: null });
+      assert.strictEqual(located.commune, 'Gombe');
+      assert.strictEqual(located.communeInferredFrom, 'Gare Centrale');
+      assert.strictEqual(located.reference, 'Gare Centrale');
+    });
+    check('a corrected published listing never claims to be "déjà en ligne"', () => {
+      const msg = card123.composeIntakeMessage(base123, { mode: 'published' });
+      assert.doesNotMatch(msg.text, /en ligne/);
+      assert.strictEqual(msg.buttons, null);
+    });
+
+    // Through the webhook.
+    const AG123 = '243850012301';
+    const savedIdentity123 = onboarding.identifySender;
+    onboarding.identifySender = async () => ({ registered: true, agentId: 123, firstName: 'Test', agent: null });
+    const savedButtons123 = process.env.INTAKE_BUTTONS;
+    const to123 = (number) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === number);
+    try {
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', quartier: null, price: 800, bedrooms: 2 }, 'Merci !'));
+      await post('/webhook', inboundImage('wamid.F123A', 'media_f123a', 'Appartement 2 chambres à louer Gombe 800$', AG123));
+      await settle(900);
+      const draft123 = dbService.findLatestPendingListing(AG123);
+      check('a photo listing: "Bien reçu", then ONE card with the three buttons', () => {
+        assert.ok(draft123, 'a draft was stored');
+        const sent = to123(AG123);
+        assert.strictEqual(bodyOf(sent[0]), webhookRouter.ACK_REPLY);
+        assert.strictEqual(sent.length, 2);
+        assert.strictEqual(sent[1].data.type, 'interactive');
+        assert.deepStrictEqual(sent[1].data.interactive.action.buttons.map((b) => b.reply.id),
+          [`draft_pub:${draft123.id}`, `draft_fix:${draft123.id}`, `draft_pic:${draft123.id}`]);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inboundButton('wamid.F123X', `draft_pub:${draft123.id}`, '243850012399'));
+      await settle(300);
+      check('a tap from another number publishes nothing and answers nothing', () => {
+        assert.strictEqual(dbService.getListing(draft123.id).status, 'pending_confirmation');
+        assert.strictEqual(to123('243850012399').length, 0);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inboundButton('wamid.F123B', `draft_fix:${draft123.id}`, AG123));
+      await settle(300);
+      check('Corriger asks for the correction in words, at once (no 8 s buffer, no model call)', () => {
+        assert.deepStrictEqual(to123(AG123).map(bodyOf), [webhookRouter.FIX_PROMPT_REPLY]);
+        assert.strictEqual(dbService.getListing(draft123.id).status, 'pending_confirmation');
+      });
+
+      httpCalls.length = 0;
+      const calls123 = openaiCalls.length;
+      await post('/webhook', inboundButton('wamid.F123C', `draft_pub:${draft123.id}`, AG123));
+      await settle(300);
+      check('Publier sends the draft to moderation through the gate, with the receipt, no model call', () => {
+        assert.strictEqual(dbService.getListing(draft123.id).status, 'published');
+        assert.match(bodyOf(to123(AG123).pop()), /^✅ \*Annonce bien reçue et en cours de modération !\*/);
+        assert.strictEqual(openaiCalls.length, calls123);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inboundButton('wamid.F123D', `draft_pub:${draft123.id}`, AG123));
+      await settle(300);
+      check('a second tap on the old card is answered, never published twice', () => {
+        assert.deepStrictEqual(to123(AG123).map(bodyOf), [webhookRouter.ALREADY_SENT_REPLY]);
+      });
+
+      // A place in two communes, with a photo: the commune tap IS the confirmation.
+      const AG123B = '243850012302';
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: null, quartier: 'Funa', price: 600, bedrooms: 2 }, 'Merci !'));
+      await post('/webhook', inboundImage('wamid.F123E', 'media_f123e', 'Appartement 2 chambres à louer, Funa, 600$', AG123B));
+      await settle(900);
+      const funa123 = dbService.findLatestPendingListing(AG123B);
+      check('"Funa": the card offers Barumbu / Limete / Autre commune', () => {
+        const card = to123(AG123B).filter((c) => c.data.type === 'interactive').pop();
+        assert.deepStrictEqual(card.data.interactive.action.buttons.map((b) => b.reply.title), ['Barumbu', 'Limete', 'Autre commune']);
+      });
+      httpCalls.length = 0;
+      await post('/webhook', inboundButton('wamid.F123F', `draft_com:${funa123.id}:Limete`, AG123B));
+      await settle(300);
+      check('tapping Limete sets the commune and publishes in the same step', () => {
+        const row = dbService.getListing(funa123.id);
+        assert.strictEqual(row.commune, 'Limete');
+        assert.strictEqual(row.quartier, 'Funa');
+        assert.strictEqual(row.status, 'published');
+      });
+
+      // Buttons off, or the interactive send failing: the same card as text.
+      const AG123C = '243850012303';
+      process.env.INTAKE_BUTTONS = 'off';
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', quartier: null, price: 300, bedrooms: 1 }, 'Merci !'));
+      await post('/webhook', inboundImage('wamid.F123G', 'media_f123g', 'Studio à louer Kintambo 300$', AG123C));
+      await settle(900);
+      check('INTAKE_BUTTONS=off: the card goes as text ending on "Répondez *OK*"', () => {
+        const card = to123(AG123C).pop();
+        assert.strictEqual(card.data.type, 'text');
+        assert.match(bodyOf(card), /Répondez \*OK\* pour publier/);
+      });
+      delete process.env.INTAKE_BUTTONS;
+
+      const AG123D = '243850012304';
+      const savedInteractive123 = chakra.sendInteractiveButtons;
+      chakra.sendInteractiveButtons = async () => { throw new Error('interactive refused in §123'); };
+      try {
+        httpCalls.length = 0;
+        completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', quartier: null, price: 350, bedrooms: 1 }, 'Merci !'));
+        await post('/webhook', inboundImage('wamid.F123H', 'media_f123h', 'Studio à louer Kintambo 350$', AG123D));
+        await settle(900);
+        check('an interactive send that fails falls back to the text card — the agent always gets it', () => {
+          assert.match(bodyOf(to123(AG123D).pop()), /Répondez \*OK\* pour publier/);
+        });
+      } finally {
+        chakra.sendInteractiveButtons = savedInteractive123;
+      }
+
+      // "C'est loué" before the draft was ever sent.
+      httpCalls.length = 0;
+      const draftD123 = dbService.findLatestPendingListing(AG123D);
+      completionQueue.push(intakeCompletion({ is_listing: false, intent: 'other', listing_status_update: 'loue' }, "C'est noté"));
+      await post('/webhook', inbound('wamid.F123I', "c'est déjà loué", AG123D));
+      await settle(500);
+      check('"c\'est loué" on an unsent draft withdraws it: no "retiré des recherches", no price question, no auto-submit', () => {
+        assert.strictEqual(dbService.getListing(draftD123.id).status, 'withdrawn');
+        assert.deepStrictEqual(to123(AG123D).map(bodyOf), [webhookRouter.DRAFT_WITHDRAWN_REPLY]);
+        assert.strictEqual(dbService.findLatestPendingListing(AG123D), undefined);
+      });
+
+      // The gate itself: the plan limit now applies on every path.
+      const AG123E = '243850012305';
+      const gateDraft = dbService.insertListing({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 200 }, AG123E, {
+        wamid: 'wamid.F123J', rawText: 'Studio Kintambo 200$', photos: ['/uploads/listings/f123j.jpg'],
+      });
+      const savedQuota123 = quota123.checkQuotaForSender;
+      quota123.checkQuotaForSender = async () => ({ blocked: true, used: 5, limit: 5, plan: 'free' });
+      try {
+        await checkAsync('publishDraft refuses over the plan limit and leaves the draft pending', async () => {
+          const result = await draftPublish123.publishDraft(gateDraft.id, { sender: AG123E });
+          assert.strictEqual(result.outcome, 'quota');
+          assert.ok(result.reply);
+          assert.strictEqual(dbService.getListing(gateDraft.id).status, 'pending_confirmation');
+        });
+      } finally {
+        quota123.checkQuotaForSender = savedQuota123;
+      }
+      check('the onboarding answer publishes through the same gate (quota, re-send, multi-unit split)', () => {
+        const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentOnboarding.js'), 'utf8');
+        assert.ok(source.includes("require('./draftPublish').publishDraft(pendingListingId"));
+        assert.ok(!source.includes('db.publishListing(pendingListingId)'));
+      });
+    } finally {
+      onboarding.identifySender = savedIdentity123;
+      if (savedButtons123 === undefined) delete process.env.INTAKE_BUTTONS;
+      else process.env.INTAKE_BUTTONS = savedButtons123;
     }
   }
 

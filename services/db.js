@@ -972,6 +972,19 @@ function findListingAwaitingSalePrice(waId) {
   );
 }
 
+/**
+ * The agent said a draft's property is already let or sold before confirming
+ * it ("c'est loué", 2026-11-21): it is never published. 'withdrawn' is outside
+ * every pending query (findLatestPendingListing, draftAutoSubmit), so the
+ * 3-hour auto-submit cannot send it either. Only a pending draft moves.
+ *
+ * @returns {boolean} whether the draft was withdrawn
+ */
+function withdrawDraft(id) {
+  return db.prepare("UPDATE listings SET status = 'withdrawn' WHERE id = ? AND status = 'pending_confirmation'")
+    .run(id).changes > 0;
+}
+
 /** Open or close the sale-price question for one listing. */
 function setAwaitingSalePrice(id, waiting) {
   db.prepare('UPDATE listings SET awaiting_sale_price_at = ? WHERE id = ?')
@@ -5331,6 +5344,7 @@ module.exports = {
   resyncListing,
   findListingAwaitingSalePrice,
   setAwaitingSalePrice,
+  withdrawDraft,
   CORRECTION_WINDOW_MS,
   applyListingCorrection,
   getListings,

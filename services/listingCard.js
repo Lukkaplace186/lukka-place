@@ -287,7 +287,212 @@ function composeIntakeReply(modelReply, row, { mode = 'draft', photoCount } = {}
   return parts.filter(Boolean).join('\n\n');
 }
 
+// ---------------------------------------------------------------------------
+// The short card with buttons (owner, 2026-11-21).
+//
+// In the two weeks before, a third of the WhatsApp listings went out without
+// the agent ever answering the full card above (71 of 220 were auto-submitted
+// or confirmed some other way): ~530 characters of bold labels, explanations
+// written for tenants, and "Répondez OK". The agent now gets ONE message: the
+// facts in five short lines, and Publier / Corriger / Ajouter des photos. A
+// commune is filled in when the place names one commune (the "déduite de"
+// note stays so a wrong one is visible) and asked — with one button per
+// commune — only when the place exists in several. renderListingCard stays for
+// the cases that still want the long form.
+// ---------------------------------------------------------------------------
+
+const TRANSACTION_WORDS = { location: 'à louer', vente: 'à vendre' };
+
+/** Button ids — the inbound tap comes back with these (routes/webhook.js handleDraftButtonReply). */
+const DRAFT_BUTTON = {
+  publish: 'draft_pub',
+  fix: 'draft_fix',
+  photos: 'draft_pic',
+  commune: 'draft_com',
+};
+
+function shortHeadline(row) {
+  const subtype = row.property_type === 'parcelle' ? SUBTYPE_LABELS[row.parcelle_subtype] : null;
+  const type = subtype
+    ? `Parcelle (${subtype.toLowerCase()})`
+    : PROPERTY_TYPE_LABELS[row.property_type] || (present(row.property_type) ? String(row.property_type) : 'Bien');
+  const beds = Number(row.bedrooms) > 0 ? ` ${row.bedrooms} ch.` : '';
+  const deal = TRANSACTION_WORDS[row.transaction_type] ? ` ${TRANSACTION_WORDS[row.transaction_type]}` : '';
+  return `*${type}${beds}${deal}*`;
+}
+
+function shortPlaceLine(row) {
+  // eslint-disable-next-line global-require
+  const { placeLabel } = require('./locations');
+  const place = placeLabel({ quartier: row.quartier, commune: row.commune, city: row.city });
+  const from = row.parsed_json?.commune_inferred_from;
+  const parts = [];
+  if (place) parts.push(`📍 ${place}${present(row.commune) && from ? ` _(commune déduite de « ${from} »)_` : ''}`);
+  if (present(row.reference)) parts.push(`${parts.length ? '' : '📍 '}réf. ${row.reference}`);
+  return parts.join(' · ');
+}
+
+function shortPriceLine(row) {
+  const parts = [];
+  if (Number(row.price) > 0) parts.push(`💰 ${money(row.price, row.currency || 'USD')}${periodSuffix(row)}`);
+  const months = (label, value) => (present(value) ? `${label} ${Number(value)}` : null);
+  parts.push(months('garantie', row.deposit_months), months('avance', row.advance_months));
+  if (present(row.commission_months)) {
+    parts.push(Number(row.commission_months) === 0 ? 'sans commission' : `commission ${Number(row.commission_months)}`);
+  }
+  const kept = parts.filter(Boolean);
+  if (!kept.length) return '';
+  return Number(row.price) > 0 ? kept.join(' · ') : `💰 ${kept.join(' · ')}`;
+}
+
+function shortRoomsLine(row) {
+  const parts = [];
+  if (present(row.bathrooms)) parts.push(`${row.bathrooms} sdb`);
+  if (row.furnished === true || row.furnished === 1) parts.push('meublé');
+  if (row.furnished === false || row.furnished === 0) parts.push('non meublé');
+  if (present(row.units_count)) parts.push(`${row.units_count} portes`);
+  if (Number(row.surface_area_sqm) > 0) parts.push(`${Number(row.surface_area_sqm).toLocaleString('fr-FR')} m²`);
+  if (isCommercialType(row.property_type)) {
+    if (present(row.office_count)) parts.push(`${row.office_count} bureaux`);
+    const floor = floorLabelFr(row.floor_level);
+    if (floor) parts.push(floor);
+  }
+  const amenities = asList(row.amenities).filter(Boolean);
+  if (amenities.length) {
+    parts.push(amenities.length > 5 ? `${amenities.slice(0, 5).join(', ')}…` : amenities.join(', '));
+  }
+  return parts.length ? `🏠 ${parts.join(' · ')}` : '';
+}
+
+function shortMediaLine(row, photoCount) {
+  const photos = photoCount ?? asList(row.photos).length;
+  const videos = asList(row.videos).length;
+  if (!photos && !videos) return '⚠️ Aucune photo — envoyez au moins une photo ou une vidéo du bien.';
+  return `📸 ${[
+    photos ? `${photos} photo${photos > 1 ? 's' : ''}` : null,
+    videos ? `${videos} vidéo${videos > 1 ? 's' : ''}` : null,
+  ].filter(Boolean).join(' · ')}`;
+}
+
+/** The five-line card: what, where, price, rooms, media. Only stated facts. */
+function renderShortCard(row, { photoCount } = {}) {
+  if (!row) return '';
+  return [shortHeadline(row), shortPlaceLine(row), shortPriceLine(row), shortRoomsLine(row), shortMediaLine(row, photoCount)]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * The communes the agent's place name could be in, when it names several
+ * ("Funa": Barumbu, Limete) — or null. The card then asks with one button each.
+ */
+function communeChoices(row) {
+  if (present(row.commune)) return null;
+  for (const text of [row.quartier, row.reference]) {
+    if (!present(text)) continue;
+    const found = inferCommune(text, { city: row.city || null });
+    if (found.status === 'ambiguous') return { place: String(text).trim(), communes: found.communes };
+    if (found.status === 'unique') return null;
+  }
+  return null;
+}
+
+/**
+ * The intake answer as one message: the short card, at most one question, and
+ * the buttons that answer it. `fallbackText` is the same message for a plain
+ * text send (buttons switched off, or the interactive send failed): it ends on
+ * the typed instruction instead.
+ *
+ * @param {Object} row
+ * @param {{mode?: 'draft'|'published'|'onboarding', intro?: string|null, photoCount?: number}} [options]
+ * @returns {{text: string, buttons: Array<{id: string, title: string}>|null, fallbackText: string}}
+ */
+function composeIntakeMessage(row, { mode = 'draft', intro = null, photoCount } = {}) {
+  const card = renderShortCard(row, { photoCount });
+  const head = intro ? `${intro}\n\n` : '';
+  let missing = missingFields(row).filter((key) => key !== 'commune');
+  const missingLine = missing.length ? `Il manque : ${missing.map((key) => MISSING_LABELS[key]).join(', ')}.` : '';
+
+  if (mode === 'published') {
+    const text = [`${intro || "C'est noté, la fiche est mise à jour :"}`, card].join('\n\n');
+    return { text, buttons: null, fallbackText: text };
+  }
+  if (mode === 'onboarding') {
+    // The registration question the caller appends IS the confirmation.
+    const text = `${head}${[card, missingLine].filter(Boolean).join('\n\n')}`;
+    return { text, buttons: null, fallbackText: text };
+  }
+
+  const body = [card, missingLine].filter(Boolean).join('\n\n');
+  const hasMedia = !/^⚠️ Aucune photo/m.test(card);
+  const id = row.id;
+
+  if (!present(row.commune)) {
+    const choices = communeChoices(row);
+    if (choices && choices.communes.length <= 3 && hasMedia) {
+      const question = `📍 « ${choices.place} » existe ${joinFr(choices.communes.map((c) => `à ${c}`))}. Touchez la bonne commune pour publier :`;
+      const buttons = choices.communes.map((commune) => ({ id: `${DRAFT_BUTTON.commune}:${id}:${commune}`, title: commune.slice(0, 20) }));
+      if (buttons.length < 3) buttons.push({ id: `${DRAFT_BUTTON.commune}:${id}:*`, title: 'Autre commune' });
+      return {
+        text: `${head}${body}\n\n${question}`,
+        buttons,
+        fallbackText: `${head}${body}\n\n📍 « ${choices.place} » existe ${joinFr(choices.communes.map((c) => `à ${c}`))}. Dans quelle commune se trouve le bien ? Répondez simplement avec le nom de la commune.`,
+      };
+    }
+    // No place we know, a place in more than three communes, or no photo yet
+    // (a commune tap publishes, which needs one): the one thing to type.
+    const question = choices
+      ? `📍 « ${choices.place} » existe ${joinFr(choices.communes.map((c) => `à ${c}`))}. Dans quelle commune se trouve le bien ? Répondez simplement avec le nom de la commune.`
+      : '📍 Dans quelle commune se trouve le bien ? Répondez avec le nom de la commune.';
+    const text = `${head}${body}\n\n${question}`;
+    return { text, buttons: null, fallbackText: text };
+  }
+
+  if (!hasMedia) {
+    return {
+      text: `${head}${body}`,
+      buttons: [
+        { id: `${DRAFT_BUTTON.photos}:${id}`, title: 'Ajouter des photos' },
+        { id: `${DRAFT_BUTTON.fix}:${id}`, title: 'Corriger' },
+      ],
+      fallbackText: `${head}${body}\n\nEnvoyez une photo ou une vidéo, puis répondez *OK* pour publier.`,
+    };
+  }
+
+  return {
+    text: `${head}${body}`,
+    buttons: [
+      { id: `${DRAFT_BUTTON.publish}:${id}`, title: 'Publier' },
+      { id: `${DRAFT_BUTTON.fix}:${id}`, title: 'Corriger' },
+      { id: `${DRAFT_BUTTON.photos}:${id}`, title: 'Ajouter des photos' },
+    ],
+    fallbackText: `${head}${body}\n\nTout est juste ? Répondez *OK* pour publier. Sinon, écrivez simplement la correction (ex. : « non, c’est 570$ »).`,
+  };
+}
+
+/** A multi-unit or multi-property draft: the model's itemised recap, then one tap for all of it. */
+function groupedIntakeButtons(row) {
+  return [
+    { id: `${DRAFT_BUTTON.publish}:${row.id}`, title: 'Tout publier' },
+    { id: `${DRAFT_BUTTON.fix}:${row.id}`, title: 'Corriger' },
+  ];
+}
+
+/** "draft_pub:12" → { action: 'publish', listingId: 12, commune: null } — or null for another button. */
+function parseDraftButton(replyId) {
+  const m = /^(draft_pub|draft_fix|draft_pic|draft_com):(\d+)(?::(.+))?$/.exec(String(replyId || ''));
+  if (!m) return null;
+  const action = Object.keys(DRAFT_BUTTON).find((key) => DRAFT_BUTTON[key] === m[1]);
+  return { action, listingId: Number(m[2]), commune: m[3] || null };
+}
+
 module.exports = {
+  renderShortCard,
+  composeIntakeMessage,
+  groupedIntakeButtons,
+  parseDraftButton,
+  communeChoices,
+  DRAFT_BUTTON,
   renderListingCard,
   composeIntakeReply,
   introFrom,

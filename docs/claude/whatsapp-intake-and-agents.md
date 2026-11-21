@@ -691,3 +691,51 @@ moderation. Those two accounts and listings were left for the owner to decide.
 - The link-less storefront enquiry itself: see "Listing Enquiries from the
   Storefront's WhatsApp CTA" in `docs/claude/leads-and-enquiries.md`.
 - §97 of verify-pipeline replays both conversations.
+
+## One short card with buttons; one publish gate (2026-11-21)
+
+Why: in the two weeks before, 71 of 220 WhatsApp listings went out without
+the agent answering the card (~530 characters of bold labels, "Répondez OK",
+the "reconnu et lié à votre compte" paragraph under every card). Owner: one
+message, as little back-and-forth as possible; the commune filled in when the
+place names one commune, asked only when it really is not known.
+
+- **The card** (`listingCard.composeIntakeMessage` / `renderShortCard`): five
+  lines — what (`*Appartement 2 ch. à louer*`), where (place label, "commune
+  déduite de « … »", réf.), price and the three entry costs
+  ("garantie 4 · commission 1"; "sans commission" only for a stated 0), rooms
+  and top equipment, photo/video count — then the essential fields still
+  missing. No model prose above a new listing's card; a correction keeps the
+  model's one-line intro. The long `renderListingCard` is unchanged for its
+  other callers.
+- **Buttons** (Meta reply buttons via `chakra.sendInteractiveButtons`, 107
+  sent / 102 taps in production before this): `draft_pub:<id>` Publier,
+  `draft_fix:<id>` Corriger (asks for the correction in words),
+  `draft_pic:<id>` Ajouter des photos; no photo yet → Ajouter des photos /
+  Corriger only. A place in 2–3 communes ("Funa") → one button per commune
+  (`draft_com:<id>:<Commune>`, plus "Autre commune" → typed): **the commune tap
+  is the confirmation** (sets it, then publishes). No known place, more than
+  three communes, or no photo yet → one typed question, no buttons. A
+  multi-unit/multi-property recap gets Tout publier / Corriger. Only the
+  draft's own number may act; a tap on an old card gets `ALREADY_SENT_REPLY`.
+- **Taps are never buffered**: `enqueueMessage` flushes what is buffered, then
+  processes the tap alone at once (before, every button waited the 8 s idle
+  time and could be merged with — and drop — buffered photos).
+- **Fallback**: `INTAKE_BUTTONS=off` (call time), a body over 1,024 characters,
+  or a failed interactive send → the same card as text ending on "Répondez
+  *OK*"; typed "OK" keeps working everywhere.
+- **One publish gate** (`services/draftPublish.js publishDraft`): photo/video
+  → plan limit → re-send guard → `expandAndPublishListing`. Used by the typed
+  OK, "c'est bon, publiez" (which skipped the quota), the buttons, and the
+  onboarding answer (which skipped quota, re-send guard AND the multi-unit
+  split). draftAutoSubmit keeps its own silent copy of the same checks.
+- **Ack**: "Bien reçu ✅ Je prépare votre fiche… ⏳" now also for a text that
+  stands alone as a listing and for a new listing while a draft is pending
+  (text-first agents waited 20–45 s in silence); never to a relay number, a
+  known customer, or plain chat.
+- **Truthful status**: a correction to a listing already sent says "C'est
+  noté, la fiche est mise à jour" (no "déjà en ligne" — it may still be in
+  moderation); "c'est loué / vendu" on a draft never sent withdraws it
+  (`db.withdrawDraft`, status `withdrawn`, out of every pending query and of
+  auto-submit) with `DRAFT_WITHDRAWN_REPLY`.
+- §123 of verify-pipeline.

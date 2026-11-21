@@ -303,6 +303,16 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   visitor's last page view before it. ChatGPT tags its links
   `utm_source=chatgpt.com`; on launch it was the second channel by visitors
   and the first by WhatsApp clicks. `tests/unit/traffic-sources.test.js`.
+- **Taps have their own rate-limit budget** (2026-11-21, `lib/eventIngest.js`):
+  WhatsApp taps fell from ~12 people a day to 3 while the ad sent ~3,300
+  visitors a day; every tracking call shared one 60/min budget per IP, and
+  Kinshasa's carriers put many phones behind one IP. `/api/telemetry/lead-click`,
+  `/api/telemetry/contact-tap` and `/api/track` call_click / whatsapp_click
+  now use `contact:<ip>` (`CONTACT_MAX_EVENTS` 30); everything else keeps the
+  shared budget. Every refusal is counted and logged once a minute per budget
+  (`[rate-limit] refused N event(s)… network(s): 41.243.x.x×N`, addresses cut
+  to two octets) — `grep -a "\[rate-limit\]"` in the web pm2 log.
+  `tests/unit/contact-rate-limit.test.js`.
 - **Direct contacts become visits** (2026-11-20, root
   docs/claude/leads-and-enquiries.md, "Direct contacts become visits and
   outcomes"): « Je veux le visiter » offers an optional name + WhatsApp number

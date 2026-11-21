@@ -2,7 +2,9 @@ import { after } from 'next/server';
 import { getPool } from '@/lib/db';
 import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
 import { analyticsDimensions } from '@/lib/requestContext';
-import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
+import {
+  clientKey, rateLimited, usableAmount, CONTACT_EVENT_TYPES, CONTACT_MAX_EVENTS, contactKey,
+} from '@/lib/eventIngest';
 import {
   LISTING_EVENT_TYPES,
   attributionFromBody,
@@ -71,15 +73,18 @@ import {
  */
 
 export async function POST(request) {
-  if (rateLimited(clientKey(request))) {
-    return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
-  }
-
   let body;
   try {
     body = await request.json();
   } catch {
     return Response.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  // A call or WhatsApp tap has its own budget (2026-11-21): on the shared one,
+  // page views from a Kinshasa carrier IP could refuse it during a campaign.
+  const contact = CONTACT_EVENT_TYPES.includes(body?.type);
+  if (contact ? rateLimited(contactKey(request), CONTACT_MAX_EVENTS) : rateLimited(clientKey(request))) {
+    return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
   }
 
   const { type, path, commune, listingId, price } = body || {};

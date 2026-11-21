@@ -1,7 +1,7 @@
 import { getPool } from '@/lib/db';
 import { recordAgentContactTap } from '@/lib/agentContactTaps';
 import { analyticsDimensions } from '@/lib/requestContext';
-import { clientKey, rateLimited } from '@/lib/eventIngest';
+import { CONTACT_MAX_EVENTS, contactKey, rateLimited } from '@/lib/eventIngest';
 import { signedInAgentIdFrom, signedInCustomerIdFrom, viewerKindFor, visitorIdFrom } from '@/lib/trackIngest';
 
 /**
@@ -15,7 +15,9 @@ import { signedInAgentIdFrom, signedInCustomerIdFrom, viewerKindFor, visitorIdFr
  * 204-like JSON: the beacon does not read it.
  */
 export async function POST(request) {
-  if (rateLimited(clientKey(request))) {
+  // Its own budget (lib/eventIngest.js CONTACT_MAX_EVENTS): page views from
+  // the same carrier IP must never crowd out a customer reaching an agent.
+  if (rateLimited(contactKey(request), CONTACT_MAX_EVENTS)) {
     return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
   }
   let body;

@@ -3,7 +3,7 @@ import { getPool } from '@/lib/db';
 import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
 import { visitContactFromBody } from '@/lib/visitContact';
 import { analyticsDimensions } from '@/lib/requestContext';
-import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
+import { CONTACT_MAX_EVENTS, contactKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
 import { cleanWhatsAppIntent } from '@/lib/whatsappIntent';
 import {
@@ -24,7 +24,9 @@ import {
  * needs that a plain `whatsapp_click` never recorded.
  */
 export async function POST(request) {
-  if (rateLimited(clientKey(request))) {
+  // Its own budget (lib/eventIngest.js CONTACT_MAX_EVENTS): page views from
+  // the same carrier IP must never crowd out a customer reaching an agent.
+  if (rateLimited(contactKey(request), CONTACT_MAX_EVENTS)) {
     return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
   }
 

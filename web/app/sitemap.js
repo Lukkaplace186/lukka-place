@@ -21,17 +21,8 @@ export const revalidate = 3600;
 
 export default async function sitemap() {
   const base = SITE_URL.replace(/\/+$/, '');
-  const now = new Date();
   // Projets neufs switched off on /admin/settings: none of its pages are listed.
   const { publicProjects, publicBlog } = await getFeatureFlags();
-  const pages = ['', '/listings', '/projets', '/promoteurs', '/agents', '/guides', '/a-propos', '/contact']
-    .filter((path) => publicProjects || !PROJECT_PAGES.includes(path))
-    .map((path) => ({
-    url: `${base}${path}`,
-    lastModified: now,
-    changeFrequency: path === '' || path === '/listings' ? 'daily' : 'monthly',
-    priority: path === '' ? 1 : 0.7,
-  }));
 
   // A sitemap that fails to build must still list the pages it can.
   const [listings, facets, projects, posts, priceGuides, collections, lukkaIndex] = await Promise.all([
@@ -54,6 +45,19 @@ export default async function sitemap() {
     getCollectionTiles(),
     getLukkaIndex(),
   ]);
+  // lastModified only where a real date exists (2026-11-21, marketing plan):
+  // "now" on every request taught Google to ignore the dates. The home page
+  // and /listings change when a listing does, so they carry the newest
+  // listing's date; static, discovery and landing pages carry none.
+  const newestListing = listings.reduce((max, l) => (l.updatedAt instanceof Date && !Number.isNaN(l.updatedAt.getTime()) && (!max || l.updatedAt > max) ? l.updatedAt : max), null);
+  const pages = ['', '/listings', '/projets', '/promoteurs', '/agents', '/guides', '/a-propos', '/contact']
+    .filter((path) => publicProjects || !PROJECT_PAGES.includes(path))
+    .map((path) => ({
+      url: `${base}${path}`,
+      ...((path === '' || path === '/listings') && newestListing ? { lastModified: newestListing } : {}),
+      changeFrequency: path === '' || path === '/listings' ? 'daily' : 'monthly',
+      priority: path === '' ? 1 : 0.7,
+    }));
   const guideSlugs = new Set(GUIDES.map((g) => g.slug));
   const discovery = [
     '/confidentialite',
@@ -65,10 +69,9 @@ export default async function sitemap() {
 
   return withEnglishTwins(base, [
     ...pages,
-    ...discovery.map((path) => ({ url: `${base}${path}`, lastModified: now, changeFrequency: 'daily', priority: 0.6 })),
+    ...discovery.map((path) => ({ url: `${base}${path}`, changeFrequency: 'daily', priority: 0.6 })),
     ...landingPathsFromFacets(facets).map((path) => ({
       url: `${base}${path}`,
-      lastModified: now,
       changeFrequency: 'daily',
       // The two city-wide roots and commune pages are what people search for.
       priority: path.split('/').length <= 3 ? 0.8 : 0.7,
@@ -82,20 +85,20 @@ export default async function sitemap() {
     // A post with a guide's slug replaces that guide: one URL, listed once.
     ...posts.filter(({ slug }) => !guideSlugs.has(slug)).map(({ slug, updated_at: updatedAt }) => ({
       url: `${base}/guides/${slug}`,
-      lastModified: updatedAt ? new Date(updatedAt) : now,
+      lastModified: updatedAt ? new Date(updatedAt) : undefined,
       changeFrequency: 'monthly',
       priority: 0.6,
     })),
     ...projects.map(({ slug, updated_at: updatedAt }) => ({
       url: `${base}/projets/${slug}`,
-      lastModified: updatedAt ? new Date(updatedAt) : now,
+      lastModified: updatedAt ? new Date(updatedAt) : undefined,
       changeFrequency: 'weekly',
       priority: 0.8,
     })),
     // The keyword address each listing page declares canonical (lib/listingSlug.js).
     ...listings.map((listing) => ({
       url: `${base}${listingPath(listing)}`,
-      lastModified: Number.isNaN(listing.updatedAt.getTime()) ? now : listing.updatedAt,
+      lastModified: Number.isNaN(listing.updatedAt.getTime()) ? undefined : listing.updatedAt,
       changeFrequency: 'weekly',
       priority: 0.8,
     })),

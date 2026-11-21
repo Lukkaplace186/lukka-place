@@ -6,7 +6,7 @@ import { ArrowLeft, CalendarClock, ChevronRight, CircleHelp, MapPin, MessageCirc
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import PhoneField from '@/components/PhoneField';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
-import { trackCallClick, trackLeadClick, trackWhatsAppOutcome } from '@/lib/analyticsClient';
+import { trackCallClick, trackLeadClick, trackWhatsAppOutcome, trackWhatsAppSheet } from '@/lib/analyticsClient';
 import { whatsappIntentEnabled } from '@/lib/whatsappIntent';
 import { normalizePhone, telHref } from '@/lib/phone';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
@@ -104,7 +104,7 @@ function storeContact(contact) {
  *
  * @param {{listing: Object, placement?: string, className: string, children: React.ReactNode, ariaLabel?: string}} props
  */
-export default function WhatsAppIntentButton({ listing, placement, className, children, ariaLabel }) {
+export default function WhatsAppIntentButton({ listing, placement, className, children, ariaLabel, standalone = false }) {
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -164,11 +164,13 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
     }
     readVideoOffer();
     show(true);
+    trackWhatsAppSheet('open', listing, placement);
   }
 
   function go(intent, contact = null) {
     const chosen = resolveWhatsAppRouting(listing, intent);
     const target = chosen.href || href;
+    trackWhatsAppSheet('choose', listing, placement);
     trackLeadClick(listing, chosen.routingType, placement, intent, contact);
     show(false);
     openWhatsApp(target);
@@ -251,9 +253,20 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
 
   return (
     <>
-      <button type="button" onClick={onTrigger} className={className} aria-label={ariaLabel} aria-haspopup="dialog">
-        {children}
-      </button>
+      {standalone ? (
+        // Not inside a card link (listing page): a real link to WhatsApp, so a
+        // tap before the page's JavaScript has loaded still reaches the agent
+        // (2026-11-21 — Kinshasa links are slow and the bundle is heavy; a
+        // <button> did nothing until hydration). Once hydrated, onTrigger
+        // prevents the navigation and opens the sheet as before.
+        <a href={href} target="_blank" rel="noopener noreferrer" onClick={onTrigger} className={className} aria-label={ariaLabel} aria-haspopup="dialog">
+          {children}
+        </a>
+      ) : (
+        <button type="button" onClick={onTrigger} className={className} aria-label={ariaLabel} aria-haspopup="dialog">
+          {children}
+        </button>
+      )}
       {/* The sheet is portalled to <body>, but React still bubbles its events
           through this tree — up to the card's <Link>. This wrapper stops every
           click from the sheet, the dimmed backdrop included (it stays mounted

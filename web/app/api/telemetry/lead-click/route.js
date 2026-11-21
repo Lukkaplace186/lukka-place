@@ -6,6 +6,7 @@ import { analyticsDimensions } from '@/lib/requestContext';
 import { CONTACT_MAX_EVENTS, contactKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
 import { cleanWhatsAppIntent } from '@/lib/whatsappIntent';
+import { userAgentKind } from '@/lib/waSheetRules';
 import {
   attributionFromBody, eventSource, signedInAgentIdFrom, signedInCustomerIdFrom, viewerKindFor, visitorIdFrom,
 } from '@/lib/trackIngest';
@@ -89,5 +90,11 @@ export async function POST(request) {
   const contact = visitContactFromBody(body, intent);
   if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId, intent, contact }));
 
+  // One line per tap answered (lib/waSheetRules.js): beside the [wa-sheet]
+  // open / choose lines it shows whether a chosen tap reached the server.
+  console.log(`[lead-click] ${JSON.stringify({
+    listingId: id, placement: leadClickPlacement(body?.placement), intent, viewerKind, recorded: Boolean(recorded),
+    ua: userAgentKind(request.headers.get('user-agent')),
+  })}`);
   return Response.json({ success: true, recorded });
 }

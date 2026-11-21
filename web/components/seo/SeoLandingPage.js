@@ -16,12 +16,14 @@ import { GUIDES } from '@/lib/guides';
 import { DEFAULT_CITY, provinceOfCity } from '@/lib/cities';
 import { localizeHref } from '@/lib/localePaths';
 import { listingPath } from '@/lib/listingSlug';
+import { listingImages } from '@/lib/listingView';
 import {
   SEO_PROPERTY_TYPES,
   OVERLAY_PROPERTY_TYPES,
   SEO_TRANSACTIONS,
   SEO_CITIES,
   facetCity,
+  landingIndexable,
   listingsHrefFor,
   parseSeoSegments,
   seoPath,
@@ -77,14 +79,26 @@ export async function seoLandingMetadata(transaction, params) {
   const description = total > 0
     ? t('seo.metaDescription', { count: total, heading })
     : t('seo.metaDescriptionNone', { heading });
+  // A link shared on WhatsApp or Facebook shows a photo: the first listing on
+  // the page that has one (2026-11-21; it showed none before). Nothing when no
+  // listing has a photo — the site's default card applies.
+  const cover = (data.listings || []).map((l) => listingImages(l)[0]).find(Boolean) || null;
   return {
     title: t('seo.metaTitle', { heading }),
     description,
     alternates: await localizedAlternates(path),
-    // An empty page is thin content: kept out of the index until a listing
-    // lands, still followed so its links count.
-    robots: total > 0 ? undefined : { index: false, follow: true },
-    openGraph: { title: heading, description, url: (await getUrlLocale()) === 'en' ? localizeHref(path, 'en') : path, type: 'website' },
+    // An empty page, or a type in one place with fewer than
+    // MIN_NARROW_LANDING_LISTINGS, is thin content: kept out of the index,
+    // still followed so its links count (lib/seoPages.js landingIndexable).
+    robots: landingIndexable(page, total) ? undefined : { index: false, follow: true },
+    openGraph: {
+      title: heading,
+      description,
+      url: (await getUrlLocale()) === 'en' ? localizeHref(path, 'en') : path,
+      type: 'website',
+      ...(cover ? { images: [{ url: cover, alt: heading }] } : {}),
+    },
+    ...(cover ? { twitter: { card: 'summary_large_image', title: heading, description, images: [cover] } } : {}),
   };
 }
 

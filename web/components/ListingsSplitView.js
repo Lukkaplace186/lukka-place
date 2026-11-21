@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Link from '@/components/LocaleLink';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
 import ListingsFeed from './ListingsFeed';
+import FeedRequestCard from './FeedRequestCard';
+import { feedRequestHref, feedRequestIndex } from '@/lib/guestRequestRules';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
@@ -65,6 +67,8 @@ export default function ListingsSplitView({
   const t = useT();
   const queryString = feedQueryString(params);
   const feedKey = `${queryString}#${page}`;
+  const requestHref = feedRequestHref(params);
+  const requestIndex = feedRequestIndex(listings.length);
   const router = useRouter();
   // How many listings the map counts in view — the mobile Liste button says it.
   const [inView, setInView] = useState(null);
@@ -203,8 +207,8 @@ export default function ListingsSplitView({
           initialNext={nextCursor}
           place={params.commune || null}
           renderCard={(listing, i) => (
+            <Fragment key={listing.id}>
             <PropertyCard
-              key={listing.id}
               listing={listing}
               layout="horizontal"
               // Single column, so only the first couple of rows are ever
@@ -215,6 +219,11 @@ export default function ListingsSplitView({
               onHoverStart={() => setHoveredId(listing.id)}
               onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
             />
+            {/* "Pas encore trouvé ?" once, after the 6th card (or the last of a
+                shorter first page): the visitor not ready to write to an agent
+                leaves what they want instead of leaving. */}
+            {page === 1 && i === requestIndex ? <FeedRequestCard href={requestHref} /> : null}
+            </Fragment>
           )}
         />
 

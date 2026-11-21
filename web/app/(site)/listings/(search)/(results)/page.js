@@ -1,3 +1,4 @@
+import { isAdLanding } from '@/lib/adLanding';
 import FilterBar from '@/components/FilterBar';
 import ActiveFilterChips from '@/components/ActiveFilterChips';
 import ListingsSplitView from '@/components/ListingsSplitView';
@@ -170,8 +171,14 @@ export default async function ListingsPage({ searchParams }) {
   // components/SearchTracker.js). `resultCount` is what matched EXACTLY: a
   // relaxed search that fell back to alternatives matched nothing, and that
   // zero is the unmet demand the market data is for.
+  // An ad landing is not a search the visitor made (2026-11-21): from 11-19
+  // the Facebook ads' filtered landing URL logged one "search" per paid
+  // visitor and sent a Meta "Search" event for each. A URL carrying ad
+  // parameters is skipped; FilterBar rebuilds the URL without them, so the
+  // visitor's own next search is recorded as before.
+  const adLanding = isAdLanding(params);
   const trackedSearch =
-    page === 1 && !mapArea && SEARCH_LOG_KEYS.some((key) => params[key])
+    page === 1 && !mapArea && !adLanding && SEARCH_LOG_KEYS.some((key) => params[key])
       ? {
           transactionType: params.transaction_type || null,
           communes: [filters.commune, ...(filters.communes || [])].filter(Boolean),
@@ -195,6 +202,7 @@ export default async function ListingsPage({ searchParams }) {
         total,
         exact: !relaxation && !locationRelaxed && !radiusExpanded,
         relaxed: relaxation ? Object.keys(relaxation) : undefined,
+        landing: adLanding || undefined,
       })}`,
     );
   }

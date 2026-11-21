@@ -265,6 +265,15 @@ export function trackLeadClick(listing, routingType, placement, intent = null, c
 }
 
 /**
+ * A step of the WhatsApp sheet (lib/waSheetRules.js): 'open' when the sheet
+ * opens, 'choose' when an option is picked, just before the tap itself.
+ * A log line on the server, nothing stored.
+ */
+export function trackWhatsAppSheet(step, listing, placement) {
+  beacon('/api/telemetry/wa-sheet', { step, listingId: listing?.id, placement });
+}
+
+/**
  * « Votre message est parti ? » — the customer's own answer after coming back
  * from WhatsApp (components/WhatsAppIntentSheet.js): a listing event,
  * whatsapp_sent or whatsapp_not_sent.

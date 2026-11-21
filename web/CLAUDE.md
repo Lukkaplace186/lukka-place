@@ -5527,3 +5527,71 @@ them). `tests/unit/listing-page-story.test.js`.
   profil" link and its alert card left the main column; the desktop rail
   keeps EnquiryCard, the profile link, PricePanel and the alert, and the one
   phone alert is the one after "Biens similaires".
+
+## Marketing plan, first fixes (2026-11-21)
+
+From the marketing plan (production data, 18–20 Nov): 9,893 paid Facebook
+visitors, 7 WhatsApp taps (0.07 %) against 10.6 % of organic visitors the
+week before; the sign-up nudge made 2 accounts from 197 showings in 30 days.
+`tests/unit/marketing-quick-wins.test.js`.
+
+- **"Pas encore trouvé ?" in the /listings feed** (`components/FeedRequestCard.js`,
+  rendered by `ListingsSplitView`'s `renderCard`): once, after the 6th card or
+  the last of a shorter first page (`feedRequestIndex`), page 1 only. It links
+  to `/trouver-pour-moi` with the search's transaction, commune, type, budget
+  and bedrooms (`feedRequestHref` in `lib/guestRequestRules.js`; the form's
+  `guestRequestPrefill` re-checks them). No account: the request goes to the
+  agencies of the commune, who answer on WhatsApp.
+- **Sign-up opens on the three-field form** with its benefits. The moving
+  questionnaire (`MoveOnboarding`) comes first only with `?projet=1`;
+  `?direct=1` still works. The questions are asked after the account exists
+  (Accueil's "Parlez-nous de votre déménagement"). The invite page no longer
+  says the number is confirmed by WhatsApp (false since 2026-11-06).
+- **Trust facts beside the agent** (`components/listings/AgentTrustLine.js`,
+  rules `lib/agentTrustRules.js`): "Numéro vérifié" only when the listing
+  carries `agent_phone` (verified + routable), "N biens en ligne" and
+  "N biens loués ou vendus" from `getAgentTrackRecord` (one query per request,
+  React `cache`), from 1. Never a negative. Phone row (`ListingAgentRow`) and
+  under the desktop EnquiryCard.
+- **Thin landing pages leave the index**: a type in one commune, or in a city
+  other than Kinshasa, needs `MIN_NARROW_LANDING_LISTINGS` (3) to be indexed
+  (`landingIndexable`) and listed in the sitemap (`landingPathsFromFacets`);
+  78 of 199 indexed landings had ≤ 2. Communes, cities and Kinshasa-wide type
+  pages keep "from 1". Landing pages now carry the first listing photo as
+  `og:image` (WhatsApp / Facebook previews showed none).
+- **Sitemap dates are real**: no more `lastModified: now`. Home and /listings
+  carry the newest listing's date; static, discovery and landing pages none.
+- **Structured data**: the site is an `Organization` (was `RealEstateAgent`,
+  against "platform, not agency"); a listing's Offer names its agent as
+  `offeredBy` (displayableAgencyName — never a number), Lukka Place stays
+  `provider`.
+- **`/llms.txt`** (`app/llms.txt/route.js`, `lib/llmsTxt.js`): the pages an AI
+  assistant can cite, with every price-guide page. ChatGPT was the top source
+  of WhatsApp taps in the ten days before the ad.
+- **An ad landing is not a search** (`lib/adLanding.js`): a /listings URL with
+  `utm_*`, `fbclid`, `gclid` or `ttclid` records no `search_events` row and no
+  Meta "Search" event (from 11-19 the ads logged about one search per paid
+  visitor). The `[search]` log line is kept with `landing: true`. FilterBar
+  rebuilds the URL without ad parameters, so the visitor's own next search
+  counts.
+- **Not done here (owner's accounts):** the Meta Pixel id and `META_CAPI_TOKEN`
+  (code ready since 2026-10-27), the ad's landing URL and placements, Bing
+  Webmaster and the Google Business Profile verification.
+- **WhatsApp tap drop, 2026-11-19 15:17 UTC → 11-21 (cause not found).**
+  The listing page's bottom-bar WhatsApp recorded no tap for ~38 h while
+  listing visitors peaked; organic visitors who opened a gallery tapped ~25 %
+  of the time before and 0 % after. The `whatsapp_clicks` id sequence has no
+  gaps; there were no rate-limit refusals, no deploy or setting change, and
+  the tap-path files on the VPS matched HEAD. A local test (writes stubbed)
+  shows sheet → choice → beacon → wa.me working. Two changes so the next one
+  can be answered and a slow page loses no customer:
+  - **Funnel log lines** (`lib/waSheetRules.js`, `POST /api/telemetry/wa-sheet`):
+    `[wa-sheet]` `open` / `choose` from the sheet, and one `[lead-click]` line
+    per tap the endpoint answers, each with the browser kind (`fb_inapp`,
+    `ig_inapp`, `webview`…). `grep -E '\[(wa-sheet|lead-click)\]'` in the web
+    pm2 log: opens without chooses = people leave the sheet; chooses without
+    lead-click lines = taps lost on the way.
+  - **The listing page's triggers are real links** (`WhatsAppIntentButton
+    standalone`, MobileListingBar and EnquiryCard): `<a href=wa.me…>` until
+    hydration, then the sheet. Cards keep the `<button>` (they sit inside a
+    card link). A tap before hydration reaches WhatsApp unrecorded.

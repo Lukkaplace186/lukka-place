@@ -112,7 +112,7 @@ test('landing pages: /location/bureaux and /location/locaux-commerciaux, never c
   assert.equal(parseSeoSegments('vente', ['locaux-commerciaux', 'gombe']).propertyType, COMMERCIAL_FILTER_VALUE);
   assert.equal(seoPath({ transaction: 'location', propertyType: COMMERCIAL_FILTER_VALUE, commune: 'Gombe' }), '/location/locaux-commerciaux/gombe');
   assert.ok(OVERLAY_PROPERTY_TYPES.has(COMMERCIAL_FILTER_VALUE));
-  const paths = landingPathsFromFacets([{ commune: 'Gombe', purpose: 'rent', propertyType: COMMERCIAL_FILTER_VALUE, count: 2 }]);
+  const paths = landingPathsFromFacets([{ commune: 'Gombe', purpose: 'rent', propertyType: COMMERCIAL_FILTER_VALUE, count: 3 }]);
   assert.ok(paths.includes('/location/locaux-commerciaux/gombe'));
   for (const value of ['bureau', COMMERCIAL_FILTER_VALUE, 'entrepôt', 'immeuble', 'bâtiment', 'villa', 'concession']) {
     assert.ok(PROPERTY_TYPE_PLURAL_KEYS[value], `results heading for ${value}`);

@@ -27,6 +27,8 @@ import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import ListingEquipment from '@/components/listings/ListingEquipment';
 import ListingFactsRow from '@/components/listings/ListingFactsRow';
 import ListingAgentRow from '@/components/listings/ListingAgentRow';
+import AgentTrustLine from '@/components/listings/AgentTrustLine';
+import { displayableAgencyName } from '@/lib/agentIdentity';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
@@ -387,6 +389,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
               room left to stick within. top-24 clears the fixed header. */}
           <aside className="hidden w-full self-start lg:sticky lg:top-24 lg:flex lg:flex-col lg:space-y-4">
             <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} placement="listing_desktop" />
+            {displayableAgencyName(listing.agency_name) ? <AgentTrustLine listing={listing} className="px-1" /> : null}
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
             <SimilarAlertButton query={alertQuery} />

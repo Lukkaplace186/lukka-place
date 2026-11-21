@@ -627,6 +627,9 @@
       "heading": "{subject} {transaction} in {place}",
       "headingNear": "{subject} {transaction} near {place}",
       "nearbyExtrasTitle": "Also near {place}",
+      "feedRequestTitle": "Not Found It Yet?",
+      "feedRequestBody": "Tell us what you are looking for: partner agencies send you homes on WhatsApp. Free, no account needed.",
+      "feedRequestCta": "Describe what I need",
       "relaxedKeywords": {
         "one": "No listing mentions “{words}” — that word was left out of the search.",
         "other": "No listing mentions “{words}” — those words were left out of the search."
@@ -819,6 +822,17 @@
       "on": "Listed on {date}"
     },
     "detail": {
+      "agentTrust": {
+        "phoneVerified": "Verified number",
+        "live": {
+          "one": "{count} listing online",
+          "other": "{count} listings online"
+        },
+        "closed": {
+          "one": "{count} let or sold",
+          "other": "{count} let or sold"
+        }
+      },
       "viewAgentProfile": "View agent profile",
       "description": "Description",
       "keyFeatures": "Key Features",
@@ -8789,7 +8803,7 @@
       "title": "Create Your Free Account",
       "lead": "Find a home to rent or a property to buy in the DRC, and get new listings before anyone else.",
       "cta": "Create My Free Account",
-      "free": "Free, in under a minute. Your number is confirmed on WhatsApp.",
+      "free": "Free, in under a minute. No code to wait for.",
       "benefitAlertsTitle": "WhatsApp Alerts",
       "benefitAlertsText": "New listings that match your search, as soon as they are published.",
       "benefitFavoritesTitle": "Your Favourites",

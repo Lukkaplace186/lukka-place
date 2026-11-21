@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import AgentMonogram from '@/components/AgentMonogram';
 import AgentVerificationBadge from '@/components/AgentVerificationBadge';
+import AgentTrustLine from '@/components/listings/AgentTrustLine';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
@@ -29,6 +30,7 @@ export default async function ListingAgentRow({ listing }) {
         <span className="truncate text-[0.9375rem] font-bold text-ink">{displayName}</span>
         <span className="text-[0.8125rem] text-ink-45">{qualifier}</span>
         {agentName ? <AgentVerificationBadge level={listing.agent_verification_level} t={t} className="mt-0.5" /> : null}
+        {agentName ? <AgentTrustLine listing={listing} className="mt-0.5" /> : null}
       </div>
     </>
   );

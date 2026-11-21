@@ -218,6 +218,13 @@ export function seoPathForParams(params = {}) {
  */
 export function landingPathsFromFacets(facets) {
   const paths = new Set();
+  // A type in one place (Bureaux à Limete, Immeubles à Lubumbashi) is listed
+  // only once it has MIN_NARROW_LANDING_LISTINGS — the same rule that keeps
+  // the page itself out of the index (landingIndexable).
+  const narrow = new Map();
+  const addNarrow = (path, count) => {
+    if (path) narrow.set(path, (narrow.get(path) || 0) + count);
+  };
   for (const [transaction, { purpose }] of Object.entries(SEO_TRANSACTIONS)) {
     paths.add(seoPath({ transaction }));
     for (const f of facets) {
@@ -226,18 +233,39 @@ export function landingPathsFromFacets(facets) {
       const city = facetCity(f);
       if (city !== DEFAULT_CITY) {
         paths.add(seoPath({ transaction, city }));
-        if (typed) paths.add(seoPath({ transaction, propertyType: typed, city }));
+        if (typed) addNarrow(seoPath({ transaction, propertyType: typed, city }), f.count);
         continue;
       }
       if (typed) paths.add(seoPath({ transaction, propertyType: typed }));
       if (f.commune) {
         paths.add(seoPath({ transaction, commune: f.commune }));
-        if (typed) paths.add(seoPath({ transaction, propertyType: typed, commune: f.commune }));
+        if (typed) addNarrow(seoPath({ transaction, propertyType: typed, commune: f.commune }), f.count);
       }
     }
   }
+  for (const [path, count] of narrow) {
+    if (count >= MIN_NARROW_LANDING_LISTINGS) paths.add(path);
+  }
   paths.delete(null);
   return [...paths];
+}
+
+/**
+ * A type in one place — a commune, or a city other than Kinshasa — needs this
+ * many listings to be indexed and listed in the sitemap (2026-11-21, marketing
+ * plan: 78 of 199 indexed landing pages had 2 listings or fewer, e.g.
+ * /vente/fermes/masina; thin pages pull the whole site down in Google). The
+ * page still works and is still followed; communes, cities and Kinshasa-wide
+ * type pages keep the old rule (indexed from one listing).
+ */
+export const MIN_NARROW_LANDING_LISTINGS = 3;
+
+/** Whether a landing page (parseSeoSegments' shape) with `total` listings is indexed. */
+export function landingIndexable(page, total) {
+  const n = Number(total) || 0;
+  if (n <= 0) return false;
+  const narrow = Boolean(page?.propertyType) && Boolean(page?.commune || (page?.city && page.city !== DEFAULT_CITY));
+  return narrow ? n >= MIN_NARROW_LANDING_LISTINGS : true;
 }
 
 /**

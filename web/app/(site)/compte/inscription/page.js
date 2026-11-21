@@ -37,8 +37,8 @@ export default async function CustomerSignupPage({ searchParams }) {
   // (services/customerOnboarding.js) for links already shared.
 
   // "Mon déménagement" (2026-11-07): the questions first, card by card, and
-  // the account form as the last card (components/MoveOnboarding.js). The
-  // plain form stays at ?direct=1 for links that want it. An error redirect
+  // the account form as the last card (components/MoveOnboarding.js), now
+  // only with ?projet=1 (see below). An error redirect
   // reopens on the account card with the answers restored from the draft.
   // From a save (♥, an alert — components/AuthPromptModal.js): straight to
   // the account card; the move questions are offered afterwards, from the
@@ -49,7 +49,13 @@ export default async function CustomerSignupPage({ searchParams }) {
   const entry = cleanSignupEntry(params[SIGNUP_ENTRY_PARAM]);
   const pageViewBeacon = <CustomerSignupTracker entry={entry} />;
 
-  if (params.direct !== '1') {
+  // Since 2026-11-21 the three-field form with its benefits is the default
+  // (marketing plan: the questionnaire opened on "Étape 1 sur 5" with fifteen
+  // chips and no reason to sign up; the nudge made 2 accounts from 197
+  // showings in 30 days). The move questions come after the account exists —
+  // Accueil's "Parlez-nous de votre déménagement" — or first with ?projet=1.
+  // ?direct=1 still opens the form, for links already shared.
+  if (params.projet === '1' && params.direct !== '1') {
     return (
       <>
       {pageViewBeacon}

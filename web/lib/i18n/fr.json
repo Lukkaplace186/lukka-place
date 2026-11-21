@@ -627,6 +627,9 @@
       "heading": "{subject} {transaction} à {place}",
       "headingNear": "{subject} {transaction} près de {place}",
       "nearbyExtrasTitle": "Aussi à proximité de {place}",
+      "feedRequestTitle": "Pas encore trouvé ?",
+      "feedRequestBody": "Dites-nous ce que vous cherchez : les agences partenaires vous proposent des biens sur WhatsApp. Gratuit, sans compte.",
+      "feedRequestCta": "Décrire ma recherche",
       "relaxedKeywords": {
         "one": "Aucune annonce ne mentionne « {words} » — ce mot a été retiré de la recherche.",
         "other": "Aucune annonce ne mentionne « {words} » — ces mots ont été retirés de la recherche."
@@ -819,6 +822,17 @@
       "on": "Publiée le {date}"
     },
     "detail": {
+      "agentTrust": {
+        "phoneVerified": "Numéro vérifié",
+        "live": {
+          "one": "{count} bien en ligne",
+          "other": "{count} biens en ligne"
+        },
+        "closed": {
+          "one": "{count} bien loué ou vendu",
+          "other": "{count} biens loués ou vendus"
+        }
+      },
       "viewAgentProfile": "Voir le profil de l'agent",
       "description": "Description",
       "keyFeatures": "Caractéristiques principales",
@@ -8789,7 +8803,7 @@
       "title": "Créez votre compte gratuit",
       "lead": "Trouvez un logement à louer ou un bien à acheter en RDC, et recevez les nouvelles annonces avant tout le monde.",
       "cta": "Créer mon compte gratuit",
-      "free": "Gratuit, en moins d’une minute. Votre numéro est confirmé par WhatsApp.",
+      "free": "Gratuit, en moins d’une minute. Sans code à recevoir.",
       "benefitAlertsTitle": "Alertes WhatsApp",
       "benefitAlertsText": "Les nouveaux biens qui correspondent à votre recherche, dès leur publication.",
       "benefitFavoritesTitle": "Vos favoris",

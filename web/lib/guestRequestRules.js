@@ -88,6 +88,43 @@ export function guestRequestPrefill(params = {}, communes = []) {
 }
 
 /**
+ * The /trouver-pour-moi link for the "Pas encore trouvé ?" card in the
+ * /listings feed (2026-11-21, marketing plan: paid visitors see 1.25 pages
+ * and the sign-up nudge never reaches them). It carries only the parts of the
+ * visitor's search the request form can hold, under the same names
+ * (guestRequestPrefill above re-checks every one), so the form opens on what
+ * they were already looking for. Nothing is deduced: a search without a
+ * commune leaves the commune for the visitor to choose.
+ */
+export function feedRequestHref(params = {}) {
+  const pick = (key) => {
+    const value = Array.isArray(params[key]) ? params[key][0] : params[key];
+    return typeof value === 'string' ? value.trim() : '';
+  };
+  const qs = new URLSearchParams();
+  const transaction = pick('transaction_type');
+  if (GUEST_REQUEST_TRANSACTIONS.includes(transaction)) qs.set('transaction_type', transaction);
+  const commune = pick('commune');
+  if (commune) qs.set('commune', commune);
+  const type = pick('property_type').toLowerCase();
+  if (GUEST_REQUEST_TYPES.includes(type)) qs.set('property_type', type);
+  const budget = Number.parseFloat(pick('price_max'));
+  if (Number.isFinite(budget) && budget > 0 && budget <= MAX_GUEST_BUDGET) qs.set('price_max', String(Math.round(budget)));
+  const beds = Number.parseInt(pick('beds_min'), 10);
+  if (Number.isInteger(beds) && beds >= 1 && beds <= MAX_GUEST_BEDROOMS) qs.set('beds_min', String(beds));
+  const query = qs.toString();
+  return query ? `/trouver-pour-moi?${query}` : '/trouver-pour-moi';
+}
+
+/** The feed card follows the 6th result, or the last one of a shorter first page. */
+export const FEED_REQUEST_AFTER = 6;
+export function feedRequestIndex(firstPageCount) {
+  const n = Number(firstPageCount) || 0;
+  if (n <= 0) return -1;
+  return Math.min(FEED_REQUEST_AFTER, n) - 1;
+}
+
+/**
  * A fixed-window counter per key. In process — the web app is one PM2 fork
  * (web/CLAUDE.md), the same assumption lib/eventIngest.js makes. A speed bump
  * against someone filling the form in a loop, not a defence against a

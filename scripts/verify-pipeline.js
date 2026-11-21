@@ -19619,6 +19619,10 @@ console.log('\n2. services/openai.js');
         assert.deepStrictEqual(sent[1].data.interactive.action.buttons.map((b) => b.reply.id),
           [`draft_pub:${draft123.id}`, `draft_fix:${draft123.id}`, `draft_pic:${draft123.id}`]);
       });
+      check('the card opens on a personal thank-you, with the first name when we know it', () => {
+        assert.match(bodyOf(to123(AG123)[1]), /^Merci Test ! Voici la fiche de votre annonce :\n\n\*Appartement/);
+        assert.strictEqual(card123.thankYouIntro(null), 'Merci ! Voici la fiche de votre annonce :');
+      });
 
       httpCalls.length = 0;
       await post('/webhook', inboundButton('wamid.F123X', `draft_pub:${draft123.id}`, '243850012399'));

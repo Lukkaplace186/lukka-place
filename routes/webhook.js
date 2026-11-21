@@ -1564,6 +1564,8 @@ async function processGroup(messages) {
     // send at the end of this function stays the only place a reply leaves
     // the intake path. `suffixKind` exists only for the log line.
     let intakeSuffix = null;
+    // The agent's first name when we know them, for the card's thank-you line.
+    let agentFirstName = null;
     let suffixKind = null;
 
     // A listing already awaiting this sender's 'OK' is passed back to the model
@@ -1943,6 +1945,7 @@ async function processGroup(messages) {
           attributeListingToAgent(id, identity.agentId);
           console.log(`[recognition] listing #${id} from ${from} attributed to agent #${identity.agentId}`);
           suffixKind = 'recognition';
+          agentFirstName = identity.firstName || null;
         } else if (await onboarding.shouldOnboard(from, { agent: identity.agent })) {
           const prompt = onboarding.startOnboarding(from, {}, 0);
           if (prompt) {
@@ -1962,7 +1965,11 @@ async function processGroup(messages) {
       const stored = getListing(id);
       const onboardingMode = suffixKind === 'registration';
       if (!listingCard.isGroupedListing(stored)) {
-        intakeMessage = listingCard.composeIntakeMessage(stored, { mode: onboardingMode ? 'onboarding' : 'draft' });
+        // A personal thank-you above the card (owner, 2026-11-21).
+        intakeMessage = listingCard.composeIntakeMessage(stored, {
+          mode: onboardingMode ? 'onboarding' : 'draft',
+          intro: listingCard.thankYouIntro(agentFirstName),
+        });
       } else if (!onboardingMode) {
         // The model's itemised recap stays; its own "Répondez OK" line gives
         // way to the buttons (kept in the text fallback).
@@ -1980,8 +1987,13 @@ async function processGroup(messages) {
       // A bare "non" changes nothing and the model asks which line is wrong —
       // that reply stands. A real correction gets the card from the row.
       const updated = getListing(pending.id);
-      if (extracted.is_correction && !listingCard.isGroupedListing(updated)) {
-        intakeMessage = listingCard.composeIntakeMessage(updated, { intro: listingCard.introFrom(modelReply, null) });
+      // Photos sent after the card ("Ajouter des photos"): always the card
+      // again, now with Publier — and "ajoutées", not "c'est corrigé".
+      const photosOnly = !hasText && Boolean(photoPaths.length || videoPaths.length);
+      if ((extracted.is_correction || photosOnly) && !listingCard.isGroupedListing(updated)) {
+        intakeMessage = listingCard.composeIntakeMessage(updated, {
+          intro: photosOnly ? listingCard.MEDIA_ADDED_INTRO : listingCard.introFrom(modelReply, null),
+        });
       }
     } else if (onboarding.getSession(from)?.state !== 'AWAITING_NAME') {
       // A known customer whose message reached this far (it read as an

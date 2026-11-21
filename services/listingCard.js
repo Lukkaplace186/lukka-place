@@ -470,6 +470,18 @@ function composeIntakeMessage(row, { mode = 'draft', intro = null, photoCount } 
   };
 }
 
+/**
+ * The line above a new listing's card (owner, 2026-11-21: "make it sound
+ * personal"). The agent's first name only when we know it — never a guess.
+ */
+function thankYouIntro(firstName = null) {
+  const name = String(firstName || '').trim();
+  return name ? `Merci ${name} ! Voici la fiche de votre annonce :` : 'Merci ! Voici la fiche de votre annonce :';
+}
+
+/** Above the card when the agent's message was only photos or videos for the draft. */
+const MEDIA_ADDED_INTRO = 'Merci, c’est ajouté ! Voici la fiche mise à jour :';
+
 /** A multi-unit or multi-property draft: the model's itemised recap, then one tap for all of it. */
 function groupedIntakeButtons(row) {
   return [
@@ -491,6 +503,8 @@ module.exports = {
   composeIntakeMessage,
   groupedIntakeButtons,
   parseDraftButton,
+  thankYouIntro,
+  MEDIA_ADDED_INTRO,
   communeChoices,
   DRAFT_BUTTON,
   renderListingCard,

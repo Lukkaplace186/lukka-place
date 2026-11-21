@@ -489,3 +489,31 @@ and the default — a rent with no period, or a monthly / yearly one.
   dropped — no row held one) and the "Salle de fête" category (deleted — no
   row used it). SQLite keeps two unused toilet / shower columns.
 - The intake card prints every stated detail ("*Terrain* : 15/20 (300 m² · 3 ares)").
+
+## The text decides four readings, whichever model read it (2026-11-21, owner)
+
+A gpt-4o vs Claude Sonnet 5.5 comparison on 64 real messages found four
+places where the two models read the same words differently. Each is now
+decided in code after the model (`services/openai.js`, called in
+`parseMessage`), so a model switch cannot change what is stored. §125.
+
+- **"N mois + M"** with no poste named (`normaliseEntryCosts` rule 0): the
+  Kinshasa block of N months — (N-1) advance + 1 guarantee — plus M months of
+  commission. "500$ 4 mois+1" → garantie 1, avance 3, commission 1 (owner).
+  "4+1" (no "mois") stays garantie + avance; "garantie 4 mois + 1" is left to
+  the model.
+- **Two prices** ("700$ ata 650$", "1800$ à discuter, 1600$ ça passe"):
+  `price` is the asking price (the first, higher one) and the new schema field
+  `negotiable_price` the lower one (`normaliseNegotiablePrice`: kept only when
+  its digits are in the text, swapped when inverted). Stored in `parsed_json`;
+  the card shows "(négociable jusqu'à 650 $)" and the public description ends
+  "Prix négociable : jusqu'à 650 $ / mois." (`postgres.buildDescription`).
+- **Shared-parcelle house** (`normaliseParcelleClassification`): a "maison"
+  described as "maison basse", "N familles / ménages" or "N portes", or an
+  "immeuble type(s) locataire", becomes Parcelle → Maison Type Locataire, the
+  count filling `units_count`. An appartement in a two-family parcelle stays
+  an appartement. Claude missed this even with the rule restated in the prompt.
+- **One sale, one listing** (`normaliseWholeSale`): a whole building / plot /
+  house FOR SALE with several apartments is one listing (`units_count` = the
+  doors), and "une seule annonce / un seul bien" in the text collapses a
+  multi-property reading. Apartments let or sold separately still split.

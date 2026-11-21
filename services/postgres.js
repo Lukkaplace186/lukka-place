@@ -529,8 +529,14 @@ const COMMUNE_AMENITY_IDS = {
 
 /** property_contents.description is NOT NULL and the site itself requires >= 15 chars. */
 function buildDescription(row) {
+  // Two prices from the agent (owner, 2026-11-21): the listing shows the
+  // asking price, and the description tells the customer how low it can go.
+  const low = Number(row.parsed_json?.negotiable_price);
+  const negotiable = Number.isFinite(low) && low > 0 && low < Number(row.price)
+    ? ` Prix négociable : jusqu'à ${low.toLocaleString('fr-FR').replace(/[  ]/g, ' ')} ${row.currency === 'CDF' ? 'FC' : row.currency === 'EUR' ? '€' : '$'}${row.transaction_type === 'vente' ? '' : ({ mois: ' / mois', an: ' / an', jour: ' / jour', semaine: ' / semaine' }[row.price_period || 'mois'] || '')}.`
+    : '';
   const summary = row.summary_fr && row.summary_fr.trim();
-  if (summary && summary.length >= 15) return summary;
+  if (summary && summary.length >= 15) return `${summary}${negotiable}`;
 
   const parts = [
     PROPERTY_TYPE_LABELS_FR[row.property_type] || 'Bien immobilier',
@@ -538,7 +544,7 @@ function buildDescription(row) {
     row.commune ? `à ${row.commune}` : null,
     row.price ? `— ${row.price} ${row.currency || 'USD'}` : null,
   ].filter(Boolean);
-  return `${parts.join(' ')}. Annonce reçue via WhatsApp, en attente de détails complémentaires.`;
+  return `${parts.join(' ')}.${negotiable} Annonce reçue via WhatsApp, en attente de détails complémentaires.`;
 }
 
 function slugify(text) {

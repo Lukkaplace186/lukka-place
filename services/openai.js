@@ -144,6 +144,7 @@ CONTEXTE MONÉTAIRE
 - À Kinshasa, loyers et prix de vente sont presque toujours cotés en dollars américains. "$", "usd", "dollars" => USD. "FC", "CDF", "francs" => CDF.
 - Si aucune devise n'est indiquée et que le montant est plausible en USD, utilise USD.
 - Sépare le loyer mensuel du prix de vente : "500$/mois" => price 500, price_period "mois". Une vente => price_period "total".
+- Deux prix pour le même bien (le prix demandé, puis un prix plus bas que l'agent dit accepter) : price = le prix demandé (le premier, le plus haut) ; negotiable_price = le prix plus bas. Jamais l'inverse. Un seul prix => negotiable_price null.
 - LOCATION COURTE DURÉE : une chambre, un studio ou un appartement loué à la journée ou à la nuit ("50$/jour", "40$ la nuitée", "location journalière") => price_period "jour" ; à la semaine => price_period "semaine". Le loyer est alors ce prix par jour / par semaine, jamais converti en mois. Sans cette mention explicite, une location est de longue durée (price_period "mois", ou "an" si le loyer est annuel).
 - Une caution ("garantie", "3 mois de caution") n'est PAS le loyer : mets-la dans deposit_months.
 
@@ -337,7 +338,7 @@ const RESPONSE_FORMAT = {
           required: [
             'is_listing', 'is_confirmed', 'intent', 'transaction_type', 'property_type',
             'parcelle_subtype',
-            'city', 'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
+            'city', 'commune', 'quartier', 'price', 'negotiable_price', 'currency', 'price_period', 'deposit_months',
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'office_count', 'floor_level', 'road_frontage', 'truck_access',
@@ -381,6 +382,10 @@ const RESPONSE_FORMAT = {
             price: {
               type: ['number', 'null'],
               description: 'Loyer mensuel si location, prix total si vente.',
+            },
+            negotiable_price: {
+              type: ['number', 'null'],
+              description: "Le prix plus bas que l'agent dit accepter, quand il donne aussi un prix demandé (price reste le prix demandé). null s'il n'y a qu'un prix.",
             },
             currency: { type: ['string', 'null'], enum: ['USD', 'CDF', 'EUR', null] },
             price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
@@ -712,7 +717,7 @@ const INTAKE_HISTORY_LIMIT = 5;
  *  status and photo paths — none of them help it merge a correction. */
 const DRAFT_CONTEXT_FIELDS = [
   'transaction_type', 'property_type', 'parcelle_subtype', 'city', 'commune', 'quartier',
-  'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
+  'price', 'negotiable_price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
   'furnished', 'office_count', 'floor_level', 'road_frontage', 'truck_access',
   'households_count', 'landlord_on_site', 'electricity_meter',
@@ -809,6 +814,28 @@ function normaliseEntryCosts(extracted, rawText) {
 
   const normalised = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+  // --- Rule 0: "N mois + M" with no poste named (owner, 2026-11-21).
+  //
+  // "500$ 4 mois+1" is the Kinshasa block of N months — (N-1) months of
+  // advance + 1 month of guarantee, rule 2 below — PLUS M months of agency
+  // commission. It is not the additive "4+1" (garantie + avance) of rule 1:
+  // the word "mois" closes the block before the "+". gpt-4o and Claude read it
+  // differently (2026-11-21 comparison), so the text decides, as for 3+1+1.
+  if (!/garantie|caution|avance|commission|courtage/.test(normalised)) {
+    const blocks = [...normalised.matchAll(/(?:^|[^\d])(\d{1,2})\s*moi?s?\s*(?:\+|plus)\s*(\d{1,2})(?![\d+])/g)];
+    const distinctBlocks = new Set(blocks.map((m) => `${m[1]}+${m[2]}`));
+    if (distinctBlocks.size === 1) {
+      const months = Number.parseInt(blocks[0][1], 10);
+      const commission = Number.parseInt(blocks[0][2], 10);
+      if (months >= 2 && months <= 12 && commission <= 12) {
+        extracted.advance_months = months - 1;
+        extracted.deposit_months = 1;
+        extracted.commission_months = commission;
+        return extracted;
+      }
+    }
+  }
+
   // --- Rule 1: additive syntax is authoritative — when there is ONE of it.
   //
   // A correction often quotes the old terms beside the new ones: "pas 3+1+1
@@ -875,6 +902,102 @@ function dropImpossibleMonths(extracted) {
     const v = extracted[key];
     if (v !== null && v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0 || Number(v) > MAX_ENTRY_MONTHS)) extracted[key] = null;
   }
+  return extracted;
+}
+
+/**
+ * Two prices for one property (owner, 2026-11-21): `price` is the asking
+ * price — the first, higher one — and `negotiable_price` the lower one the
+ * agent says they accept ("700$ … 650$"); the listing publishes the asking
+ * price and its description says how low it can go (services/postgres.js
+ * buildDescription, the intake card). Never a number the agent did not write:
+ * a negotiable price whose digits are not in the text is dropped, and one that
+ * is not lower than the asking price is swapped or dropped.
+ *
+ * Mutates and returns `extracted`.
+ */
+function normaliseNegotiablePrice(extracted, rawText) {
+  if (!extracted) return extracted;
+  const low = Number(extracted.negotiable_price);
+  if (!Number.isFinite(low) || low <= 0) {
+    extracted.negotiable_price = null;
+    return extracted;
+  }
+  const digits = String(rawText || '').replace(/[\s.,]/g, '');
+  if (!digits.includes(String(Math.round(low)))) {
+    extracted.negotiable_price = null;
+    return extracted;
+  }
+  const asking = Number(extracted.price);
+  if (Number.isFinite(asking) && asking > 0 && low > asking) {
+    // The model put them the wrong way round: the asking price is the higher.
+    extracted.price = low;
+    extracted.negotiable_price = asking;
+  } else if (!(Number.isFinite(asking) && asking > low)) {
+    extracted.negotiable_price = null;
+  }
+  return extracted;
+}
+
+const COUNT_WORDS = { deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10 };
+
+/**
+ * "Maison basse … 2 familles dans la parcelle", "immeuble type locataire",
+ * "4 portes" are a Parcelle → Maison Type Locataire (root CLAUDE.md, "Property
+ * classifications"). gpt-4o mostly knew; Claude Sonnet 5.5 classed them
+ * "maison" even with the rule restated (2026-11-21 comparison), so the text
+ * decides here, whichever model read it. Only a "maison" (or an "immeuble"
+ * the agent calls type locataire) moves: an appartement in a two-family
+ * parcelle stays an appartement. The household / door count fills
+ * units_count when the model left it empty.
+ *
+ * Mutates and returns `extracted`.
+ */
+function normaliseParcelleClassification(extracted, rawText) {
+  if (!extracted || extracted.is_multi_unit || extracted.is_multi_property) return extracted;
+  const text = String(rawText || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const typeLocataire = /\btypes? locataires?\b/.test(text);
+  const count = text.match(/\b(\d{1,2}|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*(?:familles?|menages?|portes)\b/);
+  const sharedHouse = /\bmaisons? basses?\b/.test(text) || Boolean(count) || typeLocataire;
+  const type = extracted.property_type;
+  if (!sharedHouse || !(type === 'maison' || (type === 'immeuble' && typeLocataire))) return extracted;
+  extracted.property_type = 'parcelle';
+  extracted.parcelle_subtype = 'maison_type_locataire';
+  if (count && (extracted.units_count === null || extracted.units_count === undefined)) {
+    const n = COUNT_WORDS[count[1]] || Number.parseInt(count[1], 10);
+    if (Number.isInteger(n) && n > 0) extracted.units_count = n;
+  }
+  return extracted;
+}
+
+/**
+ * One sale, one listing (2026-11-21 comparison: gpt-4o split both, Claude kept
+ * one). A whole building or plot FOR SALE is bought whole, so its apartments
+ * are not separate listings: "Immeuble R+3 à vendre, 6 appartements" stays one
+ * sale with units_count 6. And an agent who says it is one listing ("c'est une
+ * seule annonce avec 4 modalités" — a plot sold whole or in lots) is believed.
+ * Units sold separately (property_type appartement) are not touched.
+ *
+ * Mutates and returns `extracted`.
+ */
+function normaliseWholeSale(extracted, rawText) {
+  if (!extracted || !Array.isArray(extracted.units) || !extracted.units.length) return extracted;
+  const text = String(rawText || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const saidOne = /\b(?:une? seule? annonce|meme annonce|un seul bien|une seule propriete|une seule parcelle)\b/.test(text);
+  const wholeSale = extracted.transaction_type === 'vente' && extracted.is_multi_unit
+    && ['immeuble', 'parcelle', 'maison', 'villa', 'concession'].includes(extracted.property_type);
+  if (!saidOne && !wholeSale) return extracted;
+  const first = extracted.units[0] || {};
+  for (const field of ['price', 'transaction_type', 'property_type', 'commune', 'quartier', 'price_period']) {
+    if ((extracted[field] === null || extracted[field] === undefined) && first[field] !== undefined) extracted[field] = first[field];
+  }
+  if (wholeSale && (extracted.units_count === null || extracted.units_count === undefined)) {
+    const doors = extracted.units.reduce((sum, unit) => sum + (Number.isInteger(unit.quantity) && unit.quantity > 0 ? unit.quantity : 1), 0);
+    if (doors > 1) extracted.units_count = doors;
+  }
+  extracted.is_multi_unit = false;
+  extracted.is_multi_property = false;
+  extracted.units = [];
   return extracted;
 }
 
@@ -1009,6 +1132,9 @@ async function parseMessage(text, {
 
   // The raw text wins on entry costs — see normaliseEntryCosts.
   normaliseEntryCosts(parsed.extracted_data, text);
+  normaliseNegotiablePrice(parsed.extracted_data, text);
+  normaliseParcelleClassification(parsed.extracted_data, text);
+  normaliseWholeSale(parsed.extracted_data, text);
   normaliseCommercialExtraction(parsed.extracted_data);
 
   return {
@@ -1724,6 +1850,9 @@ module.exports = {
   parseMessage,
   draftContextFromListing,
   normaliseEntryCosts,
+  normaliseNegotiablePrice,
+  normaliseParcelleClassification,
+  normaliseWholeSale,
   normaliseCommercialExtraction,
   INTAKE_HISTORY_LIMIT,
   toImagePart,

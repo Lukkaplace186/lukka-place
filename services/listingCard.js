@@ -334,7 +334,12 @@ function shortPlaceLine(row) {
 
 function shortPriceLine(row) {
   const parts = [];
-  if (Number(row.price) > 0) parts.push(`💰 ${money(row.price, row.currency || 'USD')}${periodSuffix(row)}`);
+  // The asking price; the lower one the agent accepts, when they gave one
+  // (openai.normaliseNegotiablePrice, owner 2026-11-21).
+  const low = Number(row.parsed_json?.negotiable_price);
+  const negotiable = Number.isFinite(low) && low > 0 && low < Number(row.price)
+    ? ` (négociable jusqu'à ${money(low, row.currency || 'USD')})` : '';
+  if (Number(row.price) > 0) parts.push(`💰 ${money(row.price, row.currency || 'USD')}${periodSuffix(row)}${negotiable}`);
   const months = (label, value) => (present(value) ? `${label} ${Number(value)}` : null);
   parts.push(months('garantie', row.deposit_months), months('avance', row.advance_months));
   if (present(row.commission_months)) {

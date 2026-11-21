@@ -19753,6 +19753,74 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §125 The text decides, whichever model read it (2026-11-21)
+  // ---------------------------------------------------------------------------
+  // gpt-4o and Claude Sonnet 5.5 read four things differently on real
+  // listings; the owner decided each and the code now applies it after the
+  // model: "N mois+M", two prices, the shared-parcelle house, one whole sale.
+  console.log('\n§125 entry-cost blocks, two prices, shared parcelles and whole sales are decided by the text');
+  {
+    const ai125 = openaiService;
+    const months125 = (text, start = { deposit_months: 4, advance_months: 1, commission_months: null }) => {
+      const r = ai125.normaliseEntryCosts({ ...start }, text);
+      return [r.deposit_months, r.advance_months, r.commission_months];
+    };
+    check('"500$ 4 mois+1" is 3 months advance + 1 guarantee + 1 commission (owner)', () => {
+      assert.deepStrictEqual(months125('Prix :500$ 4 mois+1'), [1, 3, 1]);
+      assert.deepStrictEqual(months125('apartment 500$ 4 moi+1'), [1, 3, 1]);
+    });
+    check('…while "4+1", "3+1+1" and a named "garantie 4 mois + 1" keep their meaning', () => {
+      assert.deepStrictEqual(months125('500$ 4+1'), [4, 1, null]);
+      assert.deepStrictEqual(months125('loyer 600$ 3+1+1', {}), [3, 1, 1]);
+      assert.deepStrictEqual(months125('Garantie 4 mois + 1'), [4, 1, null]);
+    });
+
+    check('two prices: the asking price is published, the lower one kept as negotiable', () => {
+      const a = ai125.normaliseNegotiablePrice({ price: 650, negotiable_price: 700 }, '700$ ata 650$');
+      assert.deepStrictEqual([a.price, a.negotiable_price], [700, 650], 'swapped back when the model inverted them');
+      const b = ai125.normaliseNegotiablePrice({ price: 700, negotiable_price: 600 }, '700$ à discuter');
+      assert.strictEqual(b.negotiable_price, null, 'a figure the agent never wrote is dropped');
+      assert.ok(ai125.RESPONSE_FORMAT.json_schema.schema.properties.extracted_data.required.includes('negotiable_price'));
+    });
+    check('the card and the public description say how low the price can go', () => {
+      const row = {
+        id: 1, transaction_type: 'location', property_type: 'appartement', price: 700, currency: 'USD',
+        price_period: 'mois', photos: ['/a.jpg'], videos: [], summary_fr: 'Appartement 2 chambres à Ngaliema, Mont Fleury.',
+        parsed_json: { negotiable_price: 650 },
+      };
+      assert.match(require('../services/listingCard').renderShortCard(row), /💰 700 \$ \/ mois \(négociable jusqu'à 650 \$\)/);
+      assert.strictEqual(postgresService.buildDescription(row), "Appartement 2 chambres à Ngaliema, Mont Fleury. Prix négociable : jusqu'à 650 $ / mois.");
+      assert.doesNotMatch(postgresService.buildDescription({ ...row, parsed_json: {} }), /négociable/);
+    });
+
+    check('"maison basse … 2 familles" and "immeuble type locataire" are Parcelle → Maison Type Locataire', () => {
+      const a = ai125.normaliseParcelleClassification({ property_type: 'maison', parcelle_subtype: null, units_count: null },
+        'Jolie maison basse mis en location, juste 2 familles dans la parcelle');
+      assert.deepStrictEqual([a.property_type, a.parcelle_subtype, a.units_count], ['parcelle', 'maison_type_locataire', 2]);
+      const b = ai125.normaliseParcelleClassification({ property_type: 'immeuble', parcelle_subtype: null }, 'Immeuble R+2 types locataire mis en vente');
+      assert.strictEqual(b.parcelle_subtype, 'maison_type_locataire');
+    });
+    check('an appartement in a two-family parcelle, or a plain house, is left alone', () => {
+      assert.strictEqual(ai125.normaliseParcelleClassification({ property_type: 'appartement' }, 'Appartement, juste 2 familles dans la parcelle').property_type, 'appartement');
+      assert.strictEqual(ai125.normaliseParcelleClassification({ property_type: 'maison' }, 'Belle maison 3 chambres à louer').property_type, 'maison');
+    });
+
+    check('a whole building for sale is one listing, its doors counted', () => {
+      const r = ai125.normaliseWholeSale({
+        transaction_type: 'vente', property_type: 'immeuble', is_multi_unit: true, units_count: null,
+        units: [{ bedrooms: 2, quantity: 5 }, { bedrooms: 3, quantity: 1 }],
+      }, 'Immeuble R+3 à vendre, 6 appartements');
+      assert.deepStrictEqual([r.is_multi_unit, r.units.length, r.units_count], [false, 0, 6]);
+    });
+    check('"une seule annonce" is believed; apartments let or sold separately still split', () => {
+      const one = ai125.normaliseWholeSale({ is_multi_property: true, price: null, units: [{ price: 400000 }, { price: 150000 }] },
+        "c'est une seule annonce avec 4 modalités");
+      assert.deepStrictEqual([one.is_multi_property, one.units.length, one.price], [false, 0, 400000]);
+      const split = ai125.normaliseWholeSale({ transaction_type: 'vente', property_type: 'appartement', is_multi_unit: true, units: [{}, {}] }, 'Appartements à vendre');
+      assert.strictEqual(split.units.length, 2);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

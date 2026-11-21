@@ -740,3 +740,27 @@ place names one commune, asked only when it really is not known.
   (`db.withdrawDraft`, status `withdrawn`, out of every pending query and of
   auto-submit) with `DRAFT_WITHDRAWN_REPLY`.
 - §123 of verify-pipeline.
+
+## One card per listing, no filler (2026-11-21, owner)
+
+Josué, 2026-11-21: text at 10:18:24, nine photos from 10:18:34. The 8 s idle
+window read the text alone (an "Aucune photo" card), then the photos as a
+second message (a second card), each preceded by "Bien reçu"; his "Ok" got
+the moderation receipt and his Publier tap "déjà envoyée" — 31 s, two model
+calls, seven messages for one listing.
+
+- **A listing's text waits for its photos**: a buffered text that stands
+  alone as a listing, with no photo yet and no draft pending, waits up to
+  `GROUP_TEXT_WAIT_MS` (20 s, bounded by `GROUP_MAX_WAIT_MS`); the first
+  photo resets the ordinary idle window (`GROUP_IDLE_MS`, 8 s). One read, one
+  card. A text sent with no photo at all gets its card 20 s later.
+- **No "Bien reçu … Je prépare votre fiche"** by default — `INTAKE_ACK=on`
+  brings it back (this replaces the always-on ack of the section above).
+- **No publish receipt** ("✅ Annonce bien reçue et en cours de modération")
+  by default — the agent's tap or "OK" is the confirmation and the next
+  message is the approval with its link. `PUBLISH_RECEIPT=on` brings it back.
+  Refusals (no photo, plan full, re-send held) are still said.
+- **A second confirmation is silent**: "Ok" and Publier both sent, or a tap on
+  an old card → published once, nothing more sent (logged).
+- §127 of verify-pipeline (the suite runs with INTAKE_ACK / PUBLISH_RECEIPT on
+  for the older sections and a 120 ms text wait).

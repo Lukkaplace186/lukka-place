@@ -490,8 +490,11 @@ async function confirmDraft(listingId, { from, text = '', primaryWamid, via }) {
   const result = await publishDraft(listingId, { sender: from, text });
   const replyTo = { replyToMessageId: primaryWamid || undefined };
   if (result.outcome === 'published') {
-    await chakra.sendWhatsAppMessage(from, publishedReply(result.ids), replyTo);
-    console.log(`[db] listing #${listingId} published (${via} from ${from})`);
+    // No receipt by default (owner, 2026-11-21): the agent's own tap or "OK"
+    // is the confirmation, and the next message is "votre annonce est en
+    // ligne" with its link. PUBLISH_RECEIPT=on brings the receipt back.
+    if (publishReceiptEnabled()) await chakra.sendWhatsAppMessage(from, publishedReply(result.ids), replyTo);
+    console.log(`[db] listing #${listingId} published (${via} from ${from})${publishReceiptEnabled() ? '' : ' — no receipt'}`);
   } else if (result.outcome === 'no_media') {
     // Deliberately still pending: the agent sends a photo and confirms again.
     await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, replyTo);
@@ -499,11 +502,21 @@ async function confirmDraft(listingId, { from, text = '', primaryWamid, via }) {
   } else if (result.outcome === 'quota' || result.outcome === 'held') {
     await chakra.sendWhatsAppMessage(from, result.reply, { ...replyTo, previewUrl: true });
   } else {
-    // A tap on an old card: the draft was already sent, or is gone.
-    await chakra.sendWhatsAppMessage(from, ALREADY_SENT_REPLY, replyTo);
+    // A tap on an old card, or "OK" and Publier both sent: the draft was
+    // already sent (or is gone). Nothing more to say — silence, logged.
     console.log(`[draft] ${via} from ${from} on listing #${listingId}, which is no longer a draft`);
   }
   return result.outcome;
+}
+
+/** INTAKE_ACK=on sends "Bien reçu ✅ Je prépare votre fiche…" (off by default since 2026-11-21). */
+function intakeAckEnabled() {
+  return String(process.env.INTAKE_ACK || '').trim().toLowerCase() === 'on';
+}
+
+/** PUBLISH_RECEIPT=on sends "✅ Annonce bien reçue et en cours de modération" (off by default since 2026-11-21). */
+function publishReceiptEnabled() {
+  return String(process.env.PUBLISH_RECEIPT || '').trim().toLowerCase() === 'on';
 }
 
 /** INTAKE_BUTTONS=off sends the card as text ending on "Répondez OK" (read at call time). */
@@ -718,6 +731,20 @@ function groupIdleMs() {
   return Number.isFinite(value) ? value : 8000;
 }
 
+/**
+ * How long a listing's TEXT waits for its photos (2026-11-21). Agents send the
+ * description first and the photos after — 10 s later on 2026-11-21 (Josué,
+ * 9 photos): the 8 s idle window read the text alone ("Aucune photo" card),
+ * then read the photos as a second message (a second card), 31 s and two
+ * model calls for one listing. A text that stands alone as a listing, with no
+ * photo yet, now waits up to GROUP_TEXT_WAIT_MS for them; once photos arrive
+ * the ordinary idle window runs from the last one.
+ */
+function groupTextWaitMs() {
+  const value = Number.parseInt(process.env.GROUP_TEXT_WAIT_MS, 10);
+  return Number.isFinite(value) ? value : 20000;
+}
+
 /** Hard ceiling from the first message, so a steady trickle still gets flushed. */
 function groupMaxWaitMs() {
   const value = Number.parseInt(process.env.GROUP_MAX_WAIT_MS, 10);
@@ -825,7 +852,10 @@ function enqueueMessage(message) {
     // draft is pending. Plain chat (no media, not a listing) still gets none,
     // which keeps the human-handoff silence above intact.
     const looksLikeListing = Boolean(message.text) && listingBoundary.standsAloneAsListing(message.text);
-    if ((message.media?.length || looksLikeListing)
+    // Off by default since 2026-11-21 (owner): the card itself comes within
+    // seconds, and two "Bien reçu" per listing made the flow feel longer.
+    // INTAKE_ACK=on brings it back.
+    if (intakeAckEnabled() && (message.media?.length || looksLikeListing)
       && (!findLatestPendingListing(key) || looksLikeListing)
       // Staff forwarding group posts get one receipt per burst, nothing else.
       && !groupRelay.isRelaySender(key)
@@ -868,7 +898,12 @@ function enqueueMessage(message) {
   // agent who has sent "Villa a louer Ngaliema" and nothing else is still
   // typing, and flushing them at 8s costs them a split listing.
   const buffered = group.messages.map((m) => m.text || '').filter(Boolean).join(' ');
-  const wait = adaptiveIdleMs(buffered, idle);
+  let wait = adaptiveIdleMs(buffered, idle);
+  // A listing's text with no photo yet: its photos are usually still uploading.
+  if (!group.messages.some((m) => m.media?.length) && buffered && listingBoundary.standsAloneAsListing(buffered)
+    && !findLatestPendingListing(key)) {
+    wait = Math.max(wait, Math.min(groupTextWaitMs(), groupMaxWaitMs()));
+  }
   if (wait !== idle) {
     console.log(`[group] ${key}: listing looks unfinished — waiting ${wait}ms instead of ${idle}ms`);
   }

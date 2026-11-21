@@ -95,6 +95,11 @@ process.env.SUPABASE_STORAGE_BUCKET = '';
 // Short burst window so the suite runs fast; production defaults are 8s / 45s.
 process.env.GROUP_IDLE_MS = '120';
 process.env.GROUP_MAX_WAIT_MS = '1200';
+// A listing's text waits for its photos (20 s in production, §127).
+process.env.GROUP_TEXT_WAIT_MS = '120';
+// Off by default since 2026-11-21 (§127); the older sections check their wording.
+process.env.INTAKE_ACK = 'on';
+process.env.PUBLISH_RECEIPT = 'on';
 
 let passed = 0;
 let failed = 0;
@@ -19658,8 +19663,8 @@ console.log('\n2. services/openai.js');
       httpCalls.length = 0;
       await post('/webhook', inboundButton('wamid.F123D', `draft_pub:${draft123.id}`, AG123));
       await settle(300);
-      check('a second tap on the old card is answered, never published twice', () => {
-        assert.deepStrictEqual(to123(AG123).map(bodyOf), [webhookRouter.ALREADY_SENT_REPLY]);
+      check('a second tap on the old card is never published twice, and gets no second reply (§127)', () => {
+        assert.deepStrictEqual(to123(AG123).map(bodyOf), []);
       });
 
       // A place in two communes, with a photo: the commune tap IS the confirmation.
@@ -19943,6 +19948,61 @@ console.log('\n2. services/openai.js');
     } finally {
       claude126.setClientForTests(null);
       for (const [name, value] of [['INTAKE_PROVIDER', saved126.provider], ['INTAKE_SHADOW', saved126.shadow], ['ANTHROPIC_API_KEY', saved126.key]]) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  }
+
+  // §127 One card per listing, no filler (2026-11-21)
+  // ---------------------------------------------------------------------------
+  // Josué, 2026-11-21: text at 10:18:24, nine photos from 10:18:34 — the 8 s
+  // window read the text alone ("Aucune photo" card), then the photos (a second
+  // card), with two "Bien reçu" before, and both his "Ok" and his Publier tap
+  // answered. Owner: wait for the photos, one card, no ack, no receipt.
+  console.log('\n§127 a listing\'s text waits for its photos; no ack, no receipt, no reply to a second confirmation');
+  {
+    const saved127 = {
+      wait: process.env.GROUP_TEXT_WAIT_MS, ack: process.env.INTAKE_ACK, receipt: process.env.PUBLISH_RECEIPT,
+    };
+    const A127 = '243850012701';
+    const to127 = (number) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === number);
+    try {
+      process.env.GROUP_TEXT_WAIT_MS = '700';
+      delete process.env.INTAKE_ACK;
+      delete process.env.PUBLISH_RECEIPT;
+      httpCalls.length = 0;
+      const calls127 = openaiCalls.length;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Ngaliema', quartier: null, price: 550, bedrooms: 3 }, 'Merci !'));
+      await post('/webhook', inbound('wamid.L127T', 'Location appartement 3 chambres Ngaliema, loyer 550 USD, garantie 4 mois', A127));
+      await settle(350);
+      check('the text alone is not read yet: it waits for its photos', () => {
+        assert.strictEqual(openaiCalls.length, calls127);
+        assert.strictEqual(to127(A127).length, 0, 'and no "Bien reçu" (INTAKE_ACK is off by default)');
+      });
+      await post('/webhook', inboundImage('wamid.L127P1', 'media_l127p1', null, A127));
+      await post('/webhook', inboundImage('wamid.L127P2', 'media_l127p2', null, A127));
+      await settle(1200);
+      const draft127 = dbService.findLatestPendingListing(A127);
+      check('text + photos are read ONCE, and the agent gets ONE card, with the photos', () => {
+        assert.strictEqual(openaiCalls.length - calls127, 1);
+        assert.strictEqual(to127(A127).length, 1);
+        assert.match(bodyOf(to127(A127)[0]), /📸 2 photos/);
+        assert.doesNotMatch(bodyOf(to127(A127)[0]), /Aucune photo/);
+        assert.strictEqual(draft127.photos.length, 2);
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.L127OK', 'Ok', A127));
+      await settle(300);
+      await post('/webhook', inboundButton('wamid.L127PUB', `draft_pub:${draft127.id}`, A127));
+      await settle(300);
+      check('"Ok" then Publier: published once, and no receipt or "déjà envoyée" reply', () => {
+        assert.strictEqual(dbService.getListing(draft127.id).status, 'published');
+        assert.strictEqual(to127(A127).length, 0);
+      });
+    } finally {
+      for (const [name, value] of [['GROUP_TEXT_WAIT_MS', saved127.wait], ['INTAKE_ACK', saved127.ack], ['PUBLISH_RECEIPT', saved127.receipt]]) {
         if (value === undefined) delete process.env[name];
         else process.env[name] = value;
       }

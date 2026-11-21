@@ -652,10 +652,34 @@ const VOICE_UNREADABLE_REPLY =
   "Désolé, nous n'avons pas pu écouter votre message vocal. 🎙️ Pouvez-vous le renvoyer, " +
   "ou écrire l'annonce (type de bien, commune, prix, chambres) ?";
 
-/** Short, affirmative-only phrases — deliberately narrow so a real correction
- *  that happens to mention "publier" elsewhere in a sentence isn't swallowed. */
-const AFFIRMATIVE_PATTERN =
-  /^(?:(?:ok(?:ay)?|oui|d.accord|c.est bon|c.est ca|c.est correct|c.est juste|correct|exact|nickel|parfait|publier|publie[sz]?)(?:[\s,!.]+(?:merci(?: beaucoup)?|c.est bon|publie[sz]?|vous pouvez publier))?|👍(?:🏾|🏿|🏽|🏼|🏻)?)[\s!.]*$/iu;
+/**
+ * Short, affirmative-only replies that publish a pending draft — the typed
+ * twin of the card's Publier button. WHOLE-MESSAGE only: the message must be
+ * made of these words, emojis and a "merci" and nothing else, so "ok mais 4
+ * chambres", "oui, change le prix à 900$" or "ok 570" never publish (they go
+ * to the model as corrections), and a question ("correct ?") never does.
+ * Widened 2026-11-21 (owner): bien, bon, top, vas-y, valide, good, well,
+ * done, 👌 ✅ 🙏…
+ */
+const AFFIRMATIVE_WORDS = [
+  // French
+  'ok', 'okay', 'okey', 'oki', 'oui', 'ouais', 'd.accord', 'dac', 'bon', 'bien', 'tres bien', 'top', 'super',
+  'parfait', 'exact', 'exactement', 'correct', 'nickel', 'valide', 'validez?', 'publiez?', 'publier', 'publies?',
+  'vas.y', 'allez.y', 'go', 'c.est bon', 'c.est bien', 'c.est ca', 'c.est correct', 'c.est juste', 'c.est parfait',
+  'c.est top', 'c.est nickel', 'tout est bon', 'tout est correct', 'vous pouvez publier', 'tu peux publier',
+  // English
+  'yes', 'yep', 'yeah', 'good', 'all good', 'looks good', 'well', 'publish', 'confirm', 'confirmed', 'done',
+  'great', 'fine', 'perfect',
+  // A "merci" / "thanks" closing the answer
+  'merci(?: beaucoup)?', 'thanks', 'thank you',
+];
+const AFFIRMATIVE_EMOJI = '(?:👍|👌|✅|🙏)(?:\\u{1F3FB}|\\u{1F3FC}|\\u{1F3FD}|\\u{1F3FE}|\\u{1F3FF}|\\u{FE0F})*';
+const AFFIRMATIVE_TOKEN = `(?:${AFFIRMATIVE_WORDS.join('|')}|${AFFIRMATIVE_EMOJI})`;
+const AFFIRMATIVE_PATTERN = new RegExp(
+  // Not thanks alone ("merci beaucoup" is not a yes), then any mix of tokens.
+  `^(?!(?:(?:merci(?: beaucoup)?|thanks|thank you)[\\s,!.]*)+$)${AFFIRMATIVE_TOKEN}(?:[\\s,!.]*${AFFIRMATIVE_TOKEN})*[\\s!.]*$`,
+  'iu',
+);
 
 /** Strip accents so "c'est bon" matches "c'est bon" and "cest bon" alike. */
 function normaliseForMatch(text) {

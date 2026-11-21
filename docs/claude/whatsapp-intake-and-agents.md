@@ -718,6 +718,7 @@ place names one commune, asked only when it really is not known.
   three communes, or no photo yet → one typed question, no buttons. A
   multi-unit/multi-property recap gets Tout publier / Corriger. Only the
   draft's own number may act; a tap on an old card gets `ALREADY_SENT_REPLY`.
+- **A typed yes = Publier** (widened 2026-11-21, owner): `AFFIRMATIVE_PATTERN` accepts a WHOLE message made only of yes-words and emojis — ok, okay, oui, d'accord, c'est bon/bien, bon, bien, très bien, parfait, valide, publie, nickel, top, vas-y, allez-y, good, all good, looks good, well, yes, done, fine, 👍 👌 ✅ 🙏, with a "merci" allowed. Anything more ("ok mais 4 chambres", "oui, change le prix à 900$", "ok 570", "correct ?") goes to the model as a correction; thanks alone ("merci beaucoup") never publishes. Longer approvals ("c'est très bien comme ça") are still caught by the model's `is_confirmed`.
 - **Taps are never buffered**: `enqueueMessage` flushes what is buffered, then
   processes the tap alone at once (before, every button waited the 8 s idle
   time and could be merged with — and drop — buffered photos).

@@ -505,10 +505,15 @@ check('"pas 3+1+1 mais 2+1+1" keeps the model\'s reading, never the first match'
   assert.strictEqual(repeated.deposit_months, 3, 'one expression written twice is still unambiguous');
 });
 check('short approvals publish without a model call; refusals and edits never do', () => {
-  for (const yes of ['OK', 'ok merci', 'Oui, merci !', "c'est correct", '👍', '👍🏾', 'oui vous pouvez publier']) {
+  // Widened 2026-11-21 (owner): any short yes publishes, never a correction or plain thanks.
+  for (const yes of ['OK', 'ok merci', 'Oui, merci !', "c'est correct", '👍', '👍🏾', 'oui vous pouvez publier',
+    'Okay', 'bien', 'Bon', 'très bien', "C'est bon", 'parfait', 'validé', 'vas-y', 'Allez-y', 'top', 'nickel',
+    'good', 'all good', 'Looks good', 'well', 'yes', 'done', 'fine', '👌', '✅', '🙏', 'ok 👍', 'tout est bon merci']) {
     assert.ok(webhookRouter.isAffirmative(yes), `"${yes}" should confirm`);
   }
-  for (const no of ['non', 'pas correct', "c'est pas correct", 'ok mais 3ch', 'ok 570', 'correct?']) {
+  for (const no of ['non', 'pas correct', "c'est pas correct", 'ok mais 3ch', 'ok 570', 'correct?', 'merci',
+    'merci beaucoup', 'thanks', 'oui, change le prix à 900$', 'bonjour', 'bien situé à Gombe', 'pas bon',
+    'bon ok 4 chambres', 'good morning']) {
     assert.ok(!webhookRouter.isAffirmative(no), `"${no}" must not confirm`);
   }
 });

@@ -2007,20 +2007,6 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
     return res.status(404).json({ success: false, error: 'No submitter or verified agent found for this property.' });
   }
 
-  // Good news waits for the agent's other approvals and for daytime: one
-  // message per agent (services/approvalDigest.js, owner 2026-11-21). A
-  // rejection still goes at once — the agent has something to fix.
-  // eslint-disable-next-line global-require
-  const approvalDigest = require('../services/approvalDigest');
-  if (status === 'approved' && approvalDigest.digestEnabled()) {
-    const queued = approvalDigest.queueApproval({
-      phone: listing.wa_id,
-      propertyId: remotePropertyId,
-      summary: moderationListingSummary(listing),
-    });
-    return res.status(202).json({ success: true, queued: true, batched: true, new: queued });
-  }
-
   setImmediate(async () => {
     const reason = { code: req.body?.reason_code, note: req.body?.note, keepId: req.body?.keep_id };
     try {

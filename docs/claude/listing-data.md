@@ -517,3 +517,35 @@ decided in code after the model (`services/openai.js`, called in
   house FOR SALE with several apartments is one listing (`units_count` = the
   doors), and "une seule annonce / un seul bien" in the text collapses a
   multi-property reading. Apartments let or sold separately still split.
+
+## Claude Sonnet 5.5 reads first, gpt-4o is the backup (2026-11-21, owner)
+
+`services/claudeIntake.js`; switched by env at call time, nothing else moves.
+§126.
+
+- **Why**: cost. On 64 real messages (scripts/eval-intake-models.js) Sonnet
+  5.5 cost ~1.05 ¢ a message against gpt-4o ~2.2 ¢, with no unreadable answer
+  once the four text-decided rules above were in code. Haiku 5.5 was ~0.11 ¢
+  but adds up rooms and guesses entry costs — refused.
+- **How**: `openai.completeIntake` keeps building the one OpenAI-shaped
+  request; with `INTAKE_PROVIDER=claude` it is translated (system prompt +
+  schema as cached text, 1 h TTL; the draft as a second system block; image
+  parts as base64 images) and sent to `INTAKE_CLAUDE_MODEL`
+  (claude-sonnet-5-5) at `INTAKE_CLAUDE_EFFORT` (low). Claude's strict JSON
+  mode refuses a schema with ~50 nullable fields (limit 16), so the answer is
+  bare JSON, parsed, and every missing key filled from the schema
+  (`fillFromSchema`: null / [] / false — never a value). **Any failure** — no
+  `ANTHROPIC_API_KEY`, an API error, a refusal, truncation, non-JSON, no
+  `extracted_data` or reply — and gpt-4o reads the same request
+  (`[intake] Claude failed (…) — gpt-4o reads this message`). The same
+  normalisers run on either answer.
+- **The trial** (`INTAKE_SHADOW=claude`, with gpt-4o still answering):
+  Claude reads every intake message in the background and only the
+  comparison of the publishing fields is stored in SQLite `intake_shadow`
+  (agree, differing fields, both readings, cost, time). Fire-and-forget, sends
+  nothing. `node -r dotenv/config scripts/intake-shadow-report.js [--days 7]`
+  on the VPS summarises it. Plan: a week of trial, then `INTAKE_PROVIDER=claude`.
+- Costs log as `[ai-cost] intake claude-sonnet-5-5 … cost=…c` (or
+  `intake-shadow`). The buyer assistant, Smart Paste, market pastes, voice
+  notes (Whisper) and embeddings stay on OpenAI.
+- `@anthropic-ai/sdk` is a runtime dependency: `npm install` on the VPS.

@@ -1006,6 +1006,27 @@ function normaliseWholeSale(extracted, rawText) {
  * @returns {Promise<{completion: Object, parsed: Object}>}
  */
 async function completeIntake(model, messages) {
+  // eslint-disable-next-line global-require
+  const claude = require('./claudeIntake');
+  // A claude-* model named outright (scripts/eval-intake-models.js): Claude only.
+  if (String(model || '').startsWith('claude-')) {
+    return claude.completeIntake(messages, RESPONSE_FORMAT, { model });
+  }
+  // INTAKE_PROVIDER=claude (2026-11-21): Claude Sonnet 5.5 reads first; any
+  // failure — no key, an API error, a refusal, output that is not the schema's
+  // JSON — and gpt-4o reads the same request, so the agent always gets a card.
+  if (claude.provider() === 'claude' && claude.configured()) {
+    try {
+      return await claude.completeIntake(messages, RESPONSE_FORMAT);
+    } catch (err) {
+      console.warn(`[intake] Claude failed (${err.message}) — gpt-4o reads this message`);
+    }
+  }
+  return completeIntakeOpenAI(model, messages);
+}
+
+/** The gpt-4o read (Structured Outputs). */
+async function completeIntakeOpenAI(model, messages) {
   const completion = await getClient().chat.completions.create({
     model,
     // Extraction, not creative writing — keep it deterministic.
@@ -1136,6 +1157,27 @@ async function parseMessage(text, {
   normaliseParcelleClassification(parsed.extracted_data, text);
   normaliseWholeSale(parsed.extracted_data, text);
   normaliseCommercialExtraction(parsed.extracted_data);
+
+  // The trial (INTAKE_SHADOW=claude): gpt-4o answered; Claude reads the same
+  // request in the background and only the comparison is stored
+  // (services/claudeIntake.js). A snapshot, before the caller edits the row.
+  if (completion.provider !== 'claude') {
+    // eslint-disable-next-line global-require
+    require('./claudeIntake').shadowCompare(
+      messages,
+      RESPONSE_FORMAT,
+      JSON.parse(JSON.stringify(parsed.extracted_data)),
+      (extracted) => {
+        normaliseEntryCosts(extracted, text);
+        normaliseNegotiablePrice(extracted, text);
+        normaliseParcelleClassification(extracted, text);
+        normaliseWholeSale(extracted, text);
+        normaliseCommercialExtraction(extracted);
+        return extracted;
+      },
+      text,
+    );
+  }
 
   return {
     extracted_data: parsed.extracted_data,

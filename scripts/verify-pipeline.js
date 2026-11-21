@@ -19821,6 +19821,134 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §126 Claude Sonnet 5.5 reads first, gpt-4o is the backup; the trial runs in the background (2026-11-21)
+  // ---------------------------------------------------------------------------
+  // INTAKE_PROVIDER=claude: Claude answers, and any failure (error, refusal,
+  // output that is not the schema's JSON) hands the same request to gpt-4o.
+  // INTAKE_SHADOW=claude: gpt-4o answers; Claude reads in the background and
+  // only the comparison is stored (services/claudeIntake.js).
+  console.log('\n§126 Claude Sonnet 5.5 first with gpt-4o as backup, and the background trial');
+  {
+    const claude126 = require('../services/claudeIntake');
+    const saved126 = { provider: process.env.INTAKE_PROVIDER, shadow: process.env.INTAKE_SHADOW, key: process.env.ANTHROPIC_API_KEY };
+    const claudeCalls = [];
+    let claudeNext = null;
+    const claudeAnswer = (extracted, reply = 'Merci ! Voici la fiche de votre annonce :') => ({
+      model: 'claude-sonnet-5-5',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 120, cache_read_input_tokens: 20000, cache_creation_input_tokens: 0, output_tokens: 600 },
+      content: [{ type: 'text', text: JSON.stringify({ extracted_data: extracted, whatsapp_reply: reply }) }],
+    });
+    claude126.setClientForTests({
+      messages: {
+        create: async (params) => {
+          claudeCalls.push(params);
+          const next = claudeNext;
+          if (next instanceof Error) throw next;
+          return next;
+        },
+      },
+    });
+    const minimal = {
+      is_listing: true, intent: 'listing', transaction_type: 'location', property_type: 'studio',
+      commune: 'Kintambo', price: 500, currency: 'USD', price_period: 'mois',
+    };
+    try {
+      check('a key the model left out is filled from the schema (null, [], false), never invented', () => {
+        const filled = claude126.fillFromSchema({ extracted_data: { is_listing: true }, whatsapp_reply: 'x' }, openaiService.RESPONSE_FORMAT.json_schema.schema);
+        assert.strictEqual(filled.extracted_data.price, null);
+        assert.deepStrictEqual(filled.extracted_data.amenities, []);
+        assert.strictEqual(filled.extracted_data.is_multi_unit, false);
+        assert.ok(Object.keys(openaiService.RESPONSE_FORMAT.json_schema.schema.properties.extracted_data.properties)
+          .every((key) => key in filled.extracted_data));
+      });
+
+      process.env.INTAKE_PROVIDER = 'claude';
+      delete process.env.INTAKE_SHADOW;
+      let before = openaiCalls.length;
+      claudeNext = claudeAnswer(minimal);
+      const read = await openaiService.parseMessage('Studio à louer Kintambo 500$ 4 mois+1', {
+        draft: { commune: 'Kintambo' }, history: [], images: [{ data: Buffer.from('img').toString('base64'), mimeType: 'image/jpeg' }],
+      });
+      const sent = claudeCalls[claudeCalls.length - 1];
+      check('INTAKE_PROVIDER=claude: Claude reads, gpt-4o is not called', () => {
+        assert.strictEqual(openaiCalls.length, before);
+        assert.strictEqual(read._meta.model, 'claude-sonnet-5-5');
+        assert.strictEqual(read.extracted_data.commune, 'Kintambo');
+        assert.strictEqual(read.whatsapp_reply, 'Merci ! Voici la fiche de votre annonce :');
+      });
+      check('…and the same normalisers run on its answer ("4 mois+1" → 1 / 3 / 1)', () => {
+        assert.deepStrictEqual([read.extracted_data.deposit_months, read.extracted_data.advance_months, read.extracted_data.commission_months], [1, 3, 1]);
+      });
+      check('the request: the prompt + schema cached for an hour, the draft as a second system block, the photo as an image', () => {
+        assert.strictEqual(sent.model, 'claude-sonnet-5-5');
+        assert.deepStrictEqual(sent.system[0].cache_control, { type: 'ephemeral', ttl: '1h' });
+        assert.ok(sent.system[0].text.startsWith(openaiService.SYSTEM_PROMPT));
+        assert.match(sent.system[0].text, /FORMAT DE SORTIE/);
+        assert.match(sent.system[1].text, /BROUILLON EN COURS/);
+        assert.ok(sent.messages.at(-1).content.some((p) => p.type === 'image' && p.source.type === 'base64'));
+        assert.strictEqual(sent.temperature, undefined, 'no sampling parameters on Claude');
+      });
+
+      for (const [label, failure] of [
+        ['an API error', new Error('529 overloaded')],
+        ['an answer that is not JSON', { ...claudeAnswer(minimal), content: [{ type: 'text', text: 'Voici la fiche…' }] }],
+        ['a refusal', { ...claudeAnswer(minimal), stop_reason: 'refusal' }],
+      ]) {
+        before = openaiCalls.length;
+        claudeNext = failure;
+        completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', price: 900 }, 'Merci !'));
+        // eslint-disable-next-line no-await-in-loop
+        const fallback = await openaiService.parseMessage('Appartement à louer Gombe 900$');
+        check(`${label} from Claude: gpt-4o reads the same message, the agent still gets a card`, () => {
+          assert.strictEqual(openaiCalls.length, before + 1);
+          assert.strictEqual(fallback.extracted_data.commune, 'Gombe');
+        });
+      }
+
+      claude126.setClientForTests(null);
+      delete process.env.ANTHROPIC_API_KEY;
+      before = openaiCalls.length;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', price: 900 }, 'Merci !'));
+      await openaiService.parseMessage('Appartement à louer Gombe 900$');
+      check('no ANTHROPIC_API_KEY: Claude is skipped quietly, gpt-4o reads', () => assert.strictEqual(openaiCalls.length, before + 1));
+      claude126.setClientForTests({ messages: { create: async (params) => { claudeCalls.push(params); const n = claudeNext; if (n instanceof Error) throw n; return n; } } });
+
+      // The trial: gpt-4o answers, Claude in the background.
+      process.env.INTAKE_PROVIDER = 'openai';
+      process.env.INTAKE_SHADOW = 'claude';
+      dbService.db.prepare('DELETE FROM intake_shadow').run();
+      claudeNext = claudeAnswer({ ...minimal, commune: 'Ngaliema' });
+      before = openaiCalls.length;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 500 }, 'Merci !'));
+      const trial = await openaiService.parseMessage('Studio à louer Kintambo 500$');
+      await settle(200);
+      check('INTAKE_SHADOW=claude: the agent gets gpt-4o\'s reading; Claude\'s only goes to intake_shadow', () => {
+        assert.strictEqual(openaiCalls.length, before + 1);
+        assert.strictEqual(trial.extracted_data.commune, 'Kintambo');
+        const row = dbService.db.prepare('SELECT * FROM intake_shadow ORDER BY id DESC LIMIT 1').get();
+        assert.strictEqual(row.agree, 0);
+        assert.ok(JSON.parse(row.diff_fields).includes('commune'));
+        assert.strictEqual(JSON.parse(row.shadow).commune, 'Ngaliema');
+        assert.ok(row.cost_usd > 0);
+      });
+      claudeNext = new Error('timeout');
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 500 }, 'Merci !'));
+      await openaiService.parseMessage('Studio à louer Kintambo 500$');
+      await settle(200);
+      check('a failed background read is recorded, never felt by the agent', () => {
+        const row = dbService.db.prepare('SELECT * FROM intake_shadow ORDER BY id DESC LIMIT 1').get();
+        assert.match(row.error, /timeout/);
+      });
+    } finally {
+      claude126.setClientForTests(null);
+      for (const [name, value] of [['INTAKE_PROVIDER', saved126.provider], ['INTAKE_SHADOW', saved126.shadow], ['ANTHROPIC_API_KEY', saved126.key]]) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

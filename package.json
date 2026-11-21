@@ -20,6 +20,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@google/genai": "^2.16.0",
     "@supabase/supabase-js": "^2.112.3",
     "axios": "^1.19.0",
@@ -32,8 +33,5 @@
     "pg": "^8.23.0",
     "pgvector": "^0.3.0",
     "sharp": "^0.35.5"
-  },
-  "devDependencies": {
-    "@anthropic-ai/sdk": "^1.8.0"
   }
 }

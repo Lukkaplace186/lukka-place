@@ -48,6 +48,12 @@ const MODELS = arg('models', null)
   : [arg('a', 'gpt-4o'), arg('b', 'gpt-4o-mini')];
 const CASES_FILE = arg('cases', null);
 const EFFORT = arg('effort', 'low');
+// --claude-addendum <file>: extra rules appended to the system prompt for
+// Claude models only, to test a rule before it goes into SYSTEM_PROMPT.
+const CLAUDE_ADDENDUM = arg('claude-addendum', null)
+  // eslint-disable-next-line global-require
+  ? require('fs').readFileSync(arg('claude-addendum'), 'utf8').trim()
+  : '';
 
 // ---------------------------------------------------------------------------
 // Claude: the OpenAI-shaped intake request, translated.
@@ -123,7 +129,7 @@ async function claudeCreate(params) {
     system: [
       {
         type: 'text',
-        text: `${systems[0]}\n\nFORMAT DE SORTIE : réponds uniquement par un objet JSON valide conforme à ce JSON Schema (toutes les clés présentes, null quand l'information n'est pas donnée), sans texte autour ni bloc de code :\n${schemaText}`,
+        text: `${systems[0]}${CLAUDE_ADDENDUM ? `\n\n${CLAUDE_ADDENDUM}` : ''}\n\nFORMAT DE SORTIE : réponds uniquement par un objet JSON valide conforme à ce JSON Schema (toutes les clés présentes, null quand l'information n'est pas donnée), sans texte autour ni bloc de code :\n${schemaText}`,
         cache_control: { type: 'ephemeral' },
       },
       ...systems.slice(1).map((text) => ({ type: 'text', text })),
@@ -237,12 +243,36 @@ function norm(v) {
   return v === undefined ? null : v;
 }
 
+/**
+ * What intake STORES, not the model's raw answer (2026-11-21): the same
+ * location step routes/webhook.js runs after the model (commune deduced from
+ * the quartier or the reference, a landmark moved out of the quartier). A model
+ * that leaves "Funa" in the reference is equal to one that puts it in the
+ * quartier when the stored row is the same. --raw compares the raw answer.
+ */
+function asStored(extracted) {
+  if (process.argv.includes('--raw') || !extracted?.is_listing) return extracted;
+  // eslint-disable-next-line global-require
+  const { inferListingLocation } = require('../services/locations');
+  const located = inferListingLocation({
+    commune: extracted.commune, quartier: extracted.quartier, reference: extracted.reference, city: extracted.city,
+  });
+  const out = { ...extracted, city: located.city };
+  if (located.commune) out.commune = located.commune;
+  if (located.quartier) out.quartier = located.quartier;
+  if (located.locationTidied) {
+    out.quartier = located.quartier;
+    out.reference = located.reference;
+  }
+  return out;
+}
+
 async function run(model, c) {
   const options = { model };
   if (c.draft) Object.assign(options, { draft: c.draft, history: DRAFT_HISTORY });
   const t0 = Date.now();
   const res = await parseMessage(c.text, options);
-  return { ...res, ms: Date.now() - t0 };
+  return { ...res, extracted_data: asStored(res.extracted_data), ms: Date.now() - t0 };
 }
 
 (async () => {

@@ -699,3 +699,28 @@ Meta since it was switched off on 2026-11-12, so whether « Voir l'annonce »
 opens the listing is the owner's tap on that desk message. If it does not:
 comment the line out again, restart, and check the button URL registered at
 Meta (must be `https://lukkaplace.com/listings/{{1}}`).
+
+## Approvals: one message per agent, in the daytime (2026-11-21, owner)
+
+Why: one "Bonjour, bonne nouvelle ! Votre annonce n° … est en ligne" per
+listing, the instant a moderator clicked — three in five minutes at 05:50 for
+one agent on 2026-11-21.
+
+- `services/approvalDigest.js`: the console's approval (`POST
+  /admin/properties/:id/notify`, status `approved`) and trusted auto-approval
+  QUEUE a line in SQLite `approval_notices` (one per agent + listing,
+  idempotent) instead of sending. Job `approval-digest` (before
+  sqlite-backup) sends each agent ONE message when their batch has settled:
+  `APPROVAL_DIGEST_WAIT_MIN` (15) after their last approval, at most
+  `APPROVAL_DIGEST_MAX_WAIT_MIN` (120) after the first, only between
+  `APPROVAL_DIGEST_FROM_HOUR` and `APPROVAL_DIGEST_TO_HOUR` (8 → 20, Kinshasa).
+- The message: app push first ("Vos 3 annonces sont en ligne"); else WhatsApp
+  — inside the 24 h window ONE text with every listing's public link and Mes
+  biens; outside it the approved template, which names one listing, so one
+  per listing (in the daytime now). One listing keeps the old wording.
+- Rejections and "retirée (doublon)" are never queued: the agent has
+  something to fix. `APPROVAL_DIGEST=off` (call time) sends approvals at once
+  again; anything already queued still goes out with the job.
+- A row is marked sent even when the send failed (logged with `sent_via`
+  "failed: …") — a retry could repeat a message that did arrive.
+- §124 of verify-pipeline.

@@ -34,6 +34,7 @@ function approvedTemplateUrlButton(templateName, propertyId) {
 }
 
 module.exports = {
+  SITE_URL,
   MES_BIENS_PATH,
   MES_BIENS_URL,
   APPROVED_TEMPLATES_WITH_LISTING_LINK,

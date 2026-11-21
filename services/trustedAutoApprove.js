@@ -114,7 +114,16 @@ async function runTrustedAutoApprove({ notify = true } = {}) {
 
     if (notify) {
       const listing = db.getListingByRemotePropertyId(Number(row.id));
-      if (listing?.wa_id) {
+      // eslint-disable-next-line global-require
+      const approvalDigest = require('./approvalDigest');
+      if (listing?.wa_id && approvalDigest.digestEnabled()) {
+        // One daytime message per agent (services/approvalDigest.js).
+        approvalDigest.queueApproval({
+          phone: listing.wa_id,
+          propertyId: Number(row.id),
+          summary: require('./listingCard').listingSummaryLine(listing),
+        });
+      } else if (listing?.wa_id) {
         // The app first (services/pushNotify.js), WhatsApp when the agent has none.
         pushNotify
           .pushFirst({

@@ -7182,7 +7182,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-contact-check', 'viewing-sla', 'viewing-proposal-followup', 'viewing-checkin', 'viewing-agent-done', 'chat-notify', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'portal-daily', 'weekly-summary', 'monthly-market', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'move-request-followup', 'listing-auto-pause', 'lead-waves', 'push-fallback', 'visit-reminders', 'favorite-status', 'request-followup', 'instant-alerts', 'search-checkup', 'portal-daily', 'weekly-summary', 'monthly-market', 'approval-digest', 'sqlite-backup',
     ]);
   });
 
@@ -11983,9 +11983,11 @@ console.log('\n2. services/openai.js');
   {
     const repo57 = require('../services/propertyRepository');
     const admin57 = require('../routes/admin');
-    const saved57 = { recipient: repo57.getModerationRecipient, text: chakra.sendWhatsAppMessage, tpl: process.env.LISTING_APPROVED_TEMPLATE };
+    const saved57 = { recipient: repo57.getModerationRecipient, text: chakra.sendWhatsAppMessage, tpl: process.env.LISTING_APPROVED_TEMPLATE, digest: process.env.APPROVAL_DIGEST };
     const sent57 = [];
     delete process.env.LISTING_APPROVED_TEMPLATE;
+    // The immediate send (APPROVAL_DIGEST=off); the daytime batch is §124.
+    process.env.APPROVAL_DIGEST = 'off';
     repo57.getModerationRecipient = async (id) => (Number(id) === 9314
       ? { id: 9314, purpose: 'rent', quartier: 'Industriel', category_name: 'Appartement', commune: 'Limete', agent_phone: '243810009314' }
       : null);
@@ -12018,6 +12020,8 @@ console.log('\n2. services/openai.js');
       chakra.sendWhatsAppMessage = saved57.text;
       if (saved57.tpl === undefined) delete process.env.LISTING_APPROVED_TEMPLATE;
       else process.env.LISTING_APPROVED_TEMPLATE = saved57.tpl;
+      if (saved57.digest === undefined) delete process.env.APPROVAL_DIGEST;
+      else process.env.APPROVAL_DIGEST = saved57.digest;
     }
   }
 
@@ -19741,6 +19745,114 @@ console.log('\n2. services/openai.js');
       onboarding.identifySender = savedIdentity123;
       if (savedButtons123 === undefined) delete process.env.INTAKE_BUTTONS;
       else process.env.INTAKE_BUTTONS = savedButtons123;
+    }
+  }
+
+  // §124 Approvals: one message per agent, in the daytime (2026-11-21)
+  // ---------------------------------------------------------------------------
+  // An agent with three listings approved at 05:50 got three "bonne nouvelle"
+  // messages before dawn. Approvals are queued (services/approvalDigest.js)
+  // and each agent gets one message once theirs have settled, 8–20 h Kinshasa.
+  console.log('\n§124 approvals are batched: one message per agent, in the Kinshasa daytime');
+  {
+    const digest124 = require('../services/approvalDigest');
+    const window124 = require('../services/sessionWindow');
+    const A124 = '243810012401';
+    const B124 = '243810012402';
+    const at = (iso) => new Date(iso);
+    const saved124 = {
+      text: chakra.sendWhatsAppMessage, tpl: chakra.sendTemplate, env: process.env.LISTING_APPROVED_TEMPLATE,
+    };
+    const texts124 = [];
+    const templates124 = [];
+    chakra.sendWhatsAppMessage = async (to, text) => { texts124.push({ to, text }); };
+    chakra.sendTemplate = async (to, name, opts) => { templates124.push({ to, name, opts }); };
+    try {
+      check('daytime is 8–20 h Kinshasa (UTC+1)', () => {
+        assert.strictEqual(digest124.isDaytime(at('2026-11-21T06:30:00Z')), false, '07:30 Kinshasa');
+        assert.strictEqual(digest124.isDaytime(at('2026-11-21T07:00:00Z')), true, '08:00 Kinshasa');
+        assert.strictEqual(digest124.isDaytime(at('2026-11-21T19:00:00Z')), false, '20:00 Kinshasa');
+      });
+
+      // Three approvals for A at 05:50 Kinshasa, one for B at 09:00.
+      dbService.db.prepare('DELETE FROM approval_notices').run();
+      digest124.queueApproval({ phone: A124, propertyId: 1241, summary: 'Appartement à louer — Gombe' }, at('2026-11-21T04:50:00Z'));
+      digest124.queueApproval({ phone: A124, propertyId: 1242, summary: 'Studio à louer — Kintambo' }, at('2026-11-21T04:52:00Z'));
+      digest124.queueApproval({ phone: A124, propertyId: 1243, summary: 'Villa à vendre — Ngaliema' }, at('2026-11-21T04:55:00Z'));
+      check('the same approval twice is one line', () => {
+        assert.strictEqual(digest124.queueApproval({ phone: A124, propertyId: 1241 }, at('2026-11-21T04:56:00Z')), false);
+      });
+      check('approvals at 05:50 wait for the morning', () => {
+        assert.deepStrictEqual(digest124.dueBatches(at('2026-11-21T06:00:00Z')), []);
+        const due = digest124.dueBatches(at('2026-11-21T07:00:00Z'));
+        assert.strictEqual(due.length, 1);
+        assert.deepStrictEqual(due[0].items.map((i) => i.property_id), [1241, 1242, 1243]);
+      });
+      digest124.queueApproval({ phone: B124, propertyId: 1244, summary: 'Maison à louer — Lemba' }, at('2026-11-21T08:00:00Z'));
+      check('in the daytime a batch waits 15 min after its last approval', () => {
+        assert.ok(!digest124.dueBatches(at('2026-11-21T08:10:00Z')).some((b) => b.phone === B124));
+        assert.ok(digest124.dueBatches(at('2026-11-21T08:16:00Z')).some((b) => b.phone === B124));
+      });
+      check('one listing keeps the message agents know; several are one message with every link', () => {
+        assert.match(digest124.digestText([{ property_id: 1244, summary: 'x' }]), /Votre annonce n° 1244 est maintenant en ligne : https:\/\/lukkaplace\.com\/listings\/1244$/);
+        const many = digest124.digestText([{ property_id: 1241, summary: 'Appartement à louer — Gombe' }, { property_id: 1242, summary: null }]);
+        assert.match(many, /^Bonjour, bonne nouvelle ! Vos 2 annonces sont maintenant en ligne :/);
+        assert.match(many, /1\. Appartement à louer — Gombe : https:\/\/lukkaplace\.com\/listings\/1241/);
+        assert.match(many, /2\. Annonce n° 1242 : /);
+        assert.match(many, /compte\/agent\/biens/);
+      });
+
+      // A wrote to us recently: one text. B did not: one template per listing.
+      window124.recordInbound(A124, at('2026-11-21T06:30:00Z'));
+      process.env.LISTING_APPROVED_TEMPLATE = 'annonce_en_ligne_v2';
+      await checkAsync('the job sends A ONE text for three listings and B its template, then marks them sent', async () => {
+        const result = await digest124.runApprovalDigest(at('2026-11-21T08:20:00Z'));
+        assert.strictEqual(result.batches, 2);
+        const toA = texts124.filter((t) => t.to === A124);
+        assert.strictEqual(toA.length, 1);
+        assert.match(toA[0].text, /Vos 3 annonces sont maintenant en ligne/);
+        assert.deepStrictEqual(templates124.filter((t) => t.to === B124).map((t) => t.opts.bodyParams[0]), ['1244']);
+        assert.strictEqual(templates124[0].opts.urlButton, '1244', 'v2 needs the listing id for its button');
+        assert.strictEqual(dbService.db.prepare('SELECT count(*) n FROM approval_notices WHERE sent_at IS NULL').get().n, 0);
+      });
+      await checkAsync('a second run sends nothing more', async () => {
+        const before = texts124.length + templates124.length;
+        await digest124.runApprovalDigest(at('2026-11-21T08:30:00Z'));
+        assert.strictEqual(texts124.length + templates124.length, before);
+      });
+
+      // Through the moderation endpoint: queued, nothing sent now.
+      const repo124 = require('../services/propertyRepository');
+      const savedRecipient124 = repo124.getModerationRecipient;
+      repo124.getModerationRecipient = async (id) => (Number(id) === 91245
+        ? { id: 91245, purpose: 'rent', quartier: null, category_name: 'Appartement', commune: 'Limete', agent_phone: '243810012403' }
+        : null);
+      try {
+        const sentBefore = texts124.length + templates124.length;
+        const approved124 = await adminRequest('POST', '/admin/properties/91245/notify', { status: 'approved' });
+        await settle(200);
+        check('an approval from the console is queued, not sent at once', () => {
+          assert.strictEqual(approved124.status, 202);
+          assert.strictEqual(approved124.body.batched, true);
+          assert.strictEqual(texts124.length + templates124.length, sentBefore);
+          const row = dbService.db.prepare('SELECT summary FROM approval_notices WHERE property_id = 91245').get();
+          assert.match(row.summary, /Limete/);
+        });
+        const rejected124 = await adminRequest('POST', '/admin/properties/91245/notify', { status: 'rejected', reason_code: 'BAD_PHOTOS' });
+        await settle(200);
+        check('a rejection still goes at once', () => {
+          assert.strictEqual(rejected124.status, 202);
+          assert.ok(texts124.some((t) => t.to === '243810012403' && /photos/.test(t.text)));
+        });
+      } finally {
+        repo124.getModerationRecipient = savedRecipient124;
+      }
+    } finally {
+      chakra.sendWhatsAppMessage = saved124.text;
+      chakra.sendTemplate = saved124.tpl;
+      if (saved124.env === undefined) delete process.env.LISTING_APPROVED_TEMPLATE;
+      else process.env.LISTING_APPROVED_TEMPLATE = saved124.env;
+      dbService.db.prepare('DELETE FROM approval_notices').run();
     }
   }
 

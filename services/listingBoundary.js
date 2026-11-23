@@ -57,14 +57,19 @@ function fold(text) {
  * published apartment as a correction and stored nowhere).
  */
 const FAMILY_WORDS = [
-  ['appartement', /\b(?:appartements?|apartements?|appart|studios?|flat)\b/],
+  ['appartement', /\b(?:appartements?|apartements?|appart|studios?|flat|chambres? salon)\b/],
   ['maison', /\b(?:villas?|maisons?|parcelles?|duplex|pavillon|complexe|type locataire|portes)\b/],
   ['terrain', /\b(?:terrains?|lopin|concessions?|morcellements?|lotissements?)\b/],
   ['commercial', /\b(?:bureaux?|boutiques?|entrepots?|magasins?|immeubles?|locaux commerciaux|local commercial|hangar)\b/],
 ];
 
-/** Words that make a text read as a property offer even when no family word is present. */
-const OFFER_WORDS = /\b(?:a louer|a vendre|en location|en vente|location|offre de location|chambres? a coucher|\d+\s*(?:ch|chambres?|pieces?)\b)/;
+/**
+ * Words that make a text read as a property offer even when no family word is present.
+ * 2026-11-21: Kinshasa offers often say neither "à louer" nor a property word —
+ * "Fiston immo met à votre disposition une chambre salon … Prix : 150$, garantie
+ * 4+1" was read as a correction of the agent's previous listing and never stored.
+ */
+const OFFER_WORDS = /\b(?:a louer|a vendre|en location|en vente|location|offre de location|chambres? a coucher|\d+\s*(?:ch|chambres?|pieces?)\b|chambres? salon|a votre dispo(?:sition|nibilite)|vous (?:propose|suggere)|garantie)/;
 
 function familiesIn(text) {
   const folded = fold(text);
@@ -193,6 +198,18 @@ function newListingReason({ text, photoCount = 0, intent = null, context = null 
     if (agrees) return null;
     return { reason: 'photos-and-own-listing', differences };
   }
+
+  // A different price AND a different commune or kind of property is another
+  // property, whatever the model called the message (2026-11-21: a "chambre
+  // salon … 150$, Limete" sent after a 300$ commercial house in Kinshasa
+  // commune was read as its correction — the model gave no "listing" intent —
+  // and the new listing was never stored). A real correction changes one fact
+  // at a time, and a written correction ("pas X mais Y") never reaches here.
+  // Not when the model read a question, a buyer's search or a greeting.
+  const anotherProperty = context && differences.includes('price') && differences.length >= 2
+    && fold(text).length >= MIN_TEXT_ONLY_LENGTH
+    && !['question', 'buyer_request', 'greeting'].includes(intent);
+  if (anotherProperty) return { reason: 'core-fields-differ', differences };
 
   if (intent !== 'listing') return null;
   // Nothing in context (the name question is what is open): there is no

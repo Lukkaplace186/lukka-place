@@ -764,3 +764,23 @@ calls, seven messages for one listing.
   an old card → published once, nothing more sent (logged).
 - §127 of verify-pipeline (the suite runs with INTAKE_ACK / PUBLISH_RECEIPT on
   for the older sections and a 120 ms text wait).
+
+## A new property is never merged into the previous one (2026-11-21)
+
+Found by the Claude trial review: on 2026-11-23 09:53 an agent sent "met à
+votre disposition une chambre salon … Prix : 150$, garantie 4+1 … Limete"
+two minutes after their 300$ commercial house in Kinshasa commune (#1531).
+gpt-4o read it as a correction of #1531 and the boundary
+(`services/listingBoundary.js`) never ran: the text had no property or offer
+word it knew, and the model gave no "listing" intent. The 150$ listing was
+never stored.
+
+- `OFFER_WORDS` / the appartement family now know "chambre(s) salon",
+  "à votre disposition / disponibilité", "vous propose / suggère" and
+  "garantie" (same lists in `group-reader/lib/prefilter.js`).
+- `newListingReason`: a text-only message whose price AND commune or kind of
+  property differ from the listing in context is a new listing whatever
+  intent the model gave — unless it read a question, a buyer's search or a
+  greeting. A real correction changes one fact, and written corrections
+  ("pas X mais Y", "non …") never reach this test.
+- §128 of verify-pipeline.

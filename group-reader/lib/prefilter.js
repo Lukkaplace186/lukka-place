@@ -28,14 +28,18 @@ function fold(text) {
 }
 
 const FAMILY_WORDS = [
-  ['appartement', /\b(?:appartements?|apartements?|appart|studios?|flat)\b/],
+  ['appartement', /\b(?:appartements?|apartements?|appart|studios?|flat|chambres? salon)\b/],
   ['maison', /\b(?:villas?|maisons?|parcelles?|duplex|pavillon|complexe|type locataire|portes)\b/],
   ['terrain', /\b(?:terrains?|lopin|concessions?|morcellements?|lotissements?)\b/],
   ['commercial', /\b(?:bureaux?|boutiques?|entrepots?|magasins?|immeubles?|locaux commerciaux|local commercial|hangar)\b/],
 ];
 
-/** Words that make a text read as a property offer even when no family word is present. */
-const OFFER_WORDS = /\b(?:a louer|a vendre|en location|en vente|location|offre de location|chambres? a coucher|\d+\s*(?:ch|chambres?|pieces?)\b)/;
+/**
+ * Words that make a text read as a property offer even when no family word is present.
+ * 2026-11-21: Kinshasa offers often say neither "à louer" nor a property word
+ * (same list as services/listingBoundary.js — keep them identical).
+ */
+const OFFER_WORDS = /\b(?:a louer|a vendre|en location|en vente|location|offre de location|chambres? a coucher|\d+\s*(?:ch|chambres?|pieces?)\b|chambres? salon|a votre dispo(?:sition|nibilite)|vous (?:propose|suggere)|garantie)/;
 
 function familiesIn(text) {
   const folded = fold(text);

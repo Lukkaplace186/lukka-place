@@ -20009,6 +20009,38 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §128 A new property is never merged into the previous one (2026-11-21)
+  // ---------------------------------------------------------------------------
+  // Production, 2026-11-23 09:53: "Fiston immo met à votre disposition une
+  // chambre salon … Prix : 150$, garantie 4+1, Limete" two minutes after the
+  // agent's 300$ commercial house in Kinshasa commune was merged into it as a
+  // correction and never stored: no property or offer word the boundary knew,
+  // and the model gave no "listing" intent. Found by the Claude trial review.
+  console.log('\n§128 a different property sent after a listing is its own listing, not a correction');
+  {
+    const boundary128 = require('../services/listingBoundary');
+    const prefilter128 = require('../group-reader/lib/prefilter');
+    const TEXT128 = 'Fiston immo business toujours met à vôtre dispositions une chambre salon cuisine et salle des bains Prix :150$ '
+      + 'garantie locative de 4+1 ref école mbandeko sur forgerons Limete industrielle NB libération dans deux semaines';
+    const previous128 = { property_type: 'boutique', transaction_type: 'location', commune: 'Kinshasa', price: 300 };
+    check('Kinshasa offer wording reads as a listing: chambre salon, à votre disposition, vous propose, garantie', () => {
+      assert.ok(boundary128.standsAloneAsListing(TEXT128));
+      assert.ok(boundary128.standsAloneAsListing('Agence Lumière vous propose un studio, loyer 200$ garantie 3 mois à Lemba'));
+      assert.ok(prefilter128.standsAloneAsListing(TEXT128), 'the group reader\'s copy agrees');
+    });
+    check('a different price AND commune or kind is a new listing, whatever intent the model gave', () => {
+      const reason = boundary128.newListingReason({ text: TEXT128, photoCount: 0, intent: 'other', context: previous128 });
+      assert.strictEqual(reason?.reason, 'core-fields-differ');
+      assert.ok(reason.differences.includes('price') && reason.differences.includes('commune'));
+    });
+    check('real corrections stay corrections: one fact changed, or written as a correction', () => {
+      for (const text of ["le prix c'est 250$ maintenant pas 300", "non c'est 350$", 'le loyer est passé à 280$ garantie 3 mois',
+        "c'est à Limete, prix 300$", 'ok merci']) {
+        assert.strictEqual(boundary128.newListingReason({ text, photoCount: 0, intent: 'other', context: previous128 }), null, text);
+      }
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

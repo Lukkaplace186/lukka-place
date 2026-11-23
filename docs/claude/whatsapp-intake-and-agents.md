@@ -784,3 +784,17 @@ never stored.
   greeting. A real correction changes one fact, and written corrections
   ("pas X mais Y", "non …") never reach this test.
 - §128 of verify-pipeline.
+
+## No duplicate read for a new property (2026-11-23)
+
+40 of 467 production gpt-4o reads (2026-11-14 → 23, ~9 %) were thrown away:
+a message was read WITH the agent's previous listing in context, then the
+boundary (`listingBoundary.newListingReason`) decided it was a new property
+and read it again without the context — the second reading is what was
+stored. `processGroup` now asks the boundary BEFORE the read, from the text
+alone (`intent: null`): photos with a listing of their own, or a different
+price AND commune / kind. When it decides "new", the single read is made
+without context (`[boundary] … — decided before the read, read once`).
+Cases that need the model's intent (a long text the model calls a listing
+with one differing fact) still use read-then-check. Same stored listing,
+~9 % fewer reads. §129 (and §61 now expects one read).

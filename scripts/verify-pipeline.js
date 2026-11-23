@@ -12370,10 +12370,10 @@ console.log('\n2. services/openai.js');
     );
     const rows61 = dbService.countListings();
     const calls61 = openaiCalls.length;
+    // Since 2026-11-23 (§129) the boundary is decided from the text before the
+    // read: ONE read, without the draft in context (the in-context read that
+    // used to be thrown away is no longer made).
     completionQueue.push(
-      // Correction mode: the model folds the new property into the draft…
-      intakeCompletion({ is_listing: false, is_correction: true, commune: 'Limete', price: 1500 }, 'Mise à jour ✅'),
-      // …and the re-read without the draft sees it for what it is.
       intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Limete', quartier: null, price: 1500, bedrooms: 3 }, 'Voici votre annonce.'),
     );
     await post('/webhook', inboundImage('wamid.S61A', 'media_61a', OFFER61, S61));
@@ -12394,8 +12394,8 @@ console.log('\n2. services/openai.js');
       assert.deepStrictEqual(old.photos, ['/uploads/listings/s61seed.jpg']);
       assert.ok(!old.raw_text.includes('OFFRE DE LOCATION'));
     });
-    check('the re-read is made WITHOUT the draft in context', () => {
-      assert.strictEqual(openaiCalls.length - calls61, 2);
+    check('one read, made WITHOUT the draft in context (§129: no duplicate read)', () => {
+      assert.strictEqual(openaiCalls.length - calls61, 1);
       const reread = openaiCalls[openaiCalls.length - 1];
       assert.ok(!reread.messages.some((m) => m.role === 'system' && m.content.includes('annonce déjà enregistrée')));
     });
@@ -20038,6 +20038,47 @@ console.log('\n2. services/openai.js');
         "c'est à Limete, prix 300$", 'ok merci']) {
         assert.strictEqual(boundary128.newListingReason({ text, photoCount: 0, intent: 'other', context: previous128 }), null, text);
       }
+    });
+  }
+
+  // §129 No duplicate read: a new property decided from the text is read once (2026-11-23)
+  // ---------------------------------------------------------------------------
+  // 40 of 467 production gpt-4o reads (2026-11-14 → 23) were thrown away: the
+  // message was read with the agent's previous listing in context, then the
+  // boundary decided it was a new property and read it again without it.
+  // When the text alone decides it, only the second read is made.
+  console.log('\n§129 a new property the text alone identifies is read once, without the previous listing');
+  {
+    const A129 = '243850012901';
+    const draftCtx = 'annonce déjà enregistrée';
+    dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'boutique', commune: 'Kinshasa', price: 300, currency: 'USD' },
+      A129,
+      { wamid: 'wamid.S129SEED', rawText: 'Maison commerciale 300$ Kinshasa', photos: ['/uploads/listings/s129seed.jpg'] },
+    );
+    const calls129 = openaiCalls.length;
+    const rows129 = dbService.countListings();
+    completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'chambre_salon', commune: 'Limete', quartier: null, price: 150 }, 'Merci !'));
+    await post('/webhook', inbound('wamid.S129A',
+      'Fiston immo met à votre disposition une chambre salon cuisine et salle de bains, Prix : 150$, garantie 4+1, ref école Mbandeko, Limete industrielle', A129));
+    await settle(700);
+    check('one read, without the previous listing in context, and the property stored as its own listing', () => {
+      assert.strictEqual(openaiCalls.length - calls129, 1);
+      const read = openaiCalls[openaiCalls.length - 1];
+      assert.ok(!read.messages.some((m) => m.role === 'system' && String(m.content).includes(draftCtx)));
+      assert.strictEqual(dbService.countListings(), rows129 + 1);
+      assert.strictEqual(dbService.findLatestPendingListing(A129).price, 150);
+    });
+
+    const callsEdit129 = openaiCalls.length;
+    completionQueue.push(intakeCompletion({ is_listing: false, is_correction: true, property_type: 'chambre_salon', commune: 'Limete', price: 170 }, "C'est noté"));
+    await post('/webhook', inbound('wamid.S129B', "non c'est 170$", A129));
+    await settle(600);
+    check('a plain correction still gets its single read WITH the listing in context', () => {
+      assert.strictEqual(openaiCalls.length - callsEdit129, 1);
+      const read = openaiCalls[openaiCalls.length - 1];
+      assert.ok(read.messages.some((m) => m.role === 'system' && String(m.content).includes(draftCtx)));
+      assert.strictEqual(dbService.findLatestPendingListing(A129).price, 170);
     });
   }
 

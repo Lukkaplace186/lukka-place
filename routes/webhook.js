@@ -1636,12 +1636,29 @@ async function processGroup(messages) {
     // already have been told "Message reçu, un instant…", heard nothing more
     // and the listing was never stored. Tell them to resend instead — except
     // in a conversation a human has taken over, which stays silent.
+    // NEW LISTING, DECIDED BEFORE THE READ (2026-11-23). When the text alone
+    // shows a different property — photos with a listing of its own, or a
+    // different price AND commune / kind — the boundary below would override
+    // the model's in-context reading and read the message AGAIN without the
+    // context: two gpt-4o reads, the first thrown away (40 of 467 production
+    // reads, 2026-11-14 → 23). Deciding it here reads once, without context —
+    // the very reading that used to be stored. Cases that need the model's
+    // intent still go through the read-then-check path below.
+    const preBoundary = hasText && contextListing
+      ? listingBoundary.newListingReason({
+        text,
+        photoCount: photoPaths.length + videoPaths.length,
+        intent: null,
+        context: contextListing,
+      })
+      : null;
+
     let parsed;
     try {
       parsed = await parseMessage(text, {
         senderPhone: from,
         images,
-        ...(contextListing ? draftContextFromListing(contextListing) : {}),
+        ...(contextListing && !preBoundary ? draftContextFromListing(contextListing) : {}),
       });
     } catch (err) {
       console.error(`[openai] ${label} — extraction failed, ${from} told to resend: ${err.message}`);
@@ -1664,20 +1681,21 @@ async function processGroup(messages) {
     {
       const awaitingName = onboarding.getSession(from)?.state === 'AWAITING_NAME';
       const first = parsed.extracted_data;
-      const boundary = hasText && !first.is_listing && (contextListing || awaitingName)
+      const boundary = preBoundary || (hasText && !first.is_listing && (contextListing || awaitingName)
         ? listingBoundary.newListingReason({
           text,
           photoCount: photoPaths.length + videoPaths.length,
           intent: first.intent,
           context: contextListing || null,
         })
-        : null;
+        : null);
       if (boundary) {
         console.log(
           `[boundary] ${label} — a NEW listing, not ${contextListing ? `a correction of #${contextListing.id}` : 'a name reply'} ` +
-            `(${boundary.reason}${boundary.differences.length ? `: ${boundary.differences.join(', ')} differ` : ''})`,
+            `(${boundary.reason}${boundary.differences.length ? `: ${boundary.differences.join(', ')} differ` : ''})`
+            + (preBoundary ? ' — decided before the read, read once' : ''),
         );
-        if (contextListing) {
+        if (contextListing && !preBoundary) {
           try {
             parsed = await parseMessage(text, { senderPhone: from, images });
           } catch (err) {

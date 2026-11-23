@@ -20082,6 +20082,66 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §130 The background trial can read with gpt-4.1, for a set number of days (2026-11-23)
+  // ---------------------------------------------------------------------------
+  // Owner: stop the Sonnet trial, run gpt-4.1 in the background for 3 days.
+  // INTAKE_SHADOW=gpt-4.1 + INTAKE_SHADOW_UNTIL; gpt-4.1 asks for the 24 h
+  // prompt cache (gpt-4o ignores it, measured).
+  console.log('\n§130 the trial reads with gpt-4.1 until INTAKE_SHADOW_UNTIL; the agent still gets gpt-4o');
+  {
+    const trial130 = require('../services/claudeIntake');
+    const saved130 = { shadow: process.env.INTAKE_SHADOW, until: process.env.INTAKE_SHADOW_UNTIL };
+    try {
+      process.env.INTAKE_SHADOW = 'gpt-4.1';
+      process.env.INTAKE_SHADOW_UNTIL = new Date(Date.now() + 3 * 86400000).toISOString();
+      dbService.db.prepare('DELETE FROM intake_shadow').run();
+      const before = openaiCalls.length;
+      completionQueue.push(
+        intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 500 }, 'Merci !'),
+        { ...intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 450 }, 'Merci !'), model: 'gpt-4.1-2025-04-14' },
+      );
+      const read = await openaiService.parseMessage('Studio à louer Kintambo 500$');
+      await settle(200);
+      check('the agent gets gpt-4o\'s reading; gpt-4.1 reads in the background with the 24 h cache', () => {
+        assert.strictEqual(read.extracted_data.price, 500);
+        assert.strictEqual(openaiCalls.length - before, 2);
+        assert.strictEqual(openaiCalls[before].prompt_cache_retention, undefined, 'gpt-4o ignores it: not asked');
+        assert.strictEqual(openaiCalls[before + 1].model, 'gpt-4.1');
+        assert.strictEqual(openaiCalls[before + 1].prompt_cache_retention, '24h');
+      });
+      check('the comparison is stored with its model and its cost', () => {
+        const row = dbService.db.prepare('SELECT * FROM intake_shadow ORDER BY id DESC LIMIT 1').get();
+        assert.match(row.model, /^gpt-4\.1/);
+        assert.ok(JSON.parse(row.diff_fields).includes('price'));
+        assert.ok(row.cost_usd > 0);
+        assert.strictEqual(trial130.shadowTarget(), 'gpt-4.1');
+      });
+
+      process.env.INTAKE_SHADOW_UNTIL = new Date(Date.now() - 60000).toISOString();
+      const afterEnd = openaiCalls.length;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 500 }, 'Merci !'));
+      await openaiService.parseMessage('Studio à louer Kintambo 500$');
+      await settle(200);
+      check('after INTAKE_SHADOW_UNTIL the trial stops on its own: one read', () => {
+        assert.strictEqual(openaiCalls.length - afterEnd, 1);
+        assert.strictEqual(trial130.shadowTarget(), null);
+      });
+
+      process.env.INTAKE_SHADOW_UNTIL = new Date(Date.now() + 86400000).toISOString();
+      const named = openaiCalls.length;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'studio', commune: 'Kintambo', price: 500 }, 'Merci !'));
+      await openaiService.parseMessage('Studio à louer Kintambo 500$', { model: 'gpt-4o' });
+      await settle(200);
+      check('a test run naming its model never starts a trial read', () => assert.strictEqual(openaiCalls.length - named, 1));
+    } finally {
+      for (const [name, value] of [['INTAKE_SHADOW', saved130.shadow], ['INTAKE_SHADOW_UNTIL', saved130.until]]) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+      dbService.db.prepare('DELETE FROM intake_shadow').run();
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

@@ -166,7 +166,18 @@ if (MODELS.some((m) => m.startsWith('claude-'))) {
 }
 
 /** Measured cost of one call, in US$ (null for a model with no price here). */
+/** US$ per million tokens: [input, cached input, output] — OpenAI models services/openai.js does not price. 2026-11-23. */
+const OTHER_OPENAI_PRICES = [
+  ['gpt-4.1-mini', [0.40, 0.10, 1.60]],
+  ['gpt-4.1', [2, 0.50, 8]],
+];
+
 function costOf(model, usage) {
+  const other = OTHER_OPENAI_PRICES.find(([name]) => String(model).startsWith(name))?.[1];
+  if (other) {
+    const cachedIn = usage.prompt_tokens_details?.cached_tokens || 0;
+    return ((usage.prompt_tokens - cachedIn) * other[0] + cachedIn * other[1] + usage.completion_tokens * other[2]) / 1e6;
+  }
   const claude = CLAUDE_PRICES.find(([name]) => String(model).startsWith(name))?.[1];
   if (!claude) return openaiService.callCost(model, usage).usd;
   const cached = usage.prompt_tokens_details?.cached_tokens || 0;
@@ -267,9 +278,33 @@ function asStored(extracted) {
   return out;
 }
 
+/**
+ * A case's photos (web paths "/uploads/listings/…", from --cases) read from
+ * the uploads folder, as WhatsApp intake sends them (2026-11-23: the Sonnet
+ * comparison used text only and under-counted photo tokens). Run on the VPS,
+ * where the photos are: node -r dotenv/config scripts/eval-intake-models.js …
+ */
+function loadCasePhotos(paths) {
+  if (!Array.isArray(paths) || !paths.length) return [];
+  // eslint-disable-next-line global-require
+  const fs = require('fs');
+  // eslint-disable-next-line global-require
+  const { UPLOADS_ROOT } = require('../services/mediaStorage');
+  const images = [];
+  for (const webPath of paths) {
+    const file = path.resolve(UPLOADS_ROOT, String(webPath).replace(/^\/uploads\//, ''));
+    if (!file.startsWith(path.resolve(UPLOADS_ROOT)) || !fs.existsSync(file)) continue;
+    const ext = path.extname(file).toLowerCase();
+    const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+    images.push({ data: fs.readFileSync(file).toString('base64'), mimeType });
+  }
+  return images;
+}
+
 async function run(model, c) {
   const options = { model };
   if (c.draft) Object.assign(options, { draft: c.draft, history: DRAFT_HISTORY });
+  if (c.photos) options.images = loadCasePhotos(c.photos);
   const t0 = Date.now();
   const res = await parseMessage(c.text, options);
   return { ...res, extracted_data: asStored(res.extracted_data), ms: Date.now() - t0 };

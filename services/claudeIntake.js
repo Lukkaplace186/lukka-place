@@ -66,8 +66,22 @@ function provider() {
   return env('INTAKE_PROVIDER').toLowerCase() === 'claude' ? 'claude' : 'openai';
 }
 
+/**
+ * What the background trial reads with: 'claude', an OpenAI model name
+ * ('gpt-4.1', 2026-11-23), or null. INTAKE_SHADOW_UNTIL (an ISO date) ends the
+ * trial on its own — the owner's 3-day gpt-4.1 trial.
+ */
+function shadowTarget(now = new Date()) {
+  const target = env('INTAKE_SHADOW').toLowerCase();
+  if (!target) return null;
+  const until = Date.parse(env('INTAKE_SHADOW_UNTIL'));
+  if (Number.isFinite(until) && now.getTime() > until) return null;
+  if (target === 'claude') return 'claude';
+  return /^gpt-[\w.-]+$/.test(target) ? target : null;
+}
+
 function shadowEnabled() {
-  return env('INTAKE_SHADOW').toLowerCase() === 'claude';
+  return Boolean(shadowTarget());
 }
 
 function claudeModel() {
@@ -257,10 +271,20 @@ function fold(value) {
  * @param {(extracted: Object) => Object} normalise  the same normalisers
  * @param {string} text           the agent's text (an excerpt is kept)
  */
-function shadowCompare(messages, responseFormat, reference, normalise, text) {
-  if (!shadowEnabled() || !configured()) return;
+function shadowCompare(messages, responseFormat, reference, normalise, text, { openaiRead = null } = {}) {
+  const target = shadowTarget();
+  if (!target) return;
+  let read;
+  if (target === 'claude') {
+    if (!configured()) return;
+    read = completeIntake(messages, responseFormat, { kind: 'intake-shadow' });
+  } else {
+    // An OpenAI model (services/openai.js hands its own read in).
+    if (!openaiRead) return;
+    read = openaiRead(target, messages);
+  }
   const started = Date.now();
-  completeIntake(messages, responseFormat, { kind: 'intake-shadow' })
+  read
     .then(({ completion, parsed }) => {
       const shadow = normalise(parsed.extracted_data);
       const diff = SHADOW_FIELDS.filter((f) => JSON.stringify(fold(reference?.[f])) !== JSON.stringify(fold(shadow?.[f])));
@@ -273,16 +297,17 @@ function shadowCompare(messages, responseFormat, reference, normalise, text) {
       ).run(
         new Date().toISOString(), completion.model, String(text || '').slice(0, 500), diff.length ? 0 : 1,
         JSON.stringify(diff), JSON.stringify(pick(reference)), JSON.stringify(pick(shadow)),
-        completion.usage.usd, Date.now() - started,
+        completion.usage.usd ?? null, Date.now() - started,
       );
       console.log(`[intake-shadow] ${completion.model}: ${diff.length ? `differs on ${diff.join(', ')}` : 'same reading'}`);
     })
     .catch((err) => {
+      const model = target === 'claude' ? claudeModel() : target;
       try {
         db.db.prepare('INSERT INTO intake_shadow (created_at, model, text_excerpt, error, ms) VALUES (?, ?, ?, ?, ?)')
-          .run(new Date().toISOString(), claudeModel(), String(text || '').slice(0, 500), String(err.message).slice(0, 300), Date.now() - started);
+          .run(new Date().toISOString(), model, String(text || '').slice(0, 500), String(err.message).slice(0, 300), Date.now() - started);
       } catch { /* a full disk must not reach the intake */ }
-      console.warn(`[intake-shadow] Claude failed: ${err.message}`);
+      console.warn(`[intake-shadow] ${model} failed: ${err.message}`);
     });
 }
 
@@ -298,6 +323,7 @@ module.exports = {
   DEFAULT_MODEL,
   provider,
   shadowEnabled,
+  shadowTarget,
   claudeModel,
   configured,
   completeIntake,

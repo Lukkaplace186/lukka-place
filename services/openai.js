@@ -59,6 +59,8 @@ function getClient() {
  */
 const PRICES_PER_MILLION = [
   ['gpt-4o-mini', [0.15, 0.075, 0.6]],
+  ['gpt-4.1-mini', [0.40, 0.10, 1.60]],
+  ['gpt-4.1', [2, 0.50, 8]],
   ['gpt-4o', [2.5, 1.25, 10]],
 ];
 
@@ -1026,9 +1028,12 @@ async function completeIntake(model, messages) {
 }
 
 /** The gpt-4o read (Structured Outputs). */
-async function completeIntakeOpenAI(model, messages) {
+async function completeIntakeOpenAI(model, messages, { kind = 'intake' } = {}) {
   const completion = await getClient().chat.completions.create({
     model,
+    // gpt-4.1 keeps the cached prompt for 24 h (gpt-4o ignores the option —
+    // measured 2026-11-23: empty after 30 minutes with or without it).
+    ...(/^gpt-4\.1/.test(String(model)) ? { prompt_cache_retention: '24h' } : {}),
     // Extraction, not creative writing — keep it deterministic.
     temperature: 0,
     max_completion_tokens: INTAKE_MAX_OUTPUT_TOKENS,
@@ -1038,7 +1043,7 @@ async function completeIntakeOpenAI(model, messages) {
     response_format: RESPONSE_FORMAT,
     messages,
   });
-  logCallCost('intake', completion, model);
+  logCallCost(kind, completion, model);
 
   const choice = completion.choices?.[0];
 
@@ -1161,7 +1166,9 @@ async function parseMessage(text, {
   // The trial (INTAKE_SHADOW=claude): gpt-4o answered; Claude reads the same
   // request in the background and only the comparison is stored
   // (services/claudeIntake.js). A snapshot, before the caller edits the row.
-  if (completion.provider !== 'claude') {
+  // Only the normal production read (no model named) starts a trial read — a
+  // test run naming its models never does (2026-11-23).
+  if (completion.provider !== 'claude' && !model) {
     // eslint-disable-next-line global-require
     require('./claudeIntake').shadowCompare(
       messages,
@@ -1176,6 +1183,14 @@ async function parseMessage(text, {
         return extracted;
       },
       text,
+      {
+        // INTAKE_SHADOW=gpt-4.1 (2026-11-23): the trial reads with an OpenAI model.
+        openaiRead: async (shadowModel, shadowMessages) => {
+          const read = await completeIntakeOpenAI(shadowModel, shadowMessages, { kind: 'intake-shadow' });
+          read.completion.usage = { ...read.completion.usage, usd: callCost(read.completion.model, read.completion.usage).usd };
+          return read;
+        },
+      },
     );
   }
 

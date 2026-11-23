@@ -549,3 +549,27 @@ decided in code after the model (`services/openai.js`, called in
   `intake-shadow`). The buyer assistant, Smart Paste, market pastes, voice
   notes (Whisper) and embeddings stay on OpenAI.
 - `@anthropic-ai/sdk` is a runtime dependency: `npm install` on the VPS.
+
+## Background trials: Sonnet ended, gpt-4.1 for 3 days (2026-11-23, owner)
+
+- **Sonnet 5.5 trial ended** (2026-11-21 10:35 → 11-23 ~21:00, 128 real
+  messages): 3.03 ¢ a message against gpt-4o's ~2.9 ¢ — photos are billed at
+  full size by Claude (gpt-4o reads them in low detail, ~85 tokens each) and
+  its 1-hour cache was rewritten ~1 read in 7 at ~10.5 ¢. Quality on review
+  was at least gpt-4o's (55 disagreements, mostly gpt-4o's first in-context
+  reading that the boundary later overrode); not adopted on cost.
+- **gpt-4.1** (OpenAI, $2 / $0.50 cached / $8 per M): on 45 real listings
+  with their 277 photos + the hard cases, 1.13 ¢ a message against gpt-4o's
+  2.18 ¢ (cache warm), 3.9 s against 5.0 s, no failure; matched gpt-4o on
+  every field 28/59 — mostly wording and multi-property bookkeeping; better on
+  a plot sold in lots and "maison basse 2 familles", worse on a single studio
+  ("autre") and one "3 mois" block. gpt-4.1 is asked for the 24 h prompt
+  cache (`prompt_cache_retention`); gpt-4o ignores it (measured: empty after
+  30 min with or without).
+- **The trial can read with an OpenAI model**: `INTAKE_SHADOW=gpt-4.1`
+  (`claudeIntake.shadowTarget`), ending on its own at `INTAKE_SHADOW_UNTIL`
+  (ISO date). Only the normal production read starts a trial read — a test
+  run naming its model never does (a test on 2026-11-23 had sent 57 reads to
+  the Sonnet trial; those rows were removed). `scripts/intake-shadow-report.js
+  --model gpt-4.1`; `scripts/eval-intake-models.js` now sends each case's
+  photos (`photos` in `--cases`, run on the VPS). §130.

@@ -1220,6 +1220,12 @@ sentence case under an English Title Case convention.
 
 ## Phone verification — WhatsApp OTP, both account types
 
+**2026-11-24 (owner): a NEW customer number + a name is signed in at once**,
+from "Continuer avec WhatsApp" and from the request / visit forms — no
+password, no code (`lib/newCustomerSession.js`). A number that already has an
+account still needs the code sent from that WhatsApp (or its password). Root
+docs/claude/leads-and-enquiries.md, "A new number + a name = signed in".
+
 **Superseded for customers on 2026-11-06 (owner decision): a customer
 account is a phone number and a password, nothing else.** 13 of the 30 web
 customer accounts had never confirmed their number and were held at the code

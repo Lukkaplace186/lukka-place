@@ -5,6 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 import PhoneField from './PhoneField';
 import SignupFunnelTracker from './SignupFunnelTracker';
 import AccountOfferCard from './AccountOfferCard';
+import LocalSavesFields from './LocalSavesFields';
 import { OPEN_ACCOUNT_FIELD } from '@/lib/guestAccountRules';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { submitGuestRequestAction } from '@/app/(site)/trouver-pour-moi/actions';
@@ -191,6 +192,7 @@ export default function GuestRequestForm({ communes = [], prefill = {}, formId =
               before it carries the "no" (lib/guestAccountRules.js accountRequested). */}
           <input type="hidden" name={OPEN_ACCOUNT_FIELD} value="0" />
           <input type="checkbox" name={OPEN_ACCOUNT_FIELD} value="1" defaultChecked className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--blue)]" />
+          <LocalSavesFields />
           <span>
             <span className="font-semibold">{t('listings.guestRequest.openAccount')}</span>
             <span className="block text-ink-70">{t('listings.guestRequest.openAccountHint')}</span>

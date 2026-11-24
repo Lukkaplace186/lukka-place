@@ -1178,13 +1178,13 @@
     },
     "contactSignup": {
       "title": "Retrouvez ce bien et l'agent plus tard",
-      "lead": "Votre numéro, puis un code depuis votre WhatsApp. Pas de mot de passe.",
+      "lead": "Votre numéro et votre nom, c’est tout. Pas de mot de passe.",
       "perkSaved": "Ce bien gardé dans vos favoris, sur tous vos appareils",
       "perkAlerts": "Des alertes quand un bien qui vous correspond est publié",
       "noThanks": "Non merci",
       "titleSimilar": "Recevez les biens comme celui-ci",
       "perkSimilar": "Les nouveaux biens comme celui-ci sur WhatsApp, dès leur publication",
-      "leadKnown": "Votre numéro est déjà là : un code depuis votre WhatsApp, et c’est tout."
+      "leadKnown": "Votre numéro est déjà là : un tap, et c’est fait."
     },
     "feedAlert": {
       "title": "Recevez les nouveaux biens sur WhatsApp",
@@ -1193,13 +1193,13 @@
       "commune": "Commune",
       "communePlaceholder": "Choisir une commune",
       "button": "M'alerter sur WhatsApp",
-      "footnote": "Sans mot de passe : un code envoyé depuis votre WhatsApp, et c’est tout."
+      "footnote": "Sans mot de passe : votre numéro et votre nom suffisent."
     },
     "accountOffer": {
       "created": {
-        "title": "Votre compte gratuit est créé",
-        "body": "Envoyez un code depuis votre WhatsApp pour l’ouvrir : vous suivrez la réponse et recevrez les nouveaux biens.",
-        "cta": "Ouvrir mon compte avec WhatsApp"
+        "title": "Votre compte gratuit est ouvert",
+        "body": "Vous êtes connecté sur ce téléphone : suivez la réponse et recevez les nouveaux biens sur WhatsApp.",
+        "cta": "Voir mon espace"
       },
       "existing": {
         "title": "Vous avez déjà un compte avec ce numéro",
@@ -1208,8 +1208,8 @@
       },
       "offer": {
         "title": "Suivez la réponse dans votre compte gratuit",
-        "body": "Votre numéro, votre nom, puis un code depuis votre WhatsApp. Pas de mot de passe.",
-        "cta": "Créer mon compte avec WhatsApp"
+        "body": "Votre numéro et votre nom, c’est tout. Pas de mot de passe.",
+        "cta": "Créer mon compte gratuit"
       }
     },
     "alertLanding": {
@@ -1217,7 +1217,7 @@
       "title": "Recevez les nouveaux biens sur WhatsApp",
       "lead": "Une commune, un budget : nous vous écrivons dès qu’un bien qui correspond est publié.",
       "perkFree": "Gratuit",
-      "perkNoPassword": "Sans mot de passe : un code depuis votre WhatsApp",
+      "perkNoPassword": "Sans mot de passe : votre numéro et votre nom suffisent",
       "perkStop": "Chaque message contient le lien pour arrêter"
     }
   },
@@ -8937,7 +8937,7 @@
     "whatsappSignIn": {
       "title": "Continuer avec WhatsApp",
       "button": "Continuer avec WhatsApp",
-      "lead": "Sans mot de passe : vous envoyez un code depuis votre WhatsApp, et c’est tout.",
+      "lead": "Sans mot de passe ni code : votre numéro et votre nom, c’est tout.",
       "nameLabel": "Nom et prénom",
       "nameHint": "Première fois ici : votre nom ouvre votre compte.",
       "orPassword": "ou avec votre mot de passe",

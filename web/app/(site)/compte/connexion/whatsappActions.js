@@ -20,17 +20,22 @@ import { recordSignupOutcome } from '@/lib/signupFunnel';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { safeSignInNext, cleanFullName, isNewAccount } from '@/lib/whatsappSignInRules';
 import { claimRecentContactTaps } from '@/lib/contactTapClaim';
+import { localSavesFromForm, signInNewCustomer } from '@/lib/newCustomerSession';
 
 /**
  * "Continuer avec WhatsApp" (UX pass 2026-11-12): sign in — or open an
- * account — by sending a code FROM the person's own WhatsApp, with no
- * password. It reuses the reverse proof the verify page already uses
- * (lib/whatsappVerify.js; the engine matches the code on the SENDER's number,
- * services/phoneChallenges.js), so typing someone else's number gets nowhere:
- * only a message from that number opens the session.
+ * account — with a number and no password.
  *
- * An account is created for a number we do not know, with the name the
- * person typed and no password: createCustomer stores the engine's
+ * - A number we do not know + a name: the account is created and signed in
+ *   at once (owner decision 2026-11-24, lib/newCustomerSession.js). The number
+ *   is not marked confirmed.
+ * - A number that already has an account: sign in by sending a code FROM that
+ *   WhatsApp — the reverse proof the verify page uses (lib/whatsappVerify.js;
+ *   the engine matches the code on the SENDER's number,
+ *   services/phoneChallenges.js), so typing someone else's number gets
+ *   nowhere: only a message from that number opens their account.
+ *
+ * An account opened here has no password: createCustomer stores the engine's
  * '!whatsapp' marker, as for an account opened on WhatsApp — never NULL,
  * password_hash is NOT NULL (the NULL failed every new account with 23502,
  * 2026-11-16 → 21). A password reset gives them one later.
@@ -75,14 +80,21 @@ export async function startWhatsAppSignInAction(_prevState, formData) {
       customer = await getCustomerByPhone(phone);
       if (!customer) throw err;
     }
-    await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: null });
-    await recordSignupOutcome({ step: 'created', entry, customerId: Number(customer.id) });
-    console.log(`[wa-signin] customer #${customer.id} created, waiting for the WhatsApp proof`);
+    if (created) {
+      await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: null });
+      await recordSignupOutcome({ step: 'created', entry, customerId: Number(customer.id) });
+      // A number that had no account: signed in now, no WhatsApp step (owner
+      // decision 2026-11-24 — sending a code from WhatsApp lost one person in
+      // three). Back to where they were, the alert or the ♥ saved there.
+      await signInNewCustomer(customer, { phone, localData: localSavesFromForm(formData), source: `wa-signin:${entry}` });
+      redirect(next);
+    }
   }
 
+  // A number that already has an account is someone's: only a message from
+  // that WhatsApp (or the password) opens it.
   await setVerifyAttemptCookie({ role: 'customer', id: Number(customer.id), phone });
   const query = new URLSearchParams({ next });
-  if (created) query.set('nouveau', '1');
   redirect(`/compte/connexion/whatsapp?${query.toString()}`);
 }
 

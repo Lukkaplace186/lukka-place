@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import PhoneField from '@/components/PhoneField';
+import LocalSavesFields from '@/components/LocalSavesFields';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { splitPhone } from '@/lib/phone';
@@ -37,8 +38,8 @@ function ContinueButton({ label }) {
 
 /**
  * "Continuer avec WhatsApp": the number, then — only for a number we do not
- * know — the name, on the same form. No password. The action opens (or
- * finds) the account and hands over to the code screen.
+ * know — the name, on the same form. No password. A new number is signed in
+ * at once (2026-11-24); a known one goes on to the code screen.
  */
 export default function WhatsAppSignInForm({ next, entry = 'whatsapp', defaultCountry, defaultPhone = '', defaultE164 = null, defaultName = '', autoFocus = false, onSubmit }) {
   const t = useT();
@@ -57,6 +58,8 @@ export default function WhatsAppSignInForm({ next, entry = 'whatsapp', defaultCo
     <form action={formAction} onSubmit={onSubmit} className="mt-6 flex flex-col gap-3">
       <input type="hidden" name="next" value={next} />
       <input type="hidden" name="entry" value={entry} />
+      {/* A new number is signed in at once: this phone's saved homes come along. */}
+      <LocalSavesFields />
       {/* A name the person already typed on this device (the visit sheet's
           optional name, 2026-11-24): a new number opens the account in one
           tap instead of asking for it again. */}

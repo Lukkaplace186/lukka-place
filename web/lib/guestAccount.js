@@ -4,17 +4,19 @@ import { setVerifyAttemptCookie } from './verifyAttempt';
 import { recordWebSignupAttribution } from './accountAcquisition';
 import { recordSignupOutcome } from './signupFunnel';
 import { guestAccountPlan } from './guestAccountRules';
+import { signInNewCustomer } from './newCustomerSession';
 
 /**
  * Opens (or finds) the customer account of someone who just left a name and a
- * WhatsApp number on a form (lib/guestAccountRules.js has the why). No session
- * is opened here: a signed attempt cookie is set so the confirmation can send
- * them straight to the code screen, where a message FROM that number signs
- * them in (app/(site)/compte/connexion/whatsapp).
+ * WhatsApp number on a form (lib/guestAccountRules.js has the why).
  *
- * - unknown number + a usable name → account created ('created'), counted in
- *   the sign-up funnel under `entry`;
- * - known number → nothing created ('existing'): the code screen signs them in;
+ * - unknown number + a usable name → account created AND signed in on this
+ *   phone ('created', owner decision 2026-11-24: no WhatsApp step for a new
+ *   number — lib/newCustomerSession.js), counted in the sign-up funnel under
+ *   `entry`;
+ * - known number → nothing created ('existing'): that account is someone's,
+ *   so a signed attempt cookie is set and the confirmation sends them to the
+ *   code screen, where a message FROM that number signs them in;
  * - no usable name, a demo number, a signed-in customer or an unticked box →
  *   'skipped'.
  *
@@ -23,7 +25,7 @@ import { guestAccountPlan } from './guestAccountRules';
  *
  * @returns {Promise<{status: 'created'|'existing'|'skipped', reason?: string, customerId: number|null}>}
  */
-export async function openGuestAccount({ phone, name, entry, requested = true }) {
+export async function openGuestAccount({ phone, name, entry, requested = true, localData = {} }) {
   try {
     const signedIn = Boolean(await getCurrentCustomerId());
     const plan = guestAccountPlan({ phone, name, requested, signedIn });
@@ -49,8 +51,7 @@ export async function openGuestAccount({ phone, name, entry, requested = true })
     const id = Number(customer.id);
     await recordWebSignupAttribution({ accountType: 'customer', accountId: id, phone, typedCode: null });
     await recordSignupOutcome({ step: 'created', entry, customerId: id });
-    await setVerifyAttemptCookie({ role: 'customer', id, phone });
-    console.log(`[guest-account] customer #${id} created from ${entry}, waiting for the WhatsApp proof`);
+    await signInNewCustomer(customer, { phone, localData, source: `guest-account:${entry}` });
     return { status: 'created', customerId: id };
   } catch (err) {
     console.error(`[guest-account] account step after ${entry} failed (the ${entry} itself went through): ${err.message}`);

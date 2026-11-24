@@ -1178,13 +1178,13 @@
     },
     "contactSignup": {
       "title": "Find This Property and the Agent Later",
-      "lead": "Your number, then a code from your WhatsApp. No password.",
+      "lead": "Your number and your name, that is all. No password.",
       "perkSaved": "This property kept in your favourites, on all your devices",
       "perkAlerts": "Alerts when a property that suits you is listed",
       "noThanks": "No thanks",
       "titleSimilar": "Get Homes Like This One",
       "perkSimilar": "New homes like this one on WhatsApp, as soon as they are listed",
-      "leadKnown": "Your number is already here: a code from your WhatsApp, that is all."
+      "leadKnown": "Your number is already here: one tap and you are done."
     },
     "feedAlert": {
       "title": "Get New Homes on WhatsApp",
@@ -1193,13 +1193,13 @@
       "commune": "Commune",
       "communePlaceholder": "Choose a commune",
       "button": "Alert me on WhatsApp",
-      "footnote": "No password: a code sent from your WhatsApp, that is all."
+      "footnote": "No password: your number and your name are enough."
     },
     "accountOffer": {
       "created": {
-        "title": "Your Free Account Is Ready",
-        "body": "Send a code from your WhatsApp to open it: follow the reply and get new homes.",
-        "cta": "Open my account with WhatsApp"
+        "title": "Your Free Account Is Open",
+        "body": "You are signed in on this phone: follow the reply and get new homes on WhatsApp.",
+        "cta": "See my space"
       },
       "existing": {
         "title": "You Already Have an Account with This Number",
@@ -1208,8 +1208,8 @@
       },
       "offer": {
         "title": "Follow the Reply in Your Free Account",
-        "body": "Your number, your name, then a code from your WhatsApp. No password.",
-        "cta": "Create my account with WhatsApp"
+        "body": "Your number and your name, that is all. No password.",
+        "cta": "Create my free account"
       }
     },
     "alertLanding": {
@@ -1217,7 +1217,7 @@
       "title": "Get New Homes on WhatsApp",
       "lead": "A commune, a budget: we write to you as soon as a matching home is listed.",
       "perkFree": "Free",
-      "perkNoPassword": "No password: a code from your WhatsApp",
+      "perkNoPassword": "No password: your number and your name are enough",
       "perkStop": "Every message has the link to stop them"
     }
   },
@@ -8937,7 +8937,7 @@
     "whatsappSignIn": {
       "title": "Continue with WhatsApp",
       "button": "Continue with WhatsApp",
-      "lead": "No password: you send a code from your WhatsApp, and that’s it.",
+      "lead": "No password, no code: your number and your name, that is all.",
       "nameLabel": "Full name",
       "nameHint": "First time here: your name opens your account.",
       "orPassword": "or with your password",

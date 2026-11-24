@@ -59,8 +59,15 @@ test('the account step runs after the lead or the visit, never instead of it, an
   assert.match(visit, /entry: 'visit'/);
   const helper = read('lib/guestAccount.js');
   assert.match(helper, /catch \(err\) \{\n\s+console\.error\(`\[guest-account\]/);
-  assert.doesNotMatch(helper, /establishCustomerSession/, 'no session before the WhatsApp proof');
-  assert.match(helper, /setVerifyAttemptCookie/);
+  // 2026-11-24: a NEW number is signed in at once; a known one gets the code screen.
+  const created = helper.slice(helper.indexOf('customer = await createCustomer('));
+  assert.match(created, /await signInNewCustomer\(customer, \{ phone, localData, source:/);
+  const known = helper.slice(helper.indexOf('let customer = await getCustomerByPhone(phone);'), helper.indexOf('customer = await createCustomer('));
+  assert.match(known, /setVerifyAttemptCookie/, 'a known number proves itself');
+  assert.doesNotMatch(known, /signInNewCustomer|establishCustomerSession/, 'never signed in on a typed number alone');
+  for (const file of ['app/(site)/trouver-pour-moi/actions.js', 'app/(site)/listings/[id]/actions.js']) {
+    assert.match(read(file), /localData: localSavesFromForm\(formData\)/, file);
+  }
   // Both forms carry the box, hidden when signed in.
   for (const file of ['components/GuestRequestForm.js', 'components/VisitRequestDialog.js']) {
     const src = read(file);
@@ -70,6 +77,53 @@ test('the account step runs after the lead or the visit, never instead of it, an
   }
   assert.match(read('components/EnquiryCard.js'), /<AccountOfferCard status=\{visitAccount\} entry="visit"/);
   assert.match(read('components/GuestRequestForm.js'), /<AccountOfferCard status=\{state\.account\} entry="request"/);
+});
+
+// --- a new number + a name = signed in, no WhatsApp step (2026-11-24) ---------
+
+test('"Continuer avec WhatsApp": a new number is signed in at once, a known one sends the code', () => {
+  const src = read('app/(site)/compte/connexion/whatsappActions.js');
+  const start = src.slice(src.indexOf('export async function startWhatsAppSignInAction'), src.indexOf('export async function checkWhatsAppSignInAction'));
+  const newBranch = start.slice(start.indexOf('if (created) {'), start.indexOf('// A number that already has an account'));
+  assert.match(newBranch, /await signInNewCustomer\(customer, \{ phone, localData: localSavesFromForm\(formData\), source: `wa-signin:\$\{entry\}` \}\);\n\s+redirect\(next\);/);
+  assert.match(newBranch, /recordSignupOutcome\(\{ step: 'created', entry, customerId: Number\(customer\.id\) \}\)/);
+  const knownBranch = start.slice(start.indexOf('// A number that already has an account'));
+  assert.match(knownBranch, /setVerifyAttemptCookie[\s\S]*redirect\(`\/compte\/connexion\/whatsapp\?/);
+  assert.match(read('app/(site)/compte/connexion/WhatsAppSignInForm.js'), /<LocalSavesFields \/>/);
+});
+
+test('a number signed in without proof is not marked confirmed (money still waits for a proof)', () => {
+  const helper = read('lib/newCustomerSession.js');
+  assert.match(helper, /establishCustomerSession\(\{ id, tokenVersion: customer\.token_version \?\? 0 \}\)/);
+  assert.doesNotMatch(helper, /consumeCustomerOtp|phone_verified_at\s*=/);
+  assert.match(helper, /CompleteRegistration/);
+  assert.match(read('lib/referralCredits.js'), /phone_verified_at/, 'partner credits keep counting confirmed numbers only');
+});
+
+test('the saved homes of this phone ride along with the form', () => {
+  const src = read('components/LocalSavesFields.js');
+  assert.match(src, /name="favoriteIds"/);
+  assert.match(src, /name="savedSearches"/);
+  assert.match(src, /form\.addEventListener\('submit', fill\)/);
+  for (const file of ['components/GuestRequestForm.js', 'components/VisitRequestDialog.js']) {
+    assert.match(read(file), /<LocalSavesFields \/>/, file);
+  }
+});
+
+test('after a request or a visit, a new account is already open: the card leads to the account, not WhatsApp', () => {
+  const card = read('components/AccountOfferCard.js');
+  assert.match(card, /if \(signedIn\) href = next;/);
+  assert.match(card, /if \(shown && status !== 'created'\) trackCustomerSignup\('prompt_shown', entry\)/);
+  // No new-account copy still promises a code from WhatsApp.
+  const newAccountCopy = [
+    'auth.whatsappSignIn.lead', 'listings.accountOffer.created.body', 'listings.accountOffer.offer.body',
+    'listings.contactSignup.lead', 'listings.feedAlert.footnote', 'listings.alertLanding.perkNoPassword',
+  ];
+  const get = (dict, key) => key.split('.').reduce((o, k) => o[k], dict);
+  for (const key of newAccountCopy) {
+    assert.doesNotMatch(get(fr, key), /\bun code\b/i, `fr ${key}`);
+    assert.doesNotMatch(get(en, key), /\ba code\b/i, `en ${key}`);
+  }
 });
 
 // --- "Ce numéro a déjà un compte" signs them in ------------------------------

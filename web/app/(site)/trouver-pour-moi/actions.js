@@ -11,6 +11,7 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { moveStoryFr, parseMoveProject } from '@/lib/moveProjectRules';
 import { openGuestAccount } from '@/lib/guestAccount';
 import { OPEN_ACCOUNT_FIELD, accountRequested } from '@/lib/guestAccountRules';
+import { localSavesFromForm } from '@/lib/newCustomerSession';
 import {
   GUEST_REQUEST_SOURCE,
   createLimiter,
@@ -129,6 +130,7 @@ export async function submitGuestRequestAction(_prev, formData) {
     name: request.name,
     entry: 'request',
     requested: accountRequested(formData.getAll(OPEN_ACCOUNT_FIELD)),
+    localData: localSavesFromForm(formData),
   });
   return {
     status: 'sent',

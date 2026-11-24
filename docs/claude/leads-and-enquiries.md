@@ -849,13 +849,31 @@ file onto the server copies as usual.
   (`lib/guestAccount.js`, `lib/guestAccountRules.js`): "Trouver pour moi" and
   "Demander une visite" carry a "Créer mon compte gratuit" box, ticked by
   default, hidden when signed in. After the lead / visit succeeds: a known
-  number → nothing created; a new number with a name → account with the
-  `'!whatsapp'` marker; either way a signed attempt cookie, and the
-  confirmation (`AccountOfferCard`) links to the WhatsApp code screen. **No
-  session before the code from that WhatsApp**, so someone else's number opens
-  nothing usable. Never throws into the form. Demo numbers skipped. Entries
-  `request` / `visit`. `created` is counted at account creation, before the
-  proof — the proven ones are `customers.phone_verified_at`.
+  number → nothing created, a signed attempt cookie, and the confirmation
+  (`AccountOfferCard`) links to the WhatsApp code screen; a new number with a
+  name → account with the `'!whatsapp'` marker, **signed in at once** (see
+  the next bullet), and the card says the account is open and links to the
+  Espace Client. Never throws into the form. Demo numbers skipped. Entries
+  `request` / `visit`.
+- **A new number + a name = signed in, no WhatsApp step** (owner decision
+  2026-11-24, same day: "too much friction asking them to send a code to our
+  WhatsApp" — 3 of the 9 accounts opened through "Continuer avec WhatsApp" in
+  14 days never sent it). `lib/newCustomerSession.js` `signInNewCustomer`,
+  used by "Continuer avec WhatsApp" (`whatsappActions.js`, then `redirect(next)`
+  back to the page, where the ♥ / alert resume runs) and by
+  `lib/guestAccount.js`: session, remembered number, the device's WhatsApp
+  taps claimed, the phone's saved homes and searches merged
+  (`components/LocalSavesFields.js` → `localSavesFromForm`), CompleteRegistration.
+  **Only for a number with no account a moment ago** — a known number is
+  someone's and still needs the code from that WhatsApp (or the password).
+  `phone_verified_at` stays NULL: partner referral credits (money) still
+  count confirmed numbers only. Accepted risks, as for password accounts
+  (2026-11-06): a typo sends our alerts to a stranger (every message has the
+  stop link), and someone can open an account on a number that is not theirs;
+  the real owner later signs in with the WhatsApp code and takes it over. A
+  cold number is reached by template: `SEARCH_ALERT_TEMPLATE` =
+  `alerte_nouveaux_biens` on the web (24 sends logged, last 2026-11-24).
+  Copy no longer promises "un code depuis votre WhatsApp" to a new account.
 - **"Ce numéro a déjà un compte"** at sign-up (and its "Se connecter avec ce
   numéro" button) now opens the WhatsApp code screen on that account
   (`compte=existant`), unless the person answered the move cards (those keep

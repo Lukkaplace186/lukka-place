@@ -874,6 +874,21 @@ file onto the server copies as usual.
   cold number is reached by template: `SEARCH_ALERT_TEMPLATE` =
   `alerte_nouveaux_biens` on the web (24 sends logged, last 2026-11-24).
   Copy no longer promises "un code depuis votre WhatsApp" to a new account.
+- **A known number: a code WE send, typed on the site** (owner, same day:
+  "asking them to message us is not efficient"). `lib/signInCode.js`
+  (`signInCodeEnabled` = `AGENT_OTP_TEMPLATE` set and `CUSTOMER_SENT_CODE` not
+  `off`; `sendSignInCode` → `sendCustomerOtp`, the authentication template),
+  `lib/signInCodeLimits.js` (5 wrong tries wipe the code, 3 sends per account
+  per 10 min, in memory), `whatsappActions.js` `sendSignInCodeAction` /
+  `verifySignInCodeAction`, `components/SignInCodeForm.js`. "Continuer avec
+  WhatsApp" and sign-up's "Ce numéro a déjà un compte" send the code at once;
+  from a request / visit confirmation the code screen opens on "Recevoir mon
+  code sur WhatsApp". The box sends itself at six digits (`one-time-code`
+  autofill). The right code sets `phone_verified_at` (a real proof). "Code
+  pas reçu ? Confirmez plutôt depuis WhatsApp" mounts the older panel (they
+  send us a code) only when tapped — Chakra confirms no delivery. Labels reach
+  the client components as props: production's shell ships only parts of
+  `auth`. Without the template the screen is the older way, as before.
 - **"Ce numéro a déjà un compte"** at sign-up (and its "Se connecter avec ce
   numéro" button) now opens the WhatsApp code screen on that account
   (`compte=existant`), unless the person answered the move cards (those keep

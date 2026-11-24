@@ -88,7 +88,7 @@ test('"Continuer avec WhatsApp": a new number is signed in at once, a known one 
   assert.match(newBranch, /await signInNewCustomer\(customer, \{ phone, localData: localSavesFromForm\(formData\), source: `wa-signin:\$\{entry\}` \}\);\n\s+redirect\(next\);/);
   assert.match(newBranch, /recordSignupOutcome\(\{ step: 'created', entry, customerId: Number\(customer\.id\) \}\)/);
   const knownBranch = start.slice(start.indexOf('// A number that already has an account'));
-  assert.match(knownBranch, /setVerifyAttemptCookie[\s\S]*redirect\(`\/compte\/connexion\/whatsapp\?/);
+  assert.match(knownBranch, /setVerifyAttemptCookie[\s\S]*redirect\(codeScreenHref\(next, await sendSignInCode\(customer\)\)\);/);
   assert.match(read('app/(site)/compte/connexion/WhatsAppSignInForm.js'), /<LocalSavesFields \/>/);
 });
 
@@ -126,6 +126,71 @@ test('after a request or a visit, a new account is already open: the card leads 
   }
 });
 
+// --- a known number: a code we send, typed on the site (2026-11-24) ----------
+
+test('a known number gets a code on WhatsApp and types it; the "send us a code" way waits underneath', () => {
+  const page = read('app/(site)/compte/connexion/whatsapp/page.js');
+  assert.match(page, /const codeMode = signInCodeEnabled\(\);/);
+  assert.match(page, /<SignInCodeForm/);
+  assert.match(page, /<form action=\{sendSignInCodeAction\}/, '"Recevoir mon code" / "Renvoyer le code"');
+  assert.match(page, /<CodeFallback label=\{t\('auth\.whatsappSignIn\.noCodeFallback'\)\}>\{reversePanel\}<\/CodeFallback>/);
+  assert.match(page, /\{!codeMode \? reversePanel :/, 'no template: the older way is the screen');
+  const form = read('components/SignInCodeForm.js');
+  assert.match(form, /autoComplete="one-time-code"/);
+  assert.match(form, /if \(digits\.length === 6 && !pending\) formRef\.current\?\.requestSubmit\(\);/);
+  assert.match(form, /<LocalSavesFields \/>/);
+  assert.doesNotMatch(form, /useT\(/, 'labels come from the page: the shell ships only part of `auth`');
+  // The fallback polls only once opened.
+  assert.match(form, /if \(open\) return children;/);
+  // Sign-up's "this number already has an account" sends the code too.
+  assert.match(read('app/(site)/compte/inscription/actions.js'), /const sent = await sendSignInCode\(customer\);/);
+});
+
+test('the code: right one proves the number and signs in; five wrong ones wipe it', () => {
+  const src = read('app/(site)/compte/connexion/whatsappActions.js');
+  const verify = src.slice(src.indexOf('export async function verifySignInCodeAction'), src.indexOf('async function finishSignIn'));
+  assert.match(verify, /const attempt = await getVerifyAttempt\(\);/, 'the account comes from the signed cookie, never the form');
+  assert.match(verify, /if \(noteWrongCode\(customer\.id\)\) \{\n\s+await setCustomerOtp\(customer\.id, \{ codeHash: null, expiresAt: null \}\);/);
+  assert.match(verify, /await consumeCustomerOtp\(customer\.id\);\n\s+await finishSignIn\(customer, attempt\.phone, localSavesFromForm\(formData\), 'code'\);\n\s+redirect\(next\);/);
+  assert.ok(verify.indexOf('new Date(customer.otp_expires_at) <= new Date()') < verify.indexOf('verifyOtp('), 'an expired code is refused before comparing');
+});
+
+test('sign-in code limits: 5 wrong tries per code, 3 sends per 10 minutes', async () => {
+  const limits = await import('@/lib/signInCodeLimits');
+  limits.resetSignInCodeLimits();
+  for (let i = 1; i < limits.TRIES_PER_CODE; i += 1) assert.equal(limits.noteWrongCode(7), false, `try ${i}`);
+  assert.equal(limits.noteWrongCode(7), true, 'the 5th wipes the code');
+  assert.equal(limits.noteWrongCode(7), false, 'counting starts again for the next code');
+  const t0 = 1_000_000;
+  for (let i = 0; i < limits.SENDS_PER_WINDOW; i += 1) {
+    assert.equal(limits.canSendCode(8, t0 + i), true);
+    limits.noteCodeSent(8, t0 + i);
+  }
+  assert.equal(limits.canSendCode(8, t0 + 10), false, 'a 4th within 10 minutes is refused');
+  assert.equal(limits.canSendCode(8, t0 + limits.SEND_WINDOW_MS + 5), true, 'and allowed again after');
+  limits.noteWrongCode(9);
+  limits.noteCodeSent(9, t0);
+  for (let i = 1; i < limits.TRIES_PER_CODE; i += 1) assert.equal(limits.noteWrongCode(9), false, 'a new code resets the tries');
+  limits.resetSignInCodeLimits();
+});
+
+test('the sent code needs the template, and CUSTOMER_SENT_CODE=off turns it off', async () => {
+  const { signInCodeEnabled } = await import('@/lib/signInCode');
+  const saved = { template: process.env.AGENT_OTP_TEMPLATE, flag: process.env.CUSTOMER_SENT_CODE };
+  try {
+    delete process.env.AGENT_OTP_TEMPLATE;
+    delete process.env.CUSTOMER_SENT_CODE;
+    assert.equal(signInCodeEnabled(), false, 'no template: a session message never reaches a cold number');
+    process.env.AGENT_OTP_TEMPLATE = 'agent_auth_otp';
+    assert.equal(signInCodeEnabled(), true);
+    process.env.CUSTOMER_SENT_CODE = 'off';
+    assert.equal(signInCodeEnabled(), false);
+  } finally {
+    if (saved.template === undefined) delete process.env.AGENT_OTP_TEMPLATE; else process.env.AGENT_OTP_TEMPLATE = saved.template;
+    if (saved.flag === undefined) delete process.env.CUSTOMER_SENT_CODE; else process.env.CUSTOMER_SENT_CODE = saved.flag;
+  }
+});
+
 // --- "Ce numéro a déjà un compte" signs them in ------------------------------
 
 test('an existing number at sign-up goes to the WhatsApp code, unless move answers need the password path', () => {
@@ -134,7 +199,7 @@ test('an existing number at sign-up goes to the WhatsApp code, unless move answe
   assert.match(block, /refusal: 'exists'/, 'still counted on the dashboard');
   assert.match(block, /if \(withAnswers\) return \{ error: 'exists'/);
   assert.match(block, /await existingAccountToWhatsApp\(\{ customer: existing, phone, next \}\)/);
-  assert.match(src, /redirect\(proveAccountHref\('existing', next\)\)/);
+  assert.match(src, /const href = proveAccountHref\('existing', next\);/);
   assert.match(read('app/(site)/compte/connexion/whatsapp/page.js'), /params\.compte === 'existant'/);
 });
 

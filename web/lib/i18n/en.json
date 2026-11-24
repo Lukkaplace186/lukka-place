@@ -1203,8 +1203,8 @@
       },
       "existing": {
         "title": "You Already Have an Account with This Number",
-        "body": "Sign in with a code from your WhatsApp to follow the reply.",
-        "cta": "Sign in with WhatsApp"
+        "body": "Get a code on your WhatsApp to sign in and follow the reply.",
+        "cta": "Sign in"
       },
       "offer": {
         "title": "Follow the Reply in Your Free Account",
@@ -8948,9 +8948,19 @@
       "preferPassword": "Prefer your password?",
       "errors": {
         "name": "Enter your full name.",
-        "busy": "Too many attempts. Try again in a few minutes."
+        "busy": "Too many attempts. Try again in a few minutes.",
+        "tooMany": "Too many tries: ask for a new code.",
+        "noCode": "Ask for your code first.",
+        "restart": "This sign-in has expired. Start again.",
+        "sendBusy": "Several codes were just sent: use the latest one, or try again in a few minutes."
       },
-      "existingAccount": "This number already has an account. Send this code from WhatsApp to sign in."
+      "existingAccount": "This number already has an account. Send this code from WhatsApp to sign in.",
+      "signInTitle": "Sign in to Your Account",
+      "codeLead": "We send a 6-digit code on WhatsApp to {phone}.",
+      "sendCode": "Get my code on WhatsApp",
+      "signIn": "Sign in",
+      "noCodeFallback": "No code? Confirm from WhatsApp instead",
+      "existingAccountCode": "This number already has an account: enter the code sent to your WhatsApp."
     }
   },
   "updates": {

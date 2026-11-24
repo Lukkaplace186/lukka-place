@@ -24,6 +24,7 @@ import { passwordLongEnough } from '@/lib/passwordRules';
 import { claimRecentContactTaps } from '@/lib/contactTapClaim';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { proveAccountHref } from '@/lib/guestAccountRules';
+import { sendSignInCode } from '@/lib/signInCode';
 
 // Shared connections (a carrier's NAT) carry many people: generous, still far
 // from enough to walk a list of numbers.
@@ -240,12 +241,17 @@ export async function signInWithNumberAction(formData) {
 }
 
 /**
- * An existing account, reached from the sign-up form: open the WhatsApp code
- * screen on it (the signed attempt cookie, as "Continuer avec WhatsApp" does
- * for a known number) and go there. Redirects; never returns.
+ * An existing account, reached from the sign-up form: open the code screen
+ * on it (the signed attempt cookie, as "Continuer avec WhatsApp" does for a
+ * known number), with a code already sent to that WhatsApp (2026-11-24,
+ * lib/signInCode.js). Redirects; never returns.
  */
 async function existingAccountToWhatsApp({ customer, phone, next }) {
   await setVerifyAttemptCookie({ role: 'customer', id: Number(customer.id), phone });
   await rememberCustomerPhone(phone);
-  redirect(proveAccountHref('existing', next));
+  const sent = await sendSignInCode(customer);
+  const href = proveAccountHref('existing', next);
+  if (sent === 'sent') redirect(`${href}&sent=1`);
+  if (sent === 'busy' || sent === 'failed') redirect(`${href}&error=send_${sent}`);
+  redirect(href);
 }

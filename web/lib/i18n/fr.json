@@ -1203,8 +1203,8 @@
       },
       "existing": {
         "title": "Vous avez déjà un compte avec ce numéro",
-        "body": "Connectez-vous avec un code depuis votre WhatsApp pour suivre la réponse.",
-        "cta": "Me connecter avec WhatsApp"
+        "body": "Recevez un code sur votre WhatsApp pour vous connecter et suivre la réponse.",
+        "cta": "Me connecter"
       },
       "offer": {
         "title": "Suivez la réponse dans votre compte gratuit",
@@ -8948,9 +8948,19 @@
       "preferPassword": "Vous préférez votre mot de passe ?",
       "errors": {
         "name": "Entrez votre nom et prénom.",
-        "busy": "Trop d’essais. Réessayez dans quelques minutes."
+        "busy": "Trop d’essais. Réessayez dans quelques minutes.",
+        "tooMany": "Trop d’essais : demandez un nouveau code.",
+        "noCode": "Demandez d’abord votre code.",
+        "restart": "Cette connexion a expiré. Recommencez.",
+        "sendBusy": "Plusieurs codes viennent d’être envoyés : utilisez le dernier reçu, ou réessayez dans quelques minutes."
       },
-      "existingAccount": "Ce numéro a déjà un compte. Envoyez ce code depuis WhatsApp pour vous connecter."
+      "existingAccount": "Ce numéro a déjà un compte. Envoyez ce code depuis WhatsApp pour vous connecter.",
+      "signInTitle": "Connexion à votre compte",
+      "codeLead": "Nous envoyons un code à 6 chiffres sur WhatsApp au {phone}.",
+      "sendCode": "Recevoir mon code sur WhatsApp",
+      "signIn": "Me connecter",
+      "noCodeFallback": "Code pas reçu ? Confirmez plutôt depuis WhatsApp",
+      "existingAccountCode": "Ce numéro a déjà un compte : entrez le code envoyé sur votre WhatsApp."
     }
   },
   "updates": {

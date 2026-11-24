@@ -58,6 +58,12 @@ export async function getRememberedAgentPhone() {
   return /^\d{7,15}$/.test(digits) ? digits : null;
 }
 
+/** A deleted account: this device no longer offers its number at sign-in. */
+export async function forgetRememberedAgentPhone() {
+  const cookieStore = await cookies();
+  cookieStore.delete({ name: REMEMBERED_AGENT_PHONE_COOKIE, path: '/' });
+}
+
 export async function clearAgentSession() {
   const cookieStore = await cookies();
   cookieStore.delete({ name: AGENT_SESSION_COOKIE, path: '/' });

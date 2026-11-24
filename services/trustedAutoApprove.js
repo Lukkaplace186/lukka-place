@@ -61,6 +61,8 @@ const CANDIDATES_SQL = `
     SELECT a.id
       FROM agents a
      WHERE a.status = 1 AND a.phone_verified_at IS NOT NULL
+       -- A test / demo account's listing is never published without a human.
+       AND NOT COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false)
        AND to_jsonb(a) ->> 'verification_level' = ANY($1::text[])
        AND (SELECT COUNT(*) FROM properties q
              WHERE q.agent_id = a.id AND q.approve_status = 1

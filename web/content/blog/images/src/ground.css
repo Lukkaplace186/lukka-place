@@ -1,0 +1,13 @@
+@font-face { font-family: 'DM Mono'; src: url('fonts/DMMono-Regular.ttf'); }
+@font-face { font-family: 'Instrument Serif'; src: url('fonts/InstrumentSerif-Regular.ttf'); }
+@font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('fonts/InstrumentSerif-Italic.ttf'); }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 3840px; height: 2160px; overflow: hidden; }
+body {
+  position: relative;
+  background:
+    radial-gradient(58% 52% at 50% 68%, #f1f4ff 0%, rgba(241,244,255,0) 100%),
+    #ffffff;
+}
+svg.sheet { position: absolute; inset: 0; width: 3840px; height: 2160px; }

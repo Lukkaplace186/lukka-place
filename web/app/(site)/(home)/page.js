@@ -10,7 +10,7 @@ import HomeAlertBand from '@/components/HomeAlertBand';
 import HomeMarketBand from '@/components/HomeMarketBand';
 import HomeGuidesRail from '@/components/HomeGuidesRail';
 import PopularSearches from '@/components/PopularSearches';
-import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
+import { cachedFeaturedListings, cachedListingsTotal, cachedLiveListingsCount, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
@@ -18,6 +18,17 @@ import { organizationSchema, socialProfiles, websiteSchema } from '@/lib/seoSche
 import { getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
 import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { mergeSocialLinks, seoMetadata } from '@/lib/siteSettingsRules';
+import AppHomeTop from '@/components/AppHomeTop';
+import { getPriceGuides } from '@/lib/browseFeatures';
+import { marketCommunes } from '@/lib/homeMarket';
+import { listPublicArticles } from '@/lib/blog';
+import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
+import { memo } from '@/lib/memo';
+import { getLocale } from '@/lib/i18n/server';
+import { promoItemsFromArticles } from '@/lib/appPromoRules';
+import { communeFromSlug, communeSlug } from '@/lib/seoPages';
+import { isAppRequest } from '@/lib/appMode';
+import { getCurrentCustomerId, listSavedSearches } from '@/lib/customers';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -144,8 +155,58 @@ export async function generateMetadata() {
   };
 }
 
+/** The signed-in customer's latest saved search, for "pick up where you left off"; null otherwise. */
+async function latestSavedSearch() {
+  try {
+    const id = await getCurrentCustomerId();
+    if (!id) return null;
+    return (await listSavedSearches(id))[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Inside the store app (lib/appModeRules.js) the home page is the app
+ * design's "Search home" (components/AppHomeTop.js): the live listing count,
+ * the search card, the customer's latest saved search and the newest
+ * listings. The website's marketing sections and the SEO markup are left
+ * out; the tab bar replaces the footer.
+ */
+async function AppHomePage({ propertyTypes, communes, total, heroImage }) {
+  const t = await getT();
+  const locale = await getLocale();
+  const [liveCount, savedSearch, featured, guides, articles] = await Promise.all([
+    cachedLiveListingsCount().catch(() => 0),
+    latestSavedSearch(),
+    // The same newest-first 60-second copy "Sélection de la semaine" reads.
+    cachedFeaturedListings().catch(() => ({ data: [] })),
+    // The website's "Le marché locatif en chiffres" (HomeMarketBand), same
+    // 60-second copy and the same rule: Kinshasa's communes the price guide
+    // can speak for.
+    memo('home-market:v2', 60_000, () => getPriceGuides()).catch(() => []),
+    // The card slot's feed today: Lukka Place's own guides and news.
+    listPublicArticles(locale).catch(() => []),
+  ]);
+  const market = marketCommunes(guides, { label: communeLabel, keep: (commune) => cityOfCommune(commune) === DEFAULT_CITY });
+  return (
+    <AppHomeTop
+      liveCount={liveCount}
+      propertyTypes={propertyTypes}
+      // Each of Kinshasa's 24 communes carries the slug of its guide (/commune/<slug>).
+      communes={communes.map((c) => ({ ...c, guideSlug: communeFromSlug(communeSlug(c.commune)) === c.commune ? communeSlug(c.commune) : null }))}
+      initialCount={total}
+      savedSearch={savedSearch ? { query: savedSearch.query, label: savedSearch.label } : null}
+      listings={featured.data || []}
+      heroImage={heroImage}
+      market={market}
+      promo={promoItemsFromArticles(articles, { guide: t('appShell.home.promoGuide'), news: t('appShell.home.promoNews') })}
+    />
+  );
+}
+
 export default async function HomePage() {
-  const [propertyTypes, communes, { total }, saved, heroImage, weeklyNew] = await Promise.all([
+  const [propertyTypes, communes, { total }, saved, heroImage, weeklyNew, app] = await Promise.all([
     // 60-second copies (lib/listingsCached.js): counts and facets, not results.
     cachedPropertyTypeFacets(),
     cachedPopularCommunes(8),
@@ -154,7 +215,9 @@ export default async function HomePage() {
     getHeroSettings(),
     // "N nouveaux biens cette semaine" on the hero; a failed count shows nothing.
     cachedWeeklyNewCount().catch(() => 0),
+    isAppRequest(),
   ]);
+  if (app) return <AppHomePage propertyTypes={propertyTypes} communes={communes} total={total} heroImage={heroImage} />;
   // The profiles the footer shows, so Google ties them to the site (sameAs).
   const profiles = mergeSocialLinks(await getSocialLinks(), socialProfiles());
 

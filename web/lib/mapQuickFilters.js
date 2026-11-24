@@ -76,3 +76,9 @@ export function bedsRangeLabel(min, max, unit = 'ch.') {
   if (hi != null) return `≤ ${hi} ${unit}`;
   return '';
 }
+
+/** The `amenities` param with one key switched on or off ('' = none left): the map's one-tap chips. */
+export function toggleAmenityParam(current, key) {
+  const keys = String(current || '').split(',').filter(Boolean);
+  return (keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]).join(',');
+}

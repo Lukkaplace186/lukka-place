@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { getPool } from './db';
+import { forgetPushAccount } from './pushNotifications';
 import { keysetClause, pageCursors } from './adminPagination';
 import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './authCrypto';
@@ -141,9 +142,24 @@ export async function updateCustomerName(customerId, fullName) {
   await pool.query(`UPDATE customers SET full_name = $2 WHERE id = $1`, [customerId, fullName || null]);
 }
 
+/**
+ * Favourites, saved searches, follows and saved-listing notices go by FK
+ * cascade; the app's phones, inbox and alert settings have no FK and are
+ * removed in the same transaction (lib/pushNotifications.js).
+ */
 export async function deleteCustomer(customerId) {
-  const pool = getPool();
-  await pool.query(`DELETE FROM customers WHERE id = $1`, [customerId]);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await forgetPushAccount(client, 'customer', Number(customerId));
+    await client.query(`DELETE FROM customers WHERE id = $1`, [customerId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +321,24 @@ export async function adminUnlockCustomer(customerId) {
   return (rowCount ?? 0) > 0;
 }
 
+/**
+ * Mark a customer as a test / demo account (`customers.is_test`,
+ * migrations/20261112_customer_test_flag.sql): left out of the growth
+ * dashboard's sign-ups and the sign-up funnel. `unavailable` before the
+ * migration.
+ *
+ * @returns {Promise<'ok'|'not_found'|'unavailable'>}
+ */
+export async function setCustomerTestFlag(customerId, isTest) {
+  try {
+    const { rowCount } = await getPool().query('UPDATE customers SET is_test = $2 WHERE id = $1', [Number(customerId), Boolean(isTest)]);
+    return rowCount ? 'ok' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
+}
+
 /** One customer with the account facts the detail page shows. */
 export async function adminGetCustomerProfile(customerId) {
   const id = Number.parseInt(customerId, 10);
@@ -314,6 +348,7 @@ export async function adminGetCustomerProfile(customerId) {
             c.failed_login_count, c.locked_until,
             (c.locked_until IS NOT NULL AND c.locked_until > NOW()) AS is_locked,
             ${HAS_PASSWORD_SQL} AS has_password,
+            COALESCE((to_jsonb(c) ->> 'is_test')::boolean, false) AS is_test,
             COALESCE((SELECT array_agg(f.property_id ORDER BY f.created_at DESC) FROM customer_favorites f WHERE f.customer_id = c.id), ARRAY[]::bigint[]) AS favorite_ids
      FROM customers c WHERE c.id = $1`,
     [id],

@@ -573,3 +573,34 @@ decided in code after the model (`services/openai.js`, called in
   the Sonnet trial; those rows were removed). `scripts/intake-shadow-report.js
   --model gpt-4.1`; `scripts/eval-intake-models.js` now sends each case's
   photos (`photos` in `--cases`, run on the VPS). §130.
+
+## Fiche pratique — nothing is asked after "OK" (2026-11-12)
+
+`services/practicalFacts.js`, `migrations/20261112_listing_practical_facts.sql`
+(web half: web/CLAUDE.md, same heading). §111 of verify-pipeline.
+
+- **After "OK" the agent gets the publish receipt and nothing else** (owner,
+  2026-11-12). For a few hours that day the receipt was followed by one-tap
+  questions — Courant, Eau, Accès en saison des pluies, Frais de visite —
+  meant to feed the "Électricité" / "Eau" filters. The owner removed the
+  visit-fee question first (it put off commissionnaires who are already
+  hesitant), then all of them: every step after "OK" is friction. Don't add a
+  question after "OK" without the owner. `askAfterPublish`, the question
+  list and `FICHE_PRATIQUE` are gone; §111 checks the webhook never asks.
+- **Old buttons still in agents' chats** (`fiche:<listing>:<c|e|a|f>:<value>`)
+  are still routed: only the number that sent the listing (`listings.wa_id`)
+  may answer, the answer is saved, and the agent gets one "Merci, c'est noté
+  ✅" — no next question. Without this the tap would reach the assistant as
+  an unknown message. A building pasted as units gets the answer on every unit.
+- **Stored**: SQLite `listings.power_supply`, `water_supply`, `rainy_access`,
+  `visit_fee` (0/1), `practical_answered_at`; the same on `properties`
+  (CHECKed text, boolean, timestamptz). NULL = not answered. Kept: the answers
+  given on 2026-11-12 are the agents' own facts. Values are duplicated in
+  web/lib/practicalFacts.js and the migration's CHECKs (web
+  `practical-facts.test.js` compares the three).
+- **Feeds the existing filters**: an answer ADDS the matching utility codes
+  (groupe, solaire, regideso, citerne, forage, acces_facile) and the
+  has_generator / has_solar ticks. Never removes anything.
+- **Postgres**: a tap is mirrored with `updatePracticalFacts` (COALESCE —
+  never clears a value); the INSERT path reads the row fresh. Tolerates
+  42703 before the migration (logged, answers kept in SQLite).

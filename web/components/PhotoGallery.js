@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, MoveHorizontal, Play, X } from 'lucide-react';
+import { Fragment, ViewTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, MoveHorizontal, Play, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import VideoPlayBadge from './VideoPlayBadge';
@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n/client';
 import { listingEventPayload, trackEvent } from '@/lib/analyticsClient';
 import { initialGalleryState, noteGalleryStep } from '@/lib/galleryEngagement';
 import { DETAIL_HERO_SIZES, DETAIL_SIDE_SIZES } from '@/lib/detailGallerySizes';
+import { useBackToClose } from '@/lib/useBackToClose';
 
 /** A finger travel this far (px) down the viewer closes it; sideways pages. */
 const SWIPE_CLOSE_PX = 70;
@@ -72,7 +73,13 @@ const SWIPE_CLOSE_PX = 70;
  * viewer plays it. A cover frame passed in `images` is dropped — the video
  * item stands for it.
  */
-export default function PhotoGallery({ images, videos = [], alt, mobileActions = null, verifiedAt = null, eventListing = null }) {
+// `clearBack`: in the app the photo runs under a clear top bar whose back
+// button sits top-left, so the "Annonce vérifiée" badge steps aside.
+export default function PhotoGallery({ images, videos = [], alt, mobileActions = null, verifiedAt = null, eventListing = null, clearBack = false, transitionName = null }) {
+  // The app: the phone photo carries the tapped card's view-transition name, so
+  // the card's photo grows into it (lib/appPhotoHandoff.js). No name, no wrapper.
+  const Morph = transitionName ? ViewTransition : Fragment;
+  const morphProps = transitionName ? { name: transitionName, share: 'morph', default: 'none' } : {};
   const t = useT();
   const photoShots = (images || []).filter((src) => !isVideoPoster(src));
   const videoItems = (videos || []).map((video) => ({ src: video.poster || '', video: video.url }));
@@ -149,6 +156,10 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
     videoRef.current?.pause();
     setLightboxIndex(null);
   }, []);
+  // Back (Android's button, the iPhone edge swipe, the browser's) closes the
+  // viewer or the grid and leaves the listing where it was (lib/useBackToClose.js).
+  useBackToClose(isOpen, closeLightbox);
+  const releaseGridBack = useBackToClose(gridOpen, () => setGridOpen(false));
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -207,7 +218,8 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           edge (-mx-4 cancels the page gutter), the way every app shows a
           product photo on a phone; `mobileActions` (Partager/Enregistrer)
           sit on the photo instead of on a row of their own above it. */}
-      <div className="relative -mx-4 sm:hidden">
+      <Morph {...morphProps}>
+      <div className="relative -mx-4 sm:hidden" data-listing-hero="">
         <div
           role="button"
           tabIndex={0}
@@ -229,11 +241,11 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           {/* No arrows and no "1/N photos" on the phone photo (owner,
               2026-11-18): the swipe hint below says it moves, and the
               thumbnail strip shows where you are and replaces the dots. */}
-          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority preloadAhead={2} loadingShimmer showDots={false} controlRef={carouselControl} onIndexChange={onMobileIndexChange} />
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority fetchPriority="high" preloadAhead={2} loadingShimmer showDots={false} controlRef={carouselControl} onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (
-          <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
+          <span className={`pointer-events-none absolute z-10 flex flex-wrap gap-2 ${clearBack ? 'left-16 top-5' : 'left-3.5 top-3.5'}`}>
             <Badge tone="white">{t('listings.gallery.verified')}</Badge>
           </span>
         ) : null}
@@ -254,6 +266,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
             owner): the swipe, the arrows and the thumbnail strip below already
             reach every photo, and the button covered part of it. */}
       </div>
+      </Morph>
 
       {/* Thumbnails, phone only. Small files (sizes 80px, low fetch
           priority, never ahead of the main photo), so a visitor sees at once
@@ -305,6 +318,9 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                 key={`${src}-${index}`}
                 type="button"
                 onClick={() => {
+                  // The viewer takes over the grid's back step; taking the
+                  // grid's entry back here would race the viewer's own.
+                  releaseGridBack();
                   setGridOpen(false);
                   setLightboxIndex(index);
                 }}
@@ -336,6 +352,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               alt={alt}
               fill
               priority
+              fetchPriority="high"
               sizes={DETAIL_HERO_SIZES}
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />

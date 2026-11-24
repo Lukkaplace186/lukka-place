@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
-import { adminUnlockCustomer, deleteCustomer, getCustomerById } from '@/lib/customers';
+import { adminUnlockCustomer, deleteCustomer, getCustomerById, setCustomerTestFlag } from '@/lib/customers';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -70,6 +70,26 @@ export async function adminUnlockCustomerAction(customerId) {
     return { ok: true, message: t('admin.customers.unlocked') };
   } catch (err) {
     console.error(`[admin/customers] unlock #${customerId} failed: ${err.message}`);
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+/**
+ * Mark or unmark a test / demo customer account (customers.is_test). Same
+ * shape as the agent side (admin/agents/[id]/actions.js adminSetAgentTestAction).
+ */
+export async function adminSetCustomerTestAction(customerId, isTest) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('customers.manage');
+    const result = await setCustomerTestFlag(customerId, isTest);
+    if (result === 'unavailable') return { ok: false, error: t('admin.customerProfile.testAccountUnavailable') };
+    if (result !== 'ok') return { ok: false, error: t('admin.customers.notFound') };
+    await recordAudit(session, { action: isTest ? 'customer.marked_test' : 'customer.unmarked_test', entityType: 'customer', entityId: customerId });
+    revalidatePath('/admin/customers');
+    revalidatePath(`/admin/customers/${customerId}`);
+    return { ok: true };
+  } catch (err) {
     return { ok: false, error: err.message || t('errors.actionFailed') };
   }
 }

@@ -1,3 +1,4 @@
+import { isAppRequest } from '@/lib/appMode';
 import { notFound, redirect } from 'next/navigation';
 import ChatInbox from '@/components/chat/ChatInbox';
 import ChatThread from '@/components/chat/ChatThread';
@@ -79,6 +80,7 @@ export default async function AgentConversationPage({ params, searchParams }) {
           backHref="/compte/agent/messages"
           quickReplies={quickReplies}
           shareableListings={shareable}
+          appMode={await isAppRequest()}
         />
       </div>
       <aside aria-label={t('chat.agent.panelLabel')} className="hidden w-[18.75rem] flex-none border-l border-line bg-surface xl:block">

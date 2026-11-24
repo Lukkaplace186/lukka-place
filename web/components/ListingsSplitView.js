@@ -5,6 +5,7 @@ import Link from '@/components/LocaleLink';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
+import dynamic from 'next/dynamic';
 import ListingsFeed from './ListingsFeed';
 import FeedRequestCard from './FeedRequestCard';
 import FeedAlertCard from './FeedAlertCard';
@@ -18,6 +19,10 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { boundsToQuery } from '@/lib/mapViewport';
 import { MAP_MOVING_EVENT } from '@/lib/mapMovingEvent';
 import { useT } from '@/lib/i18n/client';
+
+// The app's card (Motion) only in app mode: on the website it would put Motion
+// in the first load of /listings (components/app/AppChrome.js, 2026-11-22).
+const AppListingCard = dynamic(() => import('./app/AppListingCard'));
 
 function buildPageHref(searchParams, page) {
   const params = new URLSearchParams(searchParams);
@@ -65,6 +70,8 @@ function feedQueryString(searchParams) {
  */
 export default function ListingsSplitView({
   listings, isMapView, page, params, popularCommunes, communes, clearAreaHref = null, similar = null, nextCursor = null, propertyTypes = [],
+  // Inside the store app (lib/appModeRules.js): the app's own card, as on its home screen.
+  appMode = false,
 }) {
   const t = useT();
   const queryString = feedQueryString(params);
@@ -208,8 +215,12 @@ export default function ListingsSplitView({
           initialListings={listings}
           initialSimilar={similar}
           initialNext={nextCursor}
+          // The app's cards settle in by themselves (AppListingCard), on every phone.
+          stagger={!appMode}
           place={params.commune || null}
-          renderCard={(listing, i) => (
+          renderCard={(listing, i) => appMode ? (
+            <AppListingCard key={listing.id} listing={listing} priority={page === 1 && i < 2} fetchPriority={page === 1 && i === 0 ? 'high' : undefined} />
+          ) : (
             <Fragment key={listing.id}>
             <PropertyCard
               listing={listing}
@@ -218,13 +229,14 @@ export default function ListingsSplitView({
               // above the fold — priority for those skips next/image's
               // lazy-loading for the real LCP candidate on this page.
               priority={page === 1 && i < 2}
+              fetchPriority={page === 1 && i === 0 ? 'high' : undefined}
               isHovered={hoveredId === listing.id}
               onHoverStart={() => setHoveredId(listing.id)}
               onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
             />
             {/* "Pas encore trouvé ?" once, after the 6th card (or the last of a
                 shorter first page): the visitor not ready to write to an agent
-                leaves what they want instead of leaving. */}
+                leaves what they want instead of leaving. Not in the store app. */}
             {/* "Recevez les nouveaux biens sur WhatsApp" after the 3rd card
                 (2026-11-24): most paid visitors see one page and were never
                 offered an account. */}
@@ -297,6 +309,9 @@ export default function ListingsSplitView({
               onAreaChange={onAreaChange}
               onInViewChange={setInView}
               openCardsRequest={cardsRequest}
+              // Inside the store app: the pencil that draws a zone on the map.
+              zoneDraw={appMode}
+              resultSheet={appMode}
               className="h-full w-full"
             />
           </div>
@@ -317,7 +332,8 @@ export default function ListingsSplitView({
               </div>
             </div>
           ) : null}
-          {isMapView && !previewOpen ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
+          {/* The app shows the homes in its own sheet (AppMapSheet, in the map pane). */}
+          {isMapView && !previewOpen && !appMode ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
         </div>
       </div>
     </div>

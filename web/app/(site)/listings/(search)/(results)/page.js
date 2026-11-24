@@ -1,4 +1,5 @@
 import { isAdLanding } from '@/lib/adLanding';
+import { isAppRequest } from '@/lib/appMode';
 import FilterBar from '@/components/FilterBar';
 import ActiveFilterChips from '@/components/ActiveFilterChips';
 import ListingsSplitView from '@/components/ListingsSplitView';
@@ -218,6 +219,8 @@ export default async function ListingsPage({ searchParams }) {
   // facet fallback is a real category name out of the database, so it is used
   // verbatim in either language.
   const t = await getT();
+  // Inside the store app: app cards, and the floating bar above the tab bar.
+  const app = await isAppRequest();
   const pluralKey = params.property_type ? PROPERTY_TYPE_PLURAL_KEYS[params.property_type] : undefined;
   const propertyTypeLabel = params.property_type
     ? (pluralKey ? t(pluralKey) : undefined) ||
@@ -234,13 +237,21 @@ export default async function ListingsPage({ searchParams }) {
           its own compact search/filter trigger for that mode instead.
           Desktop is unaffected: the split view always shows both panes
           there regardless of isMapView. */}
-      <div className={isMapView ? 'hidden lg:block' : ''}>
+      {/* The app on a phone, list view: FilterBar is the screen's top bar.
+          `display: contents` lets it stick to the page (a sticky box cannot
+          leave its parent, and this one is only as tall as the bar), and
+          `data-app-results` is what hides AppTopBar under it (globals.css). */}
+      <div
+        className={isMapView ? 'hidden lg:block' : app ? 'max-lg:contents' : ''}
+        data-app-results={app && !isMapView ? '' : undefined}
+      >
         <FilterBar
           locations={locations}
           propertyTypes={propertyTypes}
           initialTotal={total}
           priceCeiling={maxPrice}
           cities={publicCities}
+          appMode={app}
           defaults={{
             ville: filters.ville,
             searchCity,
@@ -309,6 +320,7 @@ export default async function ListingsPage({ searchParams }) {
             mapArea={Boolean(mapArea)}
             clearAreaHref={clearAreaHref}
             relaxation={relaxation}
+            appMode={app}
           />
         </div>
 
@@ -335,6 +347,7 @@ export default async function ListingsPage({ searchParams }) {
             similar={feed.similar ? { ...feed.similar, listings: withNearDistance(feed.similar.listings) } : null}
             nextCursor={feed.next}
             propertyTypes={propertyTypes}
+            appMode={app}
           />
         )}
       </div>
@@ -343,7 +356,7 @@ export default async function ListingsPage({ searchParams }) {
           bottom-center floating control at this exact position
           (MobileMapBar.js's "← Liste" button). Rendered on an empty
           search too: its alert is the phone's only way to ask for one. */}
-      {!isMapView ? <FloatingControlBar hasResults={count > 0} /> : null}
+      {!isMapView ? <FloatingControlBar hasResults={count > 0} aboveTabBar={app} /> : null}
     </div>
   );
 }

@@ -165,7 +165,7 @@ export const getPublicArticle = cache(async (slug, locale = 'fr') => {
     if (post) return articleFromPost(post, locale);
   }
   const guide = getGuide(slug);
-  return guide ? articleFromGuide(guide) : null;
+  return guide ? articleFromGuide(guide, locale) : null;
 });
 
 /** The other articles /guides lists, for "À lire aussi". */

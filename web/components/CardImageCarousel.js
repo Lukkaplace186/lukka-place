@@ -103,6 +103,11 @@ const DOT_WINDOW = 5;
  */
 export default function CardImageCarousel({
   images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false, loadingShimmer = false,
+  // 'high' only for the page's LCP photo (first slide only). In Next 16
+  // `priority` is just a preload <link>; a preloaded image still starts at
+  // low priority until layout (audit 2026-11-15, modern-web-guidance
+  // optimize-image-priority: 1-2 images per page at most).
+  fetchPriority,
   // The detail page's full-width carousel: a bigger play badge on a video cover.
   fullWidth = sizes === '100vw',
   // How many photos after the cover to fetch once it has painted (0 = none).
@@ -290,6 +295,7 @@ export default function CardImageCarousel({
                 // cards below the fold still wait for the scroll.
                 loading={i === 0 ? undefined : 'eager'}
                 onLoad={() => handleSlideLoad(i)}
+                fetchPriority={i === 0 ? fetchPriority : undefined}
                 draggable={false}
                 // A slow inner zoom while the pointer is on the card (the card's
                 // Link is the `group`). Tailwind's hover variant is already

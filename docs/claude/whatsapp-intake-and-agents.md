@@ -392,6 +392,19 @@ never rewrites `status = 1` on a deleted listing, same guard as closed /
 under_offer. Run the migration before deploying — these queries name the
 column.
 
+### Agents delete their own account (2026-11-11)
+
+Google Play and the App Store require in-app account deletion. Paramètres ›
+"Supprimer mon compte" (web `deleteOwnAgentAccountAction`, typed
+"SUPPRIMER") runs the admin's `deleteAgentAccount` in its default mode (owner
+decision): the agent row is deleted, every listing is archived and detached,
+nothing is deleted from the listings. Refused with a "write to us" message
+while a sales commission is open. Both account deletions (agent, customer)
+now also remove the app's `push_devices`, `notifications` and
+`notification_preferences` rows (`forgetPushAccount`, no FK to either table).
+The engine's SQLite history keeps the old id; a later WhatsApp message from
+the number onboards a new account.
+
 ### Sales-rep referral codes on WhatsApp
 
 `services/salesReferral.js` (web half and the commission rules: web/CLAUDE.md,
@@ -798,3 +811,13 @@ without context (`[boundary] … — decided before the read, read once`).
 Cases that need the model's intent (a long text the model calls a listing
 with one differing fact) still use read-then-check. Same stored listing,
 ~9 % fewer reads. §129 (and §61 now expects one read).
+
+## Test and demo accounts (2026-11-12)
+
+The team keeps demo accounts (one client, one agent, one admin) to try features before rollout and to record tutorials. They are real rows, so they are flagged rather than faked:
+
+- **Agent**: `agents.is_test` ("Compte de test" on `/admin/agents/[id]`). A test agent is left out of the public directory (`web/lib/agentDirectory.js`), its profile still opens from a direct link but is `noindex`, it is never offered a real customer's request (`services/agentRanking.js` candidate pool, so the lead waves never reach it), its listings are never auto-approved (`services/trustedAutoApprove.js`), and as before its listings stay out of every market figure (`NOT_TEST_LISTING_SQL`). A listing a moderator approves by hand is still public: archive it to take it off.
+- **Customer**: `customers.is_test` (`migrations/20261112_customer_test_flag.sql`, "Compte de test" on `/admin/customers/[id]`). Left out of the growth dashboard's sign-ups and the sign-up funnel's account counts.
+- **Admin**: a normal `console_admin_users` invitation; pick the smallest role the demo needs (support for tutorials). The impersonation button on an agent or customer page shows the site as that account.
+- Every flag is read through `to_jsonb`, so code runs before its migration (nobody is a test account then).
+- A demo customer who contacts a REAL listing still alerts that real agent: in tutorials, the demo client only contacts the demo agent's listings.

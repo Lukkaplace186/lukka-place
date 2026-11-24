@@ -1,10 +1,18 @@
+import { AppListingBar, AppListingHeader } from '@/components/app/AppListingChrome';
+import AppRelatedRail from '@/components/app/AppRelatedRail';
+import AppAvatar from '@/components/app/AppAvatar';
+import AppVerifiedMark from '@/components/app/AppVerifiedMark';
+import { displayableAgencyName } from '@/lib/agentIdentity';
+import { listingPhotoTransitionName } from '@/lib/appPhotoHandoff';
+import { isAppRequest } from '@/lib/appMode';
 import { notFound } from 'next/navigation';
 import { getLocale, getT, localizedAlternates } from '@/lib/i18n/server';
 import { listingStaticMapSrc } from '@/lib/staticMap';
 import Link from '@/components/LocaleLink';
-import { MapPin, ArrowRight } from 'lucide-react';
+import { MapPin, ArrowRight, Bath, BedDouble, Briefcase, DoorOpen, Ruler } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
+import KeyFacts from '@/components/KeyFacts';
 import EntryCostsBreakdown from '@/components/EntryCostsBreakdown';
 import ProjectFitLine from '@/components/ProjectFitLine';
 import Price from '@/components/Price';
@@ -12,12 +20,13 @@ import PricePanel from '@/components/PricePanel';
 import EnquiryCard from '@/components/EnquiryCard';
 import ListingLocationMap from '@/components/ListingLocationMap';
 import RelatedListings from '@/components/RelatedListings';
+import RecentlyViewed from '@/components/RecentlyViewed';
 import MobileListingBar from '@/components/MobileListingBar';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
 import { cache, Suspense } from 'react';
 import { getListingById as readListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, locationLine, entryCostBreakdown } from '@/lib/listingView';
+import { listingImages, locationLine, specItems, entryCostBreakdown } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
@@ -26,10 +35,10 @@ import ListingAlertCard from '@/components/ListingAlertCard';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import ListingEquipment from '@/components/listings/ListingEquipment';
+import PracticalFacts from '@/components/listings/PracticalFacts';
 import ListingFactsRow from '@/components/listings/ListingFactsRow';
 import ListingAgentRow from '@/components/listings/ListingAgentRow';
 import AgentTrustLine from '@/components/listings/AgentTrustLine';
-import { displayableAgencyName } from '@/lib/agentIdentity';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
@@ -38,6 +47,9 @@ import { similarAlertQuery, transactionTypeOfPurpose } from '@/lib/similarSearch
 import SimilarAlertButton from '@/components/SimilarAlertButton';
 import { listingPath } from '@/lib/listingSlug';
 import { communeHref, listingJsonLd, listingKindLabel, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
+
+// The app's row of icons under the place (specItems keys, lib/listingView.js).
+const SPEC_ICONS = { beds: BedDouble, bath: Bath, area: Ruler, units: DoorOpen, offices: Briefcase };
 
 // generateMetadata and the page both read the listing; per-request dedupe so
 // one visit costs one query, not two. Per request only (React cache): an
@@ -93,6 +105,39 @@ export async function generateMetadata({ params }) {
 }
 
 /**
+ * Who offers the home, in the app (2026-11-12). The website's EnquiryCard
+ * stands here on a phone, but its three contact buttons are the app's bottom
+ * bar already (AppListingBar), so the app shows the identity alone: the
+ * agent's real name (never a phone-shaped one), the brass mark for a
+ * verified tier, and their public page when there is one. A listing with no
+ * named agent is handled by the Lukka Place team, and says so.
+ */
+async function AppAgentRow({ listing }) {
+  const t = await getT();
+  const name = displayableAgencyName(listing.agency_name);
+  const href = name && listing.agent_id ? `/agents/${listing.agent_id}` : null;
+  const body = (
+    <>
+      <AppAvatar name={name || 'Lukka Place'} src={name ? listing.agency_logo_url : null} size="md" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[0.9375rem] font-semibold text-ink">{name || 'Lukka Place'}</span>
+        <span className="block text-[0.8125rem] text-ink-45">{name ? t('appShell.listing.partner') : t('appShell.listing.team')}</span>
+      </span>
+      {name ? <AppVerifiedMark listing={listing} className="flex-none shadow-none" /> : null}
+      {href ? <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-5 w-5 flex-none text-ink-35" /> : null}
+    </>
+  );
+  const box = 'flex items-center gap-3 rounded-card bg-surface p-4 shadow-[var(--shadow-card)]';
+  return href ? (
+    <Link href={href} aria-label={`${name} — ${t('listings.detail.viewAgentProfile')}`} className={`${box} active:bg-canvas-alt`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={box}>{body}</div>
+  );
+}
+
+/**
  * Directly under EnquiryCard, only when this listing actually has a real
  * `agent_id` (see lib/listings.js's SELECT_FIELDS — NULL on every listing
  * with no agent attached, same honesty rule EnquiryCard's own
@@ -135,6 +180,7 @@ async function AgentProfileLink({ agentId }) {
  * implying the results are nearby.
  */
 export default async function ListingDetailPage({ params, searchParams }) {
+  const app = await isAppRequest();
   const t = await getT();
   const { id } = await params;
   const sp = await searchParams;
@@ -195,6 +241,11 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
   // The phone's section strip names only sections this listing renders, so
   // a tab never jumps to nothing (components/listings/ListingSectionNav.js).
+  // The app's row of icons under the place: only the facts the listing states.
+  const appSpecs = app
+    ? specItems(listing, t).map((s) => ({ ...s, Icon: SPEC_ICONS[s.key] || Ruler }))
+    : [];
+
   // In page order (2026-11-18): the facts are in the opening block above the
   // strip, so "Aperçu" is gone from it; description and features, then the
   // costs card just before the map.
@@ -218,9 +269,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // close to 96px, so this went up slightly rather than down to keep a
     // real margin above it.
     <div className="pb-28 lg:pb-0">
+      {/* Inside the store app: this page's own top bar (clear over the photo on
+          a phone, then white with the price and the place). */}
+      {app ? <AppListingHeader listing={listing} where={where} /> : null}
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} listingId={listing.id} price={listing.price} />
       <JsonLd data={listingJsonLd(listing, t)} />
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 sm:pt-6 lg:px-8">
+      <div className={`mx-auto max-w-7xl px-4 sm:px-6 sm:pt-6 lg:px-8${app ? ' max-sm:-mt-16' : ''}`}>
         {/* sm and up: breadcrumb left, Partager/Enregistrer right. On a
             phone neither row exists — the photo starts right under the
             header and the two actions sit on it (PhotoGallery's
@@ -259,6 +313,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
           videos={listingVideos(listing)}
           alt={listing.title}
           verifiedAt={listing.verified_at}
+          clearBack={app}
+          transitionName={app ? listingPhotoTransitionName(listing.id) : null}
           eventListing={{ id: listing.id, price: listing.price, commune: listing.commune }}
           mobileActions={(
             <>
@@ -298,11 +354,52 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 />
               </span>
 
-              {/* The heading leads with what the property is and the
-                  transaction, then the place — "Appartement à louer — Yolo
-                  Nord I, Kalamu" (2026-10-24, the strongest on-page signal
-                  search engines read). `listing.title` still carries the
-                  <title>, OpenGraph title and breadcrumb. */}
+              {/* The address is the heading, the way Rightmove leads with
+                  "The Risings, Walthamstow, E17" — and the way this app's own
+                  feed card already does.
+                  
+                  It used to be `listing.title`, the agent-written sentence
+                  ("2 chambres — Appartement à louer à Kalamu"). That sentence
+                  restates, in prose, exactly what the KeyFacts grid two rows
+                  below now states as structured data (Type de bien /
+                  Chambres / Salles de bain), which is the substitution this
+                  change was asked for. `listing.title` is NOT dropped from
+                  the page's identity — it still carries the <title>, the
+                  OpenGraph title and the breadcrumb's final crumb (see
+                  generateMetadata above), so search engines and shared links
+                  keep the descriptive phrasing.
+
+                  Since 2026-10-24 the heading opens with what the property is
+                  and the transaction — "Appartement à louer — Yolo Nord I,
+                  Kalamu" — because the h1 is the strongest on-page signal
+                  search engines read, and "Yolo Nord I, Kalamu" alone matched
+                  nobody's search for an apartment to rent. */}
+              {app ? (
+                <>
+                  {/* The app: what it is on one plain line, the place on the
+                      next (still one h1), then the rooms as icons. */}
+                  <h1 className="text-ink">
+                    <span className="block text-xl font-semibold leading-snug">{kindAndPurpose || where || listing.title}</span>
+                    {kindAndPurpose && where ? (
+                      <span className="mt-1 flex items-center gap-1.5 text-[0.9375rem] font-normal text-ink-70">
+                        <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" aria-hidden="true" />
+                        {where}
+                      </span>
+                    ) : null}
+                  </h1>
+                  {appSpecs.length ? (
+                    <ul className="mt-1 flex flex-wrap gap-x-5 gap-y-2 text-[0.9375rem] text-ink-70">
+                      {appSpecs.map(({ key, value, label, Icon }) => (
+                        <li key={key} className="inline-flex items-center gap-1.5">
+                          <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] text-ink-45" aria-hidden="true" />
+                          <span className="u-tabular font-semibold text-ink">{value}</span>
+                          {label}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              ) : (
               <h1 className="mt-1 text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
                 {kindAndPurpose && where ? (
                   <>
@@ -312,6 +409,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   </>
                 ) : where || listing.title}
               </h1>
+              )}
 
               {addressDetail ? (
                 <p className="inline-flex items-center gap-1.5 text-[0.875rem] font-normal text-ink">
@@ -322,9 +420,11 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
               {/* Type, rooms, bathrooms, surface… in one line, then the
                   reference (components/listings/ListingFactsRow.js). */}
-              <div className="mt-1.5 empty:hidden">
-                <ListingFactsRow listing={listing} />
-              </div>
+              {app ? null : (
+                <div className="mt-1.5 empty:hidden">
+                  <ListingFactsRow listing={listing} />
+                </div>
+              )}
 
               {/* The agent's own weekly "still available" answer — only a
                   real one, at most 30 days old; nothing otherwise. */}
@@ -344,10 +444,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 the visit dialog the bottom bar's "Visiter" opens, and "Ajouter
                 à mes visites". WhatsApp, Message, Visit and Call are the bottom
                 bar's (owner, 2026-11-18: no second contact block). */}
-            <div className={`flex flex-col gap-1 ${RULE} lg:hidden`}>
-              <ListingAgentRow listing={listing} />
-              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitAccount={visitAccount} visitError={visitError} saveShare={false} compact />
-            </div>
+            {app ? null : (
+              <div className={`flex flex-col gap-1 ${RULE} lg:hidden`}>
+                <ListingAgentRow listing={listing} />
+                <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitAccount={visitAccount} visitError={visitError} saveShare={false} compact />
+              </div>
+            )}
 
             {/* The story: the description, cut to four lines, then the key
                 features (components/listings/PropertyDescription.js). */}
@@ -356,6 +458,19 @@ export default async function ListingDetailPage({ params, searchParams }) {
             </div>
 
             {listing.development_id ? <ProjectUnitStrip developmentId={listing.development_id} listingId={listing.id} /> : null}
+
+            {/* The app keeps its facts grid and costs card here; the website
+                states the facts in the opening block (ListingFactsRow) and the
+                costs as the card before the map. */}
+            {app ? (
+              <section id="apercu" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+                <KeyFacts listing={listing} />
+                <EntryCostsBreakdown listing={listing} />
+              </section>
+            ) : null}
+
+            {/* Fiche pratique — the agent's one-tap answers on WhatsApp. */}
+            <PracticalFacts listing={listing} app={app} />
 
             {/* "Équipements": utilities and practical details in one list, as
                 the agent declared them, each fact once. */}
@@ -377,19 +492,37 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <MarketMedianLine listing={listing} />
             </Suspense>
 
+            {/* The app (2026-11-12): the bottom bar already carries WhatsApp,
+                the chat and the visit request, so only the agent stands here;
+                the alert card follows the location. */}
+            {app ? (
+              <div className="lg:hidden">
+                <AppAgentRow listing={listing} />
+              </div>
+            ) : null}
+
             {/* The entry costs (the "3 + 1 + 1" breakdown): the one card left
                 on the page, just before the map (owner, 2026-11-18). Nothing
                 for a listing that states none — a guarantee alone is in the
                 facts row instead. */}
-            <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
-              <EntryCostsBreakdown listing={listing} />
-            </section>
+            {app ? null : (
+              <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+                <EntryCostsBreakdown listing={listing} />
+              </section>
+            )}
 
             <div id="emplacement" className={`flex scroll-mt-32 flex-col gap-3 ${RULE}`}>
               <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>
               <ListingLocationMap listing={listing} staticMapSrc={staticMapSrc} />
             </div>
 
+            {/* The app keeps its alert card here; the website has no second
+                contact block (owner, 2026-11-18): the bottom bar carries it. */}
+            {app ? (
+              <div className="lg:hidden">
+                <SimilarAlertButton query={alertQuery} />
+              </div>
+            ) : null}
           </div>
 
           {/* The rail stays docked for the whole scroll — Description,
@@ -410,13 +543,16 @@ export default async function ListingDetailPage({ params, searchParams }) {
       {/* Streamed: the similarity query and its fallbacks used to hold the
           whole page — photos and price included — until they answered. */}
       <Suspense fallback={null}>
-        <RelatedSection listing={listing} alertQuery={alertQuery} />
+        <RelatedSection listing={listing} alertQuery={alertQuery} app={app} />
       </Suspense>
 
       {/* No "Récemment consultés" here (2026-11-18, owner): it made every
           listing page longer, and the home page already shows it. */}
+      {/* The app keeps its quiet history strip at the end. */}
+      {app ? <RecentlyViewed excludeId={listing.id} variant="strip" className="pb-4" /> : null}
 
-      <MobileListingBar listing={listing} />
+      {/* Inside the store app: the app design's bar (visit first, opens the booking screen). */}
+      {app ? <AppListingBar listing={listing} /> : <MobileListingBar listing={listing} />}
     </div>
   );
 }
@@ -433,7 +569,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
  * comes back — never a dead rail. The fallbacks keep rent with rent and sale
  * with sale, like the similarity rail (lib/similarSearch.js).
  */
-async function RelatedSection({ listing, alertQuery }) {
+async function RelatedSection({ listing, alertQuery, app = false }) {
   let related = await getSimilarListings(listing.id, 6);
   let relatedMode = 'similar';
   let widened = false;
@@ -449,6 +585,18 @@ async function RelatedSection({ listing, alertQuery }) {
       related = data;
       widened = Boolean(listing.commune);
     }
+  }
+  // The app ends the page on its own rail of large photos; the alert card
+  // already follows the location, so no second one here.
+  if (app) {
+    const t = await getT();
+    const title = relatedMode === 'similar'
+      ? t('listings.related.similar')
+      : widened || !listing.commune
+        ? t('listings.related.otherInKinshasa')
+        : t('listings.related.otherIn', { commune: listing.commune });
+    const lead = widened && listing.commune ? t('listings.related.noneLeftIn', { commune: listing.commune }) : null;
+    return <AppRelatedRail title={title} lead={lead} listings={related} />;
   }
   return (
     <div className="mt-8 lg:mt-16">

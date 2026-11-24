@@ -68,6 +68,7 @@ const { handleStatusButtonReply } = require('../services/agentStatusCheck');
 const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleTapButtonReply } = require('../services/contactTapAlert');
 const { handleLeadButtonReply } = require('../services/leadClaims');
+const practicalFacts = require('../services/practicalFacts');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry, carriesEnquiryOpening } = require('../services/listingEnquiry');
 const customerIdentity = require('../services/customerIdentity');
@@ -1093,6 +1094,16 @@ async function processGroup(messages) {
       if (claim.handled) return;
     } catch (err) {
       console.error(`[lead-claims] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
+      // Old fiche pratique buttons (services/practicalFacts.js): `fiche:<listing>:<q>:<value>`.
+      // No longer sent; a tap on one still in a chat is saved and thanked.
+      // Only the number that sent the listing may answer.
+      const fiche = await practicalFacts.handlePracticalButtonReply({ from, replyId: buttonReplyId });
+      if (fiche.handled) return;
+    } catch (err) {
+      console.error(`[fiche] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
   }

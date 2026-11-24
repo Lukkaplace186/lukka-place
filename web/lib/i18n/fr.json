@@ -143,7 +143,14 @@
     "projects": "Neuf",
     "agents": "Agents",
     "blog": "Guides & Actualités",
-    "messages": "Messages"
+    "messages": "Messages",
+    "home": "Accueil",
+    "notifications": "Notifications",
+    "appTabs": "Navigation de l’application",
+    "unreadNotifications": {
+      "one": "{count} notification non lue",
+      "other": "{count} notifications non lues"
+    }
   },
   "footer": {
     "columns": {
@@ -421,6 +428,18 @@
     "seoDescription": "Maisons, appartements, parcelles et terrains à louer ou à vendre à Kinshasa et partout en RDC. Annonces relues, prix affichés, contact sur WhatsApp.",
     "popularSearches": {
       "title": "Recherches populaires"
+    },
+    "app": {
+      "greeting": "Bonjour",
+      "greetingNamed": "Bonjour, {name}",
+      "subtitle": "Trouvez votre prochain logement en RDC.",
+      "shortcuts": "Raccourcis",
+      "quick": {
+        "find": "Trouver pour moi",
+        "prices": "Prix des loyers",
+        "projects": "Projets neufs",
+        "agencies": "Agences"
+      }
     }
   },
   "about": {
@@ -480,7 +499,14 @@
     "title": "Parlons de votre projet",
     "lead": "WhatsApp est le moyen le plus rapide de nous joindre — une question sur une annonce, un bien à soumettre, ou toute autre demande.",
     "whatsappCta": "Écrire sur WhatsApp",
-    "unavailable": "Le numéro WhatsApp de contact n'est pas encore configuré sur cette installation."
+    "unavailable": "Le numéro WhatsApp de contact n'est pas encore configuré sur cette installation.",
+    "emailCta": "Écrire par e-mail",
+    "emailLine": "Notre adresse : {email}",
+    "accountTitle": "Compte et données",
+    "accountText": "Pour le site comme pour l’application Lukka Place (Android et iPhone).",
+    "linkDelete": "Supprimer mon compte",
+    "linkPrivacy": "Politique de confidentialité",
+    "linkTerms": "Conditions d’utilisation"
   },
   "breadcrumb": {
     "home": "Accueil",
@@ -926,7 +952,8 @@
         "bedsValue": {
           "one": "{count} ch.+",
           "other": "{count} ch.+"
-        }
+        },
+        "parking": "Parking"
       }
     },
     "alertModal": {
@@ -1226,6 +1253,42 @@
       "title": "Recevez les biens comme celui-ci",
       "body": "Nous vous écrivons sur WhatsApp dès qu’un bien comme celui-ci est publié. Gratuit.",
       "button": "M’alerter sur WhatsApp"
+    },
+    "practical": {
+      "title": "Fiche pratique",
+      "power": "Courant",
+      "water": "Eau",
+      "access": "Accès en saison des pluies",
+      "visitFee": "Frais de visite",
+      "powerValues": {
+        "snel": "SNEL seulement",
+        "snel_groupe": "SNEL + groupe électrogène",
+        "snel_solaire": "SNEL + panneaux solaires"
+      },
+      "waterValues": {
+        "regideso": "REGIDESO",
+        "regideso_citerne": "REGIDESO + citerne",
+        "forage": "Forage ou puits"
+      },
+      "accessValues": {
+        "bon": "Bon",
+        "difficile": "Difficile",
+        "inonde": "La route est inondée"
+      },
+      "feeValues": {
+        "non": "Aucun, la visite est gratuite",
+        "oui": "Oui, l’agence demande des frais"
+      },
+      "notStated": "Non indiqué",
+      "source": "Réponses de l’agence sur WhatsApp. Vérifiez-les pendant la visite.",
+      "sourceDated": "Réponses de l’agence sur WhatsApp, le {date}. Vérifiez-les pendant la visite."
+    },
+    "zone": {
+      "hint": "Dessinez votre zone avec le doigt",
+      "cancel": "Annuler le dessin",
+      "clear": "Effacer la zone",
+      "draw": "Dessiner une zone",
+      "redraw": "Redessiner la zone"
     }
   },
   "enquiry": {
@@ -1379,7 +1442,10 @@
       "messages": "Messages",
       "messagesShort": "Messages",
       "alerts": "Alertes",
-      "alertsShort": "Alertes"
+      "alertsShort": "Alertes",
+      "homeShort": "Accueil",
+      "visitsShort": "Visites",
+      "accountShort": "Compte"
     },
     "overview": {
       "title": "Vue d'ensemble",
@@ -1706,7 +1772,8 @@
       "placesLeft": {
         "one": "Plus que {count} place",
         "other": "Plus que {count} places"
-      }
+      },
+      "howPaymentBodyOnline": "Payez votre forfait en ligne par Mobile Money (M-Pesa, Orange Money, Airtel Money) : il est activé dès que le paiement est confirmé. Vous pouvez aussi le demander à l’équipe et régler en espèces ou par virement."
     },
     "meta": {
       "title": "Espace agent — Lukka Place"
@@ -1903,7 +1970,9 @@
       "listingsIncluded": {
         "one": "{count} bien publié",
         "other": "{count} biens publiés"
-      }
+      },
+      "payOnline": "Payer en ligne",
+      "orRequest": "ou demander à l’équipe"
     },
     "sold": {
       "notDeleted": "supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.",
@@ -3150,6 +3219,107 @@
       "turnOff": "Désactiver sur ce téléphone",
       "denied": "Les notifications sont bloquées. Autorisez-les pour Lukka Place dans les réglages de votre téléphone.",
       "fallback": "Une demande urgente restée non lue vous est aussi envoyée sur WhatsApp après quelques minutes."
+    },
+    "deleteAccount": {
+      "title": "Supprimer mon compte",
+      "hint": "Votre compte agent est supprimé définitivement. Vos annonces sont retirées du site et ne vous sont plus attribuées.",
+      "button": "Supprimer mon compte",
+      "confirmTitle": "Supprimer votre compte agent ?",
+      "confirmBody": "Votre compte, votre page agent et vos alertes de l’application sont supprimés définitivement. Cette action est irréversible.",
+      "confirmBodyListings": {
+        "one": "Votre compte, votre page agent et vos alertes de l’application sont supprimés définitivement, et votre annonce en ligne est retirée du site. Cette action est irréversible.",
+        "other": "Votre compte, votre page agent et vos alertes de l’application sont supprimés définitivement, et vos {count} annonces en ligne sont retirées du site. Cette action est irréversible."
+      },
+      "typeToConfirm": "Tapez SUPPRIMER pour confirmer",
+      "errorConfirm": "Tapez SUPPRIMER pour confirmer la suppression.",
+      "errorCommissions": "Votre compte ne peut pas être supprimé tout de suite : une commission commerciale est en cours. Écrivez-nous sur WhatsApp, nous le supprimerons pour vous.",
+      "done": "Votre compte agent a été supprimé."
+    },
+    "appMenu": {
+      "title": "Compte",
+      "verified": "Agent vérifié",
+      "activity": "Mon activité",
+      "dashboard": "Tableau de bord",
+      "messages": "Messages",
+      "alerts": "Alertes",
+      "point": "Faites le point",
+      "projects": "Projets neufs",
+      "account": "Mon compte",
+      "settings": "Profil et réglages",
+      "subscription": "Abonnement",
+      "publicPage": "Ma page publique",
+      "preferences": "Préférences",
+      "language": "Langue",
+      "searchTitle": "Chercher un logement",
+      "searchText": "Parcourir, enregistrer et demander des visites",
+      "signOut": "Se déconnecter"
+    },
+    "checkout": {
+      "metaTitle": "Paiement de l’abonnement — Espace agent — Lukka Place",
+      "title": "Paiement",
+      "backToPlans": "Retour aux forfaits",
+      "eyebrow": "Abonnement commissionnaire",
+      "heading": "Passez à la formule {plan}",
+      "intro": "Réglez votre forfait par Mobile Money. Il est activé dès que le paiement est confirmé.",
+      "notOpen": "Le paiement en ligne n’est pas encore ouvert. Vous pouvez demander ce forfait à l’équipe depuis la page Abonnement.",
+      "summary": "Récapitulatif",
+      "yourPlan": "Votre formule",
+      "plan": "Forfait",
+      "priority": "Priorité ×{n} dans l’attribution automatique des demandes de vos communes",
+      "yourDetails": "Vos informations",
+      "agency": "Agence ou commissionnaire",
+      "agencyUnknown": "Non renseigné — vous pouvez l’ajouter dans Paramètres.",
+      "phoneLabel": "Numéro {operator} qui paie",
+      "phoneHint": "Un numéro de la RDC. Le reçu vous est envoyé sur WhatsApp au numéro de votre compte.",
+      "method": "Mode de paiement",
+      "howTitle": "Comment ça se passe",
+      "howBody": "Après avoir cliqué sur Payer, une demande de paiement arrive sur votre téléphone {operator}. Validez-la avec votre code PIN. Gardez cette page ouverte : elle se met à jour toute seule.",
+      "cardSoon": "Le paiement par carte bancaire n’est pas encore proposé.",
+      "total": "Total à payer",
+      "oneOff": "Paiement unique · {term}",
+      "termsBefore": "J’accepte les",
+      "termsLink": "conditions générales de Lukka Place",
+      "termsAfter": " et le paiement de {amount} pour ce forfait.",
+      "pay": "Payer {amount}",
+      "sending": "Envoi de la demande…",
+      "secure": "Le paiement est traité par FlexPaie. Lukka Place ne voit jamais votre code PIN.",
+      "reference": "Référence :",
+      "tryAgain": "Réessayer",
+      "contactTeam": "Écrire à l’équipe",
+      "whatsappHelp": "Bonjour, j’ai un souci avec le paiement du forfait « {plan} » (référence {ref}).",
+      "term": {
+        "monthly": "1 mois",
+        "yearly": "1 an",
+        "lifetime": "à vie"
+      },
+      "waiting": {
+        "title": "Validez sur votre téléphone",
+        "body": "Une demande de {amount} a été envoyée sur votre {operator}. Entrez votre code PIN pour confirmer. Cette page se met à jour dès que le paiement est reçu."
+      },
+      "paid": {
+        "title": "Paiement reçu",
+        "body": "Votre forfait « {plan} » est activé.",
+        "cta": "Voir mon abonnement"
+      },
+      "failed": {
+        "title": "Le paiement n’a pas abouti",
+        "body": "Aucun montant n’a été validé. Vérifiez votre solde et réessayez."
+      },
+      "timeout": {
+        "title": "Toujours en attente",
+        "body": "Nous n’avons pas encore de confirmation. Si vous avez validé sur votre téléphone, votre forfait sera activé dès que le paiement nous parvient. Sinon, réessayez."
+      },
+      "errors": {
+        "phone": "Entrez un numéro Mobile Money de la RDC (ex. 81 234 5678).",
+        "terms": "Cochez la case pour accepter les conditions.",
+        "noAgency": "Votre compte n’est pas encore rattaché à une agence. Contactez l’équipe Lukka Place pour payer ce forfait.",
+        "package": "Ce forfait ne peut pas être payé en ligne.",
+        "notConfigured": "Le paiement en ligne n’est pas encore ouvert.",
+        "provider": "Le service de paiement n’a pas accepté la demande. Réessayez dans un instant.",
+        "auth": "Votre session a expiré. Reconnectez-vous puis réessayez.",
+        "network": "Connexion perdue. Vérifiez votre réseau et réessayez.",
+        "generic": "Une erreur est survenue. Réessayez."
+      }
     }
   },
   "status": {
@@ -3731,7 +3901,8 @@
         "tomorrow": "Demain",
         "days": "Dans {count} jours"
       },
-      "meetWith": "Votre visite avec"
+      "meetWith": "Votre visite avec",
+      "video": "En vidéo sur WhatsApp"
     },
     "home": {
       "metaTitle": "Accueil — Espace client Lukka Place",
@@ -5437,7 +5608,7 @@
       "transfer": "Transférer",
       "subscriptionHistory": "Historique d’abonnement",
       "testAccount": "Compte de test",
-      "testAccountHint": "Ses annonces sont exclues des statistiques du marché, des exports et des rapports. Pour les retirer du site, archivez-les.",
+      "testAccountHint": "Compte de démonstration : absent de l’annuaire des agents et des moteurs de recherche, ne reçoit aucune demande de client réel, ses annonces ne sont jamais publiées automatiquement et sont exclues des statistiques du marché, des exports et des rapports. Une annonce déjà approuvée reste en ligne : archivez-la pour la retirer.",
       "markedTest": "Compte marqué comme compte de test.",
       "unmarkedTest": "Le compte compte à nouveau dans les données du marché.",
       "testAccountUnavailable": "Indisponible tant que la migration des données du marché n’a pas été appliquée."
@@ -6087,6 +6258,11 @@
       "receipt": "Reçu"
     },
     "customerProfile": {
+      "testAccount": "Compte de test",
+      "testAccountHint": "Compte de démonstration ou de test : il n’est pas compté dans les inscriptions ni dans le tunnel d’inscription.",
+      "markedTest": "Compte marqué comme compte de test.",
+      "unmarkedTest": "Le compte compte à nouveau dans les inscriptions.",
+      "testAccountUnavailable": "Indisponible tant que la migration 20261112_customer_test_flag.sql n’a pas été appliquée.",
       "back": "← Tous les clients",
       "joined": "Inscrit le {date}",
       "lastLogin": "Dernière connexion {date}",
@@ -8088,9 +8264,9 @@
           "partner_invite": "Invitation partenaire",
           "price_guide": "Guide des prix",
           "direct": "Direct / autre lien",
-          "whatsapp": "Continuer avec WhatsApp",
+          "whatsapp": "Connexion WhatsApp",
           "visit": "Après une demande de visite",
-          "onboarding": "Questions à l'ouverture de l'app",
+          "onboarding": "Questions de bienvenue (app)",
           "after_whatsapp": "Retour de WhatsApp (annonce)",
           "feed_alert": "Carte alerte dans les résultats",
           "request": "Demande « Trouver pour moi »",
@@ -8149,7 +8325,7 @@
       "summaryHint": "Une ou deux phrases : affiché dans la liste et dans l’aperçu WhatsApp / Google.",
       "bodyFr": "Article",
       "formatHelpTitle": "Mise en forme",
-      "formatHelp": "Une ligne vide sépare les paragraphes.\n## Titre de section\n- un point de liste\n1. une étape numérotée\n[texte du lien](/location/appartements/gombe) — un lien vers une page du site ou une adresse https.\n\nBlocs riches (voir l’aperçu) :\n| Commune | Loyer | — un tableau (ligne |---| sous l’en-tête)\n:::chiffres source=\"…\" puis « valeur | libellé », puis :::\n:::graphique type=barres titre=\"…\" unite=\"$\" source=\"…\" puis « libellé | nombre », puis :::\n:::astuce titre=\"…\" (ou attention, info), texte, puis :::\n:::citation auteur=\"…\", texte, puis :::\n:::prix communes=\"Gombe, Limete\" chambres=2 — prix en direct\n:::annonces commune=Gombe type=appartement transaction=location — annonces en direct",
+      "formatHelp": "Une ligne vide sépare les paragraphes.\n## Titre de section\n- un point de liste\n1. une étape numérotée\n[texte du lien](/location/appartements/gombe) — un lien vers une page du site ou une adresse https.\n\nBlocs riches (voir l’aperçu) :\n| Commune | Loyer | — un tableau (ligne |---| sous l’en-tête)\n:::chiffres source=\"…\" puis « valeur | libellé », puis :::\n:::graphique type=barres titre=\"…\" unite=\"$\" source=\"…\" puis « libellé | nombre », puis :::\n:::astuce titre=\"…\" (ou attention, info), texte, puis :::\n:::citation auteur=\"…\", texte, puis :::\n:::prix communes=\"Gombe, Limete\" chambres=2 — prix en direct\n:::annonces commune=Gombe type=appartement transaction=location — annonces en direct\n:::calculateur — le calculateur interactif de garantie (3 + 1 + 1)",
       "sectionCover": "Image de couverture",
       "cover": "Image",
       "replaceCover": "Remplacer l’image",
@@ -9080,8 +9256,10 @@
     "lead": "Louer, acheter, comprendre les annonces : l’essentiel, sans jargon.",
     "breadcrumb": "Guides",
     "readMore": "Lire le guide",
+    "readFull": "Lire l’article complet",
+    "close": "Fermer",
     "updated": "Mis à jour le {date}",
-    "related": "Autres guides",
+    "related": "À lire aussi",
     "searchCta": "Voir les annonces",
     "frenchOnly": "Ce guide est rédigé en français.",
     "blogTitle": "Guides & Actualités",
@@ -9112,6 +9290,46 @@
       "warning": "Attention",
       "info": "À savoir",
       "invalid": "Bloc :::{name} non affiché — {reason}"
+    },
+    "calculator": {
+      "title": "Calculez votre entrée dans les lieux",
+      "subtitle": "Exemple chargé : 670 $ par mois avec « 3 + 1 + 1 ». Changez le loyer et les mois demandés.",
+      "rentLabel": "Loyer mensuel",
+      "examples": "Exemples de loyer",
+      "currencyLabel": "Devise",
+      "rateNote": "Francs congolais approximatifs, au taux de référence du {date} : 1 $ ≈ {rate} FC.",
+      "askedLabel": "Ce que le bailleur demande",
+      "presets": "Formules courantes",
+      "deposit": "Garantie (mois)",
+      "advance": "Avance (mois, 1er loyer inclus)",
+      "commission": "Commission (mois)",
+      "less": "Un de moins",
+      "more": "Un de plus",
+      "askedTotal": "On vous demande",
+      "legalTotal": "Plafond légal",
+      "monthsOfRent": "{months} mois de loyer",
+      "refundable": "dont {amount} récupérables",
+      "excess": "Vous avancez {amount} de plus que ce que la loi permet, soit {months} mois de loyer.",
+      "withinLaw": "Cette demande respecte le plafond fixé par la loi.",
+      "enterRent": "Entrez un loyer mensuel pour voir le calcul.",
+      "barAsked": "Demandé",
+      "barLaw": "Loi n° 15/025",
+      "colItem": "Poste",
+      "colAsked": "Demandé",
+      "colLaw": "Loi",
+      "rowDeposit": "Garantie",
+      "rowDepositSub": "{months} mois · rendue en fin de bail",
+      "rowFirst": "Premier loyer",
+      "rowFirstSub": "le mois où vous entrez",
+      "rowExtra": "Avance supplémentaire",
+      "rowExtraSub": "{months} mois de plus · l’article 22 l’interdit",
+      "rowCommission": "Commission",
+      "rowCommissionSub": "{months} mois · pour l’agent",
+      "rowTotal": "Total à l’entrée",
+      "tagRefundable": "Récupérable",
+      "tagNotRefundable": "Non récupérable",
+      "tagOverLaw": "Au-delà de la loi",
+      "footnote": "Le plafond légal suppose un bail résidentiel : garantie de 3 mois au plus (art. 18), le premier loyer payé à l’entrée et aucune avance au-delà (art. 22), une commission d’un mois au plus (art. 10). Calcul indicatif, pas un avis juridique."
     }
   },
   "projects": {
@@ -9562,6 +9780,250 @@
       "fromProfile": "Ce client vous a écrit depuis votre profil, sans bien précis.",
       "openedOn": "Conversation ouverte le {date}",
       "panelLabel": "Fiche du client"
+    }
+  },
+  "appShell": {
+    "tabs": {
+      "search": "Rechercher",
+      "saved": "Enregistrés",
+      "account": "Compte",
+      "activity": "Activité"
+    },
+    "bell": "Notifications",
+    "home": {
+      "title": "Trouvez le bon logement",
+      "count": {
+        "one": "{count} bien à louer et à vendre en RDC",
+        "other": "{count} biens à louer et à vendre en RDC"
+      },
+      "continue": "Reprendre où vous en étiez",
+      "continueFallback": "Votre recherche enregistrée",
+      "latest": "Ajoutés récemment",
+      "seeAll": "Tout voir",
+      "findTitle": "Pas encore trouvé ?",
+      "findText": "Décrivez ce que vous cherchez : des agences vous proposent des biens.",
+      "whereTitle": "Où chercher",
+      "whereCaption": "Annonces en ligne par commune, en ce moment.",
+      "shortcuts": {
+        "label": "Raccourcis",
+        "searches": "Mes alertes",
+        "find": "Trouver pour moi",
+        "prices": "Prix du marché"
+      },
+      "resume": "Reprendre :",
+      "more": "Aussi en ligne",
+      "searchPlaceholder": "Commune ou quartier",
+      "marketAll": "Tous les prix",
+      "promoTitle": "Guides et actualités",
+      "promoGuide": "Guide",
+      "promoNews": "Actualité"
+    },
+    "card": {
+      "photos": {
+        "one": "{count} photo",
+        "other": "{count} photos"
+      }
+    },
+    "account": {
+      "title": "Compte",
+      "guestTitle": "Connectez-vous ou créez un compte",
+      "guestText": "Gardez vos favoris, vos recherches et vos visites sur tous vos appareils.",
+      "signIn": "Se connecter",
+      "signUp": "Créer un compte",
+      "agentPrompt": "Agent ou agence ?",
+      "agentLogin": "Espace agent",
+      "yourSpace": "Mon espace",
+      "profile": "Mon profil",
+      "visits": "Mes visites",
+      "requests": "Mes demandes",
+      "messages": "Messages",
+      "notifications": "Notifications",
+      "alerts": "Alertes de recherche",
+      "services": "Services",
+      "find": "Trouver pour moi",
+      "prices": "Prix des loyers",
+      "agencies": "Agences",
+      "preferences": "Préférences",
+      "language": "Langue",
+      "currency": "Devise",
+      "publishTitle": "Publier un bien",
+      "publishText": "Pour les agents et les agences",
+      "signOut": "Se déconnecter"
+    },
+    "saved": {
+      "title": "Enregistrés",
+      "homes": "Biens",
+      "searches": "Recherches",
+      "emptyHomesTitle": "Aucun bien enregistré",
+      "emptyHomesText": "Touchez le cœur sur une annonce pour la retrouver ici.",
+      "browse": "Voir les biens",
+      "gone": {
+        "one": "{count} bien enregistré n’est plus en ligne.",
+        "other": "{count} biens enregistrés ne sont plus en ligne."
+      },
+      "emptySearchesTitle": "Aucune recherche enregistrée",
+      "searchesHint": "Enregistrez une recherche depuis les résultats : nous vous prévenons dès qu’un bien correspond.",
+      "alerts": "Alertes",
+      "signInForAlerts": "Connectez-vous pour être prévenu des nouveaux biens."
+    },
+    "back": "Retour",
+    "visit": {
+      "title": "Demander une visite",
+      "step": "Étape {step} sur 2",
+      "chooseTitle": "Choisissez un jour et une heure",
+      "confirmNote": "L’agent confirme l’heure sur WhatsApp. Vous suivez la visite dans Mes visites.",
+      "continue": "Continuer",
+      "continueWith": "Continuer · {slot}",
+      "change": "Modifier",
+      "detailsTitle": "Vos coordonnées",
+      "detailsText": "Transmises à l’agent pour cette visite uniquement.",
+      "submit": "Demander la visite",
+      "doneTitle": "Visite demandée",
+      "myVisits": "Voir mes visites",
+      "backToListing": "Retour à l’annonce",
+      "sending": "Envoi…",
+      "followGuest": "Pour suivre la réponse de l’agence, connectez-vous avec WhatsApp : votre visite vous attend dans votre compte.",
+      "titleVideo": "Demander une visite en vidéo",
+      "modeLabel": "Type de visite",
+      "modeOnsite": "Sur place",
+      "modeVideo": "En vidéo",
+      "ownTime": "Soit {time} à l’heure de votre téléphone.",
+      "videoHowTitle": "Comment se passe l’appel",
+      "videoHowText": "L’agence vous appelle en vidéo sur WhatsApp, au numéro que vous indiquez. Demandez-lui d’ouvrir un robinet et d’allumer la lumière : c’est ce que la photo ne montre pas.",
+      "confirmNoteVideo": "L’agent confirme l’heure de l’appel sur WhatsApp. Vous suivez la demande dans Mes visites.",
+      "submitVideo": "Demander l’appel vidéo",
+      "doneTitleVideo": "Appel vidéo demandé",
+      "videoAfter": "À l’heure convenue, l’agence vous appelle en vidéo sur WhatsApp."
+    },
+    "filters": {
+      "reset": "Réinitialiser"
+    },
+    "faq": {
+      "title": "Questions fréquentes",
+      "items": {
+        "visit": {
+          "q": "Comment demander une visite ?",
+          "a": "Sur l’annonce, touchez « Demander une visite », choisissez un jour et une heure, puis laissez votre numéro WhatsApp. L’agent vous confirme sur WhatsApp et la visite apparaît dans Mes visites."
+        },
+        "whatsapp": {
+          "q": "Pourquoi WhatsApp passe par Lukka Place ?",
+          "a": "Votre message arrive d’abord chez Lukka Place : la demande est enregistrée, l’agent est prévenu et vous recevez aussitôt son numéro."
+        },
+        "costs": {
+          "q": "Que veulent dire garantie, avance et commission ?",
+          "a": "Ce sont trois frais d’entrée distincts. Quand l’agent les a donnés, l’annonce les indique séparément, en mois de loyer."
+        },
+        "alerts": {
+          "q": "Comment être prévenu des nouveaux biens ?",
+          "a": "Enregistrez une recherche depuis les résultats, puis activez « Alertes » dans Enregistrés. Dans l’application, l’alerte arrive en notification."
+        }
+      }
+    },
+    "listingBar": {
+      "more": "Plus d’options"
+    },
+    "welcome": {
+      "metaTitle": "Bienvenue",
+      "title": "Bienvenue",
+      "skip": "Passer",
+      "lead": "Trois questions pour vous montrer les bons biens. Vous pourrez tout changer ensuite.",
+      "purposeQuestion": "Vous voulez louer ou acheter ?",
+      "purposes": {
+        "louer": "Louer",
+        "acheter": "Acheter",
+        "courte": "Courte durée"
+      },
+      "budgetQuestionRent": "Votre loyer par mois, au plus ?",
+      "budgetQuestionBuy": "Votre budget, au plus ?",
+      "anyBudget": "Peu importe",
+      "upTo": "Jusqu’à {amount}",
+      "communesQuestion": "Quelles communes ?",
+      "communesHint": "Jusqu’à {max}. Aucune : toutes les communes.",
+      "see": "Voir les biens",
+      "seeAll": "Voir tous les biens",
+      "alertTitle": "On vous prévient dès qu’un bien correspond ?",
+      "alertText": "Votre recherche est gardée sur ce téléphone. Avec un compte, nous vous prévenons dès qu’un nouveau bien correspond.",
+      "alertYes": "Oui, me prévenir",
+      "alertLater": "Plus tard, voir les biens"
+    },
+    "listing": {
+      "partner": "Agent partenaire",
+      "team": "Équipe Lukka Place"
+    },
+    "activity": {
+      "title": "Activité",
+      "guestTitle": "Vos visites et vos alertes arrivent ici",
+      "guestText": "Connectez-vous pour suivre vos demandes de visite, les réponses des agences et les nouveaux biens qui correspondent à vos recherches.",
+      "visitLabel": "Votre visite",
+      "visitAnswer": "L’agent attend votre réponse",
+      "timeToConfirm": "Heure à confirmer",
+      "steps": {
+        "requested": "Demandée",
+        "confirmed": "Confirmée",
+        "visit": "Visite",
+        "feedback": "Votre avis"
+      },
+      "seeVisit": "Voir la visite",
+      "answer": "Répondre",
+      "allVisits": "Toutes mes visites",
+      "today": "Aujourd’hui",
+      "yesterday": "Hier",
+      "visitLabelVideo": "Votre visite en vidéo"
+    },
+    "commune": {
+      "online": {
+        "one": "{count} bien en ligne",
+        "other": "{count} biens en ligne"
+      },
+      "city": "Kinshasa",
+      "empty": "Aucun bien en ligne à {commune} pour l’instant.",
+      "mediansTitle": "Loyers médians",
+      "beds": {
+        "one": "{count} chambre",
+        "other": "{count} chambres"
+      },
+      "sample": {
+        "one": "{count} annonce",
+        "other": "{count} annonces"
+      },
+      "mediansNote": "Par mois, d’après les annonces relevées par Lukka Place, ici et ailleurs.",
+      "mediansLink": "Voir le guide complet des prix",
+      "quartiersTitle": "Quartiers",
+      "allQuartiers": "Tous les quartiers",
+      "quartiersNote": "Les quartiers qui ont des biens en ligne en ce moment, avec leur nombre.",
+      "nowTitle": "En ce moment",
+      "seeAll": {
+        "one": "Voir le bien",
+        "other": "Voir les {count}"
+      },
+      "readTitle": "À lire avant de signer",
+      "readKind": "Guides et actualités",
+      "readLink": "Lire l’article",
+      "alertCta": "Être prévenu des nouveaux biens à {commune}"
+    },
+    "map": {
+      "inZone": {
+        "zero": "Aucun bien dans votre zone",
+        "one": "{count} bien dans votre zone",
+        "other": "{count} biens dans votre zone"
+      },
+      "onMap": {
+        "zero": "Aucun bien sur la carte",
+        "one": "{count} bien sur la carte",
+        "other": "{count} biens sur la carte"
+      },
+      "list": "Liste",
+      "seeAll": {
+        "one": "Voir le bien dans la liste",
+        "other": "Voir les {count} biens dans la liste"
+      },
+      "failed": "Les biens n’ont pas pu être chargés. Réessayez, ou ouvrez la liste."
+    },
+    "legal": {
+      "label": "Aide et informations légales",
+      "help": "Aide et contact",
+      "privacy": "Confidentialité",
+      "terms": "Conditions d’utilisation"
     }
   }
 }

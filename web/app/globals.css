@@ -889,6 +889,30 @@
   /* 22px on a phone: at 28px a two-word French title ("Vue d'ensemble")
      plus the header's search and bell pushed the agent dashboard wider than a
      375px screen. */
+  /* The app's results list on a phone: the filter bar is the top bar there
+     (components/FilterBar.js, appMode), so the logo bar steps aside. Keyed on
+     the page's own marker, which is absent in the full-screen map view. */
+  @media (max-width: 1023.98px) {
+    body:has([data-app-results]) [data-app-top-bar],
+    body:has([data-app-listing]) [data-app-top-bar] {
+      display: none;
+    }
+  }
+
+  /* The app: a listing card's photo growing into the listing's own (and back).
+     lib/appPhotoHandoff.js; nothing runs under reduced motion. */
+  ::view-transition-group(.morph) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(.morph),
+    ::view-transition-old(.morph),
+    ::view-transition-new(.morph) {
+      animation: none;
+    }
+  }
+
   .u-title-page {
     font-family: var(--font-sans), system-ui, sans-serif;
     font-size: 1.375rem;

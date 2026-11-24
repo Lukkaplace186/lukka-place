@@ -112,6 +112,30 @@ export const DEFAULT_COUNTRY = 'CD';
 export const SUGGESTED_COUNTRIES = ['CD', 'CG', 'BE', 'FR', 'GB', 'US', 'CA', 'ZA', 'AO', 'DE', 'CH', 'AE'];
 
 /** @returns {Country|null} */
+/**
+ * The country a locale tag says something about, or null. Shared by the
+ * server's first guess (lib/requestCountry.js, from Accept-Language) and the
+ * browser's (components/PhoneField.js, from navigator.languages), so the two
+ * can never disagree and flip the field after hydration.
+ *
+ * Only a tag that CARRIES a region counts, and not when that region is merely
+ * its language's default: an Android phone set to "Français" sends fr-FR and
+ * one set to "English" sends en-US, and most phones in Kinshasa are one of the
+ * two. en-GB, fr-BE, fr-CA… differ from their language's default and count.
+ */
+export function regionFromLocaleTag(tag) {
+  if (!tag || tag === '*') return null;
+  try {
+    const locale = new Intl.Locale(tag);
+    const region = locale.region;
+    if (!region) return null;
+    if (region === new Intl.Locale(locale.language).maximize().region) return null;
+    return findCountry(region) ? region.toUpperCase() : null;
+  } catch {
+    return null; // a malformed tag from an exotic browser
+  }
+}
+
 export function findCountry(iso2) {
   return BY_ISO2.get(String(iso2 || '').toUpperCase()) || null;
 }

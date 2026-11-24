@@ -126,8 +126,10 @@ export function parseInline(line) {
  * as nothing in public and as a warning in the console preview, and
  * bodyProblems() lists them so saving or importing refuses the body.
  */
-export const DIRECTIVES = ['tableau', 'chiffres', 'graphique', 'astuce', 'attention', 'info', 'citation', 'prix', 'annonces', 'chronologie', 'engagement'];
-const ONE_LINE = new Set(['prix', 'annonces']);
+export const DIRECTIVES = ['tableau', 'chiffres', 'graphique', 'astuce', 'attention', 'info', 'citation', 'prix', 'annonces', 'calculateur', 'chronologie', 'engagement'];
+const ONE_LINE = new Set(['prix', 'annonces', 'calculateur']);
+/** `:::calculateur type=…` — the interactive tools an article can embed. */
+export const CALCULATORS = ['garantie'];
 const CALLOUT_TONES = { astuce: 'tip', attention: 'warning', info: 'info' };
 export const TIMELINE_TONES = { fait: 'done', encours: 'current', echec: 'failed', prochain: 'next' };
 export const BLOCK_LIMITS = {
@@ -329,6 +331,11 @@ function directiveBlock(name, attrs, inner) {
       if (!['location', 'vente'].includes(transaction)) return invalid(name, 'transaction=location ou vente');
       return { listings: { commune, propertyType, transaction } };
     }
+    case 'calculateur': {
+      const kind = (attrs.type || 'garantie').toLowerCase();
+      if (!CALCULATORS.includes(kind)) return invalid(name, `type=${CALCULATORS.join(' ou ')}`);
+      return { calculator: { kind } };
+    }
     case 'chronologie': {
       const items = [];
       for (const line of content) {
@@ -462,6 +469,7 @@ function wordsOf(b) {
   if (b.chart) return [b.chart.title, ...b.chart.points.map((pt) => pt.label)].join(' ');
   if (b.callout) return [b.callout.title, ...b.callout.blocks.map(wordsOf)].join(' ');
   if (b.quote) return blockText(b.quote.text);
+  if (b.calculator || b.prices || b.listings) return '';
   if (b.timeline) return b.timeline.items.map((it) => `${it.title || ''} ${blockText(it.text)}`).join(' ');
   if (b.panel) {
     return [b.panel.title, ...b.panel.parts.map((part) => (part.p ? blockText(part.p) : (part.cards || part.buttons).map((c) => `${c.label || ''} ${blockText(c.text)}`).join(' ')))].join(' ');
@@ -477,6 +485,33 @@ export function readingMinutes(blocks) {
     .split(/\s+/)
     .filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
+}
+
+/**
+ * The article's opening, as plain text, for the /guides card that pops open:
+ * its paragraphs up to the first heading, cut at a word near `max`
+ * characters. Never a sentence the article doesn't start with.
+ */
+export function articleIntro(blocks, max = 420) {
+  const parts = [];
+  let length = 0;
+  for (const b of blocks || []) {
+    if (b.h2 && parts.length) break;
+    if (!b.p) continue;
+    // A paragraph is a string or inline segments ("voir [ce guide](/x)."), joined as written.
+    const s = (Array.isArray(b.p) ? b.p.map((seg) => (typeof seg === 'string' ? seg : seg.text || '')).join('') : String(b.p))
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!s) continue;
+    parts.push(s);
+    length += s.length;
+    if (length >= max) break;
+  }
+  const joined = parts.join('\n\n');
+  if (joined.length <= max) return joined;
+  const cut = joined.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
 }
 
 function text(value, max) {
@@ -608,23 +643,28 @@ export function articleFromPost(row, locale = 'fr') {
   };
 }
 
-/** A lib/guides.js guide → the same shape. Always French. */
-export function articleFromGuide(guide) {
+/**
+ * A lib/guides.js guide → the same shape, in English for an English reader
+ * when the guide carries an `en` version (all-or-nothing, like a post).
+ */
+export function articleFromGuide(guide, locale = 'fr') {
+  const en = locale === 'en' && guide.en?.title && guide.en?.body ? guide.en : null;
   return {
     source: 'code',
     id: null,
     slug: guide.slug,
     category: 'guide',
-    lang: 'fr',
-    title: guide.title,
-    summary: guide.description,
-    blocks: guide.body,
-    coverUrl: null,
-    coverAlt: '',
+    lang: en ? 'en' : 'fr',
+    title: en ? en.title : guide.title,
+    summary: en ? en.description : guide.description,
+    blocks: en ? en.body : guide.body,
+    // A file under public/guides/ only, so a typo cannot point a card anywhere else.
+    coverUrl: typeof guide.cover === 'string' && /^\/guides\/[\w.-]+\.(jpe?g|png|webp)$/.test(guide.cover) ? guide.cover : null,
+    coverAlt: (en && en.coverAlt) || guide.coverAlt || '',
     publishedAt: new Date(`${guide.published}T08:00:00+01:00`).toISOString(),
     updatedAt: new Date(`${guide.updated}T08:00:00+01:00`).toISOString(),
     listings: null,
-    cta: guide.cta,
+    cta: (en && en.cta) || guide.cta,
   };
 }
 
@@ -633,7 +673,7 @@ export function articleFromGuide(guide) {
  * its guide, newest first. Posts are only passed in when the blog is on.
  */
 export function mergeArticles(guides, posts, locale = 'fr') {
-  const bySlug = new Map(guides.map((g) => [g.slug, articleFromGuide(g)]));
+  const bySlug = new Map(guides.map((g) => [g.slug, articleFromGuide(g, locale)]));
   for (const post of posts) bySlug.set(post.slug, articleFromPost(post, locale));
   return [...bySlug.values()].sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
 }

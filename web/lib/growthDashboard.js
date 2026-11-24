@@ -31,7 +31,8 @@ export const SIGNUPS_BY_DAY_SQL = `
     FROM customers c
     LEFT JOIN account_acquisitions aa ON aa.account_type = 'customer' AND aa.account_id = c.id
     LEFT JOIN partners p ON p.id = aa.partner_id
-   WHERE c.created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Kinshasa') - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
+   WHERE NOT COALESCE((to_jsonb(c) ->> 'is_test')::boolean, false)
+     AND c.created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Kinshasa') - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
    GROUP BY 1, 2, 3, 4, 5, 6, 7
 `;
 
@@ -40,7 +41,8 @@ const SIGNUPS_BY_DAY_LEGACY_SQL = `
   SELECT ${KINSHASA_DAY('c.created_at')} AS day, false AS has_acquisition,
          COUNT(*)::int AS accounts, COUNT(*) FILTER (WHERE c.phone_verified_at IS NOT NULL)::int AS verified
     FROM customers c
-   WHERE c.created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Kinshasa') - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
+   WHERE NOT COALESCE((to_jsonb(c) ->> 'is_test')::boolean, false)
+     AND c.created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Kinshasa') - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
    GROUP BY 1, 2
 `;
 
@@ -48,6 +50,7 @@ const AGENTS_BY_DAY_SQL = `
   SELECT ${KINSHASA_DAY('a.created_at')} AS day, COUNT(*)::int AS agents
     FROM agents a
    WHERE a.deleted_at IS NULL
+     AND NOT COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false)
      AND a.created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Kinshasa') - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
    GROUP BY 1
 `;

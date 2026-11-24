@@ -1,6 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { removeVerificationFiles } from './agentVerification';
+import { forgetPushAccount } from './pushNotifications';
 
 /**
  * Permanently deleting an agent account from /admin/agents — the "Supprimer"
@@ -15,7 +16,9 @@ import { removeVerificationFiles } from './agentVerification';
  *   sales_account_assignments, sales_agent_attributions   The ID documents are
  *                                                          also removed from the
  *                                                          private bucket.
- *   agent_infos, plan_change_requests, property_contacts   deleted here (no FK)
+ *   agent_infos, plan_change_requests, property_contacts,  deleted here (no FK)
+ *   push_devices, notifications, notification_preferences
+ *   customer_follows                                       ON DELETE CASCADE
  *   projects, whatsapp_clicks                               agent_id set to NULL:
  *                                                          the tap stays in the
  *                                                          traffic stats.
@@ -168,6 +171,8 @@ export async function deleteAgentAccount(agentId, { listings = 'archive', dryRun
     await client.query('UPDATE projects SET agent_id = NULL WHERE agent_id = $1', [id]);
     await client.query('UPDATE whatsapp_clicks SET agent_id = NULL WHERE agent_id = $1', [id]);
     await client.query('DELETE FROM agent_infos WHERE agent_id = $1', [id]);
+    // The app's phones, inbox and alert settings (no FK to agents; customer_follows cascades).
+    await forgetPushAccount(client, 'agent', id);
     await client.query('DELETE FROM agents WHERE id = $1', [id]);
 
     await client.query(dryRun ? 'ROLLBACK' : 'COMMIT');

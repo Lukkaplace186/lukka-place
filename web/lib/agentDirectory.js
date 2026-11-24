@@ -60,6 +60,9 @@ function searchedCommunes(params) {
   return params.ville ? communesOfCity(params.ville) : [];
 }
 
+// Through to_jsonb so the directory keeps working before the column exists.
+const NOT_TEST_AGENT_SQL = "NOT COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false)";
+
 /**
  * The WHERE every directory read shares: active, not deleted, the name search
  * (unless the text was read as a place), rent/sale, the verified tier — and
@@ -67,7 +70,9 @@ function searchedCommunes(params) {
  * count every commune whatever is chosen). Pushes its parameters onto `values`.
  */
 function directoryWhere(params, values, { withCommunes = true } = {}) {
-  const where = ['a.status = 1', 'a.deleted_at IS NULL'];
+  // Test / demo accounts (agents.is_test) are never listed: they exist to try
+  // features and record tutorials, not to be found by customers.
+  const where = ['a.status = 1', 'a.deleted_at IS NULL', NOT_TEST_AGENT_SQL];
 
   const term = likeTerm(nameQuery(params));
   if (term) {

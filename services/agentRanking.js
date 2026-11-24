@@ -261,6 +261,9 @@ async function rankAgentsForRequest(
         -- Never a demo agent (services/demoAccounts.js): a real customer's
         -- request must not be offered to an account nobody works.
         AND COALESCE(a.phone, '') NOT LIKE '2430000%'
+        -- Test / demo accounts (agents.is_test) never receive a real
+        -- customer's request. Through jsonb so this runs before the column.
+        AND NOT COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false)
         -- Coverage is the hard filter. LOWER() on both sides because
         -- primary_communes is agent-entered through a checkbox list built
         -- from the canonical hierarchy, while a lead's commune comes from the

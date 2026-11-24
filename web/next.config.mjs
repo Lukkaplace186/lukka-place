@@ -94,6 +94,15 @@ const nextConfig = {
         destination: '/:tx/immeubles/:rest*',
         permanent: true,
       },
+      // The three older guides were removed on the owner's request
+      // (2026-11-11); their links (WhatsApp shares, search results) land on
+      // Guides & Actualités instead of a 404. Same list as lib/guides.js
+      // REMOVED_GUIDE_SLUGS, pinned by tests/unit/deposit-guide.test.js.
+      {
+        source: '/guides/:slug(parcelle-maison-appartement-kinshasa|louer-sans-arnaque-kinshasa|acheter-parcelle-kinshasa-diaspora)',
+        destination: '/guides',
+        permanent: true,
+      },
       {
         source: '/compte/client',
         has: [{ type: 'query', key: 'tab', value: '(?<tab>alertes|favoris)' }],

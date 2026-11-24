@@ -11,6 +11,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { trackEvent } from '@/lib/analyticsClient';
 import { cn } from '@/lib/utils';
 import { FAV_RETURN_PARAM } from './FavoriteResumeHandler';
+import { getFavoriteIds as getLocalFavoriteIds } from '@/lib/localFavorites';
+import { guestFavoriteDecision } from '@/lib/guestSaveRules';
 import { useT } from '@/lib/i18n/client';
 
 // Rendered only after a guest taps a heart, so its code is fetched only then —
@@ -18,6 +20,12 @@ import { useT } from '@/lib/i18n/client';
 const AuthPromptModal = dynamic(() => import('./AuthPromptModal'), { ssr: false });
 
 /**
+ * 2026-11-12 (UX pass): a guest now keeps up to GUEST_FAVORITE_LIMIT homes on
+ * this device before being asked (lib/guestSaveRules.js); the save that
+ * reaches the limit is kept and opens the prompt with the reason, and past
+ * it the heart asks first. The paragraph below describes the earlier rule,
+ * still true past the limit.
+ *
  * Gated behind a real account (see AuthPromptModal.js) — an explicit product
  * decision matching the same Rightmove/Zoopla pattern already applied to
  * SaveSearchButton.js's Save Search / Create Alert. A signed-in visitor is
@@ -115,6 +123,9 @@ export default function FavoriteButton({
   const pathname = usePathname();
   const loggedIn = useIsLoggedIn();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  // 'favorite' = the limit is reached and this home is not saved yet;
+  // 'favoriteKeep' = this home was just saved, and signing in keeps them all.
+  const [promptTrigger, setPromptTrigger] = useState('favorite');
   // Bumped only inside handleClick (a real toggle), never on mount/hydration
   // — remounting the heart's span below on this key is what makes the pop
   // fire once per actual tap instead of once whenever `favorited` first
@@ -154,9 +165,17 @@ export default function FavoriteButton({
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
+    let askAfterSave = false;
     if (!loggedIn) {
-      setShowAuthPrompt(true);
-      return;
+      // A guest keeps a few homes on this device first (lib/guestSaveRules.js);
+      // the save that reaches the limit also asks them to sign in, with why.
+      const decision = guestFavoriteDecision(getLocalFavoriteIds().length, favorited);
+      if (decision === 'ask') {
+        setPromptTrigger('favorite');
+        setShowAuthPrompt(true);
+        return;
+      }
+      askAfterSave = decision === 'save-and-ask';
     }
     try {
       const nowFavorited = toggleFavorite(listingId);
@@ -170,6 +189,10 @@ export default function FavoriteButton({
         price,
         commune,
       });
+      if (askAfterSave && nowFavorited) {
+        setPromptTrigger('favoriteKeep');
+        setShowAuthPrompt(true);
+      }
     } catch (err) {
       console.error(`[favorite] toggling listing ${listingId} failed: ${err.message}`);
     }
@@ -191,7 +214,7 @@ export default function FavoriteButton({
     <AuthPromptModal
       open={showAuthPrompt}
       onClose={() => setShowAuthPrompt(false)}
-      trigger="favorite"
+      trigger={promptTrigger}
       next={authPromptNext}
     />
   ) : null;

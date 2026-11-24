@@ -41,7 +41,13 @@ export async function generateMetadata({ params }) {
   if (!agent) return {};
 
   const name = agentPublicName(agent);
-  return { title: `${name} — Lukka Place`, description: agent.bio?.slice(0, 160), alternates: await localizedAlternates(`/agents/${agent.id}`) };
+  return {
+    title: `${name} — Lukka Place`,
+    description: agent.bio?.slice(0, 160),
+    alternates: await localizedAlternates(`/agents/${agent.id}`),
+    // Test / demo accounts open from a direct link but are never indexed.
+    ...(agent.is_test ? { robots: { index: false, follow: false } } : {}),
+  };
 }
 
 /**

@@ -20142,6 +20142,162 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // §131 Test / demo accounts (2026-11-12)
+  // ---------------------------------------------------------------------------
+  // The team's demo client, agent and admin are used to try features and record
+  // tutorials. A test agent (agents.is_test) never receives a real customer's
+  // request and its listings are never auto-approved; a test customer
+  // (customers.is_test) is a new, idempotent column. Web halves (directory,
+  // profile noindex, sign-up counts) are pinned in web's own tests.
+  console.log('\n§131 Test / demo accounts — no real requests, no auto-approval');
+  check('agent ranking skips test agents; trusted auto-approval skips their listings', () => {
+    const ranking = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
+    assert.match(ranking, /AND NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
+    const { CANDIDATES_SQL } = require('../services/trustedAutoApprove');
+    assert.match(CANDIDATES_SQL, /NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
+  });
+  check('the customer test-flag migration is idempotent', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_customer_test_flag.sql'), 'utf8');
+    assert.match(sql, /ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false/);
+  });
+
+  // ---------------------------------------------------------------------------
+  // §132 Fiche pratique — nothing asked after "OK"; old buttons still save (2026-11-12)
+  // ---------------------------------------------------------------------------
+  // services/practicalFacts.js: the power / water / access / visit-fee
+  // questions were sent after the publish receipt for a few hours on
+  // 2026-11-12, then removed by the owner. After "OK" the agent gets the
+  // receipt only. A tap on a button already in a chat is saved (only from the
+  // sender), adds the matching utility codes, and is thanked once — no next
+  // question. NULL stays "not stated".
+  console.log('\n§132 Fiche pratique — no questions after OK, old buttons still saved');
+  {
+    const practical = require('../services/practicalFacts');
+    const pgService = require('../services/postgres');
+    const AGENT = '243810000777';
+    const sentButtons = [];
+    const sentTexts = [];
+    const savedFiche = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage };
+    chakra.sendInteractiveButtons = async (to, body, buttons) => { sentButtons.push({ to, body, buttons }); return {}; };
+    chakra.sendWhatsAppMessage = async (to, body) => { sentTexts.push({ to, body }); return {}; };
+    const listingFiche = (type, wamid) => dbService.insertListing({ ...data, property_type: type, parcelle_subtype: null }, AGENT, { wamid, rawText: 'Appartement à louer' }).id;
+    try {
+      check('nothing is asked after OK: no askAfterPublish, no question list, the webhook sends the receipt only', () => {
+        assert.equal(practical.askAfterPublish, undefined);
+        assert.equal(practical.QUESTIONS, undefined);
+        const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.ok(!/askAfterPublish/.test(webhook), 'no question after either OK path');
+        assert.ok(!/sendInteractiveButtons/.test(fs.readFileSync(path.join(__dirname, '..', 'services', 'practicalFacts.js'), 'utf8')));
+      });
+
+      check('an old button id names the listing, the question and a known answer — anything else is not ours', () => {
+        assert.deepEqual(practical.parseButtonId('fiche:42:c:snel_groupe'), { listingId: 42, field: 'power_supply', value: 'snel_groupe' });
+        assert.deepEqual(practical.parseButtonId('fiche:42:f:non'), { listingId: 42, field: 'visit_fee', value: 'non' });
+        assert.equal(practical.parseButtonId('fiche:42:c:groupe'), null, 'not one of the courant answers');
+        assert.equal(practical.parseButtonId('fiche:42:f:peut_etre'), null);
+        assert.equal(practical.parseButtonId('fiche:42:x:snel'), null);
+        assert.equal(practical.parseButtonId('lead:42:take'), null);
+      });
+
+      check('answers imply utility codes and ticks, never a removal; "SNEL seulement" implies nothing', () => {
+        assert.deepEqual(practical.impliedFacts('power_supply', 'snel'), { utilities: [], has_generator: null, has_solar: null });
+        assert.deepEqual(practical.impliedFacts('power_supply', 'snel_groupe'), { utilities: ['groupe'], has_generator: true, has_solar: null });
+        assert.deepEqual(practical.impliedFacts('water_supply', 'regideso_citerne').utilities, ['regideso', 'citerne']);
+        assert.deepEqual(practical.impliedFacts('rainy_access', 'bon').utilities, ['acces_facile']);
+        assert.deepEqual(practical.impliedFacts('rainy_access', 'inonde').utilities, []);
+      });
+
+      await checkAsync('only the sender may answer; a tap saves, adds the codes, thanks once and asks nothing more', async () => {
+        const id = listingFiche('appartement', 'wamid.FICHE4');
+        sentButtons.length = 0;
+        sentTexts.length = 0;
+        const stranger = await practical.handlePracticalButtonReply({ from: '243899999999', replyId: `fiche:${id}:c:snel_groupe` });
+        assert.equal(stranger.ignored, 'not-sender');
+        assert.equal(dbService.getListing(id).power_supply, null);
+        assert.equal(sentTexts.length, 0);
+
+        const tap = await practical.handlePracticalButtonReply({ from: `+${AGENT}`, replyId: `fiche:${id}:c:snel_groupe` });
+        assert.equal(tap.action, 'saved');
+        const row = dbService.getListing(id);
+        assert.equal(row.power_supply, 'snel_groupe');
+        assert.ok(row.utilities.includes('groupe'));
+        assert.equal(row.has_generator, 1);
+        assert.ok(row.practical_answered_at);
+        assert.equal(row.water_supply, null, 'not answered: still NULL');
+        assert.equal(sentButtons.length, 0, 'no next question');
+        assert.deepEqual(sentTexts.map((m) => m.body), [practical.THANKS_TEXT]);
+
+        await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${id}:f:non` });
+        assert.equal(practical.factsOf(dbService.getListing(id)).visit_fee, false);
+        assert.equal(sentButtons.length, 0);
+      });
+
+      await checkAsync('a building pasted as units: a tap on one unit is written to every unit', async () => {
+        const a = listingFiche('appartement', 'wamid.FICHE6');
+        const b = listingFiche('appartement', 'wamid.FICHE7');
+        dbService.db.prepare('UPDATE listings SET parent_building_id = ? WHERE id IN (?, ?)').run('bldg-107', a, b);
+        await practical.handlePracticalButtonReply({ from: AGENT, replyId: `fiche:${a}:e:forage` });
+        assert.equal(dbService.getListing(b).water_supply, 'forage');
+        assert.ok(dbService.getListing(b).utilities.includes('forage'));
+      });
+
+      check('the Postgres write never clears a value and adds the implied codes; nothing answered writes nothing', () => {
+        assert.equal(pgService.practicalFactsValues({ id: 1 }), null);
+        const values = pgService.practicalFactsValues({ power_supply: 'snel_solaire', rainy_access: 'bon', visit_fee: 1, practical_answered_at: '2026-11-12T10:00:00.000Z' });
+        assert.deepEqual(values, ['snel_solaire', null, 'bon', true, '2026-11-12T10:00:00.000Z', ['solaire', 'acces_facile'], false, true]);
+        assert.match(pgService.PRACTICAL_FACTS_SQL, /power_supply = COALESCE\(\$1, power_supply\)/);
+        assert.match(pgService.PRACTICAL_FACTS_SQL, /has_solar = CASE WHEN \$8::boolean THEN TRUE ELSE has_solar END/);
+      });
+
+      check('the webhook still routes old fiche taps; the migration is idempotent', () => {
+        const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(webhook, /practicalFacts\.handlePracticalButtonReply\(\{ from, replyId: buttonReplyId \}\)/);
+        const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations/20261112_listing_practical_facts.sql'), 'utf8');
+        for (const col of ['power_supply text', 'water_supply text', 'rainy_access text', 'visit_fee boolean', 'practical_answered_at timestamptz']) {
+          assert.match(sql, new RegExp(`ADD COLUMN IF NOT EXISTS ${col}`));
+        }
+      });
+    } finally {
+      chakra.sendInteractiveButtons = savedFiche.buttons;
+      chakra.sendWhatsAppMessage = savedFiche.text;
+    }
+  }
+
+  // §133 Video visits — the request remembers how the customer wants to see the home (2026-11-13)
+  // ---------------------------------------------------------------------------
+  // The app's booking screen offers "Sur place / En vidéo". A video visit is
+  // an ordinary viewing request with visit_mode = 'video': the agent calls the
+  // customer on WhatsApp video at the agreed time. The web action also writes
+  // "(appel vidéo WhatsApp)" into requested_time, which every alert already
+  // prints, so the agent reads it on the first message. NULL = on site.
+  console.log('\n§133 Video visits — visit_mode on the viewing request');
+  {
+    const videoLead = dbService.createLead({ wa_id: '243900000112', source: 'listing-visit-request', requirements_summary: 'Demande de visite en vidéo' });
+    check('a request stores visit_mode "video"; nothing stated stays NULL (on site)', () => {
+      const video = dbService.createViewingRequest({ leadId: videoLead.id, requestedTime: 'vendredi 13 novembre à 14h (appel vidéo WhatsApp)', visitMode: 'video' });
+      assert.equal(video.visit_mode, 'video');
+      assert.match(video.requested_time, /appel vidéo WhatsApp/, 'the phrase every alert prints carries it');
+      const onSite = dbService.createViewingRequest({ leadId: videoLead.id, requestedTime: 'samedi à 10h' });
+      assert.equal(onSite.visit_mode, null);
+    });
+    check('an unknown mode is never stored: NULL, not a guess', () => {
+      for (const odd of ['zoom', 'VIDEO ', '', 1, null, undefined]) {
+        const row = dbService.createViewingRequest({ leadId: videoLead.id, requestedTime: 'lundi', visitMode: odd });
+        assert.equal(row.visit_mode, dbService.normalizeVisitMode(odd));
+      }
+      assert.equal(dbService.normalizeVisitMode('zoom'), null);
+      assert.equal(dbService.normalizeVisitMode('VIDEO '), 'video');
+      assert.deepEqual([...dbService.VISIT_MODES], ['video']);
+    });
+    check('the column is in the idempotent ALTER list, and POST /admin/viewing-requests passes it through', () => {
+      const dbSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'db.js'), 'utf8');
+      assert.match(dbSource, /VIEWING_REQUESTS_EXTENDED_COLUMNS = \[[\s\S]{0,400}\['visit_mode', 'TEXT'\]/);
+      const admin = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(admin, /visit_mode: visitMode,/);
+      assert.match(admin, /db\.createViewingRequest\(\{ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt, visitMode \}\)/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

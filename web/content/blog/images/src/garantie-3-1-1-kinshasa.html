@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="ground.css">
+<script src="ground.js"></script>
+</head>
+<body>
+<svg class="sheet" viewBox="0 0 3840 2160" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const svg = document.querySelector('svg.sheet');
+ground(svg);
+
+const BONE = '#0c1d50';
+const GROUPS = [
+  { n: '3', months: 3, hue: '#2f4fd6', label: 'GARANTIE', note: 'RÉCUPÉRABLE', returns: true },
+  { n: '1', months: 1, hue: '#c2862a', label: 'AVANCE' },
+  { n: '1', months: 1, hue: '#8448c4', label: 'COMMISSION' },
+];
+
+// Geometry on the same band as the parcel sheet: x 1040–2800.
+const X0 = 1040, X1 = 2800;
+const S = 270, INNER = 30;                       // tile, gap between months of one group
+const tilesW = 5 * S + 2 * INNER;                // the three garantie tiles share their gaps
+const BETWEEN = (X1 - X0 - tilesW) / 2;          // the interval that holds each "+"
+const TOP = 1330;                                // tiles' top edge
+const NUM_BASE = 1252;                           // numerals' baseline
+
+let x = X0;
+GROUPS.forEach((g, gi) => {
+  const startX = x;
+  for (let m = 0; m < g.months; m++) {
+    const tx = x, ty = TOP;
+    // The month: a hairline tile, a thin wash, and its days as an even field of dots.
+    el('rect', { x: tx, y: ty, width: S, height: S, fill: g.hue, 'fill-opacity': 0.08, stroke: g.hue, 'stroke-width': 7.5 }, svg);
+    const cols = 5, rows = 6, pad = 46;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = tx + pad + (c * (S - 2 * pad)) / (cols - 1);
+        const cy = ty + pad + (r * (S - 2 * pad)) / (rows - 1);
+        el('circle', { cx, cy, r: 9.5, fill: g.hue, opacity: 0.92 }, svg);
+      }
+    }
+    x += S + (m < g.months - 1 ? INNER : 0);
+  }
+  const endX = x;
+  const mid = (startX + endX) / 2;
+
+  // The figure, large and thin, centred over its group.
+  const num = label(svg, g.n, mid, NUM_BASE, { family: 'Instrument Serif', size: 330, color: BONE, anchor: 'middle', spacing: 0 });
+
+  // Under the tiles: a return arc for what comes back, then the word.
+  const LABEL_Y = TOP + S + 78;
+  if (g.returns) {
+    const y0 = LABEL_Y + 40, depth = 84;
+    const a = endX - S / 2 + 20, b = startX + S / 2 - 20;
+    el('path', {
+      d: `M ${a} ${y0} C ${a} ${y0 + depth}, ${b} ${y0 + depth}, ${b} ${y0}`,
+      fill: 'none', stroke: g.hue, 'stroke-width': 5, 'stroke-linecap': 'round', opacity: 0.9,
+    }, svg);
+    // Arrowhead at the start of the return, pointing back up into the first month.
+    el('path', { d: `M ${b - 16} ${y0 + 8} L ${b} ${y0 - 22} L ${b + 16} ${y0 + 8} Z`, fill: g.hue, stroke: g.hue, 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+  }
+  const word = label(svg, g.label, mid, LABEL_Y, { size: 44, color: g.hue, anchor: 'middle', opacity: 0.95, spacing: 0.17 });
+  word.setAttribute('dx', '0.09em');
+  if (g.note) {
+    const note = label(svg, g.note, mid, LABEL_Y + 190, { size: 38, color: g.hue, anchor: 'middle', opacity: 0.75, spacing: 0.17 });
+    note.setAttribute('dx', '0.09em');
+  }
+
+  // The "+" in the interval that follows, a hairline cross on the tiles' centre line.
+  if (gi < GROUPS.length - 1) {
+    const px = endX + BETWEEN / 2, py = TOP + S / 2, arm = 34;
+    el('line', { x1: px - arm, y1: py, x2: px + arm, y2: py, stroke: BONE, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.9 }, svg);
+    el('line', { x1: px, y1: py - arm, x2: px, y2: py + arm, stroke: BONE, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.85 }, svg);
+    x = endX + BETWEEN;
+  }
+});
+
+</script>
+</body></html>

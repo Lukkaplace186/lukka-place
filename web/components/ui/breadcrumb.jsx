@@ -1,0 +1,62 @@
+import * as React from "react"
+import { Slot } from "radix-ui"
+import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+// shadcn/ui's Breadcrumb in the Lukka Place style: 13px, ink-45 links,
+// the current page in ink.
+
+function Breadcrumb(props) {
+  return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />
+}
+
+function BreadcrumbList({ className, ...props }) {
+  return (
+    <ol
+      data-slot="breadcrumb-list"
+      className={cn("flex flex-wrap items-center gap-1.5 text-[0.8125rem] break-words text-ink-45", className)}
+      {...props}
+    />
+  )
+}
+
+function BreadcrumbItem({ className, ...props }) {
+  return <li data-slot="breadcrumb-item" className={cn("inline-flex items-center gap-1.5", className)} {...props} />
+}
+
+function BreadcrumbLink({ asChild, className, ...props }) {
+  const Comp = asChild ? Slot.Root : "a"
+  return <Comp data-slot="breadcrumb-link" className={cn("transition-colors hover:text-blue", className)} {...props} />
+}
+
+function BreadcrumbPage({ className, ...props }) {
+  return (
+    <span
+      data-slot="breadcrumb-page"
+      role="link"
+      aria-disabled="true"
+      aria-current="page"
+      className={cn("font-medium text-ink", className)}
+      {...props}
+    />
+  )
+}
+
+function BreadcrumbSeparator({ children, className, ...props }) {
+  return (
+    <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" className={cn("[&>svg]:size-3.5", className)} {...props}>
+      {children ?? <ChevronRightIcon />}
+    </li>
+  )
+}
+
+function BreadcrumbEllipsis({ className, ...props }) {
+  return (
+    <span data-slot="breadcrumb-ellipsis" role="presentation" aria-hidden="true" className={cn("flex size-8 items-center justify-center", className)} {...props}>
+      <MoreHorizontalIcon className="size-4" />
+    </span>
+  )
+}
+
+export { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator, BreadcrumbEllipsis }

@@ -1,3 +1,5 @@
+import AppMotion from '@/components/app/AppMotion';
+import { isAppRequest } from '@/lib/appMode';
 import { redirect } from 'next/navigation';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
@@ -70,11 +72,13 @@ export default async function AgentDashboardLayout({ children }) {
   // three can no longer say 100 % here and "1 élément à compléter" there.
   // Messagerie: chat messages the agent has not read (lib/chat.js); the
   // sidebar keeps it live from there.
-  const [profileGaps, features, unreadMessages, unreadAlerts] = await Promise.all([
+  const [profileGaps, features, unreadMessages, unreadAlerts, app] = await Promise.all([
     getAgentProfileGaps(agent).catch(() => []),
     getFeatureFlags(),
     countUnread({ role: 'agent', id: agentId }).then((c) => c.messages).catch(() => 0),
     countUnreadNotifications('agent', agentId).catch(() => 0),
+    // Inside the store app: the app's five tabs (AgentSidebar appMode).
+    isAppRequest(),
   ]);
   const checklist = profileChecklist(completion, profileGaps);
   const railCompletion = completion && {
@@ -111,9 +115,11 @@ export default async function AgentDashboardLayout({ children }) {
           completion={railCompletion}
           logoutAction={agentLogoutAction}
           features={features}
+          appMode={app}
         />
         <ToastProvider>
-          <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
+          {/* Inside the store app: motion for the app components (the chat). */}
+          <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{app ? <AppMotion>{children}</AppMotion> : children}</div>
           {/* Inside the provider: the share dialog it opens shows toasts. */}
           <SoldShareHost />
         </ToastProvider>

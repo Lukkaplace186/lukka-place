@@ -3,7 +3,9 @@
 import Link from '@/components/LocaleLink';
 import { useT } from '@/lib/i18n/client';
 import { ChevronRight } from 'lucide-react';
+import { Suspense } from 'react';
 import SortDropdown from './SortDropdown';
+import AppSortButton from './app/AppSortButton';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { DEFAULT_CITY, communeLabel } from '@/lib/cities';
 
@@ -99,6 +101,8 @@ export default function ResultsHeader({
   quartier,
   transactionType,
   propertyTypeLabel,
+  // Inside the store app: "Trier" sits beside the result count on a phone.
+  appMode = false,
   locationRelaxed = false,
   relaxedFromCommune = null,
   // FilterBar.js's "Rayon" dropdown — commune/quartier are still selected
@@ -177,7 +181,7 @@ export default function ResultsHeader({
       </nav>
 
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
+        <div className={appMode ? 'min-w-0 max-lg:w-full' : 'min-w-0'}>
           {/* Sans, not `font-display` (the DM Serif Display face) — a
               deliberate departure from this app's usual "serif only for
               editorial titles, never heavy" rule (web/CLAUDE.md), on an
@@ -209,9 +213,20 @@ export default function ResultsHeader({
               suffix cannot express. `.u-tabular` moves to the whole line —
               the number is no longer a separately wrapped span, since its
               position inside the sentence differs by language. */}
-          <p className="u-tabular mt-1 text-sm font-normal text-ink-45">
-            {t('listings.results.resultCount', { count: total })}
-          </p>
+          {/* The app on a phone: the order in force sits on the count line, as on
+              the owner's reference results screen, and opens the sort sheet. */}
+          <div className={appMode ? 'mt-1 flex items-center justify-between gap-3' : 'mt-1'}>
+            <p className="u-tabular text-sm font-normal text-ink-45">
+              {t('listings.results.resultCount', { count: total })}
+            </p>
+            {appMode ? (
+              <span className="-my-3 shrink-0 lg:hidden">
+                <Suspense fallback={null}>
+                  <AppSortButton />
+                </Suspense>
+              </span>
+            ) : null}
+          </div>
           {mapArea ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
               {t('listings.results.mapAreaNote')}

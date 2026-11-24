@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lukka Place</string>
+    <string name="title_activity_main">Lukka Place</string>
+    <string name="package_name">com.lukkaplace.app</string>
+    <string name="custom_url_scheme">com.lukkaplace.app</string>
+</resources>

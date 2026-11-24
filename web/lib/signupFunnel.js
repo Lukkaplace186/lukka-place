@@ -84,6 +84,7 @@ export const SIGNUP_PROGRESS_SQL = `
          COUNT(*) FILTER (WHERE c.created_at >= date_trunc('week', NOW() AT TIME ZONE 'Africa/Kinshasa') AT TIME ZONE 'Africa/Kinshasa')::int AS week,
          COUNT(*) FILTER (WHERE c.created_at >= (${KINSHASA_TODAY} - make_interval(days => 13)) AT TIME ZONE 'Africa/Kinshasa')::int AS recent
     FROM customers c
+   WHERE NOT COALESCE((to_jsonb(c) ->> 'is_test')::boolean, false)
 `;
 
 /** People: distinct visitors per entry and step; rows with no visitor id count one each. */
@@ -111,7 +112,8 @@ export const SIGNUP_REFUSALS_SQL = `
 const ACCOUNTS_IN_WINDOW_SQL = `
   SELECT COUNT(*)::int AS n
     FROM customers c
-   WHERE c.created_at >= (${KINSHASA_TODAY} - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
+   WHERE NOT COALESCE((to_jsonb(c) ->> 'is_test')::boolean, false)
+     AND c.created_at >= (${KINSHASA_TODAY} - make_interval(days => $1::int - 1)) AT TIME ZONE 'Africa/Kinshasa'
 `;
 
 /** @returns {Promise<ReturnType<typeof signupGoalProgress>>} */

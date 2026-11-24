@@ -107,10 +107,10 @@ export default function AgencyLogo({ logoUrl, name, variant = 'default' }) {
 
   return (
     <img
-      src="/brand/logo-light.png?v=2"
+      src="/brand/logo-light-sm.png"
       alt={t('footer.columns.brand')}
-      width={2354}
-      height={746}
+      width={404}
+      height={128}
       className="h-5 w-auto shrink-0 object-contain"
     />
   );

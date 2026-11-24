@@ -1,4 +1,6 @@
 import { SitePageSkeleton } from '@/components/RouteSkeletons';
+import { AppListSkeleton } from '@/components/app/AppSkeletons';
+import { isAppRequest } from '@/lib/appMode';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -20,5 +22,7 @@ import { getT } from '@/lib/i18n/server';
  */
 export default async function SiteLoading() {
   const t = await getT();
+  // Inside the store app: the shape of its own screens, not the website's grid.
+  if (await isAppRequest()) return <AppListSkeleton label={t('common.states.loading')} />;
   return <SitePageSkeleton label={t('common.states.loading')} />;
 }

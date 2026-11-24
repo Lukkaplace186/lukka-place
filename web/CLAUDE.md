@@ -764,8 +764,8 @@ the page says so and nothing else changes. `tests/unit/demo-accounts.test.js`.
   exist: agents log in individually and `vendors` has no account of its own.
   Branches are admin-managed until then.
 - **Card payments** are not offered. Mobile-money payment through FlexPaie
-  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
-  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
+  (invoices, failed-payment tracking, and since 2026-11-12 the checkout page)
+  is built but not live until its credentials are set — see "FlexPaie" below. Receipts cover what the ledger can prove.
 
 ## Layout & shell
 
@@ -776,6 +776,7 @@ the page says so and nothing else changes. `tests/unit/demo-accounts.test.js`.
 - **Desktop header utility row, left to right**: search icon (only where nothing else on the page owns search), account, currency, `Demandes`, language, "Publier un bien". `Demandes` sits beside the currency toggle and the FR|EN control sits immediately before the CTA — both placements are deliberate and documented in `Header.js`. The language control is `LanguageToggle.js`, a segmented FR|EN pill rather than a `<select>`, matching `CurrencyToggle` beside it; it writes the `NEXT_LOCALE` cookie *and* the `lukka_locale` localStorage mirror, then `router.refresh()`es so Server Components re-render in the new language (see `lib/i18n/`).
 - **The homepage's second section is personalised when it can be.** `app/(site)/page.js` renders `SavedListings` ("Biens Enregistrés") instead of `FeaturedListings` ("Sélection de la Semaine") for a signed-in visitor with at least one saved property. The choice comes from `lib/savedHome.js`'s `getSavedHomeSection()`, which returns `null` for a signed-out visitor *and* for a signed-in one with an empty shelf — the fallback covers both. Deliberate: an empty personalised shelf would replace a full section of real listings with a prompt. The shelf is a horizontal snap rail at every breakpoint (`SavedListingsRail.js`), unlike `FeaturedListingsCarousel`'s scroll-then-grid, because its length is a fact about the visitor rather than a catalogue that continues.
 - **The header is solid on every route, homepage included.** It used to start transparent over the hero photo and solidify on scroll (`Hero.js` carried `-mt-16` to bleed up under it, cancelling the layout's `pt-16`). The "Landing refondue" screen is explicit that it never goes transparent — the wordmark has to stay legible over whatever photograph the hero carries — so the scroll listener, the `overHero` flag and every `inverted` variant it drove (including `CurrencyToggle`'s) are gone, and the hero band starts below the header.
+- **App mode (2026-11-11): inside the store app the site draws an app layout.** `lib/appModeRules.js` (pure) / `lib/appMode.js` `isAppRequest()`: on when the `lp_app` cookie is set (GET `/app`, where the app starts, sets it; `/app?web=1` clears it) or the user agent carries `LukkaPlaceApp` (`appendUserAgent` in `mobile/capacitor.config.json`). Then `app/(site)/layout.js` draws `components/app/AppTopBar.js` (serif wordmark + notifications bell with the unread count; royal on `/`, white elsewhere; same h-16 as Header) instead of Header, and `AppTabBar` (Rechercher `/`, Enregistrés `/favoris`, Compte `/compte/menu`; hidden on a listing page) instead of the footer. The home page is `AppHomePage` → `components/AppHomeTop.js` (the owner's app design, "Search home": serif title, real live count, the site's SearchBar, the latest saved search, the 6 newest listings as `components/app/AppListingCard.js`). `/compte/menu` is the account screen and the old hamburger menu (public in middleware; private rows only with a session). `/favoris` is `components/app/AppSavedScreen.js` (Biens / Recherches, `AppSegmented`; homes from lib/favorites.js through `/api/listings?ids=`; signed-in searches read server-side with id + `alert_frequency`, the `AppSwitch` writes `updateAlertPreferencesAction` on → weekly / off; a shared `?ids=` link keeps FavorisView). Results keep the website's filters, map and relaxation logic: `ListingsSplitView appMode` draws `AppListingCard`, `FloatingControlBar aboveTabBar` sits over the tabs, and the tab bar hides on `?view=map` (Suspense, useSearchParams). Every app screen sits on `bg-canvas-alt`. Listing page: `components/app/AppListingBar.js` replaces MobileListingBar (call / WhatsApp / chat as icons under the same rules and tracking, "Demander une visite" wide → `/listings/<id>/visite`); off the tabs the top bar shows a back arrow. `/listings/<id>/visite` is `components/app/AppVisitBooking.js`: two steps in ONE form (VisitSlotPicker stays mounted, hidden, on step 2 so the slot posts), the same `submitVisitRequestAction` with `return_to=app` (answers back there with `visit_sent` 1/team or `visit_error`), then "Visite demandée". No video call, no add-to-calendar (the time is a request). Never submit it from a local preview: the local engine URL is production and the agent is WhatsApped. Filters: `FilterModal app` (FilterBar `appMode`) renders `components/app/AppFilterSheet.js` around the SAME `fields` block and FilterBar's live count — rounded bottom sheet ≤ 88dvh, handle-only motion drag to close (offset > 110 or velocity > 600), "Réinitialiser", one "Voir N résultats". Loaded with next/dynamic so the website never ships motion; the website keeps its full-height sheet. Agents in the app: the agent layout asks `isAppRequest()` and `AgentSidebar appMode` shows five tabs (Accueil overview, Biens, Demandes, Visites, Compte) instead of the website's up to seven; Compte is `app/compte/agent/menu` (messages and alerts with counts, Faites le point, overview, projects if on, settings, subscription if on, public page, language, "Chercher un logement" → `/`, sign out). The client book stays hidden (2026-09-22 decision). UI kit (2026-11-12, owner's shadcn list, hand-written in `components/ui/*.jsx`, Lukka Place tokens, no new packages): accordion, alert, attachment, avatar, badge, breadcrumb, bubble, button-group, calendar, carousel, chart, date-picker, marker, message, message-scroller, skeleton, spinner. Carousel/calendar/chart are built on motion (no Embla, react-day-picker, recharts); MessageScroller is the AI demo's scroll behaviour without the AI SDK, for Messagerie. Used so far: AppAvatar (Compte screens), AppCardBadges (app cards), Alert + Spinner (booking), Skeleton + Alert (Enregistrés), FAQ Accordion (Compte), ChartBars "Où chercher" (home). All variants on `/app-demo?vue=composants`. Messagerie in the app: ChatThread keeps ALL its logic (poll, optimistic send + Réessayer, read receipts, load-older offset, block/report/archive, agent waiting banner) and, with `appMode` (both thread pages pass `isAppRequest()`), draws `components/chat/AppChatList.js` (next/dynamic, so the website's chat never loads motion): day Markers, bubbles grouped per sender (`lib/chatGroups.js`), the other side's AppAvatar, Envoyé / Lu under the reader's last message; only messages that arrive while open spring in. No typing indicator (the chat has no such signal). `/messages/<id>` hides the tab bar; the top bar's back arrow goes to /messages; the agent layout wraps children in AppMotion in app mode. Example on `/app-demo?vue=composants`. Rules: secondary grey is canvas-deep (screens are canvas-alt); a date posts its local day, never toISOString; a sliding-out calendar month is inert (useIsPresent). The design's lister-verification, access-code and add-a-property screens are London-specific and not built: agents are verified by phone + documents, listings arrive on WhatsApp or the existing form. Design reference: the owner's Claude Design export "Lukkaplace App" (30 screens, written for London — keep its layout, use our data and wording). **Motion here is the `motion` package** (owner's choice for the app), unlike the website's CSS-only rule below: `components/app/AppMotion.js` (LazyMotion + `m.*`, reducedMotion user) wraps app mode only, so the website never loads it. Entrances move, never fade (server HTML must show the search card on 3G). The display serif is DM Serif Display (`lib/appFont.js`, not preloaded, `.u-app-serif`), app mode only — the website dropped it 2026-10-24. Preview locally: the `app-preview` launch entry (port 3005, `--webpack`), open `/app` once. `tests/unit/app-mode.test.js`.
 
 ## Gotchas that cost real debugging time
 
@@ -812,7 +813,7 @@ the page says so and nothing else changes. `tests/unit/demo-accounts.test.js`.
   - Radix content portals to `document.body`, so it is **outside the `<form>`**. `FilterBar` therefore owns every filter value in React state and renders hidden inputs inside the form; the pill panels and the sheet are pure UI. Don't put a named form field inside a portalled panel and expect it to submit.
 - **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
 - **Motion is CSS, not a library.** `framer-motion`, `lib/motion.js` and `lib/useMotionSafe.js` are gone (see "Mobile performance & resilience" below). The presets live in `app/globals.css`: `.u-pop` (a toggled icon — key the span on a counter and apply the class only when it is > 0, so it never plays on mount), `.u-reveal` (entrance on mount), `.u-rise` (small panel over the map), `.u-reveal-in-view` (scroll-driven, `animation-timeline: view()`, no JS; a browser without it shows the element with no reveal). All are gated on `prefers-reduced-motion` in the CSS itself. Radix `Dialog`/`Sheet` animate via `data-state` + `tw-animate-css`. Don't add a motion library back for decoration: it was ~40 KB gzip on every page for effects most of them never ran on a phone.
-  - **One exception, owner's request 2026-11-13: `/guides` uses Motion (`motion` package) for its App Store "Today" cards** (`components/blog/GuideCards.js`, modelled on motion.dev's react-app-store example). A tap lifts the card into a panel (photo, title, summary, the article's opening from `articleIntro`, "Lire l'article complet"); Escape, the backdrop, the ✕ and Android's back button (a `#slug` history entry) close it, and the read link uses `replace` so back from the article lands on /guides. It stays on that page only: `LazyMotion strict` + `m.*` components, with `domMax` loaded by dynamic import (`guideCardFeatures.js`), and every card is a server-rendered `<a href>` that opens the article without JS or with a modifier key. The photo and the title box keep the same pixel size closed and open (CSS variables `--gc-w/--gc-h/--gc-title`), because a layout animation is a transform and a box that changes shape stretches its content. Don't import `motion` anywhere else without the same scoping.
+  - **One exception, owner's request 2026-11-13: `/guides` uses Motion (`motion` package) for its App Store "Today" cards** (`components/blog/GuideCards.js`, modelled on motion.dev's react-app-store example). A tap lifts the card into a panel (photo, title, summary, the article's opening from `articleIntro`, "Lire l'article complet"); Escape, the backdrop, the ✕ and Android's back button (a `#slug` history entry) close it, and the read link uses `replace` so back from the article lands on /guides. It stays on that page only: `LazyMotion strict` + `m.*` components, with `domMax` loaded by dynamic import (`guideCardFeatures.js`), and every card is a server-rendered `<a href>` that opens the article without JS or with a modifier key. Cards are all one size (owner, 2026-11-13). A cover sits under the title in a 16:9 box, closed and open, so it is never cropped and only scales evenly (a layout animation is a transform: a box that changes shape stretches its content); the title box keeps one width (`--gc-title`) for the same reason. Without a cover, the blue ground keeps one pixel size (`--gc-w/--gc-h`) and the title sits over it in white. Covers are 3840×2160 on white with the subject filling ~84 % of the width (`content/blog/images/src/higgsfield/recompose.cjs`); the article page shows them whole at 16:9. Don't import `motion` anywhere else without the same scoping.
   - **The motion layer (2026-09-23)** adds, same file, same rules: `.u-stagger` (a list's rows enter on mount, 60ms apart, capped at 7) and `.u-stagger-inner` (the same on each row's *content*, for hairline grids where a fading cell flashes `bg-line` — `AgentStatGrid`); `.u-stagger-in-view` / `.u-stagger-in-view-inner` (scroll-driven per child, columns of a grid row cascading via `--u-col`); `.u-rail-reveal` (FeaturedListingsCarousel only: whole strip below `sm`, per card from `sm`); `.u-hero-settle` + `.u-lift-in` (hero photo and headline — transform only, never opacity, because the hero is the LCP); `.u-attention` (three beats on an overdue to-do badge, then still); `.u-header-elevate` (the header's shadow deepens over the first 120px of scroll, via a pseudo-element's opacity on `scroll(root)`). Card photos zoom 1.04 on hover and the card presses to 0.985 unless the press is on one of its buttons.
   - **Keyframes use `translate`/`scale`, never `transform`.** A `both`-filled entrance holds its last frame forever, and a held `transform: none` silently kills every transform-based hover/press on that element (`.u-press`, `.u-card-interactive`, `.u-btn-primary`). Don't put an entrance on an element that uses Tailwind's `translate-*`/`scale-*` utilities either — that is the property they now share.
   - To stagger a list that shares its parent with other elements, wrap the `map` in `<div className="u-stagger contents">`: no box, so the parent's gap is untouched, and `nth-child` counts only the rows.
@@ -854,6 +855,20 @@ loading or error boundary anywhere outside the client portal and `/admin`.
   - Dialogs that only open on a tap (`AuthPromptModal`,
     `SearchAlertConfirmModal`) are `next/dynamic`. The DM Serif italic font
     file is not loaded.
+  - **Audit 2026-11-15** (live, 375px, modern-web-guidance skill;
+    `tests/unit/web-audit-fixes.test.js`):
+    - On-screen logos are `public/brand/logo-{light,dark}-sm.png` (404×128
+      palette PNGs, ~4 KB). React preloads every `<img>` in the server HTML,
+      so the 2354px originals (205 KB / 37 KB) cost every first visit 205 KB
+      for a 28px logo. The originals stay for print, share images and OG.
+    - `AppMotion` loads `domMax` by dynamic import (`appMotionFeatures.js`),
+      as `/guides` already did: eagerly it was ~55–60 KB brotli on every
+      app-mode page. Safe only while app entrances move and never start at
+      opacity 0 — keep it that way.
+    - In Next 16 `priority` is only a preload `<link>`; the LCP photo also
+      needs `fetchPriority="high"`. Set on the first `/listings` card (website
+      and app), the detail hero and the first `/guides` card — never on the
+      `priority={i < 4}` rails (one or two high images per page at most).
   - **Compression**: `WEB_COMPRESS=off` turns off Next's own gzip so Traefik's
     `compress` middleware can serve brotli. Traefik skips a response that
     already has a Content-Encoding, so the two changes only work together. Set
@@ -2399,6 +2414,8 @@ anywhere. `tests/unit/seo-pages.test.js`.
   reading a listing, renting without scams, buying from the diaspora. No
   market figures in them (those live on the landing pages); the diaspora one
   says to consult an avocat/notaire. Review the copy before promoting it.
+  (Since 2026-11-11 only the 3+1+1 guide remains — see "The 3 + 1 + 1 guide
+  and `:::calculateur`" under Guides & Actualités.)
 - **Sitemap** now lists landing pages with listings and the guides instead
   of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
   landing pages; Guides joined the Lukka Place column.
@@ -3189,8 +3206,22 @@ From an owner walkthrough on a phone. Engine migration
     subscription active. A second callback is a no-op.
   - **The API shape comes from the community SDK's docs, not FlexPaie's own**
     (none was available): confirm field names and codes with a sandbox
-    payment before setting the key in production. There is no payment UI yet;
-    the Abonnements tab stays hidden until there is.
+    payment before setting the key in production.
+  - **Checkout page (2026-11-12)**: `/compte/agent/abonnement/paiement?forfait=<id>`
+    (`components/AgentCheckout.js`, pure rules `lib/checkoutRules.js`,
+    `tests/unit/agent-checkout.test.js`), built from the "Paiement abonnement
+    agent" design. Plan, price and perks are the `packages` row; agency and
+    phone the agent's own. Operator choice (M-Pesa / Orange / Airtel) only
+    words the instructions — FlexPaie routes by number. Departures from the
+    design, on purpose: no card (not built), no "Abonnement automatique"
+    (FlexPaie push has no recurring mandate), no "non remboursable" (no terms
+    say so; the checkbox links `/conditions`). Flow: initiate → waiting
+    (poll `/status` every 4 s, up to 5 min) → paid / failed / timeout.
+    The plan picker shows "Payer en ligne" only when `isFlexpaieConfigured()`;
+    otherwise the request queue is unchanged. **Going live** = the three
+    FlexPaie env vars on the server (after a sandbox payment) + the
+    `agentSubscriptions` switch on `/admin/settings`; a free or trial plan is
+    never payable online.
 
 ## Console create / delete for listings and agents (2026-10-20)
 
@@ -4160,6 +4191,24 @@ Tests: `tests/unit/blog.test.js`.
   as `script:blog-import`. Source files live in `content/blog/`; the writing
   rules are the user-level `lukka-blog` skill.
   `tests/unit/blog-rich-blocks.test.js`.
+- **The 3 + 1 + 1 guide and `:::calculateur` (2026-11-11, owner decision).**
+  `lib/guides.js` now holds ONE code guide, `garantie-3-1-1-kinshasa`,
+  rewritten around Loi n° 15/025 (arts. 3, 5, 10, 17–22, 39, 43, sourced in
+  the text) with an interactive calculator. The three other guides were
+  deleted on the owner's request; `next.config.mjs` 308s their URLs to
+  `/guides` (`REMOVED_GUIDE_SLUGS`), and SeoLandingPage lists the one guide on
+  rental pages only. A code guide may carry an `en` version (title,
+  description, body, optional cta — all or nothing, like a post);
+  `articleFromGuide(guide, locale)` serves it to an English reader.
+  The calculator is a block, `{ calculator: { kind: 'garantie' } }`, also
+  writable in a post as the one-line `:::calculateur` (`CALCULATORS`).
+  Maths in `lib/depositCalc.js` (pure: the three costs stay separate, the
+  first advance month is rent, legal ceiling 3 / first month only / 1);
+  UI `components/blog/DepositCalculator.js` (client, opens on 670 $ 3+1+1);
+  `LiveDepositCalculator` (LiveBlocks.js) resolves `guides.calculator.*` as
+  templates and passes `getCdfRate()` with its own date, so FC amounts are
+  "≈" at the site's reference rate, never an editable or dealing rate.
+  `tests/unit/deposit-guide.test.js`.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
 
@@ -5601,3 +5650,303 @@ week before; the sign-up nudge made 2 accounts from 197 showings in 30 days.
     standalone`, MobileListingBar and EnquiryCard): `<a href=wa.me…>` until
     hydration, then the sheet. Cards keep the `<button>` (they sit inside a
     card link). A tap before hydration reaches WhatsApp unrecorded.
+
+## Fiche pratique — nothing is asked after "OK" (2026-11-12)
+
+**The WhatsApp questions were removed the day they shipped** (owner): after
+"OK" the agent gets the receipt only. The card below still shows answers
+agents gave on 2026-11-12 (or by tapping an old button), and renders nothing
+for every other listing. Don't add a question after "OK" without the owner.
+
+Engine half (the WhatsApp questions, storage, the codes an answer adds):
+docs/claude/listing-data.md, same heading. `lib/practicalFacts.js` (pure),
+`components/listings/PracticalFacts.js`, `tests/unit/practical-facts.test.js`.
+
+- `SELECT_FIELDS` reads the five columns as one `practical_facts` jsonb
+  through `to_jsonb(p)` (`PRACTICAL_SQL`), so nothing 42703s before
+  `migrations/20261112_listing_practical_facts.sql` runs.
+- The listing page shows "Fiche pratique" above the utility badges only when
+  the agent answered at least one question; an unanswered one reads "Non
+  indiqué". A flooded or difficult road and a paid visit are tinted warning.
+  Captioned "Réponses de l'agence sur WhatsApp, le <date>. Vérifiez-les
+  pendant la visite." — never "vérifié".
+- The filters need nothing new: an answer adds the utility codes the
+  "Électricité" / "Eau" / "Accès" chips already match.
+- **The visit fee is no longer asked** (owner, 2026-11-12, the day it
+  shipped). `practicalRows` drops the fee row when `visit_fee` is NULL, so
+  new listings never show "Frais de visite : Non indiqué"; an answer given
+  before keeps its row. No visit-fee filter, by the same decision.
+- Not built (owner's choice): any other way to collect these answers.
+
+## Customer UX pass — easier from first open to after the visit (2026-11-12)
+
+`tests/unit/customer-ux-pass.test.js` pins all of it.
+
+- **One main button on a listing** (`components/app/AppListingBar.js`):
+  "Demander une visite" is the only wide button, on the right; WhatsApp is the
+  one second button; calling the agent and writing in the app sit behind "…"
+  (a Radix dropdown that opens upward, drawn only when it holds something).
+  Same contact rules and tracking as before.
+- **Sign in with WhatsApp** (`app/(site)/compte/connexion/whatsappActions.js`,
+  `WhatsAppSignInForm.js`, `/compte/connexion/whatsapp`, `lib/whatsappSignInRules.js`):
+  the number (and, for a number we do not know, the name) → the signed
+  attempt cookie (`lib/verifyAttempt.js`) → the code screen, where the person
+  sends the code from their own WhatsApp and `checkWhatsAppSignInAction`
+  opens the session once the engine matched it on that number
+  (`consumeVerifiedChallenge`). No password; a new account is created with
+  `password_hash` NULL before the proof, as a typed-number sign-up always was
+  (owner-accepted risk, 2026-11-06). Rate-limited per connection; the
+  device's saved homes and searches are merged in; CompleteRegistration only
+  for an account opened in the last hour. The login page leads with it; the
+  password form is one tap away in a `<details>` (open after a password error).
+- **An account only when needed** — this changes the earlier "a guest's heart
+  always opens the prompt" decision (FavoriteButton's header): a guest keeps
+  up to 3 homes on the device (`lib/guestSaveRules.js`); the third save is
+  kept and asks, past it the heart asks first. `AuthPromptModal` now says why
+  (`listings.authPrompt.reasons.*`) and signs in with WhatsApp in place; the
+  sign-up funnel records it under the prompt's entry (new entries `whatsapp`,
+  `visit`, `onboarding`). A visit still needs no account; its done screen asks
+  a guest to sign in to follow the answer (`entree=visit`).
+- **Back keeps your place** (`lib/useBackToClose.js`): an open overlay pushes
+  one history entry, so Android's back button (Capacitor's goBack), the
+  browser's back and the iPhone edge swipe close it instead of leaving the
+  page. Used by the app's filter sheet (its "Voir N biens" releases the entry
+  rather than racing the router) and the photo viewer and grid. iOS: the
+  native shell's `LukkaBridgeViewController` (mobile/ios/App/App/SceneDelegate.swift)
+  turns on `allowsBackForwardNavigationGestures` — needs the next app build.
+- **First-open questions** (`/bienvenue`, `components/app/AppWelcome.js`,
+  `lib/welcomeRules.js`): GET /app sends there until the `lp_welcome` cookie is
+  set (answered or "Passer"); agents never see it. Louer / Acheter / Courte
+  durée, a budget ceiling (none for short stays), up to 3 of the communes with
+  the most live listings → an ordinary /listings query, kept as the first
+  saved search on the device. Then, not before: "On vous prévient dès qu'un
+  bien correspond ?" → the sign-in prompt (alerts need an account). No tabs
+  and no back arrow on that screen.
+- Already in place before this pass, so not rebuilt: typed search like
+  "2 chambres Limete 500$" (`lib/searchParser.js`), recent searches
+  (`lib/searchHistory.js`), merging a device's homes at sign-in
+  (`mergeAnonymousData`).
+
+## App home, tightened from the owner's references (2026-11-12)
+
+Supersedes the "serif title / serif wordmark" wording in "App mode" for the
+home screen and the top bar. Layout taken from the owner's reference
+screenshots (Rightmove, Zoopla), colours and type from `DESIGN.md`.
+
+- `SearchBar compact` (app home only): tabs, the location field with a
+  52px criteria button beside it (opens Ville / Type / Budget, shows the
+  count of criteria set), the button. The label stays for screen readers.
+  The card is ~220px instead of ~480px, so listings reach the first screen.
+  The website's card is unchanged.
+- The popular communes are a row of links under the card (each opens that
+  commune's results); three shortcut rows follow, always there: "Recherches
+  et alertes" (`/favoris?onglet=recherches`, which opens the saved screen on
+  its searches tab; shows the latest saved search's name when there is one),
+  "Trouver pour moi", "Combien ça coûte". They replace the "Reprendre" row
+  and the bottom "Pas encore trouvé ?" card.
+- The home title is `.u-title-page` (sans) on a shorter royal band; the top
+  bar shows the real logo (`/brand/logo-dark.png` on the royal bar,
+  `logo-light.png` elsewhere). `.u-app-serif` is still used on the welcome,
+  visit-sent and account screens and the avatar initials: not changed yet.
+
+**Later the same day (owner: "looks like a cheap app"), the home was rebuilt
+so homes carry it.** This replaces the blue band, the shortcut list and the
+pills-under-the-card of the paragraph above.
+
+- `components/app/AppHomeHero.js`: the website's own hero picture
+  (`getHeroSettings()`, else `Hero/hero-sunlit.jpg`; the CMS credit shows when
+  there is one) running up under the top bar, title in `.u-title-hero` (sans,
+  owner's choice) and the live count on the sky. A royal tint on the top of
+  the sky only, for the logo and title. Scroll: the photo moves at a third of
+  the page's speed and grows a little, the title lifts away (motion
+  `useScroll`/`useTransform`; off under reduced motion).
+- `AppTopBar` is clear over the photo on `/` (white logo) and turns white
+  with a hairline past 150px of scroll; the two logos cross-fade.
+- Under the compact search card (now `rounded-card`, no outline): a quiet
+  "Reprendre : <saved search>" line when the customer has one, then
+  "Ajoutés récemment" as a sideways rail of `components/app/AppRailCard.js`
+  (the 5 newest, photo 4:3 with nothing around it, `.u-price`), three small
+  shortcut tiles, the communes as a quiet chip row, the other 3 newest as
+  `AppListingCard` ("Aussi en ligne"), then "Où chercher".
+- `AppListingCard` (also the app's results list): `rounded-card`, soft shadow
+  instead of an outline, `.u-price`. `components/app/AppVerifiedMark.js` is
+  the app's one use of brass: "Agent vérifié" on the photo only when
+  `agent_verification_level` is set, nothing otherwise.
+- Motion: one entrance (title, card, rail cards sliding in), lower sections
+  settle once as they scroll in. Transform only, never opacity, as before.
+- The active tab's icon is filled (heart, person).
+
+## App results list, from the owner's reference (2026-11-12)
+
+Phone layout of `/listings` in app mode; the website and the desktop layout
+are unchanged. `tests/unit/app-mode.test.js`, "app results list".
+
+- **The filter bar is the top bar.** Before this, FilterBar scrolled away on
+  `/listings` (a sticky box cannot leave its parent, and its wrapper is only
+  as tall as the bar), leaving the logo bar alone on screen. In the app, list
+  view, below `lg`: the page gives that wrapper `display: contents` and the
+  marker `data-app-results`; `body:has([data-app-results]) [data-app-top-bar]`
+  (globals.css) hides AppTopBar; FilterBar is `sticky top-0` with `-mt-16`
+  (it sits where the top bar was) and leads with a back arrow to `/`. The
+  full-screen map view has no marker, so its top bar and offsets are as before.
+- **It tucks away** (`tucked`): slides off while the list scrolls down, back
+  as soon as it scrolls up; never while someone types in it, never in the
+  first 160px. The app's bar keeps its height (no `condensed` shrink).
+- Row 1: back, the search box, Filtres as an icon with its count. Row 2: the
+  city picker (no "Recherche dans :" prefix) and the two duration chips.
+- **Sort is on the count line** (`components/app/AppSortButton.js`), naming
+  the order in force; it opens `components/SortSheet.js`, the one sort sheet
+  the website's floating pill also uses. The app's floating bar is two solid
+  ink buttons, Carte and Alerte (`SaveSearchButton variant="pill" tone="solid"`).
+- **AppListingCard**: the listing's own photos swipe (`CardImageCarousel`,
+  chip "2/5"), an agency line when `displayableAgencyName` accepts the name,
+  and the card settles once as it scrolls in (motion, so the list drops the
+  CSS `u-stagger-in-view` in app mode). "Nouveau" is a white chip with ink
+  text: blue stays for actions.
+
+## App pass 3: listing page, loading, touch, the rest of the screens (2026-11-12)
+
+App mode only unless stated. Tests: `tests/unit/app-mode.test.js` (the four
+tests added at its end).
+
+- **Listing page.** `components/app/AppListingHeader.js` replaces AppTopBar
+  there (`[data-app-listing]` hides it, as `[data-app-results]` does on the
+  list): on a phone the photo runs to the top (`max-sm:-mt-16`), the bar is
+  clear with a white back disc, then white with the price, the place and the
+  heart once the photo has scrolled away. Title block: price, what it is, the
+  place, then the rooms as icons (`SPEC_ICONS`); no blue capital label. Below
+  `lg` the app shows `AppAgentRow` (name, brass mark, link to the agent's
+  page) instead of EnquiryCard + PricePanel, since AppListingBar already
+  carries WhatsApp, chat and the visit; the similar-homes alert card follows
+  the location. "Biens similaires" is `AppRelatedRail` (AppRailCard), and the
+  history is RecentlyViewed's `strip`. `PhotoGallery clearBack` moves the
+  "Annonce vérifiée" badge clear of the back disc.
+- **Website fix:** PricePanel's "/ mois" was ink on royal blue (unreadable);
+  it passes `periodClassName` white now.
+- **The photo grows into the listing** (`lib/appPhotoHandoff.js`, React
+  `<ViewTransition>`, no config needed in this Next version): app cards and
+  the gallery's phone block share `listing-photo-<id>`. The page streams
+  behind a loading screen, so the tapped card leaves the URL of the image it
+  was showing and `AppListingSkeletonPhoto` draws it in the gallery's place
+  under the same name. Checked in Chromium: two transitions with that group
+  (card → loading photo → gallery). Does not run on browser back, and needs
+  Chromium 125+ / recent Safari; elsewhere the page simply opens.
+- **Loading screens:** `components/app/AppSkeletons.js`; SiteLoading and the
+  listing's loading.js return them when `isAppRequest()`.
+- **Pull to refresh:** `components/app/AppPullToRefresh.js` (mounted by the
+  site layout in app mode), rules in `lib/appPullRules.js`: `/`, `/listings`,
+  `/favoris`, `/messages`, `/compte/client/*`; passive listeners; a disc, the
+  page never moves; `router.refresh()`. Not tested with a real finger.
+- **Vibration:** 18 ms when a visit request is sent (Android only; an iPhone
+  WebView needs a native haptics plugin, not installed).
+- **One family:** `.u-app-serif`, `lib/appFont.js` and its font download are
+  gone; the welcome, visit-sent and account titles are `.u-title-hero`,
+  avatar initials are bold sans.
+- **Place lines** on app cards are `locationLine` ("quartier, commune", the
+  city only outside Kinshasa), not the website feed's `feedLocationLine`.
+- **Shapes:** saved rows, saved-search rows, the account and agent menus and
+  the booking's listing row are `rounded-card` with the card shadow.
+- **Filter sheet:** duration, rooms and bathrooms stay on one row (`oneRow`,
+  swiped if needed); the main button no longer dims while the count loads.
+- **Welcome:** the first question is three tiles with icons.
+- **Measured (dev image optimiser, WebP):** the hero's 640w file is 18 KB;
+  listing photos are about 25 KB at 640w and 38–45 KB at 828–1080w. First
+  screen of the home ≈ hero + two rail photos. JavaScript size was not
+  measured (needs a production build).
+- `DESIGN.md` has an "In the store app" section.
+
+## App pass 4: Activité tab, commune guide, video visit, fiche pratique tiles (2026-11-13)
+
+From the owner's six app mock-ups. Tests: `tests/unit/app-mode.test.js`
+(its last three tests), `practical-facts.test.js`, engine verify §112.
+
+- **Activité** (`app/(site)/activite/page.js`, `lib/appActivityRules.js`):
+  a fourth tab (Rechercher, Enregistrés, Activité, Compte). The visit that
+  needs the customer first leads, on a royal card with four steps (Demandée,
+  Confirmée, Visite, Votre avis); under it, the notifications inbox by Kinshasa
+  day. Nothing new is stored: visits are `getCustomerInquiries` +
+  `groupCustomerVisits`, the feed is `listNotifications`, rows open through
+  `/compte/client/notifications/<id>`. The card's buttons open "Mes visites",
+  where answering and changing the time already live. Signed out it explains
+  and offers sign-in; it never redirects. The bell opens it; the tab carries
+  the unread-alerts badge. `activeAppTab` puts the inbox and the visits pages
+  under it.
+- **Commune guide** (`app/(site)/commune/[slug]/page.js`,
+  `lib/communeGuideRules.js`, `components/app/AppGuideHeader.js`): one of
+  Kinshasa's 24 communes (`communeFromSlug`, else 404). Photo of a live
+  listing there (none when no listing has one), live count, median rents for
+  1–3 bedrooms from `getPriceGuides` (absent below its minimum sample, each
+  linking to `/combien-coute/<slug>`), quartiers with counts
+  (`getListingStats`), a rail of what is online, two articles, and one fixed
+  button: `QueryAlertButton` on `commune=<name>`. Not indexed (the indexed
+  commune page is `/location/<commune>`). No tab bar there. Reached from the
+  home screen's commune chips (`guideSlug`, computed on the server so the
+  home does not ship the quartier data file).
+- **Video visit** (`lib/visitModeRules.js`, AppVisitBooking, the visit
+  action): "Sur place / En vidéo" on the app's booking screen. A video
+  request posts `visit_mode=video`; the action appends
+  "(appel vidéo WhatsApp)" to `requested_time` — the phrase every engine alert
+  already prints, so no new template — and sends `visit_mode` to the engine,
+  which stores it on the viewing request (root docs/claude/viewings.md). The
+  customer's cards (Activité, Mes visites) and the agent's request card say
+  it. The picked hour is also shown on the phone's own clock when that differs
+  from the listing's (`deviceTimeNote`), for customers abroad. The website's
+  visit dialog is unchanged (on site only).
+- **Fiche pratique** in the app: `PracticalFacts app` draws the answers as
+  two-up tiles. It still renders only for a listing whose agent answered —
+  the WhatsApp questions were removed on 2026-11-12, so few listings have it.
+- **Not built** from the same mock-ups, and why: the map's drawn zone and
+  result sheet (Google Maps refuses `localhost`, so it cannot be developed or
+  checked in the preview), and the agents' guided camera (the store build
+  declares no camera permission; it needs a new app build first).
+
+## A zone drawn on the map (2026-11-13)
+
+The owner's app design: draw a shape on the listings map with a finger and see
+only the homes inside it. `lib/mapZone.js` (pure), `components/MapZoneDraw.js`,
+`tests/unit/map-zone.test.js`.
+
+- **In the URL**: `zone=lat,lng;lat,lng;…` (3 to 24 corners, 5 decimals). A
+  malformed value is no zone at all. Drawing also sets the map's box
+  (`sw_lat`…) to the zone's own; clearing removes both.
+- **One definition of "inside"**: `parseListingsSearchParams` returns `zone`
+  and, with a zone, `bounds` = the zone's box (on a phone the URL's box follows
+  every pan, so the list would otherwise show zone ∩ screen). `getMapMarkers`
+  keeps only listings whose OWN coordinates are inside the shape
+  (`pointInZone`); one placed at its commune's centre for want of coordinates
+  is left out, never claimed. The list page gets its ids from that same read,
+  so pins, the count and the list agree.
+- **Drawing**: the pencil (bottom right) puts a `touch-none` layer over the
+  map; the path is thinned (`simplifyScreenPath`, Douglas–Peucker), turned
+  into places with the map's projection, and handed to ListingsMap's
+  `setZone`, which writes the URL (`router.replace`) and frames the zone. A
+  tap or a flat stroke is not a shape. The zone in force is a dashed Google
+  polyline with a faint fill; the blue is `--blue` repeated as a hex, since
+  Google's shapes cannot read CSS variables.
+- **App only** (`zoneDraw={appMode}` from ListingsSplitView).
+- **Cannot be developed locally**: the Maps key refuses `localhost`. The rules
+  and the server filter are tested locally; the drawing itself is checked on
+  the live site: done 2026-11-13 with scripted pointer strokes (a circle gave
+  a 24-corner zone, 262 pins became 8, all inside; "Effacer la zone" restored
+  them). `ZONE_DRAW_PUBLIC` in lib/mapZone.js is true since; false hides the
+  pencil again except where `localStorage.lp_zone === '1'`. Not yet drawn
+  with a real finger.
+- Not built from the same mock-up: the bottom sheet listing the zone's homes
+  (the existing "Voir N biens" / "Liste" controls show them) and the
+  power / water / parking chips on the map.
+
+**Map chips and result sheet (same day).** `MapQuickFilters` gains three
+one-tap chips after Prix / Chambres / Type: Électricité, Eau, Parking
+(`QUICK_AMENITIES`; the filter sheet's own keys, in the same `amenities`
+param, `toggleAmenityParam` in lib/mapQuickFilters.js). In the app the phone
+map's "Voir N biens / Liste" pills give way to `components/app/AppMapSheet.js`
+(`resultSheet={appMode}`, loaded with next/dynamic): one line over the map —
+"N biens dans votre zone" with a zone, "N biens sur la carte" without — that
+opens into the first 12 homes as `AppSavedRow`s. Its ids are the map's own
+(`onVisibleIdsChange`), read through `/api/listings?ids=` only once opened;
+it floats above Google's attribution line and steps aside while a pin's card
+is open. Not built: the sheet's sort and the "above the median rent" line.
+
+**App home: market figures and the card slot (2026-11-13).** Under the listings rail the app home shows the website's own `HomeMarketExplorer` (same `marketCommunes(getPriceGuides())` feed and 60-second copy as HomeMarketBand), then `components/app/AppPromoCarousel.js`: a card slot fed by `lib/appPromoRules.js` `promoItemsFromArticles` (the latest guides and news; a card without a cover draws no picture). The slot takes plain `{ href, title, kicker, imageUrl }` items so its feed can become partner agencies later without a layout change. **The zone's line** is now solid brand blue, 3.5px, and keeps up to 64 corners (`MAX_ZONE_POINTS`) so it follows what was drawn.
+
+**Store legal requirements (2026-11-14).** `/confidentialite` is the stores' Privacy Policy URL and `/contact` their Support URL; the values to paste are in `mobile/store/google-play-listing.md`, "Legal requirements". The policy text is `lib/legal/privacyPolicy.js` (French and English, same section ids in the same order; `#suppression` is the stores' deletion link and must keep its id): every sentence describes what the code does, so a new data flow (a permission, a third party, something stored about a device) changes that file in the same commit. It is plain-language, not lawyer-reviewed. `lib/legal/contact.js` holds the one e-mail address (the terms' own, article 1) and the desk WhatsApp number. `/contact` shows WhatsApp and e-mail and states no opening hours or answer time (none decided). In the app the footer is gone, so `components/app/AppLegalLinks.js` puts Aide et contact / Confidentialité / Conditions as three small links under "Se déconnecter" on both Compte screens (`/compte/menu`, `/compte/agent/menu`). `tests/unit/store-legal.test.js`.

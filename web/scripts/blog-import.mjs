@@ -6,6 +6,9 @@
  *
  *   npm run blog:import -- articles/loyers-gombe-2026.md            (dry run)
  *   npm run blog:import -- articles/loyers-gombe-2026.md --write
+ *   npm run blog:import -- articles/loyers-gombe-2026.md --cover-only [--write]
+ *     (only the cover and its alt text of an existing post; the text, live or
+ *      not, is left alone)
  *
  * THE FILE. A header between two `---` lines, then the French body in the
  * post format (lib/blogRules.js: ## titres, listes, liens, tableaux, :::blocs).
@@ -73,6 +76,8 @@ export function parseArticleFile(text) {
   return { fields, body_fr: fr.trim(), body_en: en.trim() };
 }
 
+const COVER_MAX_WIDTH = 3840;
+
 async function uploadCover(file) {
   const { uploadCmsImage } = await import('@/lib/listingStorage');
   let buffer = fs.readFileSync(file);
@@ -80,8 +85,18 @@ async function uploadCover(file) {
   if (!['jpg', 'png', 'webp'].includes(ext)) throw new Error(`couverture : JPEG, PNG ou WebP seulement (${file})`);
   try {
     const { default: sharp } = await import('sharp');
-    buffer = await sharp(buffer).rotate().resize({ width: 1600, withoutEnlargement: true }).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
-    ext = 'jpg';
+    // Up to 4K: next/image serves each reader a resized copy, so the stored
+    // original only sets the ceiling. A JPEG already within it goes up as made
+    // (a re-encode would only lose detail on a drawn cover).
+    const meta = await sharp(buffer).metadata();
+    if (!(ext === 'jpg' && meta.width <= COVER_MAX_WIDTH && !(meta.orientation > 1))) {
+      buffer = await sharp(buffer)
+        .rotate()
+        .resize({ width: COVER_MAX_WIDTH, withoutEnlargement: true })
+        .jpeg({ quality: 90, chromaSubsampling: '4:4:4', mozjpeg: true })
+        .toBuffer();
+      ext = 'jpg';
+    }
   } catch (err) {
     console.warn(`couverture non redimensionnée (${err.message}) — envoi de l’original`);
   }
@@ -91,6 +106,7 @@ async function uploadCover(file) {
 async function main() {
   const args = process.argv.slice(2);
   const write = args.includes('--write');
+  const coverOnly = args.includes('--cover-only');
   const file = args.find((a) => !a.startsWith('--'));
   if (!file) {
     console.error('usage: npm run blog:import -- <article.md> [--write]');
@@ -123,6 +139,35 @@ async function main() {
     process.exit(1);
   }
   const coverFile = fields.cover_file ? path.resolve(path.dirname(file), fields.cover_file) : null;
+
+  if (coverOnly) {
+    if (!existing || !coverFile) {
+      console.error(!existing ? `--cover-only : aucun article « ${slug} » à mettre à jour` : '--cover-only : le fichier ne nomme pas de couverture');
+      process.exit(1);
+    }
+    console.log(`Couverture du n° ${existing.id} (${slug}, ${postState(existing)}) : ${path.basename(coverFile)}`);
+    console.log(`  avant : ${existing.cover_url || 'aucune'}`);
+    console.log(`  texte alternatif : ${fields.cover_alt || '(vide)'}`);
+    console.log('  Le texte de l’article n’est pas touché.');
+    if (!write) {
+      console.log('\nEssai seulement. Relancer avec --write pour écrire.');
+      await pool.end();
+      return;
+    }
+    const coverUrl = await uploadCover(coverFile);
+    await pool.query(
+      'UPDATE blog_posts SET cover_url = $1, cover_alt = $2, updated_at = NOW() WHERE id = $3 AND deleted_at IS NULL',
+      [coverUrl, fields.cover_alt || '', existing.id],
+    );
+    await pool.query(
+      `INSERT INTO console_admin_audit_log (admin_user_id, actor_label, action, entity_type, entity_id, details)
+       VALUES (NULL, 'script:blog-import', 'blog.cover', 'blog_post', $1, $2)`,
+      [String(existing.id), JSON.stringify({ slug, from: existing.cover_url || null, to: coverUrl })],
+    );
+    console.log(`\nÉcrit : ${coverUrl}`);
+    await pool.end();
+    return;
+  }
   const input = {
     ...fields,
     body_fr: bodyFr,

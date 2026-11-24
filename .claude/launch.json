@@ -14,6 +14,12 @@
       "port": 3002
     },
     {
+      "name": "app-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "-p", "3005", "--webpack"],
+      "port": 3005
+    },
+    {
       "name": "web-3001",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "-p", "3001"],

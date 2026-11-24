@@ -19,7 +19,8 @@ import EntityTimeline from '../../EntityTimeline';
 import WhatsAppHistory from '../../WhatsAppHistory';
 import CustomerRowActions from '../CustomerRowActions';
 import ImpersonateButton from '../../ImpersonateButton';
-import { adminSetCustomerPasswordAction, adminUnlockCustomerAction } from '../actions';
+import { adminSetCustomerPasswordAction, adminSetCustomerTestAction, adminUnlockCustomerAction } from '../actions';
+import CustomerTestToggle from './CustomerTestToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,6 +131,9 @@ export default async function AdminCustomerDetailPage({ params }) {
               unlockAction={adminUnlockCustomerAction.bind(null, customer.id)}
               leadsHref={`/admin/leads?wa=${encodeURIComponent(phone)}`}
             />
+            <div className="mt-3">
+              <CustomerTestToggle isTest={customer.is_test} action={adminSetCustomerTestAction.bind(null, customer.id)} />
+            </div>
           </div>
         ) : null}
       </div>

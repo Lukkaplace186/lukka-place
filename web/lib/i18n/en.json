@@ -526,10 +526,12 @@
         "lead": "Optional. Leave your name and WhatsApp number: {who} will know who you are, and Lukka Place will send you the confirmation and the viewing record.",
         "name": "Your name (optional)",
         "phone": "Your WhatsApp number (optional)",
-        "privacy": "Your number is passed to {who} and only used to follow this visit. Every message lets you stop receiving them.",
+        "privacy": "Your number goes to {who} to follow this visit. Every message lets you stop receiving them.",
         "continue": "Continue on WhatsApp",
         "skip": "Skip — write without leaving my number",
-        "invalidPhone": "This number is not recognised. Check the country code and the number, or skip this step."
+        "invalidPhone": "This number is not recognised. Check the country code and the number, or skip this step.",
+        "openAccount": "Create my free account",
+        "openAccountHint": "Follow this visit and get homes like this one on WhatsApp. No password."
       },
       "returnPrompt": {
         "title": "Did Your Message Go Through?",
@@ -1219,6 +1221,11 @@
       "perkFree": "Free",
       "perkNoPassword": "No password: your number and your name are enough",
       "perkStop": "Every message has the link to stop them"
+    },
+    "listingAlert": {
+      "title": "Get Homes like This One",
+      "body": "We write to you on WhatsApp as soon as a home like this one is listed. Free.",
+      "button": "Alert me on WhatsApp"
     }
   },
   "enquiry": {
@@ -8088,7 +8095,9 @@
           "feed_alert": "Alert Card in Results",
           "request": "\"Find for Me\" Request",
           "home_hero": "Bell in the Home Search",
-          "alert_landing": "/alertes-whatsapp Page"
+          "alert_landing": "/alertes-whatsapp Page",
+          "listing_alert": "Homes like this one (listing)",
+          "wa_sheet": "Before WhatsApp (visit)"
         },
         "refusals": {
           "name": "Missing name",
@@ -8879,11 +8888,13 @@
     },
     "nudge": {
       "favorites": "Don't lose your favourites",
-      "listing_viewed": "Hear about new listings first",
-      "no_results": "Nothing yet? Get told when there is",
-      "text": "Free, no password: your saved homes on every device, and new homes on WhatsApp.",
-      "cta": "Create my account",
-      "close": "Close"
+      "listing_viewed": "Get new homes on WhatsApp",
+      "no_results": "Nothing yet? We will tell you",
+      "text": "Free, no password: your favourites on all your devices, and new homes on WhatsApp.",
+      "cta": "Create my free account",
+      "close": "Close",
+      "textAlert": "Free, no password: as soon as a home for this search is listed, it arrives on WhatsApp.",
+      "ctaAlert": "Alert me on WhatsApp"
     },
     "whatsappSignup": {
       "cta": "Create my account on WhatsApp",
@@ -8936,7 +8947,7 @@
     "minSixChars": "6 characters minimum.",
     "whatsappSignIn": {
       "title": "Continue with WhatsApp",
-      "button": "Continue with WhatsApp",
+      "button": "Continue",
       "lead": "No password, no code: your number and your name, that is all.",
       "nameLabel": "Full name",
       "nameHint": "First time here: your name opens your account.",
@@ -8960,7 +8971,11 @@
       "sendCode": "Get my code on WhatsApp",
       "signIn": "Sign in",
       "noCodeFallback": "No code? Confirm from WhatsApp instead",
-      "existingAccountCode": "This number already has an account: enter the code sent to your WhatsApp."
+      "existingAccountCode": "This number already has an account: enter the code sent to your WhatsApp.",
+      "nameOptionalLabel": "Your name",
+      "nameOptionalHint": "First time here? Your name opens your account. Already have one: leave it empty.",
+      "partnerCode": "Referral code (optional)",
+      "codeLate": "Still no code?"
     }
   },
   "updates": {

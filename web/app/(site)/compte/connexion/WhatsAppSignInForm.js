@@ -5,7 +5,6 @@ import { useFormStatus } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import PhoneField from '@/components/PhoneField';
 import LocalSavesFields from '@/components/LocalSavesFields';
-import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { splitPhone } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -24,24 +23,23 @@ function ContinueButton({ label }) {
     <button
       type="submit"
       disabled={pending}
-      className="u-press u-focus-ring flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#1E7B54] px-4 text-[0.9375rem] font-semibold text-white disabled:opacity-60"
+      className="u-press u-btn-primary u-focus-ring flex min-h-12 items-center justify-center gap-2 rounded-full bg-blue-deep px-4 text-[0.9375rem] font-semibold text-white disabled:opacity-60"
     >
-      {pending ? (
-        <Loader2 strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 animate-spin" aria-hidden="true" />
-      ) : (
-        <WhatsAppIcon className="h-5 w-5" />
-      )}
+      {/* "Continuer", in the site's own blue (2026-11-24): a green WhatsApp
+          button read as "this opens WhatsApp", and it no longer does. */}
+      {pending ? <Loader2 strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
       {label}
     </button>
   );
 }
 
 /**
- * "Continuer avec WhatsApp": the number, then — only for a number we do not
- * know — the name, on the same form. No password. A new number is signed in
- * at once (2026-11-24); a known one goes on to the code screen.
+ * "Continuer avec WhatsApp": the WhatsApp number and the name on one screen
+ * (2026-11-24; the name was a second screen) — the name matters only for a
+ * number we do not know. No password. A new number is signed in at once; a
+ * known one gets a code on WhatsApp (the code screen).
  */
-export default function WhatsAppSignInForm({ next, entry = 'whatsapp', defaultCountry, defaultPhone = '', defaultE164 = null, defaultName = '', autoFocus = false, onSubmit }) {
+export default function WhatsAppSignInForm({ next, entry = 'whatsapp', defaultCountry, defaultPhone = '', defaultE164 = null, defaultName = '', autoFocus = false, onSubmit, partnerCode = null }) {
   const t = useT();
   // A number already typed on this device as E.164 digits (the visit sheet): split back into the picker.
   const known = defaultE164 ? splitPhone(defaultE164) : null;
@@ -60,10 +58,6 @@ export default function WhatsAppSignInForm({ next, entry = 'whatsapp', defaultCo
       <input type="hidden" name="entry" value={entry} />
       {/* A new number is signed in at once: this phone's saved homes come along. */}
       <LocalSavesFields />
-      {/* A name the person already typed on this device (the visit sheet's
-          optional name, 2026-11-24): a new number opens the account in one
-          tap instead of asking for it again. */}
-      {!needName && defaultName ? <input type="hidden" name="name" value={defaultName} /> : null}
       <PhoneField
         key={state?.attempt || 'first'}
         name="phone"
@@ -76,21 +70,44 @@ export default function WhatsAppSignInForm({ next, entry = 'whatsapp', defaultCo
         autoFocus={autoFocus && !phoneValue}
         required
       />
-      {needName ? (
+      {/* The name on the same screen as the number (2026-11-24): a new
+          number opens the account in one tap instead of a second screen. A
+          known number ignores it. Prefilled with a name typed on this device
+          (the visit sheet's). Required only after a new number came without one. */}
+      <div>
+        <label htmlFor="wa-name" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+          {t(needName ? 'auth.whatsappSignIn.nameLabel' : 'auth.whatsappSignIn.nameOptionalLabel')}
+        </label>
+        <input
+          key={state?.attempt || 'first'}
+          id="wa-name"
+          name="name"
+          autoComplete="name"
+          autoFocus={needName}
+          required={needName}
+          maxLength={80}
+          defaultValue={values?.name || defaultName}
+          className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[0.9375rem] text-ink outline-none focus:border-blue"
+        />
+        <p className="mt-1 text-[0.8125rem] text-ink-70">
+          {t(needName ? 'auth.whatsappSignIn.nameHint' : 'auth.whatsappSignIn.nameOptionalHint')}
+        </p>
+      </div>
+      {/* A partner's code, on the sign-up page only (lib/accountAcquisition.js
+          checks it; an unknown one is ignored, never a refusal). */}
+      {partnerCode !== null ? (
         <div>
-          <label htmlFor="wa-name" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-            {t('auth.whatsappSignIn.nameLabel')}
+          <label htmlFor="wa-partner-code" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+            {t('auth.whatsappSignIn.partnerCode')}
           </label>
           <input
-            id="wa-name"
-            name="name"
-            autoComplete="name"
-            autoFocus
-            required
-            defaultValue={values?.name || defaultName}
-            className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[0.9375rem] text-ink outline-none focus:border-blue"
+            id="wa-partner-code"
+            name="partner_code"
+            autoCapitalize="characters"
+            maxLength={20}
+            defaultValue={values?.partnerCode || partnerCode}
+            className="w-full rounded-md border border-line bg-surface px-3 py-2.5 text-[0.9375rem] uppercase text-ink outline-none focus:border-blue"
           />
-          <p className="mt-1 text-[0.8125rem] text-ink-70">{t('auth.whatsappSignIn.nameHint')}</p>
         </div>
       ) : null}
       {errorKey ? (

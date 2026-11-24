@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Check } from 'lucide-react';
 import { signupAction, checkSignupPhoneAction, signInWithNumberAction } from './actions';
 import SignupForm from './SignupForm';
+import WhatsAppSignInForm from '../connexion/WhatsAppSignInForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
 import { partnerCodePrefill } from '@/lib/partnerPrefill';
@@ -108,17 +109,17 @@ export default async function CustomerSignupPage({ searchParams }) {
           {t('auth.signupKeepsLocal')}
         </p>
 
-        <SignupForm
-          action={signupAction}
+        {/* One way to open an account (2026-11-24): the WhatsApp number and
+            the name, no password — the same form as every prompt. A new
+            number is signed in at once, a known one gets a code on WhatsApp.
+            The partner code stays here. The move questions ("Mon projet",
+            above) keep their own form, which saves the project. */}
+        <WhatsAppSignInForm
           next={next}
-          error={error}
-          initialPhone={initialPhone}
-          initialCountry={initialCountry}
-          partnerCode={partnerCode}
-          phoneHintKey="auth.signup.phoneHint"
-          checkPhoneAction={checkSignupPhoneAction}
-          signInAction={signInWithNumberAction}
-          entry={entry}
+          entry={entry || 'direct'}
+          defaultCountry={initialCountry}
+          defaultPhone={initialPhone}
+          partnerCode={partnerCode || ''}
         />
 
         <p className="mt-5 text-center text-sm text-ink-45">

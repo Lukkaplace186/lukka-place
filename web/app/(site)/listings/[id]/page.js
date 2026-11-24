@@ -22,6 +22,7 @@ import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
+import ListingAlertCard from '@/components/ListingAlertCard';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import ListingEquipment from '@/components/listings/ListingEquipment';
@@ -360,6 +361,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 the agent declared them, each fact once. */}
             <div className={`empty:hidden ${RULE}`}>
               <ListingEquipment listing={listing} />
+            </div>
+
+            {/* "Recevez les biens comme celui-ci" mid-page on a phone
+                (2026-11-24): most visitors see this one page; the desktop
+                rail carries the same offer (SimilarAlertButton). */}
+            <div className="lg:hidden empty:hidden">
+              <ListingAlertCard query={alertQuery} />
             </div>
 
             {/* Streams in: a like-for-like median of live listings in the

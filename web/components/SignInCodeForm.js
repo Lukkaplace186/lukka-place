@@ -91,16 +91,39 @@ export function ResendCodeButton({ labels, startCooling = true }) {
   );
 }
 
+const LATE_CODE_MS = 30 * 1000;
+
 /**
  * The older way, kept for a code that does not arrive (Chakra confirms no
  * delivery): mounted only when asked for, so its 3-second polling does not
- * run for everyone who types the code.
+ * run for everyone who types the code. Open from the start when the code
+ * could not be sent (`defaultOpen`); after 30 s without a sign-in the link
+ * becomes a visible box with `lateLabel` ("Toujours pas de code ?"), since a
+ * code that is coming has usually come by then.
  *
- * @param {{label: string, children: React.ReactNode}} props
+ * @param {{label: string, lateLabel?: string, defaultOpen?: boolean, children: React.ReactNode}} props
  */
-export function CodeFallback({ label, children }) {
-  const [open, setOpen] = useState(false);
+export function CodeFallback({ label, lateLabel = null, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [late, setLate] = useState(false);
+
+  useEffect(() => {
+    if (open || !lateLabel) return undefined;
+    const timer = setTimeout(() => setLate(true), LATE_CODE_MS);
+    return () => clearTimeout(timer);
+  }, [open, lateLabel]);
+
   if (open) return children;
+  if (late) {
+    return (
+      <div className="mt-5 rounded-md bg-blue-tint px-3 py-3 text-center">
+        <p className="text-sm text-ink">{lateLabel}</p>
+        <button type="button" onClick={() => setOpen(true)} className="mt-1 text-sm font-semibold text-blue-deep underline underline-offset-2">
+          {label}
+        </button>
+      </div>
+    );
+  }
   return (
     <button type="button" onClick={() => setOpen(true)} className="mt-5 w-full text-center text-sm font-semibold text-ink-70 underline underline-offset-2 hover:text-ink">
       {label}

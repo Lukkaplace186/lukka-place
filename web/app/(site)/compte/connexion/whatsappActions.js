@@ -55,6 +55,7 @@ function refuse(error, formData, extra = {}) {
       phone: String(formData.get('phone') || '').slice(0, 30),
       phoneCountry: String(formData.get('phoneCountry') || '').slice(0, 2),
       name: String(formData.get('name') || '').slice(0, 80),
+      partnerCode: String(formData.get('partner_code') || '').slice(0, 20),
     },
     attempt: Date.now(),
     ...extra,
@@ -86,7 +87,10 @@ export async function startWhatsAppSignInAction(_prevState, formData) {
       if (!customer) throw err;
     }
     if (created) {
-      await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: null });
+      // A partner's code typed on the sign-up page (lib/accountAcquisition.js
+      // checks it; unknown = ignored), else the one a /i/CODE link left.
+      const typedCode = String(formData.get('partner_code') || '').trim().slice(0, 20) || null;
+      await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode });
       await recordSignupOutcome({ step: 'created', entry, customerId: Number(customer.id) });
       // A number that had no account: signed in now, no WhatsApp step (owner
       // decision 2026-11-24 — sending a code from WhatsApp lost one person in

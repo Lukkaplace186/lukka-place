@@ -888,7 +888,41 @@ file onto the server copies as usual.
   pas reçu ? Confirmez plutôt depuis WhatsApp" mounts the older panel (they
   send us a code) only when tapped — Chakra confirms no delivery. Labels reach
   the client components as props: production's shell ships only parts of
-  `auth`. Without the template the screen is the older way, as before.
+  `auth`. Without the template the screen is the older way, as before. If
+  the code could not be sent, that panel is open at once; after 30 s with a
+  code waiting, "Toujours pas de code ?" turns the link into a visible box.
+- **Frictions pass** (owner, same day — the 14-day funnel: ~500 prompts shown
+  for 20,075 visitors, nudge 4 % tapped, after-WhatsApp sheet 2 / 42):
+  - **Asked on the page most visitors see.** `components/ListingAlertCard.js`,
+    mid-page on a phone (after Équipements, before the map): "Recevez les
+    biens comme celui-ci", the listing's `similarAlertQuery`. The desktop
+    rail and the inline offer under the similar listings
+    (`SimilarAlertButton`) count as the same entry, `listing_alert`.
+  - **Nudge**: after a FIRST listing opened (`VIEWED_THRESHOLD` 1); on
+    `/listings` with a commune (or another city) it offers the alert itself
+    ("M'alerter sur WhatsApp") and signing in saves that search
+    (`lib/signupNudgeRules.js` `nudgeNext` → `lkp_auth_return=alert`);
+    elsewhere "Créer mon compte gratuit".
+  - **In the WhatsApp sheet** (`WhatsAppIntentSheet`, visit step only): a
+    ticked "Créer mon compte gratuit" beside the optional name and number.
+    With both, `app/(site)/listings/whatsappAccountActions.js` is called
+    WITHOUT waiting in the same tap that opens WhatsApp — a new number is
+    signed in with the "homes like this one" alert saved; a known one gets
+    the code offer on return. No step is added; the other answers go
+    straight to WhatsApp. Entry `wa_sheet`.
+  - **One screen**: `WhatsAppSignInForm` shows the name under the number
+    (optional; required only after a new number came without one). The
+    button is "Continuer" in the site's blue, without the WhatsApp glyph —
+    it no longer opens WhatsApp.
+  - **One way to open an account**: `/compte/inscription` uses the same
+    no-password form, with the partner code field (`partner_code` →
+    `recordWebSignupAttribution` `typedCode`). Only the "Mon projet" path
+    (`?projet=1`, the move questions) keeps the password form, which saves
+    the project. That page no longer reports `form_start` / `submit` (the
+    old form's beacons); `form_view` and `created` remain.
+  - **Money**: an account opened without a code has `phone_verified_at`
+    NULL, so it does not earn a partner's credit (lib/referralCredits.js)
+    until that number is confirmed by a code.
 - **"Ce numéro a déjà un compte"** at sign-up (and its "Se connecter avec ce
   numéro" button) now opens the WhatsApp code screen on that account
   (`compte=existant`), unless the person answered the move cards (those keep
@@ -911,5 +945,7 @@ file onto the server copies as usual.
   (`SaveSearchButton` → `isNotACriterion`), so an alert saved from an ad
   landing is the search, not the visit.
 
-Not built: an "M'alerter des biens similaires" box in front of WhatsApp — it
-would break "never in front of WhatsApp" and there is no A/B tool to test it.
+An "M'alerter des biens similaires" box in front of WhatsApp was left out on
+2026-11-24 ("never in front of WhatsApp"); later that day the owner asked for
+the account at the WhatsApp tap, built as a ticked box inside the visit step's
+existing optional fields — no new step (see "Frictions pass" above).

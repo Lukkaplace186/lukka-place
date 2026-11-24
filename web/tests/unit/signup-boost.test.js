@@ -6,7 +6,7 @@ import path from 'node:path';
 import { accountRequested, accountStatusParam, guestAccountPlan, proveAccountHref } from '@/lib/guestAccountRules';
 import { FEED_ALERT_AFTER, feedAlertIndex, feedAlertOffersCommunes, feedAlertQuery, feedAlertReady, isNotACriterion } from '@/lib/feedAlertRules';
 import { similarAlertNext } from '@/lib/contactSignupPrompt';
-import { shouldNudge, VIEWED_THRESHOLD } from '@/lib/signupNudgeRules';
+import { nudgeNext, shouldNudge, VIEWED_THRESHOLD } from '@/lib/signupNudgeRules';
 import { NO_PASSWORD_HASH, storedPasswordHash } from '@/lib/whatsappSignInRules';
 import { PROMPT_ENTRIES, SIGNUP_ENTRIES } from '@/lib/signupFunnelRules';
 
@@ -133,7 +133,7 @@ test('a known number gets a code on WhatsApp and types it; the "send us a code" 
   assert.match(page, /const codeMode = signInCodeEnabled\(\);/);
   assert.match(page, /<SignInCodeForm/);
   assert.match(page, /<form action=\{sendSignInCodeAction\}/, '"Recevoir mon code" / "Renvoyer le code"');
-  assert.match(page, /<CodeFallback label=\{t\('auth\.whatsappSignIn\.noCodeFallback'\)\}>\{reversePanel\}<\/CodeFallback>/);
+  assert.match(page, /<CodeFallback\s+label=\{t\('auth\.whatsappSignIn\.noCodeFallback'\)\}\s+lateLabel=\{codeWaiting \? t\('auth\.whatsappSignIn\.codeLate'\) : null\}\s+defaultOpen=\{Boolean\(sendError\)\}\s+>\s+\{reversePanel\}/);
   assert.match(page, /\{!codeMode \? reversePanel :/, 'no template: the older way is the screen');
   const form = read('components/SignInCodeForm.js');
   assert.match(form, /autoComplete="one-time-code"/);
@@ -244,13 +244,71 @@ test('a saved search drops ad tags and resume markers (an alert from an ad landi
 
 // --- the reminder card ---------------------------------------------------------
 
-test('the reminder comes after a 2nd listing and opens the WhatsApp form in place', () => {
-  assert.equal(VIEWED_THRESHOLD, 2);
-  assert.equal(shouldNudge({ reason: 'listing_viewed', viewed: 1 }), false);
-  assert.equal(shouldNudge({ reason: 'listing_viewed', viewed: 2 }), true);
+test('the reminder comes after a 1st listing and opens the WhatsApp form in place', () => {
+  assert.equal(VIEWED_THRESHOLD, 1);
+  assert.equal(shouldNudge({ reason: 'listing_viewed', viewed: 0 }), false);
+  assert.equal(shouldNudge({ reason: 'listing_viewed', viewed: 1 }), true);
   const nudge = read('components/SignupNudge.js');
   assert.doesNotMatch(nudge, /\/compte\/inscription/, 'no page change on 3G');
   assert.match(nudge, /dynamic\(\(\) => import\('\.\/AuthPromptModal'\)/);
+});
+
+test('the reminder sells the alert and saves it when the page is a search with a commune', () => {
+  assert.deepEqual(nudgeNext('/listings', '?commune=Gombe&transaction_type=location&utm_source=fb'), {
+    next: '/listings?commune=Gombe&transaction_type=location&utm_source=fb&lkp_auth_return=alert',
+    alert: true,
+  });
+  assert.deepEqual(nudgeNext('/listings', '?ville=toutes'), { next: '/listings?ville=toutes', alert: false }, 'the whole feed is not an alert');
+  assert.deepEqual(nudgeNext('/', ''), { next: '/', alert: false });
+  assert.deepEqual(nudgeNext('/guides/x', '?a=1'), { next: '/guides/x?a=1', alert: false });
+  const nudge = read('components/SignupNudge.js');
+  assert.match(nudge, /t\(alert \? 'auth\.nudge\.ctaAlert' : 'auth\.nudge\.cta'\)/);
+});
+
+// --- asked on the page most visitors see -----------------------------------------
+
+test('a listing page offers "homes like this one" mid-page on a phone, counted as listing_alert', () => {
+  const page = read('app/(site)/listings/[id]/page.js');
+  assert.match(page, /<div className="lg:hidden empty:hidden">\s+<ListingAlertCard query=\{alertQuery\} \/>/);
+  assert.ok(page.indexOf('<ListingAlertCard') < page.indexOf('id="emplacement"'), 'before the map, not at the bottom');
+  const card = read('components/ListingAlertCard.js');
+  assert.match(card, /const ENTRY = 'listing_alert';/);
+  assert.match(card, /trackCustomerSignup\('prompt_shown', ENTRY\)/);
+  assert.match(card, /isSearchSaved\(query\)/, 'nothing once that alert is saved');
+  assert.equal((read('components/SimilarAlertButton.js').match(/entry="listing_alert"/g) || []).length, 2);
+});
+
+// --- the WhatsApp tap itself ------------------------------------------------------
+
+test('the visit step of the WhatsApp sheet can open the account in the same tap, never holding WhatsApp', () => {
+  const sheet = read('components/WhatsAppIntentSheet.js');
+  assert.match(sheet, /<input type="checkbox" name="openAccount" value="1" defaultChecked/);
+  const submit = sheet.slice(sheet.indexOf('function submitContact'), sheet.indexOf('function answerPrompt'));
+  assert.match(submit, /if \(name && form\.get\('openAccount'\) === '1' && !isLoggedInClient\(\)\)/);
+  assert.match(submit, /openAccountFromWhatsAppSheetAction\(\{[\s\S]*?\}\)\.catch\(\(\) => \{\}\);\n\s+\}\n\s+go\(pendingIntent, \{ name, phone \}\);/, 'not awaited: WhatsApp opens in the same tap');
+  const action = read('app/(site)/listings/whatsappAccountActions.js');
+  assert.match(action, /entry: 'wa_sheet'/);
+  assert.match(action, /await demoCustomerPhoneOr\(typed\)/);
+  assert.match(action, /rateLimited\(`wa-sheet-account:\$\{key\}`, STARTS_PER_10_MIN\)/);
+});
+
+// --- one screen, one way ----------------------------------------------------------
+
+test('number and name on one screen; the button says "Continuer", not WhatsApp', () => {
+  const form = read('app/(site)/compte/connexion/WhatsAppSignInForm.js');
+  assert.match(form, /name="name"[\s\S]*?required=\{needName\}/, 'always there, required only for a new number without one');
+  assert.doesNotMatch(form, /WhatsAppIcon/);
+  assert.match(form, /name="partner_code"/);
+  assert.equal(fr.auth.whatsappSignIn.button, 'Continuer');
+  assert.match(read('app/(site)/compte/connexion/whatsappActions.js'), /const typedCode = String\(formData\.get\('partner_code'\) \|\| ''\)\.trim\(\)\.slice\(0, 20\) \|\| null;/);
+});
+
+test('the sign-up page opens accounts without a password; only "Mon projet" keeps its own form', () => {
+  const page = read('app/(site)/compte/inscription/page.js');
+  const plain = page.slice(page.lastIndexOf('return ('));
+  assert.match(plain, /<WhatsAppSignInForm/);
+  assert.doesNotMatch(plain, /<SignupForm/);
+  assert.match(page.slice(0, page.lastIndexOf('return (')), /<MoveOnboarding/);
 });
 
 // --- back from WhatsApp ---------------------------------------------------------
@@ -295,12 +353,12 @@ test('/alertes-whatsapp: one screen, real figures only, not indexed', () => {
 // --- funnel and copy -------------------------------------------------------------
 
 test('every new entry is known to the funnel and labelled on the dashboard', () => {
-  for (const entry of ['feed_alert', 'request', 'visit', 'home_hero', 'alert_landing', 'after_whatsapp', 'whatsapp']) {
+  for (const entry of ['feed_alert', 'request', 'visit', 'home_hero', 'alert_landing', 'after_whatsapp', 'whatsapp', 'listing_alert', 'wa_sheet']) {
     assert.ok(SIGNUP_ENTRIES.includes(entry), entry);
     assert.ok(entry.length <= 32, 'the column holds 32 characters');
     for (const dict of [fr, en]) assert.ok(dict.admin.growth.signup.entries[entry], `${entry} label`);
   }
-  for (const entry of ['feed_alert', 'request', 'visit', 'home_hero', 'alert_landing']) assert.ok(PROMPT_ENTRIES.has(entry), entry);
+  for (const entry of ['feed_alert', 'request', 'visit', 'home_hero', 'alert_landing', 'listing_alert', 'wa_sheet']) assert.ok(PROMPT_ENTRIES.has(entry), entry);
 });
 
 test('every new string exists in French and English, and the request card no longer says "sans compte"', () => {

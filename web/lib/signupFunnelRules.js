@@ -49,13 +49,15 @@ export const SIGNUP_ENTRIES = [
   'request', // the account a "Trouver pour moi" request opens (lib/guestAccount.js, 2026-11-24)
   'home_hero', // the bell beside "Voir N biens" in the homepage search (2026-11-24)
   'alert_landing', // /alertes-whatsapp, the one-screen page an ad can link to (2026-11-24)
+  'listing_alert', // "Recevez les biens comme celui-ci" on a listing page (ListingAlertCard, SimilarAlertButton, 2026-11-24)
+  'wa_sheet', // the account box in the WhatsApp sheet's visit step (WhatsAppIntentSheet, 2026-11-24)
   'direct', // anything else: a typed URL, an old link, a shared link
 ];
 
 const ENTRY_SET = new Set(SIGNUP_ENTRIES);
 
 /** Entries that are a prompt (shown, then opened); the others are plain links. */
-export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge', 'after_whatsapp', 'feed_alert', 'request', 'visit', 'home_hero', 'alert_landing']);
+export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge', 'after_whatsapp', 'feed_alert', 'request', 'visit', 'home_hero', 'alert_landing', 'listing_alert', 'wa_sheet']);
 
 /** Steps a browser may report. `refused` and `created` are server-only. */
 export const CLIENT_SIGNUP_STEPS = ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit'];

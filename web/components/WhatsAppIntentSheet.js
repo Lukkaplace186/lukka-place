@@ -13,6 +13,10 @@ import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { isAgentSignedInClient, isLoggedInClient } from '@/lib/customerClient';
+import { openAccountFromWhatsAppSheetAction } from '@/app/(site)/listings/whatsappAccountActions';
+import { similarAlertQuery } from '@/lib/similarSearch';
+import { buildSearchLabel } from '@/lib/searchLabel';
+import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
 import {
   ACCOUNT_OFFER_STORAGE_KEY, RETURN_PROMPT_MAX_MS, RETURN_PROMPT_MIN_MS, VISIT_CONTACT_STORAGE_KEY,
   accountOfferWillShow, cleanVisitName, isVisitIntent,
@@ -94,6 +98,13 @@ function storeContact(contact) {
  * is created under that number (engine services/directVisit.js), so the
  * confirmation, reminders and bon de visite reach the customer. Remembered on
  * this device (localStorage) to prefill the next time.
+ *
+ * WITH A FREE ACCOUNT (2026-11-24, owner). A guest also sees "Créer mon
+ * compte gratuit", ticked: with a name and a number it opens the account
+ * in the same tap (signed in for a new number, the "homes like this one"
+ * alert saved), started without waiting so WhatsApp opens at once. No step
+ * is added: the box sits in the visit step's optional fields, and the other
+ * answers (« disponible ? », a question) go straight to WhatsApp as before.
  *
  * « VOTRE MESSAGE EST PARTI ? » (2026-11-20). A tap is not a message. When the
  * customer comes back to this page 3 s – 30 min after WhatsApp opened, a small
@@ -214,6 +225,24 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
       return;
     }
     storeContact({ name, phone: typed, country });
+    // "Créer mon compte gratuit" (2026-11-24, ticked by default, guests only):
+    // started WITHOUT waiting, in the same tap that opens WhatsApp — it
+    // finishes while they write to the agent (app/(site)/listings/whatsappAccountActions.js).
+    if (name && form.get('openAccount') === '1' && !isLoggedInClient()) {
+      const query = similarAlertQuery(listing);
+      let localData = { favoriteIds: [], savedSearches: [] };
+      try {
+        localData = { favoriteIds: getFavoriteIds(), savedSearches: getSavedSearches() };
+      } catch {
+        // Storage blocked: the account opens without them.
+      }
+      openAccountFromWhatsAppSheetAction({
+        name,
+        phone,
+        alert: query ? { query, label: buildSearchLabel(new URLSearchParams(query), t) } : null,
+        localData,
+      }).catch(() => {});
+    }
     go(pendingIntent, { name, phone });
   }
 
@@ -308,6 +337,15 @@ export default function WhatsAppIntentButton({ listing, placement, className, ch
                 labelClassName="mb-1.5 text-[0.8125rem] font-semibold normal-case tracking-normal text-ink-70"
                 fieldClassName="h-11 rounded-lg bg-surface"
               />
+              {isLoggedInClient() ? null : (
+                <label className="flex items-start gap-2.5 rounded-lg bg-blue-tint px-3 py-2.5 text-[0.8125rem] text-ink">
+                  <input type="checkbox" name="openAccount" value="1" defaultChecked className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--blue)]" />
+                  <span>
+                    <span className="font-semibold">{t('listings.waIntent.contact.openAccount')}</span>
+                    <span className="block text-ink-70">{t('listings.waIntent.contact.openAccountHint')}</span>
+                  </span>
+                </label>
+              )}
               {contactError ? <p className="text-sm text-danger" role="alert">{contactError}</p> : null}
               <p className="text-xs text-ink-45">{t('listings.waIntent.contact.privacy', { who })}</p>
               <button

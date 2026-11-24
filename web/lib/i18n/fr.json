@@ -526,10 +526,12 @@
         "lead": "Facultatif. Laissez votre nom et votre numéro WhatsApp : {who} saura qui vous êtes, et Lukka Place vous enverra la confirmation et le bon de visite.",
         "name": "Votre nom (facultatif)",
         "phone": "Votre numéro WhatsApp (facultatif)",
-        "privacy": "Votre numéro est transmis à {who} et sert seulement à suivre cette visite. Chaque message permet de ne plus en recevoir.",
+        "privacy": "Votre numéro est transmis à {who} pour suivre cette visite. Chaque message permet de ne plus en recevoir.",
         "continue": "Continuer sur WhatsApp",
         "skip": "Passer — écrire sans laisser mon numéro",
-        "invalidPhone": "Ce numéro n’est pas reconnu. Vérifiez l’indicatif et le numéro, ou passez cette étape."
+        "invalidPhone": "Ce numéro n’est pas reconnu. Vérifiez l’indicatif et le numéro, ou passez cette étape.",
+        "openAccount": "Créer mon compte gratuit",
+        "openAccountHint": "Suivez cette visite et recevez les biens comme celui-ci sur WhatsApp. Pas de mot de passe."
       },
       "returnPrompt": {
         "title": "Votre message est parti ?",
@@ -1219,6 +1221,11 @@
       "perkFree": "Gratuit",
       "perkNoPassword": "Sans mot de passe : votre numéro et votre nom suffisent",
       "perkStop": "Chaque message contient le lien pour arrêter"
+    },
+    "listingAlert": {
+      "title": "Recevez les biens comme celui-ci",
+      "body": "Nous vous écrivons sur WhatsApp dès qu’un bien comme celui-ci est publié. Gratuit.",
+      "button": "M’alerter sur WhatsApp"
     }
   },
   "enquiry": {
@@ -8088,7 +8095,9 @@
           "feed_alert": "Carte alerte dans les résultats",
           "request": "Demande « Trouver pour moi »",
           "home_hero": "Cloche de la recherche (accueil)",
-          "alert_landing": "Page /alertes-whatsapp"
+          "alert_landing": "Page /alertes-whatsapp",
+          "listing_alert": "Biens comme celui-ci (annonce)",
+          "wa_sheet": "Avant WhatsApp (visite)"
         },
         "refusals": {
           "name": "Nom manquant",
@@ -8879,11 +8888,13 @@
     },
     "nudge": {
       "favorites": "Ne perdez pas vos favoris",
-      "listing_viewed": "Soyez prévenu des nouveaux biens",
-      "no_results": "Rien pour le moment ? Soyez prévenu",
+      "listing_viewed": "Recevez les nouveaux biens sur WhatsApp",
+      "no_results": "Rien pour le moment ? On vous prévient",
       "text": "Gratuit et sans mot de passe : vos favoris sur tous vos appareils, et les nouveaux biens sur WhatsApp.",
-      "cta": "Créer mon compte",
-      "close": "Fermer"
+      "cta": "Créer mon compte gratuit",
+      "close": "Fermer",
+      "textAlert": "Gratuit et sans mot de passe : dès qu’un bien de cette recherche est publié, il arrive sur WhatsApp.",
+      "ctaAlert": "M’alerter sur WhatsApp"
     },
     "whatsappSignup": {
       "cta": "Créer mon compte via WhatsApp",
@@ -8936,7 +8947,7 @@
     "minSixChars": "6 caractères minimum.",
     "whatsappSignIn": {
       "title": "Continuer avec WhatsApp",
-      "button": "Continuer avec WhatsApp",
+      "button": "Continuer",
       "lead": "Sans mot de passe ni code : votre numéro et votre nom, c’est tout.",
       "nameLabel": "Nom et prénom",
       "nameHint": "Première fois ici : votre nom ouvre votre compte.",
@@ -8960,7 +8971,11 @@
       "sendCode": "Recevoir mon code sur WhatsApp",
       "signIn": "Me connecter",
       "noCodeFallback": "Code pas reçu ? Confirmez plutôt depuis WhatsApp",
-      "existingAccountCode": "Ce numéro a déjà un compte : entrez le code envoyé sur votre WhatsApp."
+      "existingAccountCode": "Ce numéro a déjà un compte : entrez le code envoyé sur votre WhatsApp.",
+      "nameOptionalLabel": "Votre nom",
+      "nameOptionalHint": "Première fois ici ? Votre nom ouvre votre compte. Déjà un compte : laissez vide.",
+      "partnerCode": "Code de parrainage (facultatif)",
+      "codeLate": "Toujours pas de code ?"
     }
   },
   "updates": {

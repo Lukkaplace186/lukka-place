@@ -134,7 +134,14 @@ export default async function WhatsAppSignInPage({ searchParams }) {
                 </button>
               </form>
             )}
-            <CodeFallback label={t('auth.whatsappSignIn.noCodeFallback')}>{reversePanel}</CodeFallback>
+            {/* Open at once when the code could not be sent; a reminder after 30 s otherwise. */}
+            <CodeFallback
+              label={t('auth.whatsappSignIn.noCodeFallback')}
+              lateLabel={codeWaiting ? t('auth.whatsappSignIn.codeLate') : null}
+              defaultOpen={Boolean(sendError)}
+            >
+              {reversePanel}
+            </CodeFallback>
           </>
         )}
 

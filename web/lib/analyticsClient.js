@@ -2,6 +2,8 @@
 
 import { attributionFromLocation, chooseSessionAttribution, sourceOf } from './attribution';
 import { adEvent } from './adEvents';
+import { WHATSAPP_TAP_EVENT } from './contactSignupPrompt';
+import { similarAlertQuery } from './similarSearch';
 
 /**
  * The one client-side event beacon. `lib/analytics.js` is the READ side and
@@ -262,6 +264,23 @@ export function trackLeadClick(listing, routingType, placement, intent = null, c
     // agent's alert, never stored with the tap.
     contact: contact && contact.phone ? { name: contact.name || null, phone: contact.phone } : undefined,
   });
+  // A guest is offered an account when they come back from WhatsApp
+  // (components/ContactSignupPrompt.js, lib/contactSignupPrompt.js). Since
+  // 2026-11-24 the event also carries the alert for homes like this one
+  // (lib/similarSearch.js) and the visit sheet's optional name and number,
+  // so the offer can be specific and one tap. Nothing of it is stored here.
+  try {
+    window.dispatchEvent(new CustomEvent(WHATSAPP_TAP_EVENT, {
+      detail: {
+        listingId: listing?.id ?? null,
+        similarQuery: similarAlertQuery(listing),
+        name: contact?.name || null,
+        phone: contact?.phone || null,
+      },
+    }));
+  } catch {
+    // No window (server) or no CustomEvent: nothing to offer.
+  }
 }
 
 /**

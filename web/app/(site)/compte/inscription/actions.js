@@ -21,6 +21,9 @@ import { autoSendMoveProject } from '@/lib/moveProjectRequest';
 import { getT } from '@/lib/i18n/server';
 import { recordSignupOutcome } from '@/lib/signupFunnel';
 import { passwordLongEnough } from '@/lib/passwordRules';
+import { claimRecentContactTaps } from '@/lib/contactTapClaim';
+import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { proveAccountHref } from '@/lib/guestAccountRules';
 
 // Shared connections (a carrier's NAT) carry many people: generous, still far
 // from enough to walk a list of numbers.
@@ -104,7 +107,18 @@ export async function signupAction(_prevState, formData) {
   if (!passwordLongEnough(password, 'customer')) return refuse('password', formData);
 
   const existing = await getCustomerByPhone(phone);
-  if (existing) return refuse('exists', formData);
+  if (existing) {
+    // "Ce numéro a déjà un compte" used to stop here (10 people in 14 days,
+    // 2026-11-24). Now it signs them in: the code screen of "Continuer avec
+    // WhatsApp" opens on that account, and a code sent FROM that number is
+    // the proof — the typed password is never checked, so this guesses
+    // nothing. Move answers keep the old path (the notice's sign-in button
+    // saves them as a project after a password login).
+    const withAnswers = parseMoveProjectField(formData.get('moveProject')).hasAnswers;
+    await recordSignupOutcome({ step: 'refused', entry: formData.get('entry'), refusal: 'exists' });
+    if (withAnswers) return { error: 'exists', values: typedValues(formData), attempt: Date.now() };
+    await existingAccountToWhatsApp({ customer: existing, phone, next });
+  }
 
   // The optional "Code de parrainage" (an agent's, a creator's). An unknown
   // code no longer stops the account (owner decision 2026-11-11: an optional
@@ -173,6 +187,9 @@ export async function signupAction(_prevState, formData) {
   // owner decision). No code is sent and no verification page follows.
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
   await rememberCustomerPhone(phone);
+  // This browser's WhatsApp taps of the last day become this customer's
+  // (/admin/contacts stops showing them as anonymous). Never throws.
+  await claimRecentContactTaps(customer.id);
   // The ad platforms' CompleteRegistration used to fire at the code step,
   // which no longer exists: an account created is a registration completed.
   await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone });
@@ -212,7 +229,23 @@ export async function signInWithNumberAction(formData) {
   const next = safeNext(formData.get('next'));
   const phone = phoneFromForm(formData);
   if (phone) await rememberCustomerPhone(phone);
+  // Without move answers to keep: the WhatsApp code, no password (2026-11-24).
+  if (phone && formData.get('withProject') !== '1') {
+    const customer = await getCustomerByPhone(phone);
+    if (customer) await existingAccountToWhatsApp({ customer, phone, next });
+  }
   const params = new URLSearchParams({ next });
   if (formData.get('withProject') === '1') params.set('apres', 'projet');
   redirect(`/compte/connexion?${params.toString()}`);
+}
+
+/**
+ * An existing account, reached from the sign-up form: open the WhatsApp code
+ * screen on it (the signed attempt cookie, as "Continuer avec WhatsApp" does
+ * for a known number) and go there. Redirects; never returns.
+ */
+async function existingAccountToWhatsApp({ customer, phone, next }) {
+  await setVerifyAttemptCookie({ role: 'customer', id: Number(customer.id), phone });
+  await rememberCustomerPhone(phone);
+  redirect(proveAccountHref('existing', next));
 }

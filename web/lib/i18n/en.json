@@ -239,7 +239,8 @@
       "seeShortStays": "See available stays",
       "shortHint": "Homes let by the night or by the week.",
       "moreCriteria": "More filters",
-      "fewerCriteria": "Fewer filters"
+      "fewerCriteria": "Fewer filters",
+      "alertMe": "Alert me to new homes here"
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -628,7 +629,7 @@
       "headingNear": "{subject} {transaction} near {place}",
       "nearbyExtrasTitle": "Also near {place}",
       "feedRequestTitle": "Not Found It Yet?",
-      "feedRequestBody": "Tell us what you are looking for: partner agencies send you homes on WhatsApp. Free, no account needed.",
+      "feedRequestBody": "Tell us what you are looking for: partner agencies send you homes on WhatsApp. Free.",
       "feedRequestCta": "Describe what I need",
       "relaxedKeywords": {
         "one": "No listing mentions “{words}” — that word was left out of the search.",
@@ -949,7 +950,15 @@
       "alert": "Log in or create an account to create an alert",
       "favorite": "Log in or create an account to save this property",
       "continue": "Continue",
-      "alreadyHaveAccount": "Already have an account?"
+      "alreadyHaveAccount": "Already have an account?",
+      "favoriteKeep": "Keep your saved homes",
+      "reasons": {
+        "save": "With an account, your search follows you on every device.",
+        "alert": "With an account, we tell you as soon as a new home matches.",
+        "favorite": "With an account, your saved homes follow you everywhere, and we tell you if their price drops.",
+        "nudge": "With a free account, your saved homes follow you everywhere and new homes arrive on WhatsApp."
+      },
+      "nudge": "Be the First to Hear About New Homes"
     },
     "related": {
       "similar": "Similar Properties",
@@ -1157,13 +1166,59 @@
         "send": "The request could not be sent. Please try again in a moment."
       },
       "jump": "Or tell us what you need: we pass it on to agencies ↓",
-      "situation": "Your situation (optional)"
+      "situation": "Your situation (optional)",
+      "openAccount": "Create my free account",
+      "openAccountHint": "With your name and this number: follow your request and get new homes. No password."
     },
     "similarAlert": {
       "title": "Not Quite Right?",
       "lead": "Get new properties like this one on WhatsApp.",
       "button": "Alert me about similar properties",
       "inlineLead": "Nothing quite right? Be told when a similar property is listed."
+    },
+    "contactSignup": {
+      "title": "Find This Property and the Agent Later",
+      "lead": "Your number, then a code from your WhatsApp. No password.",
+      "perkSaved": "This property kept in your favourites, on all your devices",
+      "perkAlerts": "Alerts when a property that suits you is listed",
+      "noThanks": "No thanks",
+      "titleSimilar": "Get Homes Like This One",
+      "perkSimilar": "New homes like this one on WhatsApp, as soon as they are listed",
+      "leadKnown": "Your number is already here: a code from your WhatsApp, that is all."
+    },
+    "feedAlert": {
+      "title": "Get New Homes on WhatsApp",
+      "body": "Pick a commune: we write to you as soon as a home is listed there. Free.",
+      "bodyFor": "{search}: we write to you as soon as a new home matches. Free.",
+      "commune": "Commune",
+      "communePlaceholder": "Choose a commune",
+      "button": "Alert me on WhatsApp",
+      "footnote": "No password: a code sent from your WhatsApp, that is all."
+    },
+    "accountOffer": {
+      "created": {
+        "title": "Your Free Account Is Ready",
+        "body": "Send a code from your WhatsApp to open it: follow the reply and get new homes.",
+        "cta": "Open my account with WhatsApp"
+      },
+      "existing": {
+        "title": "You Already Have an Account with This Number",
+        "body": "Sign in with a code from your WhatsApp to follow the reply.",
+        "cta": "Sign in with WhatsApp"
+      },
+      "offer": {
+        "title": "Follow the Reply in Your Free Account",
+        "body": "Your number, your name, then a code from your WhatsApp. No password.",
+        "cta": "Create my account with WhatsApp"
+      }
+    },
+    "alertLanding": {
+      "metaTitle": "WhatsApp Alerts — Lukka Place",
+      "title": "Get New Homes on WhatsApp",
+      "lead": "A commune, a budget: we write to you as soon as a matching home is listed.",
+      "perkFree": "Free",
+      "perkNoPassword": "No password: a code from your WhatsApp",
+      "perkStop": "Every message has the link to stop them"
     }
   },
   "enquiry": {
@@ -1255,7 +1310,8 @@
       "nextDay": "the next day",
       "prevDay": "the day before",
       "sentVideo": "Video call visit: the agent will call you on WhatsApp at the agreed time."
-    }
+    },
+    "openAccountHint": "With your name and this number: follow the agency’s reply. No password."
   },
   "search": {
     "label": {
@@ -8024,7 +8080,15 @@
           "login_page": "Link under login",
           "partner_invite": "Partner invitation",
           "price_guide": "Price guide",
-          "direct": "Direct / other link"
+          "direct": "Direct / other link",
+          "whatsapp": "Continue with WhatsApp",
+          "visit": "After a Visit Request",
+          "onboarding": "App First-Open Questions",
+          "after_whatsapp": "Back from WhatsApp (Listing)",
+          "feed_alert": "Alert Card in Results",
+          "request": "\"Find for Me\" Request",
+          "home_hero": "Bell in the Home Search",
+          "alert_landing": "/alertes-whatsapp Page"
         },
         "refusals": {
           "name": "Missing name",
@@ -8817,7 +8881,7 @@
       "favorites": "Don't lose your favourites",
       "listing_viewed": "Hear about new listings first",
       "no_results": "Nothing yet? Get told when there is",
-      "text": "Create a free account: your favourites on all your devices, and new listings on WhatsApp.",
+      "text": "Free, no password: your saved homes on every device, and new homes on WhatsApp.",
       "cta": "Create my account",
       "close": "Close"
     },
@@ -8869,7 +8933,25 @@
     "agentNoPasswordHint": "Joined on WhatsApp, with no password? Tap “Forgotten your password?”: a WhatsApp code lets you create one.",
     "agentLoginMetaTitle": "Agent Login — Lukka Place",
     "agentNoAccountYet": "No agent account yet?",
-    "minSixChars": "6 characters minimum."
+    "minSixChars": "6 characters minimum.",
+    "whatsappSignIn": {
+      "title": "Continue with WhatsApp",
+      "button": "Continue with WhatsApp",
+      "lead": "No password: you send a code from your WhatsApp, and that’s it.",
+      "nameLabel": "Full name",
+      "nameHint": "First time here: your name opens your account.",
+      "orPassword": "or with your password",
+      "codeTitle": "Send This Code from WhatsApp",
+      "newAccount": "Your account is created. Send this code to open it.",
+      "otherNumber": "Wrong number?",
+      "restart": "Start again",
+      "preferPassword": "Prefer your password?",
+      "errors": {
+        "name": "Enter your full name.",
+        "busy": "Too many attempts. Try again in a few minutes."
+      },
+      "existingAccount": "This number already has an account. Send this code from WhatsApp to sign in."
+    }
   },
   "updates": {
     "title": "Updates",

@@ -14,6 +14,7 @@ import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import VisitRequestDialog from './VisitRequestDialog';
+import AccountOfferCard from './AccountOfferCard';
 import AddToVisitCartButton from './AddToVisitCartButton';
 import { feedLocationLine, listingImages } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
@@ -154,7 +155,7 @@ function VisitRequestButton({ propertyId, hiddenTrigger = false }) {
 // Since the second 2026-11-18 pass compact keeps only what the bar cannot
 // carry: the visit-request feedback, the visit dialog (hidden anchor) and
 // "Ajouter à mes visites". It sits under the agent row; no WhatsApp button.
-export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitError, saveShare = true, placement = null, compact = false }) {
+export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitAccount = null, visitError, saveShare = true, placement = null, compact = false }) {
   const t = useT();
   const {
     id, title,
@@ -238,6 +239,10 @@ export default function EnquiryCard({ listing, visitSent, visitVideo = false, vi
             </Link>
           </div>
         )}
+        {/* The free account the same name and number opened (2026-11-24). */}
+        {visitSent && visitAccount ? (
+          <AccountOfferCard status={visitAccount} entry="visit" next="/compte/client/visites" />
+        ) : null}
         {visitError && (
           <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">
             {t(VISIT_ERROR_KEYS[visitError] || VISIT_ERROR_KEYS[1])}

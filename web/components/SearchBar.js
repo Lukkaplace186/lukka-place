@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
+import QueryAlertButton from './QueryAlertButton';
+import { feedAlertQuery, feedAlertReady } from '@/lib/feedAlertRules';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
 import { understoodChips } from '@/lib/searchUnderstood';
@@ -208,6 +210,45 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [suggested, setSuggested] = useState(0);
   const isFirstRun = useRef(true);
 
+  // The search the button opens, as /listings params: the count asks for it,
+  // and the bell beside the button (2026-11-24) saves it as an alert.
+  function stagedQuery() {
+    const qs = new URLSearchParams();
+    if (transactionType) qs.set('transaction_type', transactionType);
+    if (stagedType) qs.set('property_type', stagedType);
+    if (stagedMin) qs.set('price_min', stagedMin);
+    if (stagedMax) qs.set('price_max', stagedMax);
+    if (leaseTerm) qs.set('lease_term', leaseTerm);
+    if (ville) qs.set('ville', ville);
+
+    // Parsed exactly the way submitting parses it (LocationAutocomplete's
+    // submitFreeText -> applyParsedFilters), and in the same precedence:
+    // what was typed wins over the selects, so the count describes the
+    // page the button actually navigates to.
+    const parsed = parseSearchQuery(location);
+    if (parsed.reference) qs.set('reference', parsed.reference);
+    if (parsed.transaction_type) qs.set('transaction_type', parsed.transaction_type);
+    if (parsed.price_min != null) qs.set('price_min', String(parsed.price_min));
+    if (parsed.price_max != null) qs.set('price_max', String(parsed.price_max));
+    if (parsed.beds_min != null) qs.set('beds_min', String(parsed.beds_min));
+    if (parsed.bath_min != null) qs.set('bath_min', String(parsed.bath_min));
+    if (parsed.lease_term) qs.set('lease_term', parsed.lease_term);
+    if (parsed.plot_min != null) qs.set('plot_min', String(parsed.plot_min));
+    if (parsed.amenities?.length) qs.set('amenities', parsed.amenities.join(','));
+    if (parsed.property_type) {
+      qs.set('property_type', parsed.property_type);
+      if (parsed.parcelle_subtype) qs.set('parcelle_subtype', parsed.parcelle_subtype);
+    }
+    if (parsed.ville) qs.set('ville', parsed.ville);
+    if (parsed.commune) {
+      qs.set('commune', parsed.commune);
+      if (parsed.communes?.length > 1) qs.set('communes', parsed.communes.join(','));
+      if (parsed.quartier) qs.set('quartier', parsed.quartier);
+    }
+    if (parsed.keywords) qs.set('q', parsed.keywords);
+    return qs;
+  }
+
   useEffect(() => {
     if (isFirstRun.current) {
       isFirstRun.current = false;
@@ -216,39 +257,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
 
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      const qs = new URLSearchParams();
-      if (transactionType) qs.set('transaction_type', transactionType);
-      if (stagedType) qs.set('property_type', stagedType);
-      if (stagedMin) qs.set('price_min', stagedMin);
-      if (stagedMax) qs.set('price_max', stagedMax);
-      if (leaseTerm) qs.set('lease_term', leaseTerm);
-      if (ville) qs.set('ville', ville);
-
-      // Parsed exactly the way submitting parses it (LocationAutocomplete's
-      // submitFreeText -> applyParsedFilters), and in the same precedence:
-      // what was typed wins over the selects, so the count describes the
-      // page the button actually navigates to.
-      const parsed = parseSearchQuery(location);
-      if (parsed.reference) qs.set('reference', parsed.reference);
-      if (parsed.transaction_type) qs.set('transaction_type', parsed.transaction_type);
-      if (parsed.price_min != null) qs.set('price_min', String(parsed.price_min));
-      if (parsed.price_max != null) qs.set('price_max', String(parsed.price_max));
-      if (parsed.beds_min != null) qs.set('beds_min', String(parsed.beds_min));
-      if (parsed.bath_min != null) qs.set('bath_min', String(parsed.bath_min));
-      if (parsed.lease_term) qs.set('lease_term', parsed.lease_term);
-      if (parsed.plot_min != null) qs.set('plot_min', String(parsed.plot_min));
-      if (parsed.amenities?.length) qs.set('amenities', parsed.amenities.join(','));
-      if (parsed.property_type) {
-        qs.set('property_type', parsed.property_type);
-        if (parsed.parcelle_subtype) qs.set('parcelle_subtype', parsed.parcelle_subtype);
-      }
-      if (parsed.ville) qs.set('ville', parsed.ville);
-      if (parsed.commune) {
-        qs.set('commune', parsed.commune);
-        if (parsed.communes?.length > 1) qs.set('communes', parsed.communes.join(','));
-        if (parsed.quartier) qs.set('quartier', parsed.quartier);
-      }
-      if (parsed.keywords) qs.set('q', parsed.keywords);
+      const qs = stagedQuery();
 
       fetch(`/api/listings/count?${qs.toString()}`, { signal: controller.signal })
         .then((res) => res.json())
@@ -267,6 +276,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
+    // stagedQuery reads exactly these values; listing them keeps the debounce
+    // tied to what the visitor changed rather than to every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactionType, stagedType, stagedMin, stagedMax, leaseTerm, ville, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
@@ -296,6 +308,12 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // Criteria set in the folded fields, so a closed fold never hides a choice.
   const foldedActive = [ville !== DEFAULT_CITY, Boolean(propertyType), Boolean(budgetMin), Boolean(budgetMax)].filter(Boolean).length;
   const folded = moreOpen ? '' : 'max-sm:hidden';
+
+  // "M'alerter" beside the results button (2026-11-24): once the search names
+  // a commune or a quartier (every listing of the city is the feed, not an
+  // alert — lib/feedAlertRules.js), the same search saved as a WhatsApp alert.
+  const stagedParams = Object.fromEntries(stagedQuery());
+  const alertQuery = feedAlertReady(stagedParams) ? feedAlertQuery(stagedParams) : null;
 
   let ctaLabel;
   if (count === 0 && suggested > 0) ctaLabel = t('home.search.seeSuggestions', { count: suggested });
@@ -527,6 +545,16 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           {ctaLabel}
         </span>
       </button>
+      {alertQuery ? (
+        <QueryAlertButton
+          query={alertQuery}
+          label={t('home.search.alertMe')}
+          entry="home_hero"
+          variant="secondary"
+          fullWidth
+          className="mt-2"
+        />
+      ) : null}
 
       {/* --- 4. Quick pills ------------------------------------------------ */}
       {communes.length > 0 ? (

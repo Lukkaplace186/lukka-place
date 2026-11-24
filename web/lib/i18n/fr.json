@@ -239,7 +239,8 @@
       "seeShortStays": "Voir les logements disponibles",
       "shortHint": "Logements loués à la nuit ou à la semaine.",
       "moreCriteria": "Plus de critères",
-      "fewerCriteria": "Moins de critères"
+      "fewerCriteria": "Moins de critères",
+      "alertMe": "M'alerter des nouveaux biens ici"
     },
     "value": {
       "verifiedTitle": "Annonces relues",
@@ -628,7 +629,7 @@
       "headingNear": "{subject} {transaction} près de {place}",
       "nearbyExtrasTitle": "Aussi à proximité de {place}",
       "feedRequestTitle": "Pas encore trouvé ?",
-      "feedRequestBody": "Dites-nous ce que vous cherchez : les agences partenaires vous proposent des biens sur WhatsApp. Gratuit, sans compte.",
+      "feedRequestBody": "Dites-nous ce que vous cherchez : les agences partenaires vous proposent des biens sur WhatsApp. Gratuit.",
       "feedRequestCta": "Décrire ma recherche",
       "relaxedKeywords": {
         "one": "Aucune annonce ne mentionne « {words} » — ce mot a été retiré de la recherche.",
@@ -949,7 +950,15 @@
       "alert": "Se connecter ou créer un compte pour créer une alerte",
       "favorite": "Se connecter ou créer un compte pour enregistrer ce bien en favori",
       "continue": "Continuer",
-      "alreadyHaveAccount": "Déjà un compte ?"
+      "alreadyHaveAccount": "Déjà un compte ?",
+      "favoriteKeep": "Gardez vos biens enregistrés",
+      "reasons": {
+        "save": "Avec un compte, votre recherche vous suit sur tous vos appareils.",
+        "alert": "Avec un compte, nous vous prévenons dès qu’un nouveau bien correspond.",
+        "favorite": "Avec un compte, vos biens enregistrés vous suivent partout, et nous vous prévenons s’ils baissent de prix.",
+        "nudge": "Avec un compte gratuit, vos favoris vous suivent partout et les nouveaux biens arrivent sur WhatsApp."
+      },
+      "nudge": "Soyez prévenu des nouveaux biens"
     },
     "related": {
       "similar": "Biens Similaires",
@@ -1157,13 +1166,59 @@
         "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant."
       },
       "jump": "Ou décrivez ce que vous cherchez : nous transmettons aux agences ↓",
-      "situation": "Votre situation (facultatif)"
+      "situation": "Votre situation (facultatif)",
+      "openAccount": "Créer mon compte gratuit",
+      "openAccountHint": "Avec votre nom et ce numéro : suivez votre demande et recevez les nouveaux biens. Pas de mot de passe."
     },
     "similarAlert": {
       "title": "Pas tout à fait ça ?",
       "lead": "Recevez sur WhatsApp les nouveaux biens qui ressemblent à celui-ci.",
       "button": "M'alerter des biens similaires",
       "inlineLead": "Rien qui vous convienne ? Soyez prévenu quand un bien similaire est publié."
+    },
+    "contactSignup": {
+      "title": "Retrouvez ce bien et l'agent plus tard",
+      "lead": "Votre numéro, puis un code depuis votre WhatsApp. Pas de mot de passe.",
+      "perkSaved": "Ce bien gardé dans vos favoris, sur tous vos appareils",
+      "perkAlerts": "Des alertes quand un bien qui vous correspond est publié",
+      "noThanks": "Non merci",
+      "titleSimilar": "Recevez les biens comme celui-ci",
+      "perkSimilar": "Les nouveaux biens comme celui-ci sur WhatsApp, dès leur publication",
+      "leadKnown": "Votre numéro est déjà là : un code depuis votre WhatsApp, et c’est tout."
+    },
+    "feedAlert": {
+      "title": "Recevez les nouveaux biens sur WhatsApp",
+      "body": "Choisissez une commune : nous vous écrivons dès qu'un bien y est publié. Gratuit.",
+      "bodyFor": "{search} : nous vous écrivons dès qu'un nouveau bien correspond. Gratuit.",
+      "commune": "Commune",
+      "communePlaceholder": "Choisir une commune",
+      "button": "M'alerter sur WhatsApp",
+      "footnote": "Sans mot de passe : un code envoyé depuis votre WhatsApp, et c’est tout."
+    },
+    "accountOffer": {
+      "created": {
+        "title": "Votre compte gratuit est créé",
+        "body": "Envoyez un code depuis votre WhatsApp pour l’ouvrir : vous suivrez la réponse et recevrez les nouveaux biens.",
+        "cta": "Ouvrir mon compte avec WhatsApp"
+      },
+      "existing": {
+        "title": "Vous avez déjà un compte avec ce numéro",
+        "body": "Connectez-vous avec un code depuis votre WhatsApp pour suivre la réponse.",
+        "cta": "Me connecter avec WhatsApp"
+      },
+      "offer": {
+        "title": "Suivez la réponse dans votre compte gratuit",
+        "body": "Votre numéro, votre nom, puis un code depuis votre WhatsApp. Pas de mot de passe.",
+        "cta": "Créer mon compte avec WhatsApp"
+      }
+    },
+    "alertLanding": {
+      "metaTitle": "Alertes WhatsApp — Lukka Place",
+      "title": "Recevez les nouveaux biens sur WhatsApp",
+      "lead": "Une commune, un budget : nous vous écrivons dès qu’un bien qui correspond est publié.",
+      "perkFree": "Gratuit",
+      "perkNoPassword": "Sans mot de passe : un code depuis votre WhatsApp",
+      "perkStop": "Chaque message contient le lien pour arrêter"
     }
   },
   "enquiry": {
@@ -1255,7 +1310,8 @@
       "nextDay": "le lendemain",
       "prevDay": "la veille",
       "sentVideo": "Visite par appel vidéo : l’agent vous appellera sur WhatsApp à l’heure convenue."
-    }
+    },
+    "openAccountHint": "Avec votre nom et ce numéro : suivez la réponse de l’agence. Pas de mot de passe."
   },
   "search": {
     "label": {
@@ -8024,7 +8080,15 @@
           "login_page": "Lien sous la connexion",
           "partner_invite": "Invitation partenaire",
           "price_guide": "Guide des prix",
-          "direct": "Direct / autre lien"
+          "direct": "Direct / autre lien",
+          "whatsapp": "Continuer avec WhatsApp",
+          "visit": "Après une demande de visite",
+          "onboarding": "Questions à l'ouverture de l'app",
+          "after_whatsapp": "Retour de WhatsApp (annonce)",
+          "feed_alert": "Carte alerte dans les résultats",
+          "request": "Demande « Trouver pour moi »",
+          "home_hero": "Cloche de la recherche (accueil)",
+          "alert_landing": "Page /alertes-whatsapp"
         },
         "refusals": {
           "name": "Nom manquant",
@@ -8817,7 +8881,7 @@
       "favorites": "Ne perdez pas vos favoris",
       "listing_viewed": "Soyez prévenu des nouveaux biens",
       "no_results": "Rien pour le moment ? Soyez prévenu",
-      "text": "Créez un compte gratuit : vos favoris sur tous vos appareils, et les nouveaux biens sur WhatsApp.",
+      "text": "Gratuit et sans mot de passe : vos favoris sur tous vos appareils, et les nouveaux biens sur WhatsApp.",
       "cta": "Créer mon compte",
       "close": "Fermer"
     },
@@ -8869,7 +8933,25 @@
     "agentNoPasswordHint": "Inscrit sur WhatsApp, sans mot de passe ? Touchez « Mot de passe oublié » : un code WhatsApp vous permet d’en créer un.",
     "agentLoginMetaTitle": "Connexion agent — Lukka Place",
     "agentNoAccountYet": "Pas encore de compte agent ?",
-    "minSixChars": "6 caractères minimum."
+    "minSixChars": "6 caractères minimum.",
+    "whatsappSignIn": {
+      "title": "Continuer avec WhatsApp",
+      "button": "Continuer avec WhatsApp",
+      "lead": "Sans mot de passe : vous envoyez un code depuis votre WhatsApp, et c’est tout.",
+      "nameLabel": "Nom et prénom",
+      "nameHint": "Première fois ici : votre nom ouvre votre compte.",
+      "orPassword": "ou avec votre mot de passe",
+      "codeTitle": "Envoyez ce code depuis WhatsApp",
+      "newAccount": "Votre compte est créé. Envoyez ce code pour l’ouvrir.",
+      "otherNumber": "Pas le bon numéro ?",
+      "restart": "Recommencer",
+      "preferPassword": "Vous préférez votre mot de passe ?",
+      "errors": {
+        "name": "Entrez votre nom et prénom.",
+        "busy": "Trop d’essais. Réessayez dans quelques minutes."
+      },
+      "existingAccount": "Ce numéro a déjà un compte. Envoyez ce code depuis WhatsApp pour vous connecter."
+    }
   },
   "updates": {
     "title": "Actualités",

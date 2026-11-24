@@ -8,6 +8,7 @@ import { generateOtpCode, hashOtp, otpExpiresAt } from './authCrypto';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
 import { MAX_FAVORITES, MAX_SAVED_SEARCHES, MAX_FAVORITE_NOTE_LENGTH } from './accountLimits';
 import { DEFAULT_ALERT_FREQUENCY } from './alertPreferences';
+import { storedPasswordHash, HAS_PASSWORD_SQL } from './whatsappSignInRules';
 
 /**
  * Customer-account DB access — mirrors lib/listings.js's shape (plain async
@@ -39,13 +40,16 @@ export const getCustomerById = cache(async (id) => {
   return rows[0] || null;
 });
 
+// `passwordHash` null = an account opened without a password ("Continuer avec
+// WhatsApp", or a request/visit form): password_hash is NOT NULL, so it stores
+// the engine's '!whatsapp' marker, which no password ever matches (lib/whatsappSignInRules.js).
 export async function createCustomer({ phone, passwordHash, fullName }) {
   const pool = getPool();
   const { rows } = await pool.query(
     `INSERT INTO customers (phone, password_hash, full_name)
      VALUES ($1, $2, $3)
      RETURNING id, phone, full_name, token_version, created_at`,
-    [phone, passwordHash, fullName || null],
+    [phone, storedPasswordHash(passwordHash), fullName || null],
   );
   return rows[0];
 }
@@ -63,7 +67,7 @@ export async function createCustomer({ phone, passwordHash, fullName }) {
 export async function getCustomerAuthById(customerId) {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, phone, full_name, token_version, otp_code_hash, otp_expires_at, phone_verified_at
+    `SELECT id, phone, full_name, token_version, otp_code_hash, otp_expires_at, phone_verified_at, created_at
      FROM customers WHERE id = $1`,
     [customerId],
   );
@@ -206,7 +210,7 @@ export async function adminListCustomers({ q, limit = 200 } = {}) {
   const { rows } = await pool.query(
     `SELECT c.id, c.phone, c.full_name, c.created_at, c.last_login_at,
             c.phone_verified_at, c.failed_login_count, c.locked_until,
-            (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password
+            ${HAS_PASSWORD_SQL} AS has_password
      FROM customers c
      ${where}
      ORDER BY c.created_at DESC
@@ -262,7 +266,7 @@ export async function adminListCustomersPage({ q, status, limit = 25, offset = 0
       `SELECT c.id, c.phone, c.full_name, c.created_at, c.created_at::text AS cursor_ts, c.last_login_at,
               c.phone_verified_at, c.failed_login_count, c.locked_until,
               (c.locked_until IS NOT NULL AND c.locked_until > NOW()) AS is_locked,
-              (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password,
+              ${HAS_PASSWORD_SQL} AS has_password,
               (SELECT COUNT(*)::int FROM customer_saved_searches s WHERE s.customer_id = c.id) AS saved_searches_count,
               (SELECT COUNT(*)::int FROM customer_favorites f WHERE f.customer_id = c.id) AS favorites_count
        FROM customers c
@@ -309,7 +313,7 @@ export async function adminGetCustomerProfile(customerId) {
     `SELECT c.id, c.phone, c.full_name, c.created_at, c.last_login_at, c.phone_verified_at,
             c.failed_login_count, c.locked_until,
             (c.locked_until IS NOT NULL AND c.locked_until > NOW()) AS is_locked,
-            (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password,
+            ${HAS_PASSWORD_SQL} AS has_password,
             COALESCE((SELECT array_agg(f.property_id ORDER BY f.created_at DESC) FROM customer_favorites f WHERE f.customer_id = c.id), ARRAY[]::bigint[]) AS favorite_ids
      FROM customers c WHERE c.id = $1`,
     [id],

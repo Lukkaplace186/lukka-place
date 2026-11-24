@@ -7,6 +7,7 @@ import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
+import ContactSignupPrompt from '@/components/ContactSignupPrompt';
 import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import DemoBanner from '@/components/DemoBanner';
@@ -72,6 +73,7 @@ export default async function SiteLayout({ children }) {
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
         <AccountLimitNotice />
+        <ContactSignupPrompt />
         <VisitCartMount />
         <Header hiddenHrefs={[...(features.publicProjects ? [] : ['/projets']), ...(features.publicBlog ? [] : ['/guides'])]} />
         <SiteShell>

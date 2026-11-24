@@ -9,6 +9,8 @@ import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { clientIpFrom } from '@/lib/salesReferral';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { moveStoryFr, parseMoveProject } from '@/lib/moveProjectRules';
+import { openGuestAccount } from '@/lib/guestAccount';
+import { OPEN_ACCOUNT_FIELD, accountRequested } from '@/lib/guestAccountRules';
 import {
   GUEST_REQUEST_SOURCE,
   createLimiter,
@@ -35,6 +37,11 @@ const phoneLimited = createLimiter({ max: 2, windowMs: 24 * 60 * 60 * 1000 });
  * honeypot field a person never fills. If they open an account later with the
  * same number, the request appears in their Espace Client (it is found by
  * phone).
+ *
+ * Since 2026-11-24 the same name and number also open the person's free
+ * account (the "Créer mon compte" box, ticked by default; lib/guestAccount.js)
+ * once the lead is sent — no password, no session until they send the code
+ * from that WhatsApp. `account` in the state says what the confirmation offers.
  *
  * Returns state for useActionState; never redirects, so the form can say
  * what happened in place.
@@ -116,5 +123,17 @@ export async function submitGuestRequestAction(_prev, formData) {
   if (leadId) {
     await recordAdEventFromAction({ name: 'Lead', eventId: `lead-g-${leadId}`, phone });
   }
-  return { status: 'sent', last4: phone.slice(-4), commune: request.commune };
+  // After the lead: the account step can only add, never cost the request.
+  const account = await openGuestAccount({
+    phone,
+    name: request.name,
+    entry: 'request',
+    requested: accountRequested(formData.getAll(OPEN_ACCOUNT_FIELD)),
+  });
+  return {
+    status: 'sent',
+    last4: phone.slice(-4),
+    commune: request.commune,
+    account: account.status === 'skipped' ? (account.reason === 'no_name' ? 'offer' : null) : account.status,
+  };
 }

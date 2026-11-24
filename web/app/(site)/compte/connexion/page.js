@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { loginAction } from './actions';
 import LoginForm from './LoginForm';
+import WhatsAppSignInForm from './WhatsAppSignInForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
 import { getRememberedCustomerPhone } from '@/lib/customerSession';
@@ -40,16 +41,36 @@ export default async function CustomerLoginPage({ searchParams }) {
           </p>
         )}
 
-        <LoginForm
-          action={loginAction}
+        {/* No password first (UX pass 2026-11-12): a code sent from the
+            person's own WhatsApp signs them in, or opens their account. */}
+        <WhatsAppSignInForm
           next={next}
-          error={error}
+          entry={typeof params.entree === 'string' ? params.entree : 'whatsapp'}
           defaultCountry={remembered.country || country}
           defaultPhone={remembered.country ? remembered.national : ''}
-          // From sign-up's "Se connecter avec ce numéro": this device's move
-          // answers become a project once signed in.
-          withProject={params.apres === 'projet'}
         />
+
+        {/* The password form waits behind one tap, so the screen asks for
+            the number once; it opens by itself after a password error or
+            when sign-up sent the person here to use their password. */}
+        <details className="group mt-6" open={Boolean(error) || params.apres === 'projet'}>
+          <summary className="u-focus-ring flex min-h-11 cursor-pointer list-none items-center gap-3 text-[0.8125rem] font-semibold text-ink-70 [&::-webkit-details-marker]:hidden">
+            <span className="h-px flex-1 bg-line" aria-hidden="true" />
+            {t('auth.whatsappSignIn.orPassword')}
+            <span className="h-px flex-1 bg-line" aria-hidden="true" />
+          </summary>
+          <LoginForm
+            action={loginAction}
+            next={next}
+            error={error}
+            defaultCountry={remembered.country || country}
+            defaultPhone={remembered.country ? remembered.national : ''}
+            // From sign-up's "Se connecter avec ce numéro": this device's move
+            // answers become a project once signed in.
+            withProject={params.apres === 'projet'}
+            autoFocus={false}
+          />
+        </details>
 
         <p className="mt-5 text-center text-sm text-ink-45">
           {t('auth.noAccountYet')}{' '}

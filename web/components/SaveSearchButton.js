@@ -9,6 +9,7 @@ import { buildSearchLabel, searchCriteriaTags } from '@/lib/searchLabel';
 import { useT } from '@/lib/i18n/client';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useIsLoggedIn } from '@/lib/customerClient';
+import { isNotACriterion } from '@/lib/feedAlertRules';
 
 // Both dialogs render only after a tap, so their code is fetched only then
 // rather than shipped to every /listings visit up front.
@@ -31,6 +32,15 @@ function AnimatedBell({ pulseKey, ...bellProps }) {
 // FilterBar.js's FILTER_PARAM_KEYS) — this one is internal plumbing between
 // this component and AuthPromptModal.js, never a search criterion itself.
 const AUTH_RETURN_PARAM = 'lkp_auth_return';
+
+/** The URL's query as a saved search: criteria only (see cleanParams below). */
+function criteriaOnly(queryString) {
+  const params = new URLSearchParams(queryString);
+  for (const key of [...params.keys()]) {
+    if (isNotACriterion(key)) params.delete(key);
+  }
+  return params;
+}
 
 /**
  * "M'alerter des nouveaux biens" — one real action, one real label
@@ -81,18 +91,21 @@ export default function SaveSearchButton({ variant = 'default' }) {
   // per actual state change, never on mount.
   const [pulseKey, setPulseKey] = useState(0);
   const resumedRef = useRef(false);
+  const savedQuery = criteriaOnly(queryString).toString();
   const saved = useSyncExternalStore(
     subscribeSavedSearches,
-    () => isSearchSaved(queryString),
+    () => isSearchSaved(savedQuery),
     () => false,
   );
 
   const resumeKey = variant === 'pill' ? 'alert' : 'save';
 
+  // The search without paging, ad tags (utm_*, fbclid) or resume markers
+  // (lkp_*, 2026-11-24): an alert saved from an ad landing used to carry the
+  // ad's tags, and one saved on a return from WhatsApp could carry
+  // lkp_fav_return (lib/feedAlertRules.js isNotACriterion).
   function cleanParams() {
-    const params = new URLSearchParams(queryString);
-    params.delete(AUTH_RETURN_PARAM);
-    return params;
+    return criteriaOnly(queryString);
   }
 
   function performSave() {
@@ -119,7 +132,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
 
   function handleClick() {
     if (saved) {
-      removeSavedSearch(queryString);
+      removeSavedSearch(savedQuery);
       setPulseKey((k) => k + 1);
       return;
     }

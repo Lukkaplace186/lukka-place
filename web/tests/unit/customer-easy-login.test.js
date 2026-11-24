@@ -18,7 +18,12 @@ beforeEach(() => fakePool.reset());
 
 test('signup signs in and goes straight on: no code, no verify page', () => {
   const src = read('app/(site)/compte/inscription/actions.js');
-  assert.doesNotMatch(src, /sendCustomerOtp|setVerifyAttemptCookie|\/verifier/);
+  assert.doesNotMatch(src, /sendCustomerOtp|\/verifier/);
+  // The one WhatsApp step left is for a number that ALREADY has an account
+  // (2026-11-24): its code screen signs them in. A new account never meets it.
+  const newAccount = src.slice(src.indexOf('let typedCode'), src.indexOf('export async function checkSignupPhoneAction'));
+  assert.ok(newAccount.length > 0);
+  assert.doesNotMatch(newAccount, /setVerifyAttemptCookie|existingAccountToWhatsApp/);
   const created = src.indexOf('createCustomer(');
   const session = src.indexOf('establishCustomerSession(');
   assert.ok(created > 0 && session > created);

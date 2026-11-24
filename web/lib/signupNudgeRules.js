@@ -3,7 +3,7 @@
  * Pure; components/SignupNudge.js applies it.
  *
  *  - a second saved listing (favourites live in this browser until signup),
- *  - a third listing opened ("Récemment consultés" holds them),
+ *  - a second listing opened ("Récemment consultés" holds them),
  *  - a search with no exact result.
  *
  * At most once per tab session, never for a signed-in customer or agent, and
@@ -16,7 +16,9 @@ export const NUDGE_SESSION_KEY = 'lp_nudge_shown';
 export const NUDGE_REASONS = ['favorites', 'listing_viewed', 'no_results'];
 
 export const FAVORITES_THRESHOLD = 2;
-export const VIEWED_THRESHOLD = 3;
+// 2 since 2026-11-24 (3 until then): 81 % of visitors see one page, so a
+// third listing opened was a moment almost nobody reached.
+export const VIEWED_THRESHOLD = 2;
 
 const QUIET_PREFIXES = ['/compte', '/i/', '/go/', '/admin', '/rapport'];
 

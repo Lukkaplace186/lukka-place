@@ -824,3 +824,59 @@ leave a name and number, optional.
   approved, an agent outside the 24 h window gets no « Visite fixée » button,
   but a typed "visite demain 10h" or "Faites le point" still makes the visit.
 - verify-pipeline §122; web `tests/unit/contact-salvage.test.js`.
+
+## Customer sign-up push (2026-11-24, branch `feat/signup-boost`)
+
+Owner: "make it as easy as possible for customers to sign up for free". Baseline
+(14 days to 2026-11-24, `customer_signup_events` / `page_views`): 20,075
+visitors, 99 % on a phone, ~90 % from Facebook ads, 81 % seeing one page;
+~25 accounts (69 ever). The nudge showed to 324 people (9 opened, 5 accounts),
+the after-WhatsApp sheet to 36 (1 opened, 0 accounts); 141 people tapped
+WhatsApp and one had an account; 10 sign-ups were refused as "exists".
+
+Built on this branch's base plus the live app branch's sign-in files
+(`feat/agent-app-push`: "Continuer avec WhatsApp", `ContactSignupPrompt`,
+`contactTapClaim`) and the NOT NULL password fix (`fix/contact-signup-password`,
+`'!whatsapp'` marker) — production already runs those; a deploy merges file by
+file onto the server copies as usual.
+
+- **Feed alert card** (`components/FeedAlertCard.js`, `lib/feedAlertRules.js`):
+  after the 3rd result on `/listings` page 1. With a commune/quartier (or another
+  city) it is one button for that search; on the ad's "toutes les villes"
+  landing it asks for a commune first (every listing of the city is the feed,
+  not an alert). Entry `feed_alert`, "shown" counted when on screen.
+- **Forms that already ask for a name and a number open the account**
+  (`lib/guestAccount.js`, `lib/guestAccountRules.js`): "Trouver pour moi" and
+  "Demander une visite" carry a "Créer mon compte gratuit" box, ticked by
+  default, hidden when signed in. After the lead / visit succeeds: a known
+  number → nothing created; a new number with a name → account with the
+  `'!whatsapp'` marker; either way a signed attempt cookie, and the
+  confirmation (`AccountOfferCard`) links to the WhatsApp code screen. **No
+  session before the code from that WhatsApp**, so someone else's number opens
+  nothing usable. Never throws into the form. Demo numbers skipped. Entries
+  `request` / `visit`. `created` is counted at account creation, before the
+  proof — the proven ones are `customers.phone_verified_at`.
+- **"Ce numéro a déjà un compte"** at sign-up (and its "Se connecter avec ce
+  numéro" button) now opens the WhatsApp code screen on that account
+  (`compte=existant`), unless the person answered the move cards (those keep
+  the password path that saves the project). Still recorded as `refused/exists`.
+- **Nudge** (`SignupNudge`): after a 2nd listing opened (was 3rd); its button
+  opens the WhatsApp form in place (`AuthPromptModal` trigger `nudge`) instead
+  of the sign-up page.
+- **After WhatsApp** (`ContactSignupPrompt`): `trackLeadClick` fires the tap
+  event (it had slid into `trackWhatsAppOutcome` in the 3-way merge — check
+  this after every merge of `lib/analyticsClient.js`) with the listing's
+  similar search (`lib/similarSearch.js`) and the visit sheet's optional
+  name + number. The sheet says "Recevez les biens comme celui-ci", is
+  prefilled, and signing in lands on those results with the alert and the
+  listing saved (`similarAlertNext`).
+- **Home search bell** (`SearchBar`, entry `home_hero`): "M'alerter des
+  nouveaux biens ici" under "Voir N biens" once the search names a commune.
+- **`/alertes-whatsapp`** (entry `alert_landing`, noindex): one screen for an
+  ad — Louer/Acheter, commune, budget → the same alert flow.
+- Saved searches now drop paging, sort, ad tags and `lkp_*` markers
+  (`SaveSearchButton` → `isNotACriterion`), so an alert saved from an ad
+  landing is the search, not the visit.
+
+Not built: an "M'alerter des biens similaires" box in front of WhatsApp — it
+would break "never in front of WhatsApp" and there is no A/B tool to test it.

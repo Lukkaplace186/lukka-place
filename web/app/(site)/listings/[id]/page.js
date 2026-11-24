@@ -142,6 +142,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
   // A video visit's confirmation carries the payment warning (lib/visitMode.js);
   // `mode=video` is what the visit action adds to the redirect.
   const visitVideo = Boolean(visitSent) && sp.mode === 'video';
+  // The account the visit request opened (lib/guestAccount.js): AccountOfferCard under the confirmation.
+  const visitAccount = visitSent && ['created', 'existing', 'offer'].includes(sp.compte) ? sp.compte : null;
   const listing = await getListingById(id);
 
   // Covers both "no such id" and "exists but is not approved" —
@@ -343,7 +345,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 bar's (owner, 2026-11-18: no second contact block). */}
             <div className={`flex flex-col gap-1 ${RULE} lg:hidden`}>
               <ListingAgentRow listing={listing} />
-              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} saveShare={false} compact />
+              <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitAccount={visitAccount} visitError={visitError} saveShare={false} compact />
             </div>
 
             {/* The story: the description, cut to four lines, then the key
@@ -388,7 +390,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
               it the item stretches to the row's full height and has no
               room left to stick within. top-24 clears the fixed header. */}
           <aside className="hidden w-full self-start lg:sticky lg:top-24 lg:flex lg:flex-col lg:space-y-4">
-            <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitError={visitError} placement="listing_desktop" />
+            <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitAccount={visitAccount} visitError={visitError} placement="listing_desktop" />
             {displayableAgencyName(listing.agency_name) ? <AgentTrustLine listing={listing} className="px-1" /> : null}
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />

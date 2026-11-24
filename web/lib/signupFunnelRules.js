@@ -41,13 +41,21 @@ export const SIGNUP_ENTRIES = [
   'login_page', // "Créer un compte" under the login form
   'partner_invite', // /i/<code>, an agent's or creator's invitation
   'price_guide', // the price guide (reserved for its sign-up hook)
+  'whatsapp', // "Continuer avec WhatsApp" on the login page (2026-11-12)
+  'visit', // after a visit request, to follow the agency's answer
+  'onboarding', // the app's first-open questions
+  'after_whatsapp', // the offer after a guest's WhatsApp tap on a listing (ContactSignupPrompt, 2026-11-18)
+  'feed_alert', // the alert card inside the /listings feed (FeedAlertCard, 2026-11-24)
+  'request', // the account a "Trouver pour moi" request opens (lib/guestAccount.js, 2026-11-24)
+  'home_hero', // the bell beside "Voir N biens" in the homepage search (2026-11-24)
+  'alert_landing', // /alertes-whatsapp, the one-screen page an ad can link to (2026-11-24)
   'direct', // anything else: a typed URL, an old link, a shared link
 ];
 
 const ENTRY_SET = new Set(SIGNUP_ENTRIES);
 
 /** Entries that are a prompt (shown, then opened); the others are plain links. */
-export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge']);
+export const PROMPT_ENTRIES = new Set(['favorite', 'save_search', 'alert', 'nudge', 'after_whatsapp', 'feed_alert', 'request', 'visit', 'home_hero', 'alert_landing']);
 
 /** Steps a browser may report. `refused` and `created` are server-only. */
 export const CLIENT_SIGNUP_STEPS = ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit'];
@@ -80,7 +88,7 @@ export function cleanSignupRefusal(value) {
 
 /** AuthPromptModal's `trigger` → entry. */
 export function entryForPromptTrigger(trigger) {
-  if (trigger === 'favorite') return 'favorite';
+  if (trigger === 'favorite' || trigger === 'favoriteKeep') return 'favorite';
   if (trigger === 'alert') return 'alert';
   return 'save_search';
 }

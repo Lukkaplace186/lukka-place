@@ -7,6 +7,7 @@ import { useIsLoggedIn } from '@/lib/customerClient';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
 import VisitSlotPicker from './VisitSlotPicker';
 import PhoneField from './PhoneField';
+import { OPEN_ACCOUNT_FIELD } from '@/lib/guestAccountRules';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -182,6 +183,20 @@ export default function VisitRequestDialog({ propertyId, open, onOpenChange, ret
             fieldClassName="h-11 rounded-lg bg-surface"
             required
           />
+
+          {/* "Créer mon compte gratuit" (2026-11-24): the same name and number
+              open the account once the visit is sent (lib/guestAccount.js).
+              Hidden "0" first, the ticked box's "1" after it. */}
+          {loggedIn ? null : (
+            <label className="flex items-start gap-2.5 rounded-lg bg-blue-tint px-3 py-2.5 text-[0.8125rem] text-ink">
+              <input type="hidden" name={OPEN_ACCOUNT_FIELD} value="0" />
+              <input type="checkbox" name={OPEN_ACCOUNT_FIELD} value="1" defaultChecked className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--blue)]" />
+              <span>
+                <span className="font-semibold">{t('listings.guestRequest.openAccount')}</span>
+                <span className="block text-ink-70">{t('enquiry.openAccountHint')}</span>
+              </span>
+            </label>
+          )}
 
           <DialogFooter>
             <DialogClose asChild>

@@ -7,6 +7,8 @@ import { ChevronLeft, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
 import ListingsFeed from './ListingsFeed';
 import FeedRequestCard from './FeedRequestCard';
+import FeedAlertCard from './FeedAlertCard';
+import { feedAlertIndex } from '@/lib/feedAlertRules';
 import { feedRequestHref, feedRequestIndex } from '@/lib/guestRequestRules';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
@@ -69,6 +71,7 @@ export default function ListingsSplitView({
   const feedKey = `${queryString}#${page}`;
   const requestHref = feedRequestHref(params);
   const requestIndex = feedRequestIndex(listings.length);
+  const alertIndex = feedAlertIndex(listings.length);
   const router = useRouter();
   // How many listings the map counts in view — the mobile Liste button says it.
   const [inView, setInView] = useState(null);
@@ -222,6 +225,10 @@ export default function ListingsSplitView({
             {/* "Pas encore trouvé ?" once, after the 6th card (or the last of a
                 shorter first page): the visitor not ready to write to an agent
                 leaves what they want instead of leaving. */}
+            {/* "Recevez les nouveaux biens sur WhatsApp" after the 3rd card
+                (2026-11-24): most paid visitors see one page and were never
+                offered an account. */}
+            {page === 1 && i === alertIndex ? <FeedAlertCard params={params} communes={communes} /> : null}
             {page === 1 && i === requestIndex ? <FeedRequestCard href={requestHref} /> : null}
             </Fragment>
           )}

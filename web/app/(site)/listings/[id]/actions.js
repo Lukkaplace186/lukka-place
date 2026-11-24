@@ -11,6 +11,8 @@ import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { requestedTimeWithMode, visitModeOf } from '@/lib/visitModeRules';
+import { openGuestAccount } from '@/lib/guestAccount';
+import { OPEN_ACCOUNT_FIELD, accountRequested } from '@/lib/guestAccountRules';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -104,5 +106,16 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // agent. Without one the request goes to Lukka Place's desk, and the page
   // must not tell the customer an agent has it (request #8, 2026-10-10: the
   // listing had no agent and the confirmation still said "sent to the agent").
-  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&mode=video' : ''}`);
+  // The same name and number open the guest's free account (2026-11-24,
+  // lib/guestAccount.js; the "Créer mon compte" box, ticked by default). After
+  // the visit is recorded, never instead of it; the confirmation offers the
+  // one tap that makes it theirs (`compte`, read by the listing page).
+  const account = await openGuestAccount({
+    phone,
+    name,
+    entry: 'visit',
+    requested: accountRequested(formData.getAll(OPEN_ACCOUNT_FIELD)),
+  });
+  const accountParam = account.status === 'skipped' ? (account.reason === 'no_name' ? 'offer' : null) : account.status;
+  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&mode=video' : ''}${accountParam ? `&compte=${accountParam}` : ''}`);
 }

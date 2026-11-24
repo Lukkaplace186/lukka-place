@@ -54,7 +54,7 @@ function draftProjectValue() {
  * offers the reset, which unlocks at once; `withProject` (from sign-up's
  * "Se connecter avec ce numéro") sends this device's move answers along.
  */
-export default function LoginForm({ action, next, error: initialError, defaultCountry, defaultPhone = '', withProject = false }) {
+export default function LoginForm({ action, next, error: initialError, defaultCountry, defaultPhone = '', withProject = false, autoFocus = true }) {
   const t = useT();
   const locale = useLocale();
   const formRef = useRef(null);
@@ -98,7 +98,7 @@ export default function LoginForm({ action, next, error: initialError, defaultCo
         detectCountry={!phoneValue}
         locale={locale}
         labels={phoneFieldLabels(t)}
-        autoFocus={!phoneValue}
+        autoFocus={autoFocus && !phoneValue}
         required
       />
 
@@ -115,7 +115,7 @@ export default function LoginForm({ action, next, error: initialError, defaultCo
           id="password"
           name="password"
           autoComplete="current-password"
-          autoFocus={Boolean(phoneValue)}
+          autoFocus={autoFocus && Boolean(phoneValue)}
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}

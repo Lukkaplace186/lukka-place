@@ -23,9 +23,12 @@ const LABEL = 'mb-1.5 block text-[0.875rem] font-semibold text-ink';
  * their real counts; the button appears once a commune is picked, since an
  * alert on a whole city's rentals is a feed, not an alert.
  *
- * @param {{popular: {commune: string, count: number}[], others: string[]}} props
+ * `entry` names the page in the sign-up funnel (/alertes-whatsapp passes
+ * 'alert_landing'); the homepage band keeps the plain 'alert'.
+ *
+ * @param {{popular: {commune: string, count: number}[], others: string[], entry?: string|null}} props
  */
-export default function HomeAlertPicker({ popular = [], others = [] }) {
+export default function HomeAlertPicker({ popular = [], others = [], entry = null }) {
   const t = useT();
   const [transaction, setTransaction] = useState('location');
   const [commune, setCommune] = useState('');
@@ -106,7 +109,7 @@ export default function HomeAlertPicker({ popular = [], others = [] }) {
       </div>
 
       {query ? (
-        <QueryAlertButton query={query} label={t('home.alertBand.button')} fullWidth />
+        <QueryAlertButton query={query} label={t('home.alertBand.button')} entry={entry} fullWidth />
       ) : (
         <p className="flex min-h-12 items-center justify-center rounded-xl border border-dashed border-ink-25 px-4 text-center text-[0.875rem] text-ink-45">
           {t('home.alertBand.pickCommune')}

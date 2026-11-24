@@ -419,8 +419,12 @@ test('app listing page: photo to the top, one agent row, price in the bar, simil
   assert.match(page, /\{app \? <AppListingHeader listing=\{listing\} where=\{where\} \/> : null\}/);
   assert.match(page, /\$\{app \? ' max-sm:-mt-16' : ''\}/, 'the photo runs under the clear bar on a phone');
   // The bottom bar already carries the contact buttons: the app shows the agent once, and no second price panel.
-  const mobile = page.slice(page.indexOf('{app ? (\r\n              <div className="lg:hidden">\r\n                <AppAgentRow'), page.indexOf('<div id="caracteristiques"'));
+  // The app's own block (any line endings, wherever the page places it).
+  const start = page.search(/\{app \? \(\s*<div className="lg:hidden">\s*<AppAgentRow/);
+  assert.ok(start > 0, 'the app shows its agent row');
+  const mobile = page.slice(start, page.indexOf(') : null}', start));
   assert.match(mobile, /<AppAgentRow listing=\{listing\} \/>/);
+  assert.doesNotMatch(mobile, /PricePanel/, 'no second price panel');
   assert.match(page, /const name = displayableAgencyName\(listing\.agency_name\);/, 'never a phone-shaped name');
   assert.match(page, /if \(app\) \{[\s\S]*?return <AppRelatedRail title=\{title\} lead=\{lead\} listings=\{related\} \/>;/);
   const header = read('components/app/AppListingHeader.js');

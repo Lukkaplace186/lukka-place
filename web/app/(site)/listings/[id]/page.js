@@ -1,4 +1,5 @@
-import { AppListingBar, AppListingHeader } from '@/components/app/AppListingChrome';
+import AppListingBar from '@/components/app/AppListingBar';
+import AppListingHeader from '@/components/app/AppListingHeader';
 import AppRelatedRail from '@/components/app/AppRelatedRail';
 import AppAvatar from '@/components/app/AppAvatar';
 import AppVerifiedMark from '@/components/app/AppVerifiedMark';

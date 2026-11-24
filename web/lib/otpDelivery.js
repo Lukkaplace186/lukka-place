@@ -1,5 +1,6 @@
 import 'server-only';
 import { sendWhatsAppMessage, sendWhatsAppTemplate } from './adminApi';
+import { recordCodeSend } from './verificationCodes';
 
 /**
  * The one way a verification code leaves this app: WhatsApp, to the number
@@ -69,7 +70,22 @@ export function templateConfigured(name) {
  *   fallback entirely. `label` only tags the log line.
  * @throws when neither channel delivered
  */
-export async function sendOtpViaWhatsApp(phone, code, { fallbackText, label = 'otp' } = {}) {
+export async function sendOtpViaWhatsApp(phone, code, options = {}) {
+  // A copy for /admin/codes (2026-11-24): when the code does not arrive —
+  // Chakra confirms no delivery — the team can read it out. Recorded after
+  // the send, never instead of it; recordCodeSend never throws.
+  const purpose = options.label || 'otp';
+  try {
+    const result = await deliverOtp(phone, code, options);
+    await recordCodeSend({ phone, code, purpose, status: 'sent', channel: result?.channel || null });
+    return result;
+  } catch (err) {
+    await recordCodeSend({ phone, code, purpose, status: 'failed', error: err?.message || null });
+    throw err;
+  }
+}
+
+async function deliverOtp(phone, code, { fallbackText, label = 'otp' } = {}) {
   const { template, languageCode, withButton } = templateConfig();
 
   // No template configured is an EXPECTED state until one is approved, not a

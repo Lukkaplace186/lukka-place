@@ -4506,7 +4506,8 @@
       "contacts": "Contacts",
       "seo": "SEO & Google",
       "moveProjects": "Move Projects",
-      "demo": "Demo Accounts"
+      "demo": "Demo Accounts",
+      "codes": "Codes Sent"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -8868,6 +8869,36 @@
       "back": "← Demo accounts",
       "messagesTitle": "Messages — {label}",
       "messagesHint": "Everything the demo accounts would have received on WhatsApp. A “[Démo — non envoyé à +…]” line is a message that would have gone to a real number (desk, agency) during a demo action."
+    },
+    "codes": {
+      "title": "Codes Sent",
+      "subtitle": "Verification codes sent on WhatsApp in the last {minutes} minutes: customer sign-in, agent confirmation, password, number change. When a code does not arrive, read it to the person.",
+      "refresh": "Refresh",
+      "warning": "Only give a code to the person calling from that number, or once you know who they are: the code opens their account. Every opening of this page is recorded in the audit log.",
+      "loadError": "Could not read the codes: {error}",
+      "notReady": "The codes table does not exist yet (migration 20261124_verification_codes_sent.sql).",
+      "empty": "No code sent in the last {minutes} minutes.",
+      "noName": "No account",
+      "expired": "expired",
+      "replaced": "replaced",
+      "sentTemplate": "Sent (template)",
+      "sentSession": "Sent (message)",
+      "failed": "Send failed",
+      "cols": {
+        "time": "Time",
+        "number": "Number",
+        "who": "Who",
+        "purpose": "For",
+        "code": "Code",
+        "status": "Sending"
+      },
+      "purposes": {
+        "customer": "Customer sign-in",
+        "agent": "Agent confirmation",
+        "reset": "Forgotten password",
+        "phoneChange": "Number change",
+        "other": "Other"
+      }
     }
   },
   "errors": {

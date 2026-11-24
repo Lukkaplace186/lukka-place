@@ -4506,7 +4506,8 @@
       "contacts": "Contacts",
       "seo": "SEO & Google",
       "moveProjects": "Projets de déménagement",
-      "demo": "Comptes démo"
+      "demo": "Comptes démo",
+      "codes": "Codes envoyés"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -8868,6 +8869,36 @@
       "back": "← Comptes démo",
       "messagesTitle": "Messages — {label}",
       "messagesHint": "Tout ce que les comptes démo auraient reçu sur WhatsApp. Une ligne « [Démo — non envoyé à +…] » est un message qui serait parti vers un vrai numéro (desk, agence) pendant une action démo."
+    },
+    "codes": {
+      "title": "Codes envoyés",
+      "subtitle": "Les codes de vérification envoyés sur WhatsApp dans les {minutes} dernières minutes : connexion client, confirmation agent, mot de passe, changement de numéro. Quand un code n’arrive pas, lisez-le à la personne.",
+      "refresh": "Actualiser",
+      "warning": "Ne donnez un code qu’à la personne qui appelle depuis ce numéro, ou après avoir vérifié qui elle est : ce code ouvre son compte. Chaque ouverture de cette page est enregistrée dans le journal.",
+      "loadError": "Impossible de lire les codes : {error}",
+      "notReady": "La table des codes n’existe pas encore (migration 20261124_verification_codes_sent.sql).",
+      "empty": "Aucun code envoyé dans les {minutes} dernières minutes.",
+      "noName": "Pas de compte",
+      "expired": "expiré",
+      "replaced": "remplacé",
+      "sentTemplate": "Envoyé (modèle)",
+      "sentSession": "Envoyé (message)",
+      "failed": "Échec d’envoi",
+      "cols": {
+        "time": "Heure",
+        "number": "Numéro",
+        "who": "Qui",
+        "purpose": "Pour",
+        "code": "Code",
+        "status": "Envoi"
+      },
+      "purposes": {
+        "customer": "Connexion client",
+        "agent": "Confirmation agent",
+        "reset": "Mot de passe oublié",
+        "phoneChange": "Changement de numéro",
+        "other": "Autre"
+      }
     }
   },
   "errors": {

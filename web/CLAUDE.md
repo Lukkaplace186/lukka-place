@@ -466,6 +466,17 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
     keeps the queue it opened with (a Server Action's revalidation re-renders
     the page without the decided listing, which shifted the index) and shows
     corrections from local state.
+- **Codes envoyés** (`/admin/codes`, owner and support via `customers.manage`,
+  2026-11-24, owner): every verification code the website sent in the last
+  hour, in clear — customer sign-in, agent confirmation, password reset,
+  number change — with the number, the account's name, sent / failed, and
+  which one still counts (newest per number, 10 minutes, database clock).
+  For a code that never arrives (Chakra confirms no delivery).
+  `lib/otpDelivery.js` records each send after it (`lib/verificationCodes.js`,
+  table `verification_codes_sent`, engine migration
+  `20261124_verification_codes_sent.sql`, rows deleted after 24 h); every
+  opening is audited (`codes.view`). Codes sent by the ENGINE (WhatsApp
+  onboarding) are not on it. `tests/unit/verification-codes.test.js`.
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while

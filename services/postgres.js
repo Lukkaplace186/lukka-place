@@ -42,6 +42,7 @@ const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs } = require('./commercial');
 const { normaliseListingDetails } = require('./listingDetails');
 const { Pool } = require('pg');
+const { handleConnectionErrors } = require('./pgPoolErrors');
 const { uploadListingPhotos, uploadListingVideos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier, tidyListingLocation, LOCATIONS } = require('./locations');
 const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
@@ -78,6 +79,8 @@ function getPool() {
       ssl: { rejectUnauthorized: false },
       max: 5,
     });
+    // A dropped connection is logged, never a crash (services/pgPoolErrors.js).
+    handleConnectionErrors(pool, 'postgres');
   }
   return pool;
 }

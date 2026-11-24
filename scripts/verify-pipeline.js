@@ -20166,6 +20166,57 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // §132 A dropped Postgres connection is logged, never a crash (2026-11-24)
+  // ---------------------------------------------------------------------------
+  // The Nano → Micro restart cut the pool's idle connections; node-pg emitted
+  // 'error' with no listener and the engine exited. Reproduced against
+  // Supabase session mode with pg_terminate_backend: crash without the
+  // handler, logged + fresh backend with it (services/pgPoolErrors.js).
+  console.log('\n§132 a dropped Postgres connection is logged, never a crash');
+  {
+    const { EventEmitter } = require('events');
+    const { handleConnectionErrors } = require('../services/pgPoolErrors');
+    const savedError = console.error; const logged = [];
+    console.error = (...a) => logged.push(a.join(' '));
+    try {
+      check('without a listener an idle-connection error throws (what crashed the engine)', () => {
+        assert.throws(() => new EventEmitter().emit('error', new Error('terminating connection due to administrator command')));
+      });
+      const pool = handleConnectionErrors(new EventEmitter(), 'test');
+      check('with it, an idle-connection error is logged once and does not throw', () => {
+        logged.length = 0;
+        pool.emit('error', new Error('terminating connection due to administrator command'));
+        assert.strictEqual(logged.length, 1);
+        assert.match(logged[0], /\[test\] idle Postgres connection lost.*administrator command/);
+      });
+      check('a checked-out connection that drops is logged and does not throw; an idle one is left to the pool', () => {
+        const client = new EventEmitter();
+        pool.emit('connect', client);
+        logged.length = 0;
+        client.emit('error', new Error('idle drop'));
+        assert.strictEqual(logged.length, 0, 'idle: the pool listener reports it');
+        pool.emit('acquire', client);
+        client.emit('error', new Error('Connection terminated unexpectedly'));
+        assert.strictEqual(logged.length, 1);
+        assert.match(logged[0], /while in use.*Connection terminated unexpectedly/);
+        pool.emit('release', undefined, client);
+      });
+      check('attaching twice adds no second set of listeners', () => {
+        const before = pool.listenerCount('error');
+        handleConnectionErrors(pool, 'test');
+        assert.strictEqual(pool.listenerCount('error'), before);
+      });
+      check('both engine pools attach it when they are created', () => {
+        for (const file of ['postgres.js', 'propertyRepository.js']) {
+          const src = fs.readFileSync(path.join(__dirname, '..', 'services', file), 'utf8');
+          assert.match(src, /pool = new Pool\(\{[\s\S]*?\}\);\s*\/\/[^\n]*\n\s*handleConnectionErrors\(pool, '[A-Za-z]+'\);/, file);
+        }
+      });
+    } finally {
+      console.error = savedError;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

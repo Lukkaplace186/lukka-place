@@ -28,6 +28,7 @@
  */
 
 const { Pool } = require('pg');
+const { handleConnectionErrors } = require('./pgPoolErrors');
 const { shortTermSql, longTermSql, normaliseLeaseTerm } = require('./leaseTerm');
 
 const CONTENT_LANGUAGE_ID = 20;
@@ -53,6 +54,8 @@ function getPool() {
       ssl: { rejectUnauthorized: false },
       max: 5,
     });
+    // A dropped connection is logged, never a crash (services/pgPoolErrors.js).
+    handleConnectionErrors(pool, 'propertyRepository');
   }
   return pool;
 }

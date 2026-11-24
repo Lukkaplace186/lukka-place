@@ -195,3 +195,12 @@ the write side.
   SAVEPOINT and the original three-column statement runs instead
   (`legacy: true` in the result). Any other failure still rolls back.
 - §39 of verify-pipeline.
+
+## A dropped Postgres connection is logged, never a crash (2026-11-24)
+
+The Supabase compute change (Nano → Micro, 2026-11-24 09:27 UTC) restarted Postgres and the engine **crashed**: node-pg emits `error` on the Pool when the server cuts an idle connection, and nothing in `services/` listened, so Node exited (`terminating connection due to administrator command`). PM2 restarted it 5 s later; a WhatsApp verification code that arrived in that gap got the generic intake reply instead of being checked.
+
+- `services/pgPoolErrors.js` `handleConnectionErrors(pool, label)` listens on the pool (idle connections) and on every client (a connection cut while checked out), logs one line per drop and lets the pool reconnect on the next query. A query in flight still rejects and its caller handles it as before.
+- Both long-running engine pools attach it in `getPool()`: `services/postgres.js`, `services/propertyRepository.js`. **A new long-running Pool must too.** One-shot `scripts/` pools do not need it.
+- Proved against production in Supabase session mode (port 5432, a backend of our own) with `pg_terminate_backend`: crash without the handler; with it, one log line and the next query on a fresh backend. The web survived the same restart (Next.js catches the event).
+- Log lines to grep: `idle Postgres connection lost`, `Postgres connection lost while in use`. verify-pipeline §132.

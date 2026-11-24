@@ -16,11 +16,11 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  */
 // Half the vertical rhythm it had on a phone (py-10 → py-6, owner
 // 2026-11-18: a shorter, smoother landing page, as on the listing page).
-export const HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14';
+export const HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10';
 
 export default function HomeSectionHeader({ title, href, linkLabel, className = '' }) {
   return (
-    <div className={`mb-5 flex items-end justify-between gap-4 sm:mb-7 ${className}`}>
+    <div className={`mb-4 flex items-end justify-between gap-4 sm:mb-5 ${className}`}>
       <h2 className="u-title-storefront min-w-0 text-ink">{title}</h2>
       {href && linkLabel ? (
         <Link

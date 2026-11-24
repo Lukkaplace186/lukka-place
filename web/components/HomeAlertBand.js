@@ -38,25 +38,25 @@ export default async function HomeAlertBand() {
 
   return (
     <section className="bg-blue-deep text-white">
-      <div className="mx-auto max-w-[1600px] px-4 py-7 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
         <HomeAlertReveal
           openLabel={t('home.alertBand.open')}
           closeLabel={t('home.alertBand.close')}
           intro={(
-            <div className="flex min-w-0 flex-1 items-start gap-4 sm:items-center">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/12">
-                <BellRing strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-[1.375rem] w-[1.375rem]" />
+            <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4 sm:items-center">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/12 sm:h-11 sm:w-11">
+                <BellRing strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h2 className="text-[1.125rem] font-bold leading-snug sm:text-[1.25rem]">{t('home.alertBand.heading')}</h2>
-                <p className="mt-1 max-w-2xl text-[0.9375rem] leading-relaxed text-white/80">{t('home.alertBand.lead')}</p>
+                <h2 className="text-[1.0625rem] font-bold leading-snug sm:text-[1.125rem]">{t('home.alertBand.heading')}</h2>
+                <p className="mt-1 max-w-2xl text-[0.875rem] leading-normal text-white/80 sm:text-[0.9375rem]">{t('home.alertBand.lead')}</p>
               </div>
             </div>
           )}
           secondary={(
             <Link
               href="/trouver-pour-moi"
-              className="u-press inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-white/50 px-5 text-[0.9375rem] font-semibold text-white transition-colors hover:border-white hover:bg-white/10"
+              className="u-press inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border-[1.5px] border-white/50 px-5 text-[0.9375rem] font-semibold text-white transition-colors hover:border-white hover:bg-white/10"
             >
               {t('home.alertBand.requestButton')}
               <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4" />

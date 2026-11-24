@@ -518,7 +518,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       <button
         type="button"
         onClick={submit}
-        className="u-press u-btn-primary mt-3 inline-flex h-14 w-full sm:mt-5 items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
+        className="u-press u-btn-primary mt-3 inline-flex h-12 w-full sm:mt-4 sm:h-[3.25rem] items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
       >
         {/* Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not

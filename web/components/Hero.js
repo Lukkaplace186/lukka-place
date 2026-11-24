@@ -22,9 +22,10 @@ import { useT } from '@/lib/i18n/client';
  *
  * Headline is Plus Jakarta Sans at 800 (the family's heaviest real cut), set
  * as a Zillow-style stacked-noun grid — "Appartements. Villas. Terrains.
- * Agences." Sizes step 36 -> 48 -> 60px, so the headline carries the hero
- * alone. The band's own height is unchanged, and the search panel still
- * straddles its bottom edge — verified above the fold at 320/375/1280.
+ * Agences." Sizes step 24 -> 40 -> 48px (were 32 -> 48 -> 60 until
+ * 2026-11-24: the owner found phone and laptop "too zoomed in"; the band went
+ * 22.25 -> 21rem on a phone, 30 -> 26rem at sm, 33.75 -> 28rem at lg, so the
+ * search panel's commune pills stay above the fold on a 768px-tall laptop).
  *
  * ---------------------------------------------------------------------------
  * Photo: Hero/hero-sunlit.jpg — a bright, sunlit clear-sky frame supplied
@@ -84,7 +85,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
 
   return (
     <>
-      <section className="relative flex h-[22.25rem] w-full items-start overflow-hidden bg-ink pt-7 sm:h-[30rem] sm:items-center sm:pt-0 lg:h-[33.75rem]">
+      <section className="relative flex h-[21rem] w-full items-start overflow-hidden bg-ink pt-5 sm:h-[26rem] sm:items-center sm:pt-0 lg:h-[28rem]">
         {/* Nothing sits between the photo and the type: no scrim, no
             gradient, no frosted panel. The sunlit sky is the hero. */}
         {/* `image` is the picture set from /admin/cms (lib/cmsSettings.js), on an
@@ -130,7 +131,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
                 appartements à louer… à Kinshasa") inside the h1, so the one
                 heading Google weighs most says what the page offers; the
                 stacked nouns stay the visual headline (2026-11-10, SEO). */}
-            <h1 className="u-lift-in text-[2rem] font-extrabold leading-[1.02] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
+            <h1 className="u-lift-in text-[1.5rem] font-extrabold leading-[1.05] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-[2.5rem] md:text-5xl">
               <span className="mb-2 block max-w-md text-[0.8125rem] font-bold leading-snug tracking-normal [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-sm md:max-w-lg">
                 {t('home.hero.kicker')}
               </span>
@@ -163,11 +164,11 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
 
       {/* The panel straddles the hero's bottom edge, per the design. This is
           where the real call-to-action lives (the "Voir N biens" submit inside
-          SearchBar). On a phone the band is shorter (22.25rem: 19.5rem until
-          the h1 gained its keyword line on 2026-11-10; was 26rem) and
+          SearchBar). On a phone the band is shorter (21rem since 2026-11-24;
+          22.25rem from 2026-11-10, 19.5rem before; was 26rem) and
           the overlap deeper, so the search card starts in the top half of the
           screen instead of at the fold (2026-10-06 storefront upgrade). */}
-      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1600px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
+      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1600px] px-4 sm:px-6 lg:-mt-24 lg:px-8">
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
       </div>
     </>

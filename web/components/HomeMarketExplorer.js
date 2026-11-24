@@ -24,8 +24,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * @param {{communes: {commune: string, label: string, rows: {beds: number, median: number, p25: number|null, p75: number|null, listings: number, lukkaListings: number, slug: string}[]}[], note: string}} props
  */
 
-// The tallest bar; the plot area (h-44) leaves room for the value above it.
-const BAR_MAX_REM = 8.5;
+// The tallest bar; the plot area (h-36) leaves room for the value above it.
+const BAR_MAX_REM = 6.5;
 
 function defaultBeds(rows) {
   return rows.reduce((best, row) => (row.listings > best.listings ? row : best), rows[0]).beds;
@@ -44,11 +44,11 @@ export default function HomeMarketExplorer({ communes, note }) {
   return (
     // One column on a phone (communes, figure, chart, note). On a desktop the
     // communes run across the top and the chart sits right of the figure.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 rounded-2xl bg-surface p-5 sm:p-7 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-x-14 lg:p-9">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 rounded-2xl bg-surface p-4 sm:p-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-x-12 lg:p-7">
       <div
         role="group"
         aria-label={t('home.market.communes')}
-        className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 sm:-mx-7 sm:px-7 lg:col-span-2 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
+        className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:-mx-6 sm:px-6 lg:col-span-2 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
       >
         {communes.map((entry, index) => {
           const on = index === communeIndex;
@@ -58,7 +58,7 @@ export default function HomeMarketExplorer({ communes, note }) {
               type="button"
               aria-pressed={on}
               onClick={() => setCommuneIndex(index)}
-              className={`u-press min-h-10 shrink-0 rounded-full px-4 text-[0.875rem] font-semibold transition-colors ${
+              className={`u-press min-h-9 shrink-0 rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors ${
                 on ? 'bg-ink text-white' : 'bg-canvas-alt text-ink hover:bg-blue-tint'
               }`}
             >
@@ -70,10 +70,10 @@ export default function HomeMarketExplorer({ communes, note }) {
 
       <div className="flex flex-col gap-1.5 lg:col-start-1" aria-live="polite">
         <p className="flex items-baseline gap-2">
-          <span className="u-tabular text-[2.75rem] font-extrabold leading-none tracking-[-0.04em] text-ink sm:text-[3.5rem]">
+          <span className="u-tabular text-[1.875rem] font-extrabold leading-none tracking-[-0.03em] text-ink sm:text-[2.5rem]">
             {frNumber(selected.median)} $
           </span>
-          <span className="text-[1.0625rem] font-semibold text-ink-45">{t('home.prices.perMonth')}</span>
+          <span className="text-[0.9375rem] font-semibold text-ink-45 sm:text-[1rem]">{t('home.prices.perMonth')}</span>
         </p>
         <p className="text-[0.9375rem] font-semibold text-ink">
           {t('home.market.statLabel', { count: selected.beds, commune: current.label })}
@@ -95,7 +95,7 @@ export default function HomeMarketExplorer({ communes, note }) {
       </div>
 
       <div className="lg:col-start-2 lg:row-span-2 lg:row-start-2 lg:self-end">
-        <div className="flex h-44 items-end justify-around gap-3 border-b border-line sm:gap-4">
+        <div className="flex h-36 items-end justify-around gap-3 border-b border-line sm:gap-4">
           {current.rows.map((row) => {
             const on = row.beds === selected.beds;
             return (

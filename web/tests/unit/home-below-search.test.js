@@ -121,7 +121,7 @@ test('every new homepage string exists in French and English', () => {
 // chips under Explorer, and the newest guides as a swipe row.
 test('the landing page is shorter: tighter bands, compact promises, guides as a swipe row', () => {
   const header = read('../../components/HomeSectionHeader.js');
-  assert.ok(header.includes("HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14'"));
+  assert.ok(header.includes("HOME_SECTION = 'mx-auto max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10'"));
   const value = read('../../components/ValueProposition.js');
   assert.ok(value.includes('<ul className="grid grid-cols-3 '));
   assert.ok(value.includes('hidden text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty sm:block'), 'the one-line explanation shows from sm up');

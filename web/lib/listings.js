@@ -175,7 +175,7 @@ export const PUBLIC_ADDRESS_EXPR = `(CASE WHEN btrim(pc.address) ~* '^(n/?a|na|n
  * decision (same rule as getRecentListingIds below — a listing approved two
  * days after it was written is new to every visitor on the day it went up).
  */
-const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
+const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))`;
 
 /** Days a listing carries the "Nouveau" badge after it went public. */
 export const FRESH_LISTING_DAYS = 3;
@@ -184,13 +184,12 @@ export const FRESH_LISTING_DAYS = 3;
  * "À jour" (web/CLAUDE.md, "Incentives for keeping listings up to date"):
  * the listing's own agent confirmed it within CONFIRM_AFTER_DAYS, or — never
  * confirmed — it went public within that window, so a brand-new listing is up
- * to date. The stamp is read through to_jsonb(p) so a database without
- * migrations/20260922_listing_availability.sql reads it as NULL (never a
- * 42703). A row with no created_at at all is NULL here: callers treat NULL as
+ * to date. Plain columns, never to_jsonb(p) (web/CLAUDE.md, "Listing queries read columns, not to_jsonb(p)"):
+ * the whole-row read serialised the embedding vector on every row. A row with no created_at at all is NULL here: callers treat NULL as
  * stale. The same rule is in the engine's services/agentRanking.js
  * (UP_TO_DATE_SQL) for lead routing — change one, change the other.
  */
-export const UP_TO_DATE_SQL = `(COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, ${PUBLISHED_AT_EXPR}) >= NOW() - interval '${CONFIRM_AFTER_DAYS} days')`;
+export const UP_TO_DATE_SQL = `(COALESCE(p.availability_confirmed_at, ${PUBLISHED_AT_EXPR}) >= NOW() - interval '${CONFIRM_AFTER_DAYS} days')`;
 /** Days a real price reduction stays flagged on the card. */
 export const PRICE_DROP_DAYS = 14;
 
@@ -290,8 +289,8 @@ const SELECT_FIELDS = `
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
   -- The agent's last "still available" (lib/listingAvailability.js): the
   -- detail page's badge and the cards' "Confirmée le …" (availabilityBadge
-  -- below). Through to_jsonb so a database without the column reads NULL.
-  (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
+  -- below). Kept as text (to_jsonb of the one column), as it always was.
+  (to_jsonb(p.availability_confirmed_at) #>> '{}') AS availability_confirmed_at,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
   -- The listing's city (lib/cities.js): its commune normally says; this
@@ -313,16 +312,14 @@ const SELECT_FIELDS = `
   pc.title, pc.slug, ${PUBLIC_ADDRESS_EXPR} AS address,
   catc.name AS category_name, p.category_id,
   -- Commercial-space specs (lib/commercialSpaces.js) as one jsonb, read
-  -- through to_jsonb so a database without the columns yields nulls rather
-  -- than a 42703; cat.type says whether the category is commercial at all.
-  (SELECT jsonb_build_object(
-     'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
-     'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
-   FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+  -- from the plain columns; cat.type says whether the category is commercial at all.
+  jsonb_build_object(
+     'office_count', p.office_count, 'floor_level', p.floor_level,
+     'road_frontage', p.road_frontage, 'truck_access', p.truck_access) AS commercial_specs,
   cat.type AS category_type,
   -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
   -- array, [] before the migration or when none were stated.
-  COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+  COALESCE(to_jsonb(p.utilities), '[]'::jsonb) AS utilities,
   -- Practical details (lib/listingDetails.js): furnished, households, landlord,
   -- toilet / shower, meter, plot size, instalments — one jsonb, nulls before
   -- the engine migration.
@@ -403,11 +400,9 @@ function escapeRegex(value) {
 const VALID_AMENITY_KEYS = new Set(AMENITY_GROUPS.flatMap((group) => group.options.map((o) => o.key)));
 
 /**
- * `properties.utilities` read through to_jsonb, so a query never fails with
- * 42703 before migrations/20260929_listing_utilities.sql runs (the same
- * pattern as verification_level). NULL → an empty jsonb array.
+ * `properties.utilities` as jsonb; NULL → an empty jsonb array.
  */
-const UTILITIES_JSONB = `COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb)`;
+const UTILITIES_JSONB = `COALESCE(to_jsonb(p.utilities), '[]'::jsonb)`;
 
 /**
  * An amenity / utility keyword against the listing's own words: title,
@@ -701,13 +696,13 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
       // words, for the many listings that predate the column. A listing the
       // agent marked unfurnished is left out even if its text says "meublé".
       if (key === 'furnished') {
-        where.push(`(to_jsonb(p) ->> 'furnished' = 'true' OR (COALESCE(to_jsonb(p) ->> 'furnished', '') <> 'false' AND (${group.join(' OR ')})))`);
+        where.push(`(p.furnished IS TRUE OR (p.furnished IS NOT FALSE AND (${group.join(' OR ')})))`);
         continue;
       }
       // Generator, solar, pool, gym: the agent's ticked box OR the words.
       const column = AMENITY_DETAIL_COLUMNS[key];
       if (column) {
-        where.push(`(to_jsonb(p) ->> '${column}' = 'true' OR ${group.join(' OR ')})`);
+        where.push(`(p.${column} IS TRUE OR ${group.join(' OR ')})`);
         continue;
       }
       where.push(`(${group.join(' OR ')})`);
@@ -904,7 +899,7 @@ export const UP_TO_DATE_TIER_SQL = `(CASE WHEN ${UP_TO_DATE_SQL} THEN 0 ELSE 1 E
  * availability confirmation if that is later. Not `updated_at`, which moves
  * on any write to the row and would float a listing nobody looked at.
  */
-export const LAST_ACTIVITY_SQL = `GREATEST(${PUBLISHED_AT_EXPR}, COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, ${PUBLISHED_AT_EXPR}))`;
+export const LAST_ACTIVITY_SQL = `GREATEST(${PUBLISHED_AT_EXPR}, COALESCE(p.availability_confirmed_at, ${PUBLISHED_AT_EXPR}))`;
 
 const HAS_REAL_PHOTO_SQL = `(CASE WHEN COALESCE(p.featured_image, '') <> '' AND p.featured_image NOT ILIKE '%noimage%' THEN 0 ELSE 1 END)`;
 
@@ -1499,7 +1494,7 @@ export async function getRecentListingIds({ since = new Date(Date.now() - 8 * 24
   const sinceDate = new Date(since);
   const parsedLimit = Number.parseInt(limit, 10);
   const boundedLimit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 500, 1), 2000);
-  const publishedAt = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
+  const publishedAt = `GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))`;
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT p.id, ${publishedAt} AS published_at
@@ -1798,13 +1793,11 @@ export async function getListingById(id) {
 
   const pool = getPool();
   // availability_confirmed_at (the "Disponibilité confirmée le …" badge,
-  // lib/listingAvailability.js) is in SELECT_FIELDS since 2026-11-09, read
-  // through to_jsonb(p) so this page keeps working before
-  // migrations/20260922_listing_availability.sql runs.
+  // lib/listingAvailability.js) is in SELECT_FIELDS since 2026-11-09.
   const { rows } = await pool.query(
     `SELECT ${SELECT_FIELDS},
-       (to_jsonb(p) ->> 'development_id') AS development_id,
-       (to_jsonb(p) ->> 'unit_label') AS unit_label,
+       (to_jsonb(p.development_id) #>> '{}') AS development_id,
+       (to_jsonb(p.unit_label) #>> '{}') AS unit_label,
        ${VIDEOS_SQL} AS videos
      ${FROM_JOINS}
      WHERE p.id = $1 AND ${APPROVED_FILTER}`,
@@ -1858,10 +1851,9 @@ const MODERATION_SELECT_FIELDS = `
   -- Commercial-space specs (lib/commercialSpaces.js) as one jsonb, read
   -- through to_jsonb so a database without the columns yields nulls rather
   -- than a 42703; cat.type says whether the category is commercial at all.
-  (SELECT jsonb_build_object(
-     'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
-     'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
-   FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+  jsonb_build_object(
+     'office_count', p.office_count, 'floor_level', p.floor_level,
+     'road_frontage', p.road_frontage, 'truck_access', p.truck_access) AS commercial_specs,
   cat.type AS category_type,
   ${DETAILS_SQL} AS listing_details,
   (pc.id IS NULL) AS missing_content,

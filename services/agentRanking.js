@@ -91,15 +91,16 @@ const COMMUNE_MATCH = `
  * agent confirmed it within UP_TO_DATE_DAYS (properties.availability_confirmed_at)
  * or — never confirmed — it went public within that window (the later of
  * created_at and moderated_at, web/lib/listings.js PUBLISHED_AT_EXPR), so a
- * brand-new listing counts. Both columns are read through to_jsonb(p) so a
- * database without them reads NULL instead of raising 42703. Same rule as
+ * brand-new listing counts. Plain columns, never to_jsonb(p): the whole-row
+ * read serialised the embedding vector on every row (web/CLAUDE.md, "Listing
+ * queries read columns, not to_jsonb(p)"). Same rule as
  * web/lib/listings.js UP_TO_DATE_SQL (and its 14 days is web's
  * CONFIRM_AFTER_DAYS) — change one, change the other.
  */
 const UP_TO_DATE_DAYS = 14;
 const UP_TO_DATE_SQL = `(COALESCE(
-    NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
-    GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))
+    p.availability_confirmed_at,
+    GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))
   ) >= NOW() - interval '${UP_TO_DATE_DAYS} days')`;
 
 /** Public and still on the market: the public gate, not let / sold. */
@@ -149,7 +150,7 @@ const PORTFOLIO_SIGNALS_SQL = `
   SELECT p.agent_id,
          COUNT(*) FILTER (WHERE ${LIVE_LISTING_FILTER})                                     AS live,
          COUNT(*) FILTER (WHERE ${LIVE_LISTING_FILTER} AND ${UP_TO_DATE_SQL} IS NOT TRUE)   AS stale,
-         MAX(GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at)))
+         MAX(GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at)))
            FILTER (WHERE p.approve_status = 1)                                              AS last_published_at
     FROM properties p
    WHERE p.agent_id = ANY($1::int[])

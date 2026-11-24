@@ -156,7 +156,7 @@ async function loadAgents() {
             ) AS live,
             COUNT(p.id) FILTER (
               WHERE p.status = 1 AND p.approve_status = 1 AND COALESCE(p.listing_status, 'active') = 'active'
-                AND COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+                AND COALESCE(p.availability_confirmed_at,
                              GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)))
                     < NOW() - ($2 || ' days')::interval
             ) AS to_confirm,

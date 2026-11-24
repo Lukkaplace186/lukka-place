@@ -48,8 +48,9 @@ test('a cover frame is told from a photo by its name', () => {
   assert.ok(!isVideoPoster('https://x.supabase.co/properties/9/whatsapp_abc_e5.jpg'));
 });
 
-test('videos are read through to_jsonb, so nothing 42703s before the migration', () => {
-  assert.match(VIDEOS_SQL, /to_jsonb\(p\) -> 'videos'/);
+test('videos are read as the plain column, never through the whole row', () => {
+  assert.match(VIDEOS_SQL, /p\.videos/);
+  assert.doesNotMatch(VIDEOS_SQL, /to_jsonb\(p\)/);
   assert.match(VIDEO_COUNT_SQL, /jsonb_typeof/);
   assert.match(read('lib/listings.js'), /\$\{VIDEOS_SQL\} AS videos/);
 });

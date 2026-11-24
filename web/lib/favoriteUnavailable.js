@@ -41,7 +41,7 @@ export async function getUnavailableFavorites(favoriteIds, onlineIds) {
 
   const { rows } = await getPool().query(
     `SELECT p.id, pc.title, p.purpose, p.beds, ${COMMUNE_SUBQUERY},
-            (p.listing_status = 'closed' OR (to_jsonb(p) ->> 'sold_at') IS NOT NULL) AS closed
+            (p.listing_status = 'closed' OR p.sold_at IS NOT NULL) AS closed
        FROM properties p
        LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
       WHERE p.id = ANY($1)

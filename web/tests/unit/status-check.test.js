@@ -51,9 +51,9 @@ test('an expired link resolves as expired, so the page can say so', async () => 
 
 test('the board lists only the agent\'s own public listings, active or under offer, never project units', () => {
   const sql = normalizeSql(STATUS_LISTINGS_SQL);
-  assert.match(sql, /WHERE p\.agent_id = \$1 AND \(p\.status = 1 OR \(p\.status = 0 AND \(to_jsonb\(p\) ->> 'auto_paused_at'\) IS NOT NULL AND p\.archived_at IS NULL\)\) AND p\.approve_status = 1/);
+  assert.match(sql, /WHERE p\.agent_id = \$1 AND \(p\.status = 1 OR \(p\.status = 0 AND p\.auto_paused_at IS NOT NULL AND p\.archived_at IS NULL\)\) AND p\.approve_status = 1/);
   assert.match(sql, /COALESCE\(p\.listing_status, 'active'\) IN \('active', 'under_offer'\)/);
-  assert.match(sql, /development_id'\) IS NULL/);
+  assert.match(sql, /p\.development_id IS NULL/);
 });
 
 test('every write names the agent and the state its answer applies to', () => {
@@ -61,7 +61,7 @@ test('every write names the agent and the state its answer applies to', () => {
     const text = normalizeSql(sql);
     const paused = ['reactivate', 'closed_paused', 'withdrawn_paused'].includes(name);
     assert.match(text, paused
-      ? /WHERE p\.id = \$1 AND p\.agent_id = \$2 AND p\.status = 0 AND \(to_jsonb\(p\) ->> 'auto_paused_at'\) IS NOT NULL AND p\.archived_at IS NULL AND p\.approve_status = 1/
+      ? /WHERE p\.id = \$1 AND p\.agent_id = \$2 AND p\.status = 0 AND p\.auto_paused_at IS NOT NULL AND p\.archived_at IS NULL AND p\.approve_status = 1/
       : /WHERE p\.id = \$1 AND p\.agent_id = \$2 AND p\.status = 1 AND p\.approve_status = 1/, name);
   }
   assert.match(normalizeSql(STATUS_WRITES.available), /COALESCE\(p\.listing_status, 'active'\) = 'active'/);

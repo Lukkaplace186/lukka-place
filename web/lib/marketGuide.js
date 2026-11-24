@@ -57,13 +57,13 @@ export const LUKKA_RENTS_SQL = `
   SELECT ${COMMUNE_EXPR} AS commune, p.beds::int AS beds,
          (CASE WHEN p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END)::numeric AS amount,
          'lukka'::text AS src,
-         (GREATEST(p.created_at, COALESCE((to_jsonb(p) ->> 'moderated_at')::timestamptz, p.created_at))
+         (GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))
             >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent
     FROM properties p
    WHERE p.status = 1 AND p.approve_status = 1
      AND p.purpose = 'rent' AND p.price > 0
      AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
-     AND COALESCE((to_jsonb(p) ->> 'furnished')::boolean, false) = false
+     AND COALESCE(p.furnished, false) = false
      AND p.beds BETWEEN 1 AND 5
      AND ${NOT_TEST_LISTING_SQL}
 `;

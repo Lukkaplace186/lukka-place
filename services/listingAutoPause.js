@@ -34,14 +34,14 @@ function autoPauseEnabled() {
   return String(process.env.LISTING_AUTO_PAUSE || '').trim().toLowerCase() === 'on';
 }
 
-const BASELINE_SQL = `COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+const BASELINE_SQL = `COALESCE(p.availability_confirmed_at,
                   GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)))`;
 
 const PAUSE_SQL = `
   UPDATE properties p SET status = 0, auto_paused_at = NOW()
    WHERE p.status = 1 AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') IN ('active', 'under_offer')
-     AND (to_jsonb(p) ->> 'development_id') IS NULL
+     AND p.development_id IS NULL
      AND ${BASELINE_SQL} < NOW() - ($1 || ' days')::interval
      AND EXISTS (
        SELECT 1 FROM agent_status_requests r

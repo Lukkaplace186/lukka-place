@@ -62,12 +62,12 @@ test('a checkbox only ever says yes: unticked is "not stated", never a recorded 
   assert.deepEqual(commercialSpecsFromForm(bad), { office_count: null, floor_level: null, road_frontage: null, truck_access: null });
 });
 
-test('a listing row carries the specs as one jsonb read through to_jsonb, and its category type', async () => {
+test('a listing row carries the specs as one jsonb of the plain columns, and its category type', async () => {
   enqueue([{ total: '0' }]);
   enqueue([]);
   await listings.getListings({});
   const { sql } = calls.find((c) => /SELECT\s+p\.id/.test(c.sql));
-  assert.match(sql, /FROM \(SELECT to_jsonb\(p\) AS j\) spec\) AS commercial_specs/);
+  assert.match(sql, /jsonb_build_object\( 'office_count', p\.office_count, 'floor_level', p\.floor_level, 'road_frontage', p\.road_frontage, 'truck_access', p\.truck_access\) AS commercial_specs/);
   assert.match(sql, /cat\.type AS category_type/);
   assert.equal(commercialSpecsOf({ commercial_specs: { office_count: 3, floor_level: null, road_frontage: true, truck_access: null } }).office_count, 3);
 });

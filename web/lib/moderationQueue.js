@@ -77,7 +77,7 @@ export const AVAILABILITY_UNANSWERED_SQL = `(
              WHERE c.property_id = p.id AND c.channel = 'WHATSAPP'
              ORDER BY c.asked_at DESC LIMIT 2) last_two
   )
-  AND COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, 'epoch'::timestamptz)
+  AND COALESCE(p.availability_confirmed_at, 'epoch'::timestamptz)
       < (SELECT MAX(c.asked_at) FROM listing_availability_checks c WHERE c.property_id = p.id AND c.channel = 'WHATSAPP')
 )`;
 

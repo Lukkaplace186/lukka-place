@@ -15892,13 +15892,13 @@ console.log('\n2. services/openai.js');
       assert.ok(set instanceof Set);
       assert.strictEqual(set.size, 0);
     });
-    check('the freshness SQL: public gate, not closed, stamp read through to_jsonb, NULL counts as stale', () => {
+    check('the freshness SQL: public gate, not closed, plain columns (never the whole row), NULL counts as stale', () => {
       const sql = ranking92.UP_TO_DATE_AGENTS_SQL;
       assert.match(sql, /p\.status = 1 AND p\.approve_status = 1/);
       assert.match(sql, /p\.listing_status IS DISTINCT FROM 'closed'/);
-      assert.match(sql, /to_jsonb\(p\) ->> 'availability_confirmed_at'/);
-      assert.match(sql, /to_jsonb\(p\) ->> 'moderated_at'/);
-      assert.doesNotMatch(sql, /p\.availability_confirmed_at/, 'a plain column reference raises 42703 before the migration');
+      assert.match(sql, /p\.availability_confirmed_at/);
+      assert.match(sql, /COALESCE\(p\.moderated_at, p\.created_at\)/);
+      assert.doesNotMatch(sql, /to_jsonb\(p\)/, 'whole-row to_jsonb serialises the embedding vector (2026-11-24)');
       assert.match(sql, /IS NOT TRUE\) = 0/);
       assert.match(sql, /HAVING COUNT\(\*\) > 0/);
     });
@@ -15907,7 +15907,7 @@ console.log('\n2. services/openai.js');
       const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'listingAvailability.js'), 'utf8');
       assert.match(web, /export const CONFIRM_AFTER_DAYS = 14;/);
       const webListings = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'listings.js'), 'utf8');
-      assert.match(webListings, /export const UP_TO_DATE_SQL = `\(COALESCE\(NULLIF\(to_jsonb\(p\) ->> 'availability_confirmed_at', ''\)::timestamptz, \$\{PUBLISHED_AT_EXPR\}\)/);
+      assert.match(webListings, /export const UP_TO_DATE_SQL = `\(COALESCE\(p\.availability_confirmed_at, \$\{PUBLISHED_AT_EXPR\}\)/);
     });
     check('the shared agent gate is untouched by the boost', () => {
       const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentRanking.js'), 'utf8');
@@ -15994,7 +15994,7 @@ console.log('\n2. services/openai.js');
         assert.match(sql, /p\.approve_status = 1/);
         assert.strictEqual(statusCheck.REQUEST_INTERVAL_DAYS, 14);
         // Owner 2026-11-12: every listing 14+ days old (the NEWEST), not just the oldest.
-        assert.match(sql, /HAVING MAX\(COALESCE\(NULLIF\(to_jsonb\(p\) ->> 'availability_confirmed_at'/);
+        assert.match(sql, /HAVING MAX\(COALESCE\(p\.availability_confirmed_at/);
         assert.doesNotMatch(sql, /HAVING MIN\(/);
         assert.match(statusCheck.STAMP_ALL_SQL.replace(/\s+/g, ' '), /WHERE p\.agent_id = \$1 AND p\.status = 1 AND p\.approve_status = 1/, 'one tap never reactivates a hidden listing');
       });
@@ -20140,6 +20140,30 @@ console.log('\n2. services/openai.js');
       }
       dbService.db.prepare('DELETE FROM intake_shadow').run();
     }
+  }
+
+  // §131 Listing queries read columns, not to_jsonb(p) (2026-11-24)
+  // ---------------------------------------------------------------------------
+  // properties.embedding (vector(1536)) is 90% of each row; to_jsonb(p) ->> 'x'
+  // serialised it per call per row (97 ms vs 0.7 ms over all listings on
+  // production). The web half is web/tests/unit/no-whole-row-jsonb.test.js.
+  console.log('\n§131 services and scripts that query properties as p never serialise the whole row');
+  {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1').replace(/^\s*--.*$/gm, '');
+    const offenders = [];
+    for (const dir of ['services', 'scripts']) {
+      for (const name of fs.readdirSync(path.join(__dirname, '..', dir))) {
+        if (!name.endsWith('.js') || name === 'verify-pipeline.js') continue;
+        const src = fs.readFileSync(path.join(__dirname, '..', dir, name), 'utf8');
+        if (!/\bproperties\s+p\b/.test(src)) continue;
+        if (/to_jsonb\(\s*p\s*\)/.test(strip(src))) offenders.push(`${dir}/${name}`);
+      }
+    }
+    check('no whole-row to_jsonb(p) where p is properties', () => assert.deepStrictEqual(offenders, []));
+    check('the scan is not vacuous', () => {
+      assert.match(strip("SELECT to_jsonb(p) ->> 'x' FROM properties p"), /to_jsonb\(\s*p\s*\)/);
+      assert.doesNotMatch(strip('// never to_jsonb(p)\n'), /to_jsonb\(\s*p\s*\)/);
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

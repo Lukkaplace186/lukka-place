@@ -362,8 +362,7 @@ const LISTING_CONTEXT_SQL = `
 `;
 
 /**
- * Listings due for the question. `to_jsonb(p) ->> 'development_id'` so a
- * database without the developer migration still answers; project units are
+ * Listings due for the question. Project units (development_id set) are
  * confirmed with their project, not one by one.
  */
 const DUE_LISTINGS_SQL = `
@@ -374,8 +373,8 @@ const DUE_LISTINGS_SQL = `
    WHERE p.status = 1 AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') = 'active'
      AND a.status = 1 AND a.phone_verified_at IS NOT NULL AND COALESCE(a.phone, '') <> ''
-     AND (to_jsonb(p) ->> 'development_id') IS NULL
-     AND COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+     AND p.development_id IS NULL
+     AND COALESCE(p.availability_confirmed_at,
                   GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)))
          < NOW() - ($1 || ' days')::interval
      AND NOT EXISTS (
@@ -383,7 +382,7 @@ const DUE_LISTINGS_SQL = `
         WHERE c.property_id = p.id AND c.asked_at > NOW() - ($2 || ' days')::interval
      )
    ORDER BY p.agent_id,
-            COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+            COALESCE(p.availability_confirmed_at,
                      GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)))
    LIMIT $3
 `;

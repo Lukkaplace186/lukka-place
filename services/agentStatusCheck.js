@@ -137,18 +137,18 @@ const NOTHING_LIVE_TEXT = `${HEADER_BRAND} Vous n'avez plus d'annonce en ligne �
 /** Public and still on the market: what "Rien n'a changé" confirms. */
 const LIVE_SQL = `p.status = 1 AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') IN ('active', 'under_offer')
-     AND (to_jsonb(p) ->> 'development_id') IS NULL`;
+     AND p.development_id IS NULL`;
 
 /**
  * LIVE_SQL plus a listing the (dormant) auto-pause hid
  * (services/listingAutoPause.js): its agent is still asked, so the page can
  * offer "Réactiver". to_jsonb so the query runs before the column exists.
  */
-const ASKABLE_SQL = `(p.status = 1 OR (to_jsonb(p) ->> 'auto_paused_at') IS NOT NULL) AND p.approve_status = 1
+const ASKABLE_SQL = `(p.status = 1 OR p.auto_paused_at IS NOT NULL) AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') IN ('active', 'under_offer')
-     AND (to_jsonb(p) ->> 'development_id') IS NULL`;
+     AND p.development_id IS NULL`;
 
-const BASELINE_SQL = `COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+const BASELINE_SQL = `COALESCE(p.availability_confirmed_at,
                   GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)))`;
 
 const DUE_AGENTS_SQL = `

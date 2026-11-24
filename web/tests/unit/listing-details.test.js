@@ -69,12 +69,13 @@ test('a sale plot gets a price per m², a rent never does', () => {
   assert.equal(details.plotAreaLabel(20000), '20 000 m² · 2 ha');
 });
 
-test('listing reads carry the details through to_jsonb; the plot filter and Meublé are SQL', async () => {
+test('listing reads carry the details from the plain columns; the plot filter and Meublé are SQL', async () => {
   await listings.getListings(parseListingsSearchParams(new URLSearchParams('plot_min=500&plot_max=2000&amenities=furnished')));
   const sql = calls.map((c) => normalizeSql(c.text)).join('\n');
   assert.ok(sql.includes('AS listing_details'));
-  assert.ok(sql.includes("to_jsonb(p) ->> 'plot_area_m2'"), 'plot size read through to_jsonb');
-  assert.ok(sql.includes("to_jsonb(p) ->> 'furnished' = 'true'"), 'Meublé reads the column');
+  assert.ok(sql.includes("p.plot_area_m2"), 'plot size read from the column');
+  assert.ok(sql.includes("p.furnished IS TRUE OR (p.furnished IS NOT FALSE AND"), 'Meublé reads the column');
+  assert.ok(!sql.includes('to_jsonb(p)'), 'never the whole row');
   assert.ok(sql.includes('p.status = 1 AND p.approve_status = 1'));
   const params = calls.flatMap((c) => c.values || []);
   assert.ok(params.includes(500) && params.includes(2000));
@@ -82,7 +83,7 @@ test('listing reads carry the details through to_jsonb; the plot filter and Meub
   await listings.getListings(parseListingsSearchParams(new URLSearchParams('amenities=pool,generator,gym,solar')));
   const equipmentSql = calls.map((c) => normalizeSql(c.text)).join('\n');
   for (const column of ['has_pool', 'has_generator', 'has_gym', 'has_solar']) {
-    assert.ok(equipmentSql.includes(`to_jsonb(p) ->> '${column}' = 'true'`), column);
+    assert.ok(equipmentSql.includes(`p.${column} IS TRUE`), column);
   }
   reset();
   await listings.getListings({ plotMin: 'abc' });

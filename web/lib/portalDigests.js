@@ -278,7 +278,7 @@ export const FOLLOWED_SQL = `
     JOIN properties p ON p.agent_id = f.agent_id AND p.status = 1 AND p.approve_status = 1
     LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
    WHERE p.id = ANY($1::bigint[])
-     AND f.created_at < GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))
+     AND f.created_at < GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))
      AND ${HAS_APP('f.customer_id')}
      AND ${NOT_TOLD('f.customer_id', 'followed_agent_listing', 'p.id::text')}
    LIMIT 500`;

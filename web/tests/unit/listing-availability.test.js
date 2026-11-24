@@ -190,12 +190,12 @@ test('daysBetween floors and never goes negative', () => {
   assert.equal(daysBetween('nope', NOW), null);
 });
 
-test('the public detail query reads the column through to_jsonb, so it cannot 42703', async () => {
+test('the public detail query reads the stamp as text from its own column', async () => {
   enqueue([]);
   await getListingById(123);
   const { sql } = calls[0];
-  assert.ok(sql.includes("(to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at"));
-  assert.ok(!/p\.availability_confirmed_at/.test(sql), 'a plain column reference 500s before the migration');
+  assert.ok(sql.includes("(to_jsonb(p.availability_confirmed_at) #>> '{}') AS availability_confirmed_at"));
+  assert.ok(!sql.includes('to_jsonb(p)'), 'one column, never the whole row (the embedding vector)');
   assert.ok(sql.includes('p.status = 1 AND p.approve_status = 1'));
 });
 

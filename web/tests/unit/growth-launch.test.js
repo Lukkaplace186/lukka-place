@@ -280,7 +280,7 @@ test('every browse feature reads public listings only', () => {
   // Postgres does not evaluate AND left to right: a separate "is it an array"
   // test did not stop jsonb_array_length running on a scalar and failing the
   // whole feed (production, 2026-10-27). The length must sit inside the CASE.
-  assert.match(squash(VIDEO_LISTINGS_SQL), /CASE WHEN jsonb_typeof\(to_jsonb\(p\) -> 'videos'\) = 'array' THEN jsonb_array_length/);
+  assert.match(squash(VIDEO_LISTINGS_SQL), /CASE WHEN jsonb_typeof\(p\.videos\) = 'array' THEN jsonb_array_length/);
   assert.doesNotMatch(squash(VIDEO_LISTINGS_SQL), /AND jsonb_array_length/);
   // The minimum sample, on the real count (not the recency-weighted rows).
   assert.match(squash(PRICE_GUIDES_SQL), /HAVING SUM\(n\) >= \$1/);

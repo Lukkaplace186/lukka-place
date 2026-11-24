@@ -136,10 +136,10 @@ export async function getListingFactsForReview(ids) {
   if (clean.length === 0) return new Map();
   const { rows } = await getPool().query(
     `SELECT p.id, p.bath, p.area, p.currency, p.category_id, p.price_original, p.listing_status,
-            to_jsonb(p) ->> 'deposit_months' AS deposit_months,
-            to_jsonb(p) ->> 'advance_months' AS advance_months,
-            to_jsonb(p) ->> 'commission_months' AS commission_months,
-            to_jsonb(p) ->> 'parcelle_subtype' AS parcelle_subtype,
+            to_jsonb(p.deposit_months) #>> '{}' AS deposit_months,
+            to_jsonb(p.advance_months) #>> '{}' AS advance_months,
+            to_jsonb(p.commission_months) #>> '{}' AS commission_months,
+            to_jsonb(p.parcelle_subtype) #>> '{}' AS parcelle_subtype,
             (SELECT cc.name FROM property_category_contents cc
               WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name,
             pc.description

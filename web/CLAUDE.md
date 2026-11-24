@@ -5595,3 +5595,34 @@ week before; the sign-up nudge made 2 accounts from 197 showings in 30 days.
     standalone`, MobileListingBar and EnquiryCard): `<a href=wa.me…>` until
     hydration, then the sheet. Cards keep the `<button>` (they sit inside a
     card link). A tap before hydration reaches WhatsApp unrecorded.
+
+## Listing queries read columns, not to_jsonb(p) (2026-11-24)
+
+Supabase warned that the project was depleting its Disk IO budget. The cause
+was swap on the Nano compute (≈0.5 GB RAM, ≈435 MB swapped). Our listing
+queries made it worse: `properties.embedding` (vector(1536)) is 90% of every
+row, and each `to_jsonb(p) ->> 'col'` serialised the whole row, vector
+included, once per call per row. Measured on production: one such read over all
+listings took 97 ms against 0.7 ms for the column. The public card query
+(about 15 of them) took 614 ms and became 49 ms with identical rows; the
+"Meublé" filter count went from 168 ms to 14 ms. It was the database's
+biggest consumer (190k calls, ~37 h since January).
+
+- **Read the column**: `p.moderated_at`, `p.furnished IS TRUE`, plain columns in
+  `jsonb_build_object(...)` (`DETAILS_SQL`, `commercial_specs`). Where a caller
+  relied on the old text form, `to_jsonb(p.col) #>> '{}'` gives the same text
+  (`availability_confirmed_at`, `auto_paused_at`, `development_id`,
+  `unit_label`, the admin entry costs).
+- **Why the pattern existed**: "survive running before the migration". Every
+  one of those columns now exists in production (checked 2026-11-24), and the
+  comments that said "swap back once applied" have been acted on. A NEW
+  column still follows the 42703 rule: read it through a SAVEPOINT or a
+  narrow expression, never through `to_jsonb(p)`.
+- `utilities` now arrives as `[]` instead of JSON `null` on rows that stated
+  none (`normaliseUtilities` treats both alike).
+- `to_jsonb(a)` on `agents` and on the small `customer_move_projects` /
+  `partners` tables is untouched: no vector there.
+- Guards: `tests/unit/no-whole-row-jsonb.test.js` (every lib module that
+  queries `properties p`) and engine verify-pipeline §131 (services, scripts).
+  Engine twins changed in step: `agentRanking`, `agentStatusCheck`,
+  `availabilityCheck`, `listingAutoPause`, `agentDigest`, `geocoding`.

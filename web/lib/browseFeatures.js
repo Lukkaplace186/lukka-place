@@ -194,7 +194,7 @@ export async function getCollectionTiles() {
 export const MIN_VIDEO_LISTINGS = 3;
 
 export const VIDEO_LISTINGS_SQL = `
-  SELECT p.id, to_jsonb(p) -> 'videos' AS videos
+  SELECT p.id, p.videos AS videos
     FROM properties p
    WHERE p.status = 1 AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') = 'active'

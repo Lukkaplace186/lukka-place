@@ -303,14 +303,13 @@ export async function getOwnListingForEdit(agentId, propertyId) {
             p.advance_months, p.commission_months,
             p.category_id, p.approve_status, p.listing_status, p.featured_image, p.sold_price,
             p.currency, p.price_original,
-            COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+            COALESCE(to_jsonb(p.utilities), '[]'::jsonb) AS utilities,
             -- Commercial specs through to_jsonb (nulls before the migration),
             -- and the category's own type, which decides whether the editor
             -- shows them instead of bedrooms.
-            (SELECT jsonb_build_object(
-               'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
-               'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
-             FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+            jsonb_build_object(
+              'office_count', p.office_count, 'floor_level', p.floor_level,
+              'road_frontage', p.road_frontage, 'truck_access', p.truck_access) AS commercial_specs,
             cat.type AS category_type,
             -- Practical details (lib/listingDetails.js) and the French
             -- category name, which decides which of them the editor shows.

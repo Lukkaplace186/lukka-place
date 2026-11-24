@@ -189,8 +189,10 @@ export default function Header({ hiddenHrefs = [] }) {
 
   return (
     <header data-site-header className="u-header-elevate fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
-      <div className="mx-auto flex h-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 lg:w-[76px] lg:shrink-0 lg:pl-0">
+      <div className="mx-auto flex h-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:gap-3 lg:px-6 xl:gap-4 xl:px-8">
+        {/* The 76px desktop slot is only kept from xl: from lg to xl it was an
+            empty box that pushed "Publier un bien" off a 1024px screen. */}
+        <div className="flex items-center gap-3 lg:hidden xl:flex xl:w-[76px] xl:shrink-0 xl:pl-0">
           {/* Mobile menu — Radix Sheet owns focus trapping, Escape and
               outside-click; don't hand-roll one (see web/CLAUDE.md). */}
           <Sheet open={menuOpen} onOpenChange={handleMenuOpenChange}>
@@ -336,7 +338,7 @@ export default function Header({ hiddenHrefs = [] }) {
 
         <Wordmark className="shrink-0" size="lg" />
 
-        <nav className="ml-6 hidden items-center gap-7 lg:flex">
+        <nav className="hidden items-center gap-4 lg:ml-1 lg:flex xl:ml-6 xl:gap-7">
           {primaryLinks.map(({ href, labelKey }) => (
             <Link
               key={href}
@@ -348,7 +350,7 @@ export default function Header({ hiddenHrefs = [] }) {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 lg:gap-2 xl:gap-3">
           {/* On /listings the sticky FilterBar owns search, and on the
               homepage the hero panel does, so this only appears where there
               is no other way in. */}
@@ -444,7 +446,9 @@ export default function Header({ hiddenHrefs = [] }) {
             className="hidden items-center gap-1.5 text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-flex"
           >
             <Mail strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('nav.requests')}
+            {/* Icon only from lg to xl: at ~1220px the row ran out of room
+                and "Publier un bien" wrapped onto two lines (2026-11-24). */}
+            <span className="max-xl:sr-only">{t('nav.requests')}</span>
           </Link>
 
           {/* Desktop only, same reasoning as the currency pill: on mobile
@@ -467,10 +471,10 @@ export default function Header({ hiddenHrefs = [] }) {
 
           <Link
             href={agentSignedIn ? '/compte/agent' : '/compte/agent/inscription'}
-            className="u-press u-btn-secondary hidden h-9 items-center gap-1.5 rounded-lg px-4 text-[0.8125rem] font-bold text-ink lg:inline-flex"
+            className="u-press u-btn-secondary hidden h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[0.8125rem] font-bold text-ink lg:inline-flex xl:px-4"
           >
             {t(agentSignedIn ? 'nav.agentSpace' : 'nav.publishListing')}
-            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="hidden h-4 w-4 xl:block" />
           </Link>
         </div>
       </div>

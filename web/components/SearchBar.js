@@ -110,13 +110,13 @@ const COUNT_DEBOUNCE_MS = 350;
  * "Max 1 500 $" — short enough for a half-width box.
  */
 const FIELD_BOX =
-  'relative flex min-h-[3.25rem] min-w-0 items-center gap-2 rounded-xl border border-ink-25 bg-surface px-4 transition-colors ' +
+  'relative flex min-h-[3.25rem] min-w-0 items-center lg:min-h-11 2xl:min-h-[3.25rem] gap-2 rounded-xl border border-ink-25 bg-surface px-4 transition-colors ' +
   'focus-within:border-blue focus-within:shadow-[0_0_0_3px_var(--blue-tint)]';
 
-const FIELD_LABEL = 'mb-2 block text-[0.9375rem] font-bold text-ink';
+const FIELD_LABEL = 'mb-2 block text-[0.9375rem] font-bold text-ink lg:mb-1.5 lg:text-sm 2xl:mb-2 2xl:text-[0.9375rem]';
 
 const FIELD_SELECT =
-  'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.9375rem] ' +
+  'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.9375rem] lg:py-2 2xl:py-3 ' +
   'text-ink focus:outline-none';
 
 export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null }) {
@@ -518,7 +518,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       <button
         type="button"
         onClick={submit}
-        className="u-press u-btn-primary mt-3 inline-flex h-12 w-full sm:mt-4 sm:h-[3.25rem] items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
+        className="u-press u-btn-primary mt-3 inline-flex h-12 w-full sm:mt-4 sm:h-[3.25rem] lg:h-12 2xl:h-[3.25rem] items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
       >
         {/* Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not
@@ -550,7 +550,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
                   type="button"
                   aria-pressed={on}
                   onClick={() => applyCommune(commune)}
-                  className={`u-press flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[0.9375rem] transition-colors ${
+                  className={`u-press flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[0.9375rem] transition-colors lg:px-3.5 lg:text-sm lg:pointer-fine:min-h-9 2xl:px-4 2xl:text-[0.9375rem] 2xl:pointer-fine:min-h-11 ${
                     on
                       ? 'border-blue bg-blue-tint font-semibold text-blue-deep'
                       : 'border-ink-25 bg-surface font-medium text-ink hover:border-ink-45'

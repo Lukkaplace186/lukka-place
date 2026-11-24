@@ -311,6 +311,30 @@ test('the sign-up page opens accounts without a password; only "Mon projet" keep
   assert.match(page.slice(0, page.lastIndexOf('return (')), /<MoveOnboarding/);
 });
 
+// --- "votre compte est créé" ------------------------------------------------------
+
+test('a new account is welcomed once, by first name, on the page they land on', async () => {
+  const { welcomeName, welcomeFromCookie, WELCOME_COOKIE } = await import('@/lib/newAccountWelcome');
+  assert.equal(welcomeName('Henoc  Mimbo'), 'Henoc');
+  assert.equal(welcomeName(''), '');
+  assert.equal(welcomeFromCookie(encodeURIComponent('Henoc')), 'Henoc');
+  assert.equal(welcomeFromCookie('-'), '', 'an account without a usable name still gets the card');
+  assert.equal(welcomeFromCookie(undefined), null);
+  assert.equal(welcomeFromCookie('%E0%A4%A'), '', 'a broken cookie never throws');
+  const session = read('lib/newCustomerSession.js');
+  assert.match(session, /if \(welcome\) \{\n\s+\/\/[^\n]*\n[^\n]*\n\s+\(await cookies\(\)\)\.set\(WELCOME_COOKIE/);
+  assert.match(session, /maxAge: WELCOME_MAX_AGE/);
+  // The request / visit confirmation already says it; the WhatsApp sheet's account does not.
+  assert.match(read('lib/guestAccount.js'), /welcome: entry === 'wa_sheet'/);
+  const layout = read('app/(site)/layout.js');
+  assert.match(layout, /const welcome = welcomeFromCookie\(\(await cookies\(\)\)\.get\(WELCOME_COOKIE\)\?\.value\);/);
+  assert.match(layout, /<NewAccountWelcome name=\{welcome\} \/>/);
+  const card = read('components/NewAccountWelcome.js');
+  assert.match(card, new RegExp(`document\\.cookie = \\\`\\$\\{WELCOME_COOKIE\\}=; Max-Age=0`), 'cleared as it appears');
+  assert.equal(WELCOME_COOKIE, 'lukka_welcome');
+  for (const dict of [fr, en]) assert.match(dict.auth.whatsappSignIn.welcomeTitle, /\{name\}/);
+});
+
 // --- back from WhatsApp ---------------------------------------------------------
 
 test('the WhatsApp-tap event is fired by trackLeadClick (not the outcome), with the similar search and the typed contact', () => {

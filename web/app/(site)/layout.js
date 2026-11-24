@@ -14,6 +14,9 @@ import { isAppRequest } from '@/lib/appMode';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
 import ContactSignupPrompt from '@/components/ContactSignupPrompt';
+import NewAccountWelcome from '@/components/NewAccountWelcome';
+import { cookies } from 'next/headers';
+import { WELCOME_COOKIE, welcomeFromCookie } from '@/lib/newAccountWelcome';
 import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import DemoBanner from '@/components/DemoBanner';
@@ -73,6 +76,9 @@ export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();
   const { locale, messages } = await getI18n(SITE_NAMESPACES);
   const [features, growth, app] = await Promise.all([getFeatureFlags(), getGrowthSettings(), isAppRequest()]);
+  // "Votre compte est créé" once, right after a name and a number opened it
+  // (lib/newCustomerSession.js sets the cookie, the card clears it).
+  const welcome = welcomeFromCookie((await cookies()).get(WELCOME_COOKIE)?.value);
 
   // Inside the store app (lib/appModeRules.js): the app's top bar and tab bar
   // instead of the website's header and footer, the motion provider, and the
@@ -88,6 +94,7 @@ export default async function SiteLayout({ children }) {
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <ContactSignupPrompt />
+        <NewAccountWelcome name={welcome} />
         <VisitCartMount />
         {/* The app's list screens refresh on a pull down (a WebView has no such gesture of its own). */}
         {app ? <AppPullToRefresh /> : null}

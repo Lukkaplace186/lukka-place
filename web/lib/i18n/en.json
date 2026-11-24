@@ -9151,7 +9151,12 @@
       "nameOptionalLabel": "Your name",
       "nameOptionalHint": "First time here? Your name opens your account. Already have one: leave it empty.",
       "partnerCode": "Referral code (optional)",
-      "codeLate": "Still no code?"
+      "codeLate": "Still no code?",
+      "welcomeTitle": "Welcome {name}! Your Account Is Created",
+      "welcomeTitleNoName": "Your free account is created",
+      "welcomeBody": "You are signed in on this phone, no password. New homes that match you arrive on WhatsApp.",
+      "welcomeCta": "See my space",
+      "welcomeClose": "Close"
     }
   },
   "updates": {

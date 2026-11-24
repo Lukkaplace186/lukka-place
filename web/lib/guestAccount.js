@@ -51,7 +51,9 @@ export async function openGuestAccount({ phone, name, entry, requested = true, l
     const id = Number(customer.id);
     await recordWebSignupAttribution({ accountType: 'customer', accountId: id, phone, typedCode: null });
     await recordSignupOutcome({ step: 'created', entry, customerId: id });
-    await signInNewCustomer(customer, { phone, localData, source: `guest-account:${entry}` });
+    // The request / visit confirmation says it itself (AccountOfferCard); the
+    // WhatsApp sheet's account is welcomed on the page they come back to.
+    await signInNewCustomer(customer, { phone, localData, source: `guest-account:${entry}`, welcome: entry === 'wa_sheet' });
     return { status: 'created', customerId: id };
   } catch (err) {
     console.error(`[guest-account] account step after ${entry} failed (the ${entry} itself went through): ${err.message}`);

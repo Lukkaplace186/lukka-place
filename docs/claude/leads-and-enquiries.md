@@ -920,6 +920,13 @@ file onto the server copies as usual.
     (`?projet=1`, the move questions) keeps the password form, which saves
     the project. That page no longer reports `form_start` / `submit` (the
     old form's beacons); `form_view` and `created` remain.
+  - **"Votre compte est créé"** (owner, same day): a new account opened by
+    "Continuer" or the WhatsApp sheet's box is welcomed once, by first name,
+    on the page they land on — `signInNewCustomer` sets `lukka_welcome`
+    (10 min, first name only; `welcome: false` for the request / visit forms,
+    whose AccountOfferCard says it), `app/(site)/layout.js` reads it,
+    `components/NewAccountWelcome.js` shows it under the header and clears it
+    (12 s on screen, counted while the tab is visible).
   - **Money**: an account opened without a code has `phone_verified_at`
     NULL, so it does not earn a partner's credit (lib/referralCredits.js)
     until that number is confirmed by a code.

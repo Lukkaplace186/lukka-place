@@ -3,6 +3,8 @@ import { mergeAnonymousData } from './customers';
 import { establishCustomerSession, rememberCustomerPhone } from './customerSession';
 import { claimRecentContactTaps } from './contactTapClaim';
 import { recordAdEventFromAction } from './adServerContext';
+import { cookies } from 'next/headers';
+import { WELCOME_COOKIE, WELCOME_MAX_AGE, welcomeName } from './newAccountWelcome';
 
 /**
  * Signs in a customer account that was JUST created from a name and a number
@@ -22,12 +24,27 @@ import { recordAdEventFromAction } from './adServerContext';
  * throws into the caller once the session is set: the account exists either way.
  *
  * @param {{id: number|string, token_version?: number, phone?: string}} customer
- * @param {{phone: string, localData?: {favoriteIds?: string[], savedSearches?: object[]}, source: string}} opts
+ * `welcome` (default on): the page they land on says the account was created
+ * (components/NewAccountWelcome.js, owner 2026-11-24). Off where the page
+ * already says it (the request / visit confirmation's AccountOfferCard).
+ *
+ * @param {{phone: string, localData?: {favoriteIds?: string[], savedSearches?: object[]}, source: string, welcome?: boolean}} opts
  */
-export async function signInNewCustomer(customer, { phone, localData = {}, source }) {
+export async function signInNewCustomer(customer, { phone, localData = {}, source, welcome = true }) {
   const id = Number(customer.id);
   await establishCustomerSession({ id, tokenVersion: customer.token_version ?? 0 });
   try {
+    if (welcome) {
+      // Read by app/(site)/layout.js, cleared by the card once shown. The first
+      // name only, for "Bienvenue Henoc !" — '-' when none.
+      (await cookies()).set(WELCOME_COOKIE, encodeURIComponent(welcomeName(customer.full_name) || '-'), {
+        httpOnly: false,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: WELCOME_MAX_AGE,
+      });
+    }
     await rememberCustomerPhone(phone);
     // This browser's WhatsApp taps of the last day are theirs (lib/contactTapClaim.js). Never throws.
     await claimRecentContactTaps(id);

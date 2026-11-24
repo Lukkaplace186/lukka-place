@@ -9151,7 +9151,12 @@
       "nameOptionalLabel": "Votre nom",
       "nameOptionalHint": "Première fois ici ? Votre nom ouvre votre compte. Déjà un compte : laissez vide.",
       "partnerCode": "Code de parrainage (facultatif)",
-      "codeLate": "Toujours pas de code ?"
+      "codeLate": "Toujours pas de code ?",
+      "welcomeTitle": "Bienvenue {name} ! Votre compte est créé",
+      "welcomeTitleNoName": "Votre compte gratuit est créé",
+      "welcomeBody": "Vous êtes connecté sur ce téléphone, sans mot de passe. Les nouveaux biens qui vous correspondent arrivent sur WhatsApp.",
+      "welcomeCta": "Voir mon espace",
+      "welcomeClose": "Fermer"
     }
   },
   "updates": {

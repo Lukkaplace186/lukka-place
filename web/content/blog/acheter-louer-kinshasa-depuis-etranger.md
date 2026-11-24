@@ -5,8 +5,8 @@ categorie: guide
 slug: acheter-louer-kinshasa-depuis-etranger
 type: parcelle
 transaction: vente
-couverture: images/acheter-louer-kinshasa-depuis-etranger.png
-couverture_alt: Une maison à Kinshasa reliée à un téléphone à l'étranger par trois étapes : procuration, vérification, paiement bancaire
+couverture: images/acheter-louer-kinshasa-depuis-etranger.jpg
+couverture_alt: Un téléphone à l'étranger relié à une parcelle de Kinshasa par trois étapes : procuration, registre, banque
 titre_en: Buying or renting in Kinshasa from abroad: a diaspora guide
 resume_en: Power of attorney, registry checks, paying through the bank: the steps to buy or rent in the DRC from abroad without losing your money.
 ---

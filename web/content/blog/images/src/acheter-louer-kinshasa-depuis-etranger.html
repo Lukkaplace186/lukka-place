@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="ground.css">
+<script src="ground.js"></script>
+</head>
+<body>
+<svg class="sheet" viewBox="0 0 3840 2160" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+// Diaspora guide: a phone far away, three survey stakes on a dashed route
+// (procuration, registre, banque), and a parcel whose title is now exact.
+const svg = document.querySelector('svg.sheet');
+ground(svg);
+const rand = rng(20261125);
+const r = (a = 1) => (rand() * 2 - 1) * a;
+const NAVY = '#0c1d50', EXACT = '#1e3aa8', OCHRE = '#c2862a', PLUM = '#8448c4', SEPIA = '#9a6a2c';
+
+// The phone, abroad: hairline device, three lines of a mandate on its screen.
+const PX = 520, PY = 980, PW = 470, PH = 860;
+el('rect', { x: PX, y: PY, width: PW, height: PH, rx: 70, fill: '#fff', stroke: NAVY, 'stroke-width': 9 }, svg);
+el('rect', { x: PX + 44, y: PY + 90, width: PW - 88, height: PH - 230, rx: 18, fill: EXACT, 'fill-opacity': 0.06, stroke: EXACT, 'stroke-width': 3, 'stroke-opacity': 0.35 }, svg);
+[0, 1, 2, 3].forEach((i) => {
+  const y = PY + 210 + i * 90, w = [280, 230, 300, 160][i];
+  el('line', { x1: PX + 95, y1: y, x2: PX + 95 + w, y2: y, stroke: NAVY, 'stroke-width': 9, 'stroke-linecap': 'round', opacity: 0.8 }, svg);
+});
+// a signature, hand-drawn
+let sig = `M ${PX + 100} ${PY + 600}`;
+for (let i = 1; i <= 14; i++) sig += ` Q ${PX + 100 + i * 18 - 9} ${PY + 600 + (i % 2 ? -46 : 40) + r(10)}, ${PX + 100 + i * 18} ${PY + 600 + r(6)}`;
+el('path', { d: sig, fill: 'none', stroke: SEPIA, 'stroke-width': 6, 'stroke-linecap': 'round' }, svg);
+el('circle', { cx: PX + PW / 2, cy: PY + PH - 72, r: 24, fill: NAVY, opacity: 0.85 }, svg);
+
+// The route: a long arc, hand-loose near the phone, exact near the parcel.
+const A = [PX + PW + 40, PY + 120], B = [2900, 1190];
+const C1 = [1500, 560], C2 = [2350, 560];
+const bez = (t) => [0, 1].map((k) => {
+  const u = 1 - t; return u * u * u * A[k] + 3 * u * u * t * C1[k] + 3 * u * t * t * C2[k] + t * t * t * B[k];
+});
+const N = 120;
+for (let i = 0; i < N; i += 2) {
+  const t0 = i / N, t1 = (i + 1) / N, loose = 1 - smooth(0.1, 0.7, t0);
+  const [x0, y0] = bez(t0), [x1, y1] = bez(t1);
+  el('line', { x1: x0 + r(5) * loose, y1: y0 + r(5) * loose, x2: x1 + r(5) * loose, y2: y1 + r(5) * loose,
+    stroke: mixColor(SEPIA, NAVY, 1 - loose), 'stroke-width': 7, 'stroke-linecap': 'round', opacity: 0.75 }, svg);
+}
+// Three stakes on the route.
+[[0.24, OCHRE, 'PROCURATION', '1'], [0.5, PLUM, 'REGISTRE', '2'], [0.76, EXACT, 'BANQUE', '3']].forEach(([t, hue, word, n]) => {
+  const [x, y] = bez(t);
+  el('circle', { cx: x, cy: y, r: 78, fill: '#fff', stroke: hue, 'stroke-width': 9 }, svg);
+  el('circle', { cx: x, cy: y, r: 78, fill: hue, 'fill-opacity': 0.08 }, svg);
+  label(svg, n, x, y + 44, { family: 'Instrument Serif', size: 130, color: NAVY, anchor: 'middle', spacing: 0 });
+  const w = label(svg, word, x, y - 125, { size: 46, color: hue, anchor: 'middle', spacing: 0.17 });
+  w.setAttribute('dx', '0.09em');
+});
+
+// The parcel: a closed, exact square pinned at its corners, a house on it.
+const QX = 2780, QY = 1180, QS = 640;
+el('rect', { x: QX, y: QY, width: QS, height: QS, fill: EXACT, 'fill-opacity': 0.06, stroke: EXACT, 'stroke-width': 7 }, svg);
+[[QX, QY], [QX + QS, QY], [QX + QS, QY + QS], [QX, QY + QS]].forEach(([x, y]) => el('circle', { cx: x, cy: y, r: 16, fill: EXACT }, svg));
+// faint neighbouring parcels, hand-loose
+[[-1, 0]].forEach(([dx, dy]) => {
+  const x = QX + dx * (QS + 40), y = QY + dy * (QS + 40);
+  const pts = [[x, y], [x + QS, y], [x + QS, y + QS], [x, y + QS]].map(([a, b]) => [a + r(18), b + r(14)]);
+  el('path', { d: `M${pts.map((p) => p.join(' ')).join(' L')} Z`, fill: 'none', stroke: SEPIA, 'stroke-width': 4, opacity: 0.28 }, svg);
+});
+// house
+const hx = QX + QS / 2, hb = QY + QS - 120, hw = 340, hh = 230;
+el('path', { d: `M ${hx - hw / 2} ${hb} V ${hb - hh} H ${hx + hw / 2} V ${hb} Z`, fill: '#fff', stroke: NAVY, 'stroke-width': 8, 'stroke-linejoin': 'round' }, svg);
+el('path', { d: `M ${hx - hw / 2 - 50} ${hb - hh} L ${hx} ${hb - hh - 170} L ${hx + hw / 2 + 50} ${hb - hh} Z`, fill: OCHRE, 'fill-opacity': 0.14, stroke: NAVY, 'stroke-width': 8, 'stroke-linejoin': 'round' }, svg);
+el('rect', { x: hx - 45, y: hb - 140, width: 90, height: 140, fill: OCHRE, 'fill-opacity': 0.25, stroke: NAVY, 'stroke-width': 6 }, svg);
+// the check: the title is in your name
+el('path', { d: `M ${hx - 52} ${hb - hh - 60} L ${hx - 14} ${hb - hh - 22} L ${hx + 58} ${hb - hh - 100}`, fill: 'none', stroke: '#1f8a5b', 'stroke-width': 14, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+
+// End labels, whispered.
+label(svg, 'PARIS · BRUXELLES · JOHANNESBURG', PX + PW / 2, PY + PH + 110, { size: 40, color: NAVY, anchor: 'middle', spacing: 0.2, opacity: 0.7 });
+label(svg, 'KINSHASA · LUBUMBASHI', QX + QS / 2, QY + QS + 110, { size: 40, color: EXACT, anchor: 'middle', spacing: 0.2, opacity: 0.85 });
+</script>
+</body></html>

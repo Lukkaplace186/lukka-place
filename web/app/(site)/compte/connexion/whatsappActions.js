@@ -30,8 +30,10 @@ import { claimRecentContactTaps } from '@/lib/contactTapClaim';
  * only a message from that number opens the session.
  *
  * An account is created for a number we do not know, with the name the
- * person typed and no password (customers.password_hash NULL, as for an
- * account opened on WhatsApp); they can set one later from Mon profil.
+ * person typed and no password: createCustomer stores the engine's
+ * '!whatsapp' marker, as for an account opened on WhatsApp — never NULL,
+ * password_hash is NOT NULL (the NULL failed every new account with 23502,
+ * 2026-11-16 → 21). A password reset gives them one later.
  */
 
 const STARTS_PER_10_MIN = 10;

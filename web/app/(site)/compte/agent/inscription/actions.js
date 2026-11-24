@@ -6,13 +6,14 @@ import { phoneFromForm } from '@/lib/phone';
 import { normaliseReferralCode } from '@/lib/launchCommission';
 import { attributeNewAgent, checkReferralForSignup, recordReferralRefusal } from '@/lib/salesLaunch';
 import { REFERRAL_COOKIE, clientIpFrom, hashReferralIp, parseReferralCookie } from '@/lib/salesReferral';
-import { getAgentByPhone, createAgent, sendAgentOtp, reclaimUnverifiedAgent } from '@/lib/agents';
+import { getAgentByPhone, createAgent, reclaimUnverifiedAgent } from '@/lib/agents';
 import { startAgentPasswordSetup } from '@/lib/agentPasswordSetup';
 import { updateAgentIdentity } from '@/lib/agencies';
 import { hashPassword } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
-import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { agentOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { sendAgentCode } from '@/lib/agentCode';
 import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 import { findActivePartnerByCode } from '@/lib/partners';
 
@@ -186,12 +187,14 @@ export async function agentSignupAction(_prevState, formData) {
   // see lib/verifyAttempt.js for what that param made possible.
   await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
 
-  // AUTH_OTP_BYPASS=1: no code is SENT (no Meta template exists), but the
-  // number is still proven — the verify page asks for a WhatsApp message
+  // No code sent (AUTH_OTP_BYPASS=1 and no template, or AGENT_SENT_CODE=off):
+  // the number is still proven — the verify page asks for a WhatsApp message
   // from it (lib/whatsappVerify.js). This used to establish a session and
   // run consumeAgentOtp right here, which let anyone register an agency's
-  // number and claim every listing it had WhatsApped in.
-  if (otpBypassEnabled()) {
+  // number and claim every listing it had WhatsApped in. Since 2026-11-24 a
+  // configured template means the code is SENT (lib/otpBypass.js
+  // agentOtpBypassEnabled): 24 of 78 agents never sent us theirs.
+  if (agentOtpBypassEnabled()) {
     logOtpBypass('agent-auth', { id: agent.id, phone });
     redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}`);
   }
@@ -200,13 +203,6 @@ export async function agentSignupAction(_prevState, formData) {
   // already exists, so "réessayez" on the sign-up form could only answer
   // "Un compte existe déjà". The verify page has "resend" and the WhatsApp
   // proof.
-  let sent = true;
-  try {
-    await sendAgentOtp(agent.id, phone);
-  } catch (err) {
-    console.error(`[agent-auth] OTP send failed for agent #${agent.id}: ${err.message}`);
-    sent = false;
-  }
-
-  redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}${sent ? '' : '&error=send_failed'}`);
+  const sent = await sendAgentCode({ id: agent.id, phone });
+  redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}${sent === 'sent' ? '' : `&error=send_${sent}`}`);
 }

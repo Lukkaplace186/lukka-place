@@ -12,7 +12,7 @@ import SignupFunnelTracker from '@/components/SignupFunnelTracker';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
-import { otpBypassEnabled } from '@/lib/otpBypass';
+import { agentOtpBypassEnabled } from '@/lib/otpBypass';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 // generateMetadata, not a static object: a static export cannot see the
@@ -89,7 +89,7 @@ export default async function AgentSignupPage({ searchParams }) {
   // the button may promise one — see lib/otpBypass.js and this app's
   // "Honest UI State" rule. The copy is chosen here, in a Server Component,
   // because the flag is server-only.
-  const bypassing = otpBypassEnabled();
+  const bypassing = agentOtpBypassEnabled();
   const referralCode = await referralPrefill(typeof params.ref === 'string' ? params.ref : null);
   const whatsappRepCode = await repCodeForWhatsapp(referralCode);
   const whatsappHref = agentWhatsappSignupLink(whatsappRepCode);

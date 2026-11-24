@@ -20,8 +20,9 @@ export const SEND_WINDOW_MS = 10 * 60 * 1000;
 const wrongTries = new Map(); // customerId -> wrong tries on the current code
 const sends = new Map(); // customerId -> send timestamps (ms)
 
-function idKey(customerId) {
-  return String(Number(customerId));
+// A customer is its bare id; an agent passes `agent:<id>` (lib/agentCode.js).
+function idKey(id) {
+  return typeof id === 'string' && id.includes(':') ? id : String(Number(id));
 }
 
 /** May another code be sent to this account now? */

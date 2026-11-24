@@ -52,7 +52,7 @@ test('a login finishes a proof the verify page never collected (customers #35 an
   assert.match(lib, /export async function consumeProofAtLogin[\s\S]*?consumeVerifiedChallenge\(\{ role, id, phone \}\)/, 'the same spend-once proof the page uses');
   for (const [file, consume, gate] of [
     ['app/(site)/compte/connexion/actions.js', 'consumeCustomerOtp', null],
-    ['app/(site)/compte/agent/connexion/actions.js', 'consumeAgentOtp', 'otpBypassEnabled()'],
+    ['app/(site)/compte/agent/connexion/actions.js', 'consumeAgentOtp', 'agentOtpBypassEnabled()'],
   ]) {
     const src = read(file);
     const check = src.indexOf('consumeProofAtLogin({');

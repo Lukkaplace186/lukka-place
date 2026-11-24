@@ -48,6 +48,19 @@ export function customerOtpBypassEnabled() {
 }
 
 /**
+ * Whether an AGENT proves the number by sending us a WhatsApp message (true)
+ * instead of typing a code we send (false). Same rule as customers since
+ * 2026-11-24 (owner: 24 of 78 agents sent to "send us a code" never did): a
+ * sent code whenever the authentication template is configured;
+ * `AGENT_SENT_CODE=off` goes back to the reverse proof. Read at call time.
+ */
+export function agentOtpBypassEnabled() {
+  const templateConfigured = Boolean(String(process.env.AGENT_OTP_TEMPLATE || '').trim());
+  const sentCode = templateConfigured && process.env.AGENT_SENT_CODE !== 'off';
+  return otpBypassEnabled() && !sentCode;
+}
+
+/**
  * One log line per bypassed verification, so the server log says exactly how
  * many accounts were created without a verified number while this was on.
  * Silence here would make the window impossible to audit afterwards.

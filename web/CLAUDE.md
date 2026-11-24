@@ -1035,6 +1035,16 @@ number can no longer be assumed Congolese.
 
 ## TESTING MODE — `AUTH_OTP_BYPASS=1` turns phone verification off
 
+**2026-11-24 (owner): agents are SENT a code again.** 24 of the 78 agents
+asked to send us a code from WhatsApp (this flag, since 2026-09-08) never did;
+23 stayed locked out. `agentOtpBypassEnabled()` (lib/otpBypass.js) now sends
+the `AGENT_OTP_TEMPLATE` code whenever that template is set, even with
+`AUTH_OTP_BYPASS=1` (`AGENT_SENT_CODE=off` goes back). The verify page leads
+with the code box; "send us a code" is the "Code pas reçu ?" fallback, open at
+once on a failed send. 3 codes per 10 min, 5 wrong tries wipe the code
+(lib/agentCode.js, lib/signInCodeLimits.js `agent:<id>`). The rest of this
+section is the history.
+
 `lib/otpBypass.js`, read by the four auth entry points (customer signup and
 login, agent signup and login). **Currently set on production**, deliberately,
 so the end-to-end flow can be tested at all.

@@ -3282,7 +3282,7 @@
       "termsAfter": " and the payment of {amount} for this plan.",
       "pay": "Pay {amount}",
       "sending": "Sending the request…",
-      "secure": "Payment is processed by FlexPaie. Lukka Place never sees your PIN.",
+      "secure": "Payment is processed by MaishaPay. Lukka Place never sees your PIN.",
       "reference": "Reference:",
       "tryAgain": "Try again",
       "contactTeam": "Message the team",
@@ -3311,6 +3311,8 @@
       },
       "errors": {
         "phone": "Enter a DRC Mobile Money number (e.g. 81 234 5678).",
+        "operator": "Choose your mobile money operator.",
+        "operatorPhone": "This is not a {operator} number. Check the number or choose the right operator.",
         "terms": "Tick the box to accept the terms.",
         "noAgency": "Your account is not linked to an agency yet. Contact the Lukka Place team to pay for this plan.",
         "package": "This plan cannot be paid online.",
@@ -7714,7 +7716,7 @@
           "public": "Public site"
         },
         "agentSubscriptions": "Subscriptions",
-        "agentSubscriptionsHint": "The agent portal’s Subscriptions tab. Turn on once FlexPaie payments are live. Hidden: its address sends back to the dashboard and listing-limit messages offer to contact the team.",
+        "agentSubscriptionsHint": "The agent portal’s Subscriptions tab. Turn on once MaishaPay payments are live. Hidden: its address sends back to the dashboard and listing-limit messages offer to contact the team.",
         "agentProjects": "New Developments",
         "agentProjectsHint": "The dashboard’s “My projects” card and the developers’ project pages. Hidden: their addresses send back to the dashboard.",
         "publicProjects": "New Developments (New)",

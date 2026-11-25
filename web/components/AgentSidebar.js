@@ -54,7 +54,7 @@ const NAV = [
   // bar only inside the Lukka Place app, where it is the alerts' home; a
   // browser on a phone keeps the six tabs it had.
   { href: '/compte/agent/alertes', labelKey: 'agent.nav.alerts', shortKey: 'agent.nav.alertsShort', icon: Bell, countKey: 'alerts', mobileAppOnly: true },
-  // Hidden until FlexPaie payments are live (/admin/settings, lib/siteSettings.js).
+  // Hidden until MaishaPay payments are live (/admin/settings, lib/siteSettings.js).
   { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck, featureKey: 'agentSubscriptions' },
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
 ];

@@ -3282,7 +3282,7 @@
       "termsAfter": " et le paiement de {amount} pour ce forfait.",
       "pay": "Payer {amount}",
       "sending": "Envoi de la demande…",
-      "secure": "Le paiement est traité par FlexPaie. Lukka Place ne voit jamais votre code PIN.",
+      "secure": "Le paiement est traité par MaishaPay. Lukka Place ne voit jamais votre code PIN.",
       "reference": "Référence :",
       "tryAgain": "Réessayer",
       "contactTeam": "Écrire à l’équipe",
@@ -3311,6 +3311,8 @@
       },
       "errors": {
         "phone": "Entrez un numéro Mobile Money de la RDC (ex. 81 234 5678).",
+        "operator": "Choisissez votre opérateur Mobile Money.",
+        "operatorPhone": "Ce numéro n’est pas un numéro {operator}. Vérifiez le numéro ou choisissez le bon opérateur.",
         "terms": "Cochez la case pour accepter les conditions.",
         "noAgency": "Votre compte n’est pas encore rattaché à une agence. Contactez l’équipe Lukka Place pour payer ce forfait.",
         "package": "Ce forfait ne peut pas être payé en ligne.",
@@ -7714,7 +7716,7 @@
           "public": "Site public"
         },
         "agentSubscriptions": "Abonnements",
-        "agentSubscriptionsHint": "Onglet Abonnements de l’espace agent. À activer quand le paiement FlexPaie est en service. Masqué : son adresse renvoie au tableau de bord et les messages de limite d’annonces proposent de contacter l’équipe.",
+        "agentSubscriptionsHint": "Onglet Abonnements de l’espace agent. À activer quand le paiement MaishaPay est en service. Masqué : son adresse renvoie au tableau de bord et les messages de limite d’annonces proposent de contacter l’équipe.",
         "agentProjects": "Projets neufs",
         "agentProjectsHint": "La carte « Mes projets » du tableau de bord et les pages de création de projet des promoteurs. Masqué : leurs adresses renvoient au tableau de bord.",
         "publicProjects": "Projets neufs (Neuf)",

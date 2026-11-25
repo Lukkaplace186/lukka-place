@@ -75,7 +75,7 @@ export function mergeSocialLinks(fromSettings, fromEnv) {
 /**
  * What can be hidden while it is being built (/admin/settings, "Onglets et
  * sections"). Each default is the state production had before the switch
- * existed, except the agent's Abonnements tab, hidden until FlexPaie is live.
+ * existed, except the agent's Abonnements tab, hidden until MaishaPay is live.
  * `agentSubscriptions` keeps its name: the engine reads it too
  * (services/listingQuota.js).
  *

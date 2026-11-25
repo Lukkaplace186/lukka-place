@@ -238,8 +238,8 @@ Conflating any two of these is the bug that keeps recurring:
   column; a UI implying one would promise an override nothing enforces.
 - **`plan_change_requests`** is the queue behind the agent-facing "Demander ce
   forfait". Approving a request assigns the package and writes the ledger row
-  in one action. FlexPaie online payment is being added beside it (2026-10-18,
-  "FlexPaie" below); the request queue stays.
+  in one action. MaishaPay online payment is built beside it (2026-11-25,
+  "MaishaPay" below; it replaced FlexPaie); the request queue stays.
 
 ### Built for 30k agents — every list is one server page
 
@@ -754,7 +754,7 @@ the page says so and nothing else changes. `tests/unit/demo-accounts.test.js`.
   number whatever was typed (`demoCustomerPhoneOr`); chat sends a demo
   customer to the paired agent and refuses a demo agent to anyone else; demo
   saves are left out of an agent's favourite count; a demo customer cannot
-  change number or delete the account; a demo agent cannot start a FlexPaie
+  change number or delete the account; a demo agent cannot start a MaishaPay
   payment.
 - **Réinitialiser / Supprimer**: engine purge first (SQLite), then Postgres —
   the demo agent's listings and their child rows, notifications, devices, the
@@ -774,9 +774,9 @@ the page says so and nothing else changes. `tests/unit/demo-accounts.test.js`.
   users from `/compte/agent`) needs an agency-level login, which does not
   exist: agents log in individually and `vendors` has no account of its own.
   Branches are admin-managed until then.
-- **Card payments** are not offered. Mobile-money payment through FlexPaie
-  (invoices, failed-payment tracking, and since 2026-11-12 the checkout page)
-  is built but not live until its credentials are set — see "FlexPaie" below. Receipts cover what the ledger can prove.
+- **Card payments** are not offered. Mobile-money payment through MaishaPay
+  (invoices, failed-payment tracking, the checkout page) is built but not
+  live until its live credentials are set — see "MaishaPay" below. Receipts cover what the ledger can prove.
 
 ## Layout & shell
 
@@ -3156,7 +3156,7 @@ From an owner walkthrough on a phone. Engine migration
     the agent" for a listing with no agent at all.
   - **Serif headings were CAPITALS** until 2026-10-24 (see "Post-launch polish" at the end of this file — they are sentence case again).
 
-## Site settings, bulk delete, sales cleanup, FlexPaie (2026-10-18)
+## Site settings, bulk delete, sales cleanup, online payment (2026-10-18; MaishaPay 2026-11-25)
 
 - **Footer copyright** is `© {year} Lukka Place.` in both languages, no tagline
   (pinned in `tests/unit/admin-settings-delete-payments.test.js`).
@@ -3213,46 +3213,66 @@ From an owner walkthrough on a phone. Engine migration
   (adding agents is still active subscription reps only). Unassigning ends
   assignments only — a launch attribution (`sales_agent_attributions`) is
   still changed through "Changer de commercial".
-- **FlexPaie** (`lib/flexpaie.js`, `lib/flexpaieRules.js`, `lib/payments.js`,
-  `/api/payments/flexpaie/{initiate,webhook,status}`,
-  `migrations/20261018_flexpaie_payments.sql`: `subscriptions`, `invoices`,
-  `payment_logs`). Env: `FLEXPAIE_BASE_URL` (https), `FLEXPAIE_MERCHANT_ID`,
-  `FLEXPAIE_API_KEY` — server-only; unset = 503 "not_configured".
-  - The callback URL carries a per-invoice token (SHA-256 stored); a callback
-    is logged and then ignored as evidence — only FlexPaie's status check
-    (`GET /check/{orderNumber}`: status "0", amount and currency covering the
-    invoice) marks it paid. A mismatch is never credited nor failed.
+- **MaishaPay** (owner decision 2026-11-25: replaces FlexPaie, which never
+  went live and is removed; `lib/maishapay.js`, `lib/maishapayRules.js`,
+  `lib/payments.js`, `/api/payments/maishapay/{initiate,callback,status}`,
+  `migrations/20261125_maishapay_payments.sql` on top of
+  `20261018_flexpaie_payments.sql`'s `subscriptions`, `invoices`,
+  `payment_logs` — the new file creates them if missing). Env, server-only:
+  `MAISHAPAY_PUBLIC_KEY`, `MAISHAPAY_SECRET_KEY`, `MAISHAPAY_MODE`
+  (`live` | `sandbox`). Both keys must carry the mode's prefix (`MP-LIVE…` /
+  `MP-SB…`), else not configured = 503 "not_configured" and the plan picker
+  keeps the request queue. Tests: `tests/unit/maishapay.test.js`.
+  - **The API shape is MaishaPay's own doc** (Postman `2sAYQXnCU4`), checked
+    with real sandbox calls on 2026-11-25 (`scripts/maishapay-sandbox-test.js`).
+    Base `https://marchand.maishapay.online/api`; the keys travel in the JSON
+    **body**, not a header. One endpoint for M-Pesa, Orange and Airtel:
+    `POST /collect/v2/store/mobileMoney` (the doc lists only Orange/Airtel on
+    v2, but the sandbox takes `MPESA` there too; the synchronous v1 M-Pesa
+    endpoint is not used). MaishaPay refuses a number not on the chosen
+    operator ("WalletID error") → the page says so (`operator_phone`).
+    `VODACOM` is not a provider code ("Provider not found").
+  - **The operator choice is sent** (checkout radio `mpesa|orange|airtel` →
+    `MPESA|ORANGE|AIRTEL`, kept in `invoices.payer_operator`). walletID is `+243…`.
+  - Only a status check marks an invoice paid:
+    `POST /transaction/rest/v2/check?useRef=1` with OUR reference (works even
+    when the initiate answer was lost) — `SUCCESS`, same
+    `originatingTransactionId`, a `C2B | Collect`, `order.cost.amount` and
+    currency covering the invoice. Unknown reference = `[]` = pending. A
+    mismatch is never credited nor failed ("à vérifier"). The callback URL
+    carries a per-invoice token (SHA-256 stored); MaishaPay's doc describes no
+    signature, so the callback body is logged and ignored as evidence.
+  - A live payment answers 202 PENDING then POSTs to the callback; the
+    **sandbox answers 200 SUCCESS at once**, with no phone prompt.
+    `startMobileMoneyPayment` runs the status check straight away when the
+    answer is not PENDING.
+  - **Fee**: MaishaPay reports `frais` on top (`cost.total` = amount + 3.5 % in
+    the sandbox). Who bears it on a live payment is not confirmed — the
+    checkout shows the plan price only and promises no total.
   - Paid = one transaction: ordinary `memberships` row (payment_method
-    'FlexPaie', via `assignPackageToAgent({ client })`), invoice paid,
-    subscription active. A second callback is a no-op.
-  - **The API shape comes from the community SDK's docs, not FlexPaie's own**
-    (none was available): confirm field names and codes with a sandbox
-    payment before setting the key in production.
+    `MaishaPay`, or `MaishaPay (test)` for a sandbox invoice —
+    `invoices.test_mode`), invoice paid, subscription active. A second
+    callback is a no-op.
+  - The initiate route is closed while `agentSubscriptions` is off (the page
+    already redirected; the API now refuses too) and for demo agents.
   - **Checkout page (2026-11-12)**: `/compte/agent/abonnement/paiement?forfait=<id>`
     (`components/AgentCheckout.js`, pure rules `lib/checkoutRules.js`,
     `tests/unit/agent-checkout.test.js`), built from the "Paiement abonnement
     agent" design. Plan, price and perks are the `packages` row; agency and
-    phone the agent's own. Operator choice (M-Pesa / Orange / Airtel) only
-    words the instructions — FlexPaie routes by number. Departures from the
-    design, on purpose: no card (not built), no "Abonnement automatique"
-    (FlexPaie push has no recurring mandate), no "non remboursable" (no terms
-    say so; the checkbox links `/conditions`). Flow: initiate → waiting
-    (poll `/status` every 4 s, up to 5 min) → paid / failed / timeout.
-    The plan picker shows "Payer en ligne" only when `isFlexpaieConfigured()`;
-    otherwise the request queue is unchanged. **Going live** = the three
-    FlexPaie env vars on the server (after a sandbox payment) + the
-    `agentSubscriptions` switch on `/admin/settings`; a free or trial plan is
-    never payable online.
-- **MaishaPay (2026-11-25, sandbox test only, nothing wired into the site)**:
-  `scripts/maishapay-sandbox-test.js` sends one sandbox collection
-  (`gatewayMode` 0) and reads its status. Shape from MaishaPay's own REST doc
-  (Postman `2sAYQXnCU4`): base `https://marchand.maishapay.online/api`; the
-  `publicApiKey` / `secretApiKey` go in the JSON **body**, not a header;
-  M-Pesa is v1 (`/payment/rest/vers1.0/merchant`, synchronous, no callback),
-  Orange / Airtel are v2 (`/collect/v2/store/mobileMoney`, 202 PENDING then a
-  POST to `callbackUrl`); status `POST /transaction/rest/v2/check?useRef=1`
-  (`SUCCESS` / `FAILED` / `PENDING`). The doc states no callback signature, so
-  a callback, like FlexPaie's, would be evidence only after a status check.
+    phone the agent's own. Departures from the design, on purpose: no card
+    (not built), no "Abonnement automatique" (a mobile-money push has no
+    recurring mandate), no "non remboursable" (no terms say so; the checkbox
+    links `/conditions`). Flow: initiate → waiting (poll `/status` every 4 s,
+    up to 5 min) → paid / failed / timeout. The plan picker shows "Payer en
+    ligne" only when `isMaishapayConfigured()`.
+  - **Going live**: run the migration; set the three env vars with
+    `MAISHAPAY_MODE=sandbox` and the sandbox keys, switch `agentSubscriptions`
+    on, pay one plan end to end on the site (it writes a real
+    `MaishaPay (test)` membership — remove it after); then the live keys with
+    `MAISHAPAY_MODE=live` and one small real payment to see the phone prompt
+    and the callback arrive. A free or trial plan is never payable online.
+    **Never leave sandbox keys on production with the switch on**: a sandbox
+    payment "succeeds" without money and activates the plan.
 
 ## Console create / delete for listings and agents (2026-10-20)
 

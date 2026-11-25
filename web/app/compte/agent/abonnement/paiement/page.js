@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getPurchasablePackages } from '@/lib/subscriptions';
-import { isFlexpaieConfigured } from '@/lib/flexpaie';
+import { isMaishapayConfigured } from '@/lib/maishapay';
 import { payablePackage } from '@/lib/checkoutRules';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -24,9 +24,9 @@ export async function generateMetadata() {
  *
  * Everything shown is real: the plan's title, price and allowances come from
  * its `packages` row, the agency name and phone from the agent's own record.
- * The payment itself is lib/payments.js (FlexPaie mobile money): the form
- * posts to /api/payments/flexpaie/initiate and polls /status. Behind the same
- * `agentSubscriptions` switch as the Abonnement tab, and when FlexPaie has no
+ * The payment itself is lib/payments.js (MaishaPay mobile money): the form
+ * posts to /api/payments/maishapay/initiate and polls /status. Behind the same
+ * `agentSubscriptions` switch as the Abonnement tab, and when MaishaPay has no
  * credentials the page says online payment is not open yet rather than
  * offering a button that would answer 503.
  */
@@ -66,7 +66,7 @@ export default async function AgentCheckoutPage({ searchParams }) {
           agencyName={agencyName}
           agentPhone={agent.phone || ''}
           hasAgency={Boolean(agent.vendor_id)}
-          onlinePaymentOpen={isFlexpaieConfigured()}
+          onlinePaymentOpen={isMaishapayConfigured()}
         />
       </div>
     </>

@@ -14,7 +14,7 @@ import AgentPlanPicker from '@/components/AgentPlanPicker';
 import { getT } from '@/lib/i18n/server';
 import { redirect } from 'next/navigation';
 import { getFeatureFlags } from '@/lib/siteSettings';
-import { isFlexpaieConfigured } from '@/lib/flexpaie';
+import { isMaishapayConfigured } from '@/lib/maishapay';
 
 // generateMetadata, not a static object: a static export is evaluated at
 // module load, where there is no request and so no translator.
@@ -64,13 +64,13 @@ function money(value, symbol) {
  * and that renders as an honest empty state rather than a fabricated entry.
  */
 export default async function AgentSubscriptionPage() {
-  // Hidden until FlexPaie payments are live (/admin/settings): the address
+  // Hidden until MaishaPay payments are live (/admin/settings): the address
   // sends back to the dashboard rather than showing plans nobody can pay for.
   if (!(await getFeatureFlags()).agentSubscriptions) redirect('/compte/agent');
   const t = await getT();
-  // Online payment (FlexPaie) is offered only once its credentials are set;
+  // Online payment (MaishaPay) is offered only once its credentials are set;
   // until then the plan picker files a request, as before.
-  const checkoutEnabled = isFlexpaieConfigured();
+  const checkoutEnabled = isMaishapayConfigured();
   const agentId = await getCurrentAgentId();
   const { agent, listings, waitingCount } = await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);

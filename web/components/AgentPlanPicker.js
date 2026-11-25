@@ -38,7 +38,7 @@ function priceLabel(pkg) {
  *   2. Opens WhatsApp to the team with the plan pre-filled, so the request
  *      also *arrives* rather than sitting in a queue nobody is watching.
  *
- * With `checkoutEnabled` (FlexPaie configured, see the Abonnement page) a
+ * With `checkoutEnabled` (MaishaPay configured, see the Abonnement page) a
  * paid plan's main button is "Payer en ligne" → /compte/agent/abonnement/
  * paiement (components/AgentCheckout.js), and the request stays underneath
  * as a link for cash or bank transfer. Without it the request is the only

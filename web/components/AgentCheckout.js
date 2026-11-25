@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Camera, Check, CircleAlert, Loader2, Lock, Smartphone, Star } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { photoPerkLines } from '@/lib/photoAllowance';
-import { normaliseMobileMoneyPhone } from '@/lib/flexpaieRules';
+import { normaliseMobileMoneyPhone } from '@/lib/maishapayRules';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import {
   DEFAULT_OPERATOR,
@@ -31,7 +31,7 @@ function localDigits(stored) {
  * operator, terms, and one pay button. Unlike the design there is no
  * automatic monthly debit and no card option — lib/checkoutRules.js says why.
  *
- * States: form → waiting (FlexPaie has pushed the prompt; we poll /status)
+ * States: form → waiting (MaishaPay has pushed the prompt; we poll /status)
  * → paid | failed | timeout. Paid refreshes the router so the Abonnement page
  * and the sidebar show the new plan.
  */
@@ -71,7 +71,7 @@ export default function AgentCheckout({ pkg, agencyName, agentPhone, hasAgency, 
         return;
       }
       try {
-        const res = await fetch(`/api/payments/flexpaie/status?invoice=${invoiceId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/payments/maishapay/status?invoice=${invoiceId}`, { cache: 'no-store' });
         const body = await res.json().catch(() => ({}));
         if (body.status === 'paid') {
           setStage('paid');
@@ -102,15 +102,15 @@ export default function AgentCheckout({ pkg, agencyName, agentPhone, hasAgency, 
     }
     setStage('sending');
     try {
-      const res = await fetch('/api/payments/flexpaie/initiate', {
+      const res = await fetch('/api/payments/maishapay/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageId: pkg.id, phone }),
+        body: JSON.stringify({ packageId: pkg.id, phone, operator }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.invoiceId) {
         setStage('form');
-        setError(t(initiateErrorKey(body.error)));
+        setError(t(initiateErrorKey(body.error), { operator: operatorById(operator).label }));
         return;
       }
       setInvoice(body);

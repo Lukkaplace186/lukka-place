@@ -90,7 +90,7 @@ test('demo accounts never cross over: forms, chat, favourites, payments, phone c
   assert.match(chat, /if \(isDemoPhone\(customer\.phone\)\)[\s\S]{0,300}FROM demo_accounts d JOIN agents a/);
   assert.match(chat, /else if \(isDemoPhone\(agent\.phone\)\) \{\s*return \{ status: 'agent-unavailable' \};/);
   assert.match(read('lib/analytics.js'), /customer_favorites f[\s\S]{0,200}c\.phone LIKE '2430000%'/);
-  assert.match(read('app/api/payments/flexpaie/initiate/route.js'), /getDemoPairForAgent\(agentId\)\) return NextResponse\.json\(\{ error: 'demo' \}/);
+  assert.match(read('app/api/payments/maishapay/initiate/route.js'), /getDemoPairForAgent\(agentId\)\) return NextResponse\.json\(\{ error: 'demo' \}/);
   assert.match(read('lib/customerPhoneChange.js'), /isDemoPhone\(own\[0\]\.phone\) \|\| isDemoPhone\(phone\)\) return \{ ok: false, error: 'demo' \}/);
   assert.match(read('app/(site)/compte/actions.js'), /if \(await isDemoCustomer\(customerId\)\) redirect/);
   assert.match(read('lib/adServerContext.js'), /if \(isDemoPhone\(phone\)\) return;/);

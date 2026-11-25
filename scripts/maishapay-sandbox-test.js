@@ -9,7 +9,7 @@
  *   --provider   MPESA | ORANGE | AIRTEL (required — never guessed from the number)
  *   --amount     default 1000 (minimum 100 in CDF, 0.5 in USD)
  *   --currency   CDF (default) | USD
- *   --callback   URL MaishaPay POSTs the final status to (v2 only). Defaults
+ *   --callback   URL MaishaPay POSTs the final status to. Defaults
  *                to MAISHAPAY_CALLBACK_URL, else a Lukka Place URL nothing
  *                listens on yet: the script reads the result with the
  *                status check instead.
@@ -18,14 +18,16 @@
  * The keys are read from the environment only, never from the command line
  * (shell history) and never printed. gatewayMode is always 0 (sandbox).
  *
- * API shape (MaishaPay REST API doc, Postman 2sAYQXnCU4, read 2026-11-25):
- *   base https://marchand.maishapay.online/api
- *   M-Pesa         POST /payment/rest/vers1.0/merchant   (v1, flat body, the
- *                  connection stays open until the final status, no callback)
- *   Orange/Airtel  POST /collect/v2/store/mobileMoney    (v2, answers 202
- *                  PENDING, final status POSTed to callbackUrl)
- *   status         POST /transaction/rest/v2/check?useRef=1 {transactionId: <our reference>}
+ * API shape (MaishaPay REST API doc, Postman 2sAYQXnCU4, read 2026-11-25) —
+ * the same calls the site makes (web/lib/maishapay.js):
+ *   base     https://marchand.maishapay.online/api
+ *   collect  POST /collect/v2/store/mobileMoney — M-Pesa, Orange and Airtel
+ *            (live: 202 PENDING then a POST to callbackUrl; sandbox: 200
+ *            SUCCESS at once)
+ *   status   POST /transaction/rest/v2/check?useRef=1 {transactionId: <our reference>}
  * The keys travel in the JSON body (publicApiKey / secretApiKey), not a header.
+ * In a Claude cloud session, run with NODE_USE_ENV_PROXY=1 (Node's fetch
+ * otherwise skips the session's proxy).
  */
 
 const BASE_URL = 'https://marchand.maishapay.online/api';
@@ -147,27 +149,19 @@ async function main() {
   console.log(`MaishaPay SANDBOX test (gatewayMode ${SANDBOX})`);
   console.log(`Reference ${reference} · ${amount} ${currency} · ${provider} · ${walletID}`);
 
-  let body;
-  let path;
-  if (provider === 'MPESA') {
-    // v1: M-Pesa only, flat body, the answer is the final status.
-    path = '/payment/rest/vers1.0/merchant';
-    body = { transactionReference: reference, gatewayMode: SANDBOX, ...keys(), amount, currency, channel: 'MOBILEMONEY', provider, walletID };
-  } else {
-    path = '/collect/v2/store/mobileMoney';
-    body = {
-      transactionReference: reference,
-      gatewayMode: SANDBOX,
-      ...keys(),
-      order: { amount, currency, customerFullName: 'Test Lukka Place' },
-      paymentChannel: { channel: 'MOBILEMONEY', provider, walletID, callbackUrl },
-    };
-  }
+  const path = '/collect/v2/store/mobileMoney';
+  const body = {
+    transactionReference: reference,
+    gatewayMode: SANDBOX,
+    ...keys(),
+    order: { amount, currency, customerFullName: 'Test Lukka Place' },
+    paymentChannel: { channel: 'MOBILEMONEY', provider, walletID, callbackUrl },
+  };
   console.log(`\nPOST ${BASE_URL}${path}\n${redact(body)}`);
 
   let result;
   try {
-    result = await post(path, body, provider === 'MPESA' ? POLL_FOR_MS : 60_000);
+    result = await post(path, body, 60_000);
   } catch (err) {
     fail(`request failed before any answer: ${err.cause?.code || err.name}: ${err.message}`);
   }

@@ -3243,6 +3243,16 @@ From an owner walkthrough on a phone. Engine migration
     FlexPaie env vars on the server (after a sandbox payment) + the
     `agentSubscriptions` switch on `/admin/settings`; a free or trial plan is
     never payable online.
+- **MaishaPay (2026-11-25, sandbox test only, nothing wired into the site)**:
+  `scripts/maishapay-sandbox-test.js` sends one sandbox collection
+  (`gatewayMode` 0) and reads its status. Shape from MaishaPay's own REST doc
+  (Postman `2sAYQXnCU4`): base `https://marchand.maishapay.online/api`; the
+  `publicApiKey` / `secretApiKey` go in the JSON **body**, not a header;
+  M-Pesa is v1 (`/payment/rest/vers1.0/merchant`, synchronous, no callback),
+  Orange / Airtel are v2 (`/collect/v2/store/mobileMoney`, 202 PENDING then a
+  POST to `callbackUrl`); status `POST /transaction/rest/v2/check?useRef=1`
+  (`SUCCESS` / `FAILED` / `PENDING`). The doc states no callback signature, so
+  a callback, like FlexPaie's, would be evidence only after a status check.
 
 ## Console create / delete for listings and agents (2026-10-20)
 

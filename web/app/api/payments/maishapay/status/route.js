@@ -3,9 +3,9 @@ import { getCurrentAgentId } from '@/lib/agentSession';
 import { getInvoiceForAgent, settleInvoice } from '@/lib/payments';
 
 /**
- * GET /api/payments/flexpaie/status?invoice=<id> — the agent's page polls this
+ * GET /api/payments/maishapay/status?invoice=<id> — the agent's page polls this
  * while the phone prompt is open. A pending invoice is re-checked with
- * FlexPaie on each poll, so a lost callback never leaves a paid plan
+ * MaishaPay on each poll, so a lost callback never leaves a paid plan
  * unapplied. Only the agent's own agency's invoices answer.
  */
 export const dynamic = 'force-dynamic';

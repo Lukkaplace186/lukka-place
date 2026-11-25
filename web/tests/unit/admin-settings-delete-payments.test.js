@@ -10,10 +10,6 @@ import { restoreBatch, softDelete } from '@/lib/adminSoftDelete';
 import { listAgentsForAdmin } from '@/lib/agents';
 import { listAgenciesForAdmin } from '@/lib/adminAgencies';
 import { listModerationQueue } from '@/lib/moderationQueue';
-import {
-  invoiceReference, normaliseMobileMoneyPhone, readCheckResponse, readInitiateResponse, redactForLog,
-} from '@/lib/flexpaieRules';
-import { callbackTokenValid } from '@/lib/payments';
 import { calls, enqueue, reset } from '../support/fakePool.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -161,50 +157,4 @@ test('console lists skip soft-deleted agents, agencies and listings', async () =
   assert.ok(calls.filter((c) => c.sql.includes('WITH base AS')).every((c) => c.sql.includes('p.deleted_at IS NULL')));
 });
 
-// ---------------------------------------------------------------------------
-// FlexPaie
-// ---------------------------------------------------------------------------
-
-test('only a DRC mobile number is a mobile-money number', () => {
-  assert.equal(normaliseMobileMoneyPhone('0812345678'), '243812345678');
-  assert.equal(normaliseMobileMoneyPhone('+243 97 123 4567'), '243971234567');
-  assert.equal(normaliseMobileMoneyPhone('00243991234567'), '243991234567');
-  assert.equal(normaliseMobileMoneyPhone('447932673460'), null);
-  assert.equal(normaliseMobileMoneyPhone('243123'), null);
-  assert.equal(invoiceReference(42, 2026, 'abcd99'), 'LP-2026-42-ABCD');
-});
-
-test('initiate is accepted only on code "0" with an order number', () => {
-  assert.deepEqual(readInitiateResponse({ code: '0', orderNumber: 'ORD1' }), { ok: true, orderNumber: 'ORD1' });
-  assert.equal(readInitiateResponse({ code: '1', message: 'bad merchant' }).ok, false);
-  assert.equal(readInitiateResponse({ code: '0' }).ok, false);
-});
-
-test('only a status check with status "0" and a covering amount marks an invoice paid', () => {
-  const invoice = { amount: '25.00', currency: 'USD', reference: 'LP-2026-1-AAAA' };
-  const tx = (over) => ({ code: '0', transaction: { reference: 'LP-2026-1-AAAA', status: '0', amount: '25', currency: 'USD', ...over } });
-  assert.equal(readCheckResponse(tx({}), invoice).state, 'paid');
-  assert.equal(readCheckResponse(tx({ status: '1' }), invoice).state, 'failed');
-  assert.equal(readCheckResponse(tx({ status: '2' }), invoice).state, 'pending');
-  assert.equal(readCheckResponse(tx({ amount: '20' }), invoice).state, 'mismatch');
-  assert.equal(readCheckResponse(tx({ currency: 'CDF' }), invoice).state, 'mismatch');
-  assert.equal(readCheckResponse(tx({ reference: 'LP-2026-2-BBBB' }), invoice).state, 'mismatch');
-  assert.equal(readCheckResponse({ code: '1' }, invoice).state, 'pending');
-});
-
-test('payment logs never keep a token or key', () => {
-  assert.deepEqual(redactForLog({ a: 1, token: 'x', nested: { Authorization: 'Bearer y', ok: true } }), { a: 1, nested: { ok: true } });
-});
-
-test('a callback without its invoice token is rejected before any query', async () => {
-  reset();
-  assert.equal(await callbackTokenValid(5, ''), false);
-  assert.equal(await callbackTokenValid(Number.NaN, 'a'.repeat(48)), false);
-  assert.equal(calls.length, 0);
-});
-
-test('FlexPaie credentials are server-only', () => {
-  const src = read('lib/flexpaie.js');
-  assert.match(src, /^import 'server-only';/);
-  assert.doesNotMatch(src, /NEXT_PUBLIC_FLEXPAIE/);
-});
+// The payment tests (MaishaPay, which replaced FlexPaie) are in maishapay.test.js.

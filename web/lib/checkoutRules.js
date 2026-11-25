@@ -3,15 +3,16 @@
  * The page, the client form and tests/unit/agent-checkout.test.js share it.
  *
  * What the checkout offers is what lib/payments.js can actually do:
- *   - FlexPaie mobile money only (`type` 1). FlexPaie routes the prompt by the
- *     number, so the operator choice tells the agent what to expect on their
- *     phone; it is not sent anywhere. Card (FlexPaie `type` 2) is not built,
- *     so it is not offered.
- *   - One payment per period, never an automatic monthly debit: FlexPaie's
- *     push payment has no mandate, so "Abonnement automatique" from the design
- *     would be a promise nothing keeps.
+ *   - MaishaPay mobile money only. The operator choice is sent: it is
+ *     MaishaPay's `provider` (lib/maishapayRules.js MAISHAPAY_PROVIDERS), and
+ *     MaishaPay refuses a number that is not on that operator
+ *     ('operator_phone'). Card (MaishaPay has a card API) is not built, so it
+ *     is not offered.
+ *   - One payment per period, never an automatic monthly debit: a
+ *     mobile-money push has no mandate, so "Abonnement automatique" from the
+ *     design would be a promise nothing keeps.
  *   - The price is the `packages` row's own price, in USD (same as
- *     startFlexpaiePayment). Nothing on this page invents a figure.
+ *     startMobileMoneyPayment). Nothing on this page invents a figure.
  */
 
 /** The three DRC mobile-money networks, in the design's order. */
@@ -29,7 +30,7 @@ export function operatorById(id) {
 
 /**
  * The plan to check out, or null when it cannot be paid online: unknown id,
- * a trial, or a free plan (startFlexpaiePayment refuses the same ones).
+ * a trial, or a free plan (startMobileMoneyPayment refuses the same ones).
  * @param {Array<{id: number, price: number, is_trial?: number|boolean}>} packages getPurchasablePackages()
  * @param {string|number|undefined} rawId the `forfait` query parameter
  */
@@ -61,6 +62,8 @@ export function checkoutPath(packageId) {
 export function initiateErrorKey(code) {
   switch (code) {
     case 'phone': return 'agent.checkout.errors.phone';
+    case 'operator': return 'agent.checkout.errors.operator';
+    case 'operator_phone': return 'agent.checkout.errors.operatorPhone';
     case 'no_agency': return 'agent.checkout.errors.noAgency';
     case 'package': return 'agent.checkout.errors.package';
     case 'not_configured': return 'agent.checkout.errors.notConfigured';

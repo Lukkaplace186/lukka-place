@@ -2,26 +2,32 @@ import 'server-only';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { getPool } from './db';
 import { assignPackageToAgent } from './subscriptions';
-import { checkFlexpaieTransaction, initiateFlexpaiePayment, isFlexpaieConfigured } from './flexpaie';
-import { invoiceReference, normaliseMobileMoneyPhone, readCheckResponse, redactForLog } from './flexpaieRules';
+import { checkMaishapayTransaction, initiateMaishapayPayment, isMaishapayConfigured, isMaishapaySandbox } from './maishapay';
+import { invoiceReference, maishapayProvider, normaliseMobileMoneyPhone, readCheckResponse, redactForLog, walletId } from './maishapayRules';
 
 /**
- * Online plan payments through FlexPaie (migrations/20261018_flexpaie_payments.sql).
+ * Online plan payments through MaishaPay mobile money
+ * (migrations/20261125_maishapay_payments.sql; FlexPaie, its predecessor,
+ * was removed the same day).
  *
- *   1. initiate: an invoice row (pending), then FlexPaie pushes the payment
- *      prompt to the agent's phone. The callback URL carries a one-off token
- *      whose SHA-256 is all we keep.
- *   2. settle: on FlexPaie's callback (token checked) or when the agent's page
- *      asks, we ask FlexPaie for the transaction's status. Only that answer
- *      can mark the invoice paid — a callback body is never trusted on its own.
+ *   1. initiate: an invoice row (pending), then MaishaPay pushes the payment
+ *      prompt to the agent's phone on the operator they chose. The callback
+ *      URL carries a one-off token whose SHA-256 is all we keep.
+ *   2. settle: on MaishaPay's callback (token checked), right after initiate,
+ *      or when the agent's page polls, we ask MaishaPay for the transaction
+ *      by our own reference. Only that answer can mark the invoice paid — a
+ *      callback body carries no signature and is never trusted on its own.
  *   3. paid: in ONE transaction the invoice is re-checked still pending, the
  *      ordinary memberships row is written (lib/subscriptions.js
  *      assignPackageToAgent — the ledger every reader already uses), and the
  *      subscription is set active. A second callback finds it paid and does
  *      nothing.
+ * A sandbox payment (MAISHAPAY_MODE=sandbox) goes through the same steps; its
+ * invoice has test_mode and its membership says 'MaishaPay (test)'.
  */
 
 const CURRENCY_SYMBOLS = { USD: '$', CDF: 'FC' };
+const PROVIDER = 'maishapay';
 
 const sha256 = (value) => createHash('sha256').update(String(value)).digest('hex');
 
@@ -40,14 +46,24 @@ async function logPayment(invoiceId, direction, event, httpStatus, payload, clie
   }
 }
 
+async function failInvoice(invoiceId, reason) {
+  await getPool().query(
+    "UPDATE invoices SET status = 'failed', failed_at = NOW(), failure_reason = $2 WHERE id = $1 AND status = 'pending'",
+    [invoiceId, String(reason).slice(0, 300)],
+  );
+}
+
 /**
  * @returns {Promise<{ok: true, invoiceId: number, reference: string} | {ok: false, error: string}>}
- *   `error` is a short code the route maps to an HTTP status.
+ *   `error` is a short code the route maps to an HTTP status and the page to
+ *   a message (lib/checkoutRules.js initiateErrorKey).
  */
-export async function startFlexpaiePayment({ agentId, packageId, phone }) {
-  if (!isFlexpaieConfigured()) return { ok: false, error: 'not_configured' };
+export async function startMobileMoneyPayment({ agentId, packageId, phone, operator }) {
+  if (!isMaishapayConfigured()) return { ok: false, error: 'not_configured' };
   const payerPhone = normaliseMobileMoneyPhone(phone);
   if (!payerPhone) return { ok: false, error: 'phone' };
+  const provider = maishapayProvider(operator);
+  if (!provider) return { ok: false, error: 'operator' };
 
   const pool = getPool();
   const { rows: agentRows } = await pool.query('SELECT id, vendor_id FROM agents WHERE id = $1 AND deleted_at IS NULL', [agentId]);
@@ -63,31 +79,55 @@ export async function startFlexpaiePayment({ agentId, packageId, phone }) {
 
   // Package prices are list prices in USD (the plan picker shows them in $).
   const currency = 'USD';
+  const testMode = isMaishapaySandbox();
   const token = randomBytes(24).toString('hex');
-  const { rows: idRows } = await pool.query("SELECT nextval('invoices_id_seq') AS id");
-  const invoiceId = Number(idRows[0].id);
-  const reference = invoiceReference(invoiceId, new Date().getUTCFullYear(), randomBytes(2).toString('hex'));
-  await pool.query(
-    `INSERT INTO invoices (id, reference, vendor_id, agent_id, package_id, amount, currency, payer_phone, callback_token_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [invoiceId, reference, agent.vendor_id, agent.id, pkg.id, Number(pkg.price), currency, payerPhone, sha256(token)],
-  );
+  let invoiceId;
+  let reference;
+  try {
+    const { rows: idRows } = await pool.query("SELECT nextval('invoices_id_seq') AS id");
+    invoiceId = Number(idRows[0].id);
+    reference = invoiceReference(invoiceId, new Date().getUTCFullYear(), randomBytes(2).toString('hex'));
+    await pool.query(
+      `INSERT INTO invoices (id, reference, vendor_id, agent_id, package_id, amount, currency, payer_phone, callback_token_hash,
+                             provider, payer_operator, test_mode)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [invoiceId, reference, agent.vendor_id, agent.id, pkg.id, Number(pkg.price), currency, payerPhone, sha256(token), PROVIDER, provider, testMode],
+    );
+  } catch (err) {
+    // Before migrations/20261125_maishapay_payments.sql: no table (42P01),
+    // no column (42703), or FlexPaie's provider check (23514). Closed, not a crash.
+    if (['42P01', '42703', '23514'].includes(err.code)) {
+      console.error(`[payments] MaishaPay invoice refused by the schema (${err.code}) — run migrations/20261125_maishapay_payments.sql`);
+      return { ok: false, error: 'not_configured' };
+    }
+    throw err;
+  }
 
-  const callbackUrl = `${siteUrl()}/api/payments/flexpaie/webhook?invoice=${invoiceId}&token=${token}`;
+  const callbackUrl = `${siteUrl()}/api/payments/maishapay/callback?invoice=${invoiceId}&token=${token}`;
   let sent;
   try {
-    sent = await initiateFlexpaiePayment({ reference, phone: payerPhone, amount: pkg.price, currency, callbackUrl });
+    sent = await initiateMaishapayPayment({ reference, walletID: walletId(payerPhone), provider, amount: pkg.price, currency, callbackUrl });
   } catch (err) {
+    // A timeout is not proof nothing happened: the invoice stays pending and
+    // the page's polls look it up by reference.
     await logPayment(invoiceId, 'outbound', 'initiate', null, { error: err.message });
-    await pool.query("UPDATE invoices SET status = 'failed', failed_at = NOW(), failure_reason = $2 WHERE id = $1", [invoiceId, `initiate: ${err.message}`.slice(0, 300)]);
+    if (err.name === 'TimeoutError') return { ok: true, invoiceId, reference };
+    await failInvoice(invoiceId, `initiate: ${err.message}`);
     return { ok: false, error: 'provider' };
   }
   await logPayment(invoiceId, 'outbound', 'initiate', sent.httpStatus, { request: sent.request, response: sent.body });
   if (!sent.result.ok) {
-    await pool.query("UPDATE invoices SET status = 'failed', failed_at = NOW(), failure_reason = $2 WHERE id = $1", [invoiceId, sent.result.message]);
-    return { ok: false, error: 'provider' };
+    await failInvoice(invoiceId, sent.result.message);
+    return { ok: false, error: sent.result.error === 'wallet' ? 'operator_phone' : 'provider' };
   }
-  await pool.query('UPDATE invoices SET order_number = $2 WHERE id = $1', [invoiceId, sent.result.orderNumber]);
+  if (sent.result.transactionId) {
+    await pool.query('UPDATE invoices SET order_number = $2 WHERE id = $1', [invoiceId, sent.result.transactionId]);
+  }
+  // The sandbox answers SUCCESS at once; a live payment answers PENDING.
+  // Either way the status check decides.
+  if (sent.result.state !== 'pending') {
+    await settleInvoice(invoiceId).catch((err) => console.error(`[payments] settling #${invoiceId} after initiate failed: ${err.message}`));
+  }
   return { ok: true, invoiceId, reference };
 }
 
@@ -105,7 +145,7 @@ export async function recordCallback(invoiceId, payload) {
   await logPayment(invoiceId, 'inbound', 'callback', null, payload);
 }
 
-async function markPaid(invoiceId, orderNumber) {
+async function markPaid(invoiceId, transactionId) {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
@@ -122,8 +162,8 @@ async function markPaid(invoiceId, orderNumber) {
       price: Number(invoice.amount),
       currency: invoice.currency,
       currencySymbol: CURRENCY_SYMBOLS[invoice.currency] || null,
-      paymentMethod: 'FlexPaie',
-      transactionId: orderNumber,
+      paymentMethod: invoice.test_mode ? 'MaishaPay (test)' : 'MaishaPay',
+      transactionId: transactionId || invoice.order_number || null,
       receipt: invoice.reference,
     });
     const { rows: memRows } = await client.query('SELECT start_date, expire_date FROM memberships WHERE id = $1', [membershipId]);
@@ -133,8 +173,10 @@ async function markPaid(invoiceId, orderNumber) {
       [invoice.vendor_id, invoice.agent_id, invoice.package_id, memRows[0]?.start_date ?? null, memRows[0]?.expire_date ?? null, membershipId],
     );
     await client.query(
-      "UPDATE invoices SET status = 'paid', paid_at = NOW(), membership_id = $2, subscription_id = $3, failure_reason = NULL WHERE id = $1",
-      [invoiceId, membershipId, subRows[0].id],
+      `UPDATE invoices SET status = 'paid', paid_at = NOW(), membership_id = $2, subscription_id = $3, failure_reason = NULL,
+              order_number = COALESCE(order_number, $4)
+       WHERE id = $1`,
+      [invoiceId, membershipId, subRows[0].id, transactionId || null],
     );
     await client.query('COMMIT');
     return 'paid';
@@ -147,28 +189,29 @@ async function markPaid(invoiceId, orderNumber) {
 }
 
 /**
- * Ask FlexPaie where one invoice stands and act on the answer.
+ * Ask MaishaPay where one invoice stands and act on the answer.
  * @returns {Promise<'paid'|'failed'|'pending'|'mismatch'|'already_settled'|'not_found'>}
  */
 export async function settleInvoice(invoiceId) {
   const pool = getPool();
-  const { rows } = await pool.query('SELECT id, reference, amount, currency, status, order_number FROM invoices WHERE id = $1', [invoiceId]);
+  const { rows } = await pool.query('SELECT id, reference, amount, currency, status, provider FROM invoices WHERE id = $1', [invoiceId]);
   const invoice = rows[0];
   if (!invoice) return 'not_found';
   if (invoice.status !== 'pending') return 'already_settled';
-  if (!invoice.order_number || !isFlexpaieConfigured()) return 'pending';
+  // A legacy FlexPaie invoice is never looked up at MaishaPay.
+  if (invoice.provider !== PROVIDER || !isMaishapayConfigured()) return 'pending';
 
-  const check = await checkFlexpaieTransaction(invoice.order_number);
+  const check = await checkMaishapayTransaction(invoice.reference);
   await logPayment(invoice.id, 'outbound', 'status_check', check.httpStatus, check.body);
   const verdict = readCheckResponse(check.body, invoice);
-  if (verdict.state === 'paid') return markPaid(invoice.id, invoice.order_number);
+  if (verdict.state === 'paid') return markPaid(invoice.id, verdict.transactionId);
   if (verdict.state === 'failed') {
-    await pool.query("UPDATE invoices SET status = 'failed', failed_at = NOW(), failure_reason = $2 WHERE id = $1 AND status = 'pending'", [invoice.id, verdict.reason]);
+    await failInvoice(invoice.id, verdict.reason);
     return 'failed';
   }
   if (verdict.state === 'mismatch') {
     // Money may have moved: never credited automatically, never marked failed.
-    console.error(`[payments] invoice #${invoice.id} (${invoice.reference}) FlexPaie answer does not match: ${verdict.reason}`);
+    console.error(`[payments] invoice #${invoice.id} (${invoice.reference}) MaishaPay answer does not match: ${verdict.reason}`);
     await pool.query('UPDATE invoices SET failure_reason = $2 WHERE id = $1', [invoice.id, `à vérifier : ${verdict.reason}`]);
   }
   return verdict.state;

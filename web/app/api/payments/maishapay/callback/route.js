@@ -2,13 +2,15 @@ import { NextResponse } from 'next/server';
 import { callbackTokenValid, recordCallback, settleInvoice } from '@/lib/payments';
 
 /**
- * FlexPaie's callback: /api/payments/flexpaie/webhook?invoice=<id>&token=<t>
+ * MaishaPay's callback: /api/payments/maishapay/callback?invoice=<id>&token=<t>
+ * (MaishaPay POSTs the final status of a v2 mobile-money collection here).
  *
  * The URL was built for one invoice with a one-off token (only its SHA-256 is
  * stored); a request without the right pair is a 404, whatever its body says.
- * With it, the body is logged and then IGNORED as evidence: the invoice is
- * settled from FlexPaie's own status check (lib/payments.js settleInvoice),
- * so a forged or replayed callback can at most trigger a harmless re-check.
+ * With it, the body is logged and then IGNORED as evidence — MaishaPay's
+ * documentation describes no signature — and the invoice is settled from
+ * MaishaPay's own status check (lib/payments.js settleInvoice), so a forged
+ * or replayed callback can at most trigger a harmless re-check.
  */
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +40,7 @@ async function handle(request) {
     return NextResponse.json({ received: true, state });
   } catch (err) {
     console.error(`[payments] settling invoice #${invoiceId} after callback failed: ${err.message}`);
-    // 500 so FlexPaie retries, if it does; the agent's status poll also re-checks.
+    // 500 so MaishaPay retries, if it does; the agent's status poll also re-checks.
     return NextResponse.json({ received: true, state: 'error' }, { status: 500 });
   }
 }

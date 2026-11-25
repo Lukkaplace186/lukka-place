@@ -43,7 +43,7 @@ test('the three DRC mobile-money networks, and no card', () => {
 });
 
 test('every initiate error code maps to a real French message', () => {
-  for (const code of ['phone', 'no_agency', 'package', 'not_configured', 'provider', 'auth', 'mystery']) {
+  for (const code of ['phone', 'operator', 'operator_phone', 'no_agency', 'package', 'not_configured', 'provider', 'auth', 'mystery']) {
     const key = initiateErrorKey(code).split('.');
     let node = fr;
     for (const part of key) node = node?.[part];
@@ -51,14 +51,16 @@ test('every initiate error code maps to a real French message', () => {
   }
 });
 
-test('checkout is wired behind the same switch and FlexPaie credentials', () => {
+test('checkout is wired behind the same switch and MaishaPay credentials', () => {
   assert.equal(checkoutPath(3), '/compte/agent/abonnement/paiement?forfait=3');
   const page = read('app/compte/agent/abonnement/paiement/page.js');
   assert.match(page, /agentSubscriptions\) redirect\('\/compte\/agent'\)/);
-  assert.match(page, /onlinePaymentOpen=\{isFlexpaieConfigured\(\)\}/);
+  assert.match(page, /onlinePaymentOpen=\{isMaishapayConfigured\(\)\}/);
   assert.match(page, /if \(!pkg\) redirect\('\/compte\/agent\/abonnement'\)/);
   const client = read('components/AgentCheckout.js');
-  assert.match(client, /\/api\/payments\/flexpaie\/initiate/);
-  assert.match(client, /\/api\/payments\/flexpaie\/status\?invoice=/);
+  assert.match(client, /\/api\/payments\/maishapay\/initiate/);
+  assert.match(client, /\/api\/payments\/maishapay\/status\?invoice=/);
+  assert.match(client, /JSON\.stringify\(\{ packageId: pkg\.id, phone, operator \}\)/, 'the chosen operator is sent');
+  assert.match(read('app/api/payments/maishapay/initiate/route.js'), /agentSubscriptions\) return NextResponse\.json\(\{ error: 'not_configured' \}/);
   assert.match(read('app/compte/agent/abonnement/page.js'), /checkoutEnabled=\{checkoutEnabled\}/);
 });

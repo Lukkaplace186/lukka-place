@@ -1,5 +1,6 @@
 import { getInviteByToken, MIN_PASSWORD_LENGTH } from '@/lib/adminUsers';
-import { ROLE_LABEL_KEYS } from '@/lib/adminRoles';
+import { ROLE_LABEL_KEYS, customRoleId } from '@/lib/adminRoles';
+import { getCustomRolesByIds } from '@/lib/adminCustomRoles';
 import { getT } from '@/lib/i18n/server';
 import { activateAdminAction } from './actions';
 
@@ -19,6 +20,11 @@ export default async function AdminActivatePage({ searchParams }) {
   const params = (await searchParams) || {};
   const token = typeof params.token === 'string' ? params.token : '';
   const invite = token ? await getInviteByToken(token).catch(() => null) : null;
+  const customRoles = invite ? await getCustomRolesByIds(invite.roles.map(customRoleId).filter((id) => id !== null)).catch(() => []) : [];
+  const customNames = Object.fromEntries(customRoles.map((role) => [role.key, role.name]));
+  const roleText = invite
+    ? invite.roles.map((key) => (ROLE_LABEL_KEYS[key] ? t(ROLE_LABEL_KEYS[key]) : customNames[key] || t('admin.team.custom.deleted'))).join(' + ')
+    : '';
   const errorKey = typeof params.error === 'string' && params.error.startsWith('admin.team.') ? params.error : null;
 
   return (
@@ -32,7 +38,7 @@ export default async function AdminActivatePage({ searchParams }) {
         ) : (
           <>
             <p className="mt-1 text-sm text-ink-70">
-              {t('admin.activate.intro', { name: invite.full_name, role: t(ROLE_LABEL_KEYS[invite.role]) })}
+              {t('admin.activate.intro', { name: invite.full_name, role: roleText })}
             </p>
             <p className="mt-1 text-xs text-ink-45">{invite.email}</p>
             {errorKey ? (

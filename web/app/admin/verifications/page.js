@@ -96,7 +96,7 @@ export default async function AdminVerificationsPage({ searchParams }) {
   const returnTo = buildHref(PATH, params);
 
   const session = await getAdminSession();
-  const canReview = can(session?.role, 'agents.manage');
+  const canReview = can(session, 'agents.manage');
 
   let result = null;
   let loadError = null;

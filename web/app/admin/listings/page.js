@@ -115,7 +115,7 @@ export default async function AdminListingsPage({ searchParams }) {
           <h1 className="u-title-page text-ink">{t('admin.listings.title')}</h1>
           <p className="u-micro mt-1 text-ink-45">{t('admin.moderation.subtitle')}</p>
         </div>
-        {can(session?.role, 'listings.edit') ? (
+        {can(session, 'listings.edit') ? (
           <Link
             href="/admin/listings/nouveau"
             className="u-btn-primary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-bold"
@@ -175,7 +175,7 @@ export default async function AdminListingsPage({ searchParams }) {
       ) : null}
 
       {summary && summary.total > 0 ? (
-        <QueueSummary summary={summary} canModerate={can(session?.role, 'listings.moderate')} />
+        <QueueSummary summary={summary} canModerate={can(session, 'listings.moderate')} />
       ) : null}
 
       <TableToolbar
@@ -242,8 +242,8 @@ export default async function AdminListingsPage({ searchParams }) {
       <ModerationTable
         rows={queue?.rows || []}
         status={status}
-        canModerate={can(session?.role, 'listings.moderate')}
-        canDelete={can(session?.role, 'listings.delete')}
+        canModerate={can(session, 'listings.moderate')}
+        canDelete={can(session, 'listings.delete')}
         renderedAt={renderedAt}
         socialPosts={socialPosts}
         sources={sources}

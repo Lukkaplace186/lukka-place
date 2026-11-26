@@ -285,13 +285,13 @@ export async function getSalesRepIdForAdmin(adminUserId) {
   return rows[0] ? Number(rows[0].id) : null;
 }
 
-/** Console accounts a rep can be linked to: role `sales`, not disabled. */
+/** Console accounts a rep can be linked to: holding the `sales` role (alone or combined), not disabled. */
 export async function listSalesConsoleAccounts() {
   const { rows } = await getPool().query(
     `SELECT u.id, u.full_name, u.email, r.id AS rep_id
      FROM console_admin_users u
      LEFT JOIN sales_reps r ON r.admin_user_id = u.id
-     WHERE u.role = 'sales' AND u.status <> 'disabled'
+     WHERE (u.role = 'sales' OR COALESCE(to_jsonb(u) -> 'roles', '[]'::jsonb) ? 'sales') AND u.status <> 'disabled'
      ORDER BY LOWER(u.full_name)`,
   );
   return rows.map((row) => ({ ...row, id: Number(row.id), rep_id: row.rep_id == null ? null : Number(row.rep_id) }));
@@ -310,7 +310,7 @@ export async function saveSalesRep(id, values, { adminId = null } = {}) {
     if (!plan.rows[0]) return { errorKey: 'admin.sales.reps.planInvalid' };
   }
   if (values.adminUserId) {
-    const account = await pool.query("SELECT 1 FROM console_admin_users WHERE id = $1 AND role = 'sales'", [values.adminUserId]);
+    const account = await pool.query("SELECT 1 FROM console_admin_users u WHERE u.id = $1 AND (u.role = 'sales' OR COALESCE(to_jsonb(u) -> 'roles', '[]'::jsonb) ? 'sales')", [values.adminUserId]);
     if (!account.rows[0]) return { errorKey: 'admin.sales.reps.accountInvalid' };
   }
   const params = [values.fullName, values.phone, values.email, values.planId, values.status, values.adminUserId, values.referralCode ?? null];

@@ -25,7 +25,7 @@ function renderTime() {
  */
 export default async function ListingReviewPage({ searchParams }) {
   const session = await getAdminSession();
-  if (!can(session?.role, 'listings.moderate')) redirect('/admin/listings');
+  if (!can(session, 'listings.moderate')) redirect('/admin/listings');
   const raw = (await searchParams) || {};
   const only = ['check', 'ready'].includes(raw.only) ? raw.only : null;
   const now = renderTime();
@@ -33,7 +33,7 @@ export default async function ListingReviewPage({ searchParams }) {
   const queue = await listModerationQueue({ status: 'pending', limit: 100 });
   const ordered = reviewOrder(queue.rows, now, { only });
   const ids = ordered.map((row) => row.id);
-  const canEdit = can(session?.role, 'listings.edit');
+  const canEdit = can(session, 'listings.edit');
   const [factsResult, sourcesResult, locationsResult, categoriesResult] = await Promise.allSettled([
     getListingFactsForReview(ids),
     getListingSources(ids),

@@ -40,7 +40,8 @@ export default async function AdminDashboardPage({ searchParams }) {
   const t = await getT();
   const session = await getAdminSession();
   const sp = await searchParams;
-  const role = session?.role;
+  // Passed down as `role`: can() and the tab helpers accept the whole session.
+  const role = session;
   const period = parseClickPeriod(sp?.periode);
   const sinceDays = period.days;
   const tabs = visibleDashboardTabs(role);

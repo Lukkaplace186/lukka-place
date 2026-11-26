@@ -4460,7 +4460,7 @@
       "sharedBanner": "You are signed in with the shared team password: your actions are logged as “shared password”, not under your name.",
       "sharedBannerLink": "Create individual accounts",
       "forbiddenTitle": "You Don’t Have Access to This Section",
-      "forbiddenBody": "Your role ({role}) cannot open this page. Ask an owner if you need it."
+      "forbiddenBody": "Your roles ({role}) cannot open this page. Ask an owner if you need it."
     },
     "nav": {
       "dashboard": "Dashboard",
@@ -6516,7 +6516,7 @@
     },
     "team": {
       "title": "Team",
-      "subtitle": "Who can use the console and with which role. People set their own password from an invitation link.",
+      "subtitle": "Who can use the console and with which roles. People set their own password from an invitation link.",
       "loadError": "The team could not be loaded: {error}",
       "sharedOnTitle": "The Shared Password Is Still Enabled",
       "sharedOnBootstrap": "Invite at least one owner, have them activate their account, then switch the shared password off (ADMIN_SHARED_LOGIN=off on the server).",
@@ -6538,7 +6538,7 @@
       "resetAccess": "Reset access",
       "enable": "Enable",
       "disable": "Disable",
-      "roleChanged": "Role updated.",
+      "roleChanged": "Roles updated.",
       "disabled": "Account disabled — its sessions have ended.",
       "enabled": "Account enabled.",
       "reissued": "New link created — the previous sessions have ended.",
@@ -6563,7 +6563,8 @@
         "moderator": "Approves, rejects and edits listings; manages agents and requests.",
         "support": "Helps agents and customers: conversations, viewings, access resets.",
         "finance": "Plans, payments, renewals and featured listings; exports.",
-        "analyst": "Read-only access to listings, agents and analytics; exports."
+        "analyst": "Read-only access to listings, agents and analytics; exports.",
+        "sales": "Field rep: their own page, agents and commissions. Combined with a broader role, they see everything that role allows."
       },
       "status": {
         "invited": "Invited",
@@ -6580,7 +6581,161 @@
       "lastOwner": "The console must keep at least one active owner.",
       "notFound": "Account not found.",
       "passwordTooShort": "The password must be at least {min} characters.",
-      "passwordMismatch": "The two passwords do not match."
+      "passwordMismatch": "The two passwords do not match.",
+      "rolesLabel": "Roles",
+      "rolesFor": "Roles of {name}",
+      "pickRoles": "Choose roles",
+      "builtInRoles": "Built-in roles",
+      "combineHint": "A person can hold several roles: their permissions add up. Owner already includes everything.",
+      "saveRoles": "Save",
+      "cancel": "Cancel",
+      "migrationMissing": "Combining roles or creating custom roles needs the migration migrations/20261126_admin_combined_custom_roles.sql.",
+      "custom": {
+        "title": "Custom roles",
+        "subtitle": "Build a role from the permissions below. Managing the team stays with owners.",
+        "noneYet": "No custom role yet.",
+        "create": "Create role",
+        "createTitle": "New Custom Role",
+        "editTitle": "Edit Role",
+        "dialogBody": "Tick what this role allows. Changes apply on the next page each holder opens.",
+        "name": "Role name",
+        "namePlaceholder": "e.g. Editor, Quality lead",
+        "description": "Description (optional)",
+        "save": "Save",
+        "delete": "Delete",
+        "editNamed": "Edit role {name}",
+        "deleteNamed": "Delete role {name}",
+        "deleteTitle": "Delete “{name}”?",
+        "deleteBody": "Nobody holds this role. It will be deleted permanently.",
+        "allInGroup": "Select all",
+        "noneInGroup": "Clear all",
+        "teamNote": "“Manage the team” is never offered: only the Owner role grants it, so nobody can give themselves more access.",
+        "permissionCount": {
+          "zero": "No permission",
+          "one": "{count} permission",
+          "other": "{count} permissions"
+        },
+        "holders": {
+          "zero": "held by nobody",
+          "one": "{count} person",
+          "other": "{count} people"
+        },
+        "stillAssigned": {
+          "one": "{count} person still holds this role: remove it from them first.",
+          "other": "{count} people still hold this role: remove it from them first."
+        },
+        "created": "Role “{name}” created.",
+        "updated": "Role “{name}” updated.",
+        "deletedOk": "Role “{name}” deleted.",
+        "deleted": "Deleted role",
+        "nameRequired": "Give the role a name.",
+        "permissionsRequired": "Tick at least one permission.",
+        "nameTaken": "A role already has this name.",
+        "notFound": "Role not found."
+      },
+      "permGroups": {
+        "listings": "Listings and content",
+        "agents": "Agents",
+        "customers": "Customers, requests and viewings",
+        "money": "Finance, sales and partners",
+        "data": "Data and market",
+        "admin": "Administration"
+      },
+      "perms": {
+        "listings": {
+          "view": "View listings",
+          "moderate": "Approve or reject listings",
+          "edit": "Edit listings",
+          "delete": "Delete listings (with undo)"
+        },
+        "projects": {
+          "manage": "Manage new-build projects"
+        },
+        "blog": {
+          "manage": "Write and publish guides and news"
+        },
+        "agents": {
+          "view": "View agents and agencies",
+          "manage": "Manage agents",
+          "bulk": "Bulk actions on agents",
+          "security": "Agent account security (access, passwords)",
+          "delete": "Permanently delete an agent"
+        },
+        "verifications": {
+          "view": "View identity verifications"
+        },
+        "leads": {
+          "view": "View requests and conversations",
+          "manage": "Manage requests",
+          "delete": "Permanently delete requests"
+        },
+        "customers": {
+          "view": "View customers",
+          "manage": "Manage customer accounts",
+          "delete": "Permanently delete a customer"
+        },
+        "conversations": {
+          "reply": "Reply in conversations"
+        },
+        "viewings": {
+          "manage": "Manage viewings",
+          "delete": "Permanently delete viewings"
+        },
+        "accounts": {
+          "impersonate": "“View as” an agent or customer",
+          "demo": "Demo accounts"
+        },
+        "notes": {
+          "write": "Write internal notes"
+        },
+        "billing": {
+          "view": "View plans and payments",
+          "manage": "Manage plans, payments and featured listings"
+        },
+        "sales": {
+          "view": "View the sales team",
+          "manage": "Manage reps and commissions",
+          "delete": "Remove a rep or commission plan"
+        },
+        "partners": {
+          "view": "View partners, campaigns and links",
+          "manage": "Manage creator codes and campaigns",
+          "payout": "Pay referral credits",
+          "stats": "Enter weekly figures"
+        },
+        "analytics": {
+          "view": "Dashboard and analytics"
+        },
+        "market": {
+          "view": "Market data and SEO",
+          "manage": "Enter or exclude observed prices"
+        },
+        "data": {
+          "export": "Export data"
+        },
+        "health": {
+          "view": "System health"
+        },
+        "audit": {
+          "view": "Read the audit log"
+        },
+        "routing": {
+          "manage": "Lead routing"
+        },
+        "cms": {
+          "manage": "Site content and settings"
+        }
+      },
+      "delete": "Delete",
+      "deleteInvite": "Cancel invitation",
+      "deleteTitle": "Delete {name}’s account?",
+      "deleteBody": "The account {email} will be deleted permanently. Their past actions stay in the audit log under their name.",
+      "deleteConfirm": "Delete permanently",
+      "deleted": "{name}’s account deleted.",
+      "deleteActive": "Disable this account first, then delete it.",
+      "deleteSelf": "You cannot delete your own account.",
+      "deleteImpersonated": "This account used “View as”: it stays disabled so the record of who viewed which account is kept.",
+      "deleteBlocked": "This account is still referenced elsewhere in the console; it stays disabled."
     },
     "views": {
       "title": "Saved Views",

@@ -222,7 +222,7 @@ export default async function AdminProjectPage({ params, searchParams }) {
   const project = await getProjectForAdmin(id);
   if (!project) notFound();
   const session = await getAdminSession();
-  const canManage = can(session?.role, 'projects.manage');
+  const canManage = can(session, 'projects.manage');
 
   const errorKey = typeof sp.error === 'string' ? `admin.projects.errors.${sp.error}` : null;
   const savedKey = typeof sp.saved === 'string' ? `admin.projects.saved.${sp.saved}` : null;

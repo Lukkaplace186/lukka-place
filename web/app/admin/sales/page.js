@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Scale, Settings2 } from 'lucide-react';
 import { getAdminSession } from '@/lib/adminSession';
-import { can } from '@/lib/adminRoles';
+import { can, salesRepOnly } from '@/lib/adminRoles';
 import { firstParam } from '@/lib/adminPagination';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { recentFortnights } from '@/lib/launchCommission';
@@ -34,7 +34,7 @@ export default async function AdminSalesPage({ searchParams }) {
   const t = await getT();
   const session = await getAdminSession();
 
-  if (session?.role === 'sales') {
+  if (salesRepOnly(session)) {
     const ownRepId = session.id ? await getSalesRepIdForAdmin(session.id).catch(() => null) : null;
     if (ownRepId) redirect(`/admin/sales/${ownRepId}`);
     return (
@@ -49,7 +49,7 @@ export default async function AdminSalesPage({ searchParams }) {
   const period = SALES_PERIODS.includes(firstParam(raw.period)) ? firstParam(raw.period) : 'month';
   const range = periodRange(period);
   const params = { period: period === 'month' ? undefined : period };
-  const canManage = can(session?.role, 'sales.manage');
+  const canManage = can(session, 'sales.manage');
 
   const [repsResult, plansResult, accountsResult, syncResult, launchResult] = await Promise.allSettled([
     listSalesReps(range),
@@ -195,7 +195,7 @@ export default async function AdminSalesPage({ searchParams }) {
                   <RepRowActions
                     repId={rep.id}
                     repName={rep.full_name}
-                    canDelete={can(session?.role, 'sales.delete')}
+                    canDelete={can(session, 'sales.delete')}
                     code={rep.referral_code}
                     link={rep.referral_code ? referralLink(rep.referral_code) : null}
                     payHref={`${base}?status=approved&fn=${currentFortnight}&payout=1#ledger`}

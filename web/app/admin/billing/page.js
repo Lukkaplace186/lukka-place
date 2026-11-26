@@ -46,7 +46,7 @@ export default async function AdminBillingPage({ searchParams }) {
   const list = listResult.status === 'fulfilled' ? listResult.value : null;
   const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
   const packages = packagesResult.status === 'fulfilled' ? packagesResult.value : [];
-  const canManage = can(session?.role, 'billing.manage');
+  const canManage = can(session, 'billing.manage');
 
   return (
     <div className="flex flex-col gap-5">

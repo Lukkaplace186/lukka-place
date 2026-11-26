@@ -89,7 +89,7 @@ function Unavailable({ t, result }) {
 export default async function InvestorsPage() {
   const t = await getT();
   const session = await getAdminSession();
-  const canExport = can(session?.role, 'data.export');
+  const canExport = can(session, 'data.export');
   const locale = t.locale;
   const k = (key, vars) => t(`admin.investors.${key}`, vars);
 

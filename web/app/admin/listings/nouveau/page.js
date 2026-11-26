@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminCreateListingPage() {
   const t = await getT();
   const session = await getAdminSession();
-  if (!can(session?.role, 'listings.edit')) notFound();
+  if (!can(session, 'listings.edit')) notFound();
 
   const [{ communes }, categories] = await Promise.all([
     getLocationHierarchyWithFallback({ city: 'all' }),
@@ -34,7 +34,7 @@ export default async function AdminCreateListingPage() {
       <AdminCreateListingForm
         communes={communes}
         categories={categories}
-        canPublish={can(session?.role, 'listings.moderate')}
+        canPublish={can(session, 'listings.moderate')}
       />
     </div>
   );

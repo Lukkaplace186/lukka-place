@@ -358,9 +358,29 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   `ADMIN_SHARED_LOGIN=off` once an owner account is active.** A pre-v2 token is
   read as that shared session so nobody was signed out by the deploy.
 - **Roles are `lib/adminRoles.js`**: owner / moderator / support / finance /
-  analyst, a fixed permission table, `SECTION_PERMISSIONS` for pages (longest
-  prefix wins). The sidebar hides what a role can't open; the layout and every
-  Server Action enforce it. An unknown permission is refused, never open.
+  analyst / sales, a fixed permission table, `SECTION_PERMISSIONS` for pages
+  (longest prefix wins). The sidebar hides what a role can't open; the layout
+  and every Server Action enforce it. An unknown permission is refused, never open.
+- **Combined and custom roles (2026-11-26)** — engine
+  `migrations/20261126_admin_combined_custom_roles.sql`,
+  `lib/adminCustomRoles.js`. A person holds `roles` (several; permissions add
+  up via `resolvePermissions`); `role` stays the primary one (`roles[1]`,
+  landing page, every `role = 'owner'` check). Owners define custom roles on
+  `/admin/team` (name + permissions, key `custom:<id>`); `team.manage` is
+  never delegable and `owner` is always held alone. **Call `can(session, …)`,
+  never `can(session.role, …)`** — the session carries the resolved
+  `permissions`, the role alone no longer tells the whole story. A field rep is
+  `salesRepOnly(session)` (Commercial and nothing wider), not
+  `role === 'sales'`. Before the migration, reads fall back to `role` (via
+  `to_jsonb(u) -> 'roles'`) and saving more than one role / a custom role
+  returns `admin.team.migrationMissing`. A custom role still held by someone
+  cannot be deleted. Covered by `tests/unit/admin-custom-roles.test.js`.
+- **Deleting a team account** (`deleteAdminUser`, `/admin/team`): only a
+  disabled account or an unaccepted invitation, never yourself. History
+  survives — audit log and notes keep `actor_label` (name + email), other
+  `*_by` columns are SET NULL, saved views CASCADE. Refused while
+  `console_impersonation_sessions` names the account (no ON DELETE, on
+  purpose: who used "view as" stays traceable); such accounts stay disabled.
 - **Every mutating action calls `recordAudit`** (`lib/adminAudit.js`,
   `console_admin_audit_log`, append-only, owner-readable at `/admin/audit`,
   exportable). Details never contain a password or a customer message body —

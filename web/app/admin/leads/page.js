@@ -63,7 +63,7 @@ const ASSIGNMENT_FILTERS = ['unassigned'];
  */
 export default async function AdminLeadsPage({ searchParams }) {
   const t = await getT();
-  const canDeleteLeads = can((await getAdminSession())?.role, 'leads.delete');
+  const canDeleteLeads = can(await getAdminSession(), 'leads.delete');
   const raw = (await searchParams) || {};
   const status = LEAD_STATUSES.includes(firstParam(raw.status)) ? firstParam(raw.status) : undefined;
   const q = String(firstParam(raw.q) || '').trim().slice(0, 100) || undefined;

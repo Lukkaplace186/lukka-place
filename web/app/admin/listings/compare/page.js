@@ -37,7 +37,7 @@ export default async function CompareListingsPage({ searchParams }) {
   const raw = (await searchParams) || {};
   const ids = parseCompareIds(raw.ids);
   const [session, listings] = await Promise.all([getAdminSession(), getListingsForCompare(ids)]);
-  const canModerate = can(session?.role, 'listings.moderate');
+  const canModerate = can(session, 'listings.moderate');
   const marks = compareToFirst(listings);
   const reference = listings[0];
   const firstPhotos = reference ? new Set(photoSet(reference)) : new Set();

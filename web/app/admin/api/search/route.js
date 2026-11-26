@@ -10,7 +10,7 @@ export async function GET(request) {
   if (!session) return Response.json({ error: 'Not authenticated' }, { status: 401 });
   const q = new URL(request.url).searchParams.get('q') || '';
   const scope = await getSalesScope();
-  const groups = await adminGlobalSearch(q, session.role, { repId: scope ? scope.repId : null }).catch((err) => {
+  const groups = await adminGlobalSearch(q, session, { repId: scope ? scope.repId : null }).catch((err) => {
     console.error(`[admin/search] failed: ${err.message}`);
     return [];
   });

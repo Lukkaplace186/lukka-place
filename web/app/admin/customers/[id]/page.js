@@ -112,7 +112,7 @@ export default async function AdminCustomerDetailPage({ params }) {
             ))}
           </p>
         ) : null}
-        {can(session?.role, 'accounts.impersonate') ? (
+        {can(session, 'accounts.impersonate') ? (
           <div className="mt-3">
             <ImpersonateButton
               targetType="customer"
@@ -122,7 +122,7 @@ export default async function AdminCustomerDetailPage({ params }) {
             />
           </div>
         ) : null}
-        {can(session?.role, 'customers.manage') ? (
+        {can(session, 'customers.manage') ? (
           <div className="mt-3">
             <CustomerRowActions
               phone={phone}
@@ -249,7 +249,7 @@ export default async function AdminCustomerDetailPage({ params }) {
           entityId={customer.id}
           notes={notesResult.status === 'fulfilled' ? notesResult.value : []}
           history={historyResult.status === 'fulfilled' ? historyResult.value : []}
-          canWrite={can(session?.role, 'notes.write')}
+          canWrite={can(session, 'notes.write')}
         />
       </div>
     </div>

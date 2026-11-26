@@ -67,7 +67,7 @@ export default async function AdminAgentsPage({ searchParams }) {
           <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
           <p className="u-micro mt-1 text-ink-45">{t(scope ? 'admin.agents.subtitleSales' : 'admin.agents.subtitle')}</p>
         </div>
-        {can(session?.role, 'agents.manage') ? (
+        {can(session, 'agents.manage') ? (
           <Link
             href="/admin/agents/nouveau"
             className="u-btn-primary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-bold"
@@ -152,9 +152,9 @@ export default async function AdminAgentsPage({ searchParams }) {
       <AgentsTable
         rows={toAgentTableRows(list?.rows, loginSummaries, t.locale)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.name }))}
-        canImpersonate={can(session?.role, 'accounts.impersonate')}
-        canDelete={can(session?.role, 'agents.delete')}
-        canManage={can(session?.role, 'agents.manage')}
+        canImpersonate={can(session, 'accounts.impersonate')}
+        canDelete={can(session, 'agents.delete')}
+        canManage={can(session, 'agents.manage')}
         sharedSession={Boolean(session?.shared)}
         footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} cursors={list.cursors} /> : null}
       />

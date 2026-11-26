@@ -44,8 +44,8 @@ export default async function AdminGrowthPage({ searchParams }) {
   const raw = (await searchParams) || {};
   const days = PERIODS.includes(Number(firstParam(raw.jours))) ? Number(firstParam(raw.jours)) : 30;
   const session = await getAdminSession();
-  const canSpend = can(session?.role, 'partners.stats');
-  const canPick = can(session?.role, 'listings.edit');
+  const canSpend = can(session, 'partners.stats');
+  const canPick = can(session, 'listings.edit');
 
   let data = null;
   let daily = null;

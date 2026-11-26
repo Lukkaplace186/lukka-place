@@ -9,6 +9,13 @@ import LanguageToggle from '@/components/LanguageToggle';
 import { ToastProvider } from '@/components/Toast';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, ROLE_LABEL_KEYS, sectionPermission } from '@/lib/adminRoles';
+
+/** "Modérateur + Support": every role the person holds, custom ones by their name. */
+function roleSummary(session, t) {
+  return session.roles
+    .map((key) => (ROLE_LABEL_KEYS[key] ? t(ROLE_LABEL_KEYS[key]) : session.customRoleNames?.[key] || t('admin.team.custom.deleted')))
+    .join(' + ');
+}
 import { getAdminPathname, getAdminSession } from '@/lib/adminSession';
 import { getI18n, getT } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
@@ -68,14 +75,17 @@ export default async function AdminLayout({ children }) {
 
   const { hiddenAdminTabs } = await getFeatureFlags();
   const required = sectionPermission(pathname);
-  const forbidden = required && !can(session.role, required);
+  const forbidden = required && !can(session, required);
+  // The sidebar is a client component: it gets the resolved permissions, not the roles.
+  const access = { permissions: session.permissions };
+  const roleText = roleSummary(session, t);
 
   return (
     <I18nProvider locale={locale} messages={messages}>
       <ToastProvider>
       <div className="flex min-h-screen bg-page print:bg-white">
         <div className="hidden lg:flex print:hidden">
-          <AdminSidebar role={session.role} hiddenTabs={hiddenAdminTabs} />
+          <AdminSidebar access={access} hiddenTabs={hiddenAdminTabs} />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -88,7 +98,7 @@ export default async function AdminLayout({ children }) {
               <LanguageToggle />
               <div className="hidden text-right leading-tight md:block">
                 <div className="text-sm font-semibold text-ink">{session.shared ? t('admin.chrome.sharedSession') : session.name}</div>
-                <div className="text-xs text-ink-45">{t(ROLE_LABEL_KEYS[session.role])}</div>
+                <div className="text-xs text-ink-45">{roleText}</div>
               </div>
               <form action={logoutAction}>
                 <button type="submit" className="text-sm font-medium text-ink-45 transition-colors hover:text-ink">
@@ -109,7 +119,7 @@ export default async function AdminLayout({ children }) {
           {/* Below lg the royal rail is hidden, so the same destinations ride
               here instead. */}
           <div className="lg:hidden print:hidden">
-            <AdminSidebar mobile role={session.role} hiddenTabs={hiddenAdminTabs} />
+            <AdminSidebar mobile access={access} hiddenTabs={hiddenAdminTabs} />
           </div>
 
           <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 print:p-0">
@@ -117,7 +127,7 @@ export default async function AdminLayout({ children }) {
               <div className="mx-auto flex max-w-lg flex-col items-center gap-3 py-16 text-center">
                 <ShieldAlert strokeWidth={ICON_STROKE_WIDTH} className="h-10 w-10 text-warning" />
                 <h1 className="u-title-section text-ink">{t('admin.chrome.forbiddenTitle')}</h1>
-                <p className="u-micro text-ink-70">{t('admin.chrome.forbiddenBody', { role: t(ROLE_LABEL_KEYS[session.role]) })}</p>
+                <p className="u-micro text-ink-70">{t('admin.chrome.forbiddenBody', { role: roleText })}</p>
                 <Link href="/admin/dashboard" className="u-micro-strong text-blue-deep hover:underline">{t('admin.errorBoundary.home')}</Link>
               </div>
             ) : children}

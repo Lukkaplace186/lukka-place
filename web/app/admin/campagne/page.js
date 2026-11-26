@@ -33,7 +33,7 @@ export default async function CampaignPage({ searchParams }) {
   const t = await getT();
   const raw = await searchParams;
   const session = await getAdminSession();
-  const canManage = can(session?.role, 'partners.manage');
+  const canManage = can(session, 'partners.manage');
   const campaign = await getReferralCampaign();
   const template = announcementTemplateName();
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STATUS_WHERE, listModerationQueue } from '@/lib/moderationQueue';
-import { adminPasswordProblem, updateAdminUser } from '@/lib/adminUsers';
+import { adminPasswordProblem, deleteAdminUser, updateAdminUser } from '@/lib/adminUsers';
 import { listAuditLog, recordAudit } from '@/lib/adminAudit';
 import { listMembershipsForAdmin, searchFeaturableListings } from '@/lib/adminBilling';
 import { calls, enqueue, reset } from '../support/fakePool.js';
@@ -75,4 +75,33 @@ test('memberships and featurable listings are bounded queries', async () => {
   await searchFeaturableListings({ q: '51' });
   assert.ok(calls[0].sql.includes('p.status = 1 AND p.approve_status = 1'), 'only public listings may be featured');
   assert.equal(calls[0].values[1], 51);
+});
+
+test('an active team account cannot be deleted; it is disabled first', async () => {
+  enqueue([]); // BEGIN
+  enqueue([{ id: 4, role: 'moderator', status: 'active', full_name: 'A', email: 'a@x.y' }]); // SELECT … FOR UPDATE
+  const result = await deleteAdminUser(4);
+  assert.equal(result.errorKey, 'admin.team.deleteActive');
+  assert.ok(!calls.some((c) => c.sql.startsWith('DELETE FROM console_admin_users')));
+});
+
+test('an account that used "view as" is kept, disabled', async () => {
+  enqueue([]); // BEGIN
+  enqueue([{ id: 5, role: 'support', status: 'disabled', full_name: 'B', email: 'b@x.y' }]); // SELECT … FOR UPDATE
+  enqueue([{ present: true }]); // to_regclass
+  enqueue([{ n: 2 }]); // impersonation sessions
+  const result = await deleteAdminUser(5);
+  assert.equal(result.errorKey, 'admin.team.deleteImpersonated');
+  assert.ok(!calls.some((c) => c.sql.startsWith('DELETE FROM console_admin_users')));
+});
+
+test('a disabled account with no "view as" history is deleted', async () => {
+  enqueue([]); // BEGIN
+  enqueue([{ id: 6, role: 'analyst', status: 'disabled', full_name: 'C', email: 'c@x.y' }]); // SELECT … FOR UPDATE
+  enqueue([{ present: true }]); // to_regclass
+  enqueue([{ n: 0 }]); // impersonation sessions
+  const result = await deleteAdminUser(6);
+  assert.equal(result.user.email, 'c@x.y');
+  assert.ok(calls.some((c) => c.sql.startsWith('DELETE FROM console_admin_users')));
+  assert.ok(calls.some((c) => c.sql === 'COMMIT'));
 });

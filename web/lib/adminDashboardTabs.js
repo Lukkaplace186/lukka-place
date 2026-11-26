@@ -6,7 +6,7 @@
  * Each tab needs a permission (lib/adminRoles.js); a role only sees the tabs
  * it may open, and lands on the one closest to its job.
  */
-import { can } from './adminRoles.js';
+import { can, rolesOf } from './adminRoles.js';
 
 export const DASHBOARD_TABS = [
   { key: 'apercu', labelKey: 'admin.dashboard.tabs.executive', permission: 'analytics.view' },
@@ -32,7 +32,9 @@ export function parseDashboardTab(value, role) {
   const tabs = visibleDashboardTabs(role);
   const asked = tabs.find((tab) => tab.key === key);
   if (asked) return asked;
-  const preferred = tabs.find((tab) => tab.key === ROLE_DEFAULT_TAB[role]);
+  // The first role (primary first) that has a preferred tab picks it.
+  const preferredKey = rolesOf(role).map((key) => ROLE_DEFAULT_TAB[key]).find(Boolean);
+  const preferred = tabs.find((tab) => tab.key === preferredKey);
   return preferred || tabs[0] || DASHBOARD_TABS[0];
 }
 

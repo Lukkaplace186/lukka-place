@@ -1,25 +1,30 @@
 import { listAdminUsers } from '@/lib/adminUsers';
+import { listCustomRoles } from '@/lib/adminCustomRoles';
 import { ADMIN_ROLES, ROLE_LABEL_KEYS } from '@/lib/adminRoles';
 import { sharedPasswordEnabled } from '@/lib/adminAuth';
 import { getAdminSession } from '@/lib/adminSession';
 import { getT } from '@/lib/i18n/server';
 import { ErrorNote } from '../LeadRoutingUI';
 import TeamManager from './TeamManager';
+import CustomRoles from './CustomRoles';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Who can use the console, and with which role. Owner only (the layout
- * enforces `team.manage`). The shared password's status is stated here too,
- * because it is the one way in that has no name attached.
+ * Who can use the console, and with which roles. Owner only (the layout
+ * enforces `team.manage`). A person may hold several roles (permissions add
+ * up), and owners define custom roles below the built-in ones. The shared
+ * password's status is stated here too, because it is the one way in that
+ * has no name attached.
  */
 export default async function AdminTeamPage() {
   const t = await getT();
   const session = await getAdminSession();
   let users = [];
+  let customRoles = [];
   let loadError = null;
   try {
-    users = await listAdminUsers();
+    [users, customRoles] = await Promise.all([listAdminUsers(), listCustomRoles()]);
   } catch (err) {
     loadError = err.message;
   }
@@ -41,10 +46,11 @@ export default async function AdminTeamPage() {
         </div>
       ) : null}
 
-      <TeamManager users={users} currentAdminId={session?.id ?? null} />
+      <TeamManager users={users} currentAdminId={session?.id ?? null} customRoles={customRoles} />
 
       <section className="u-card rounded-card bg-surface p-5">
         <h2 className="u-title-card text-ink">{t('admin.team.rolesTitle')}</h2>
+        <p className="u-micro mt-1 text-ink-45">{t('admin.team.combineHint')}</p>
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           {ADMIN_ROLES.map((role) => (
             <div key={role}>
@@ -53,6 +59,7 @@ export default async function AdminTeamPage() {
             </div>
           ))}
         </dl>
+        <CustomRoles customRoles={customRoles} />
       </section>
     </div>
   );

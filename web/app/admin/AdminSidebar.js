@@ -69,7 +69,7 @@ function NavLink({ item, pathname, counts, t }) {
   );
 }
 
-export default function AdminSidebar({ mobile = false, role, hiddenTabs = [] }) {
+export default function AdminSidebar({ mobile = false, access, hiddenTabs = [] }) {
   const t = useT();
   const pathname = usePathname();
   const counts = useQueueCounts();
@@ -77,7 +77,7 @@ export default function AdminSidebar({ mobile = false, role, hiddenTabs = [] }) 
   // enforce the same table server-side; hiding a link is not the security.
   // Tabs hidden on /admin/settings (work in progress) leave the sidebar for
   // everyone; the page itself still opens from its URL so the team can work on it.
-  const allowed = ({ href }) => can(role, sectionPermission(href)) && !hiddenTabs.includes(href);
+  const allowed = ({ href }) => can(access, sectionPermission(href)) && !hiddenTabs.includes(href);
   const items = NAV.filter(allowed);
   const pinned = items.find(({ href }) => href === PINNED_HREF) || null;
   const groups = NAV_GROUPS

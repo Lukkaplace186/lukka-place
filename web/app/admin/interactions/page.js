@@ -33,7 +33,7 @@ export default async function AdminInteractionsPage({ searchParams }) {
   const raw = (await searchParams) || {};
   const days = interactionWindow(firstParam(raw.days));
   const session = await getAdminSession();
-  const canRecord = can(session?.role, 'leads.manage');
+  const canRecord = can(session, 'leads.manage');
 
   const { counts, names, errors } = await getAgentInteractions({ days });
   const rows = counts.agents.slice(0, MAX_ROWS);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 import { getAdminSession } from '@/lib/adminSession';
-import { can } from '@/lib/adminRoles';
+import { can, salesRepOnly } from '@/lib/adminRoles';
 import { getPool } from '@/lib/db';
 import { referralLink } from '@/lib/salesReferral';
 
@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request, { params }) {
   const session = await getAdminSession();
-  if (!session || !can(session.role, 'sales.view')) {
+  if (!session || !can(session, 'sales.view')) {
     return new NextResponse('Forbidden', { status: 403 });
   }
   const { id } = await params;
@@ -27,7 +27,7 @@ export async function GET(request, { params }) {
   const { rows } = await getPool().query('SELECT id, referral_code, admin_user_id FROM sales_reps WHERE id = $1', [repId]);
   const rep = rows[0];
   if (!rep?.referral_code) return new NextResponse('Not found', { status: 404 });
-  if (session.role === 'sales' && Number(rep.admin_user_id) !== Number(session.id)) {
+  if (salesRepOnly(session) && Number(rep.admin_user_id) !== Number(session.id)) {
     return new NextResponse('Not found', { status: 404 });
   }
 

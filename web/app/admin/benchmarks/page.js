@@ -42,7 +42,7 @@ export default async function AgentPerformancePage({ searchParams }) {
   // A sales rep sees only the agents they brought in; only routing.manage
   // may flip an agent's direct routing.
   const [scope, session] = await Promise.all([getSalesScope(), getAdminSession()]);
-  const canRoute = can(session?.role, 'routing.manage');
+  const canRoute = can(session, 'routing.manage');
   try {
     data = await getAgentPerformance({ days });
     if (scope) data = scopeAgentPerformance(data, await getRepAgentIds(scope.repId));

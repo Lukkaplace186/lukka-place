@@ -55,8 +55,8 @@ export default async function AdminPartnerPage({ params, searchParams }) {
   if (!partner) notFound();
 
   const session = await getAdminSession();
-  const canManage = can(session?.role, 'partners.manage');
-  const canStats = can(session?.role, 'partners.stats');
+  const canManage = can(session, 'partners.manage');
+  const canStats = can(session, 'partners.stats');
   const [conversions, daily, qr, social] = await Promise.all([
     listPartnerConversions(partner.id, { limit: 100 }).catch((err) => ({ error: err.message, rows: [], total: 0 })),
     getPartnerDailyClicks(partner.id, { days: 30 }).catch(() => []),

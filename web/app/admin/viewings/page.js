@@ -75,7 +75,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  */
 export default async function AdminViewingsPage({ searchParams }) {
   const t = await getT();
-  const canDeleteViewings = can((await getAdminSession())?.role, 'viewings.delete');
+  const canDeleteViewings = can(await getAdminSession(), 'viewings.delete');
   const raw = (await searchParams) || {};
   const statusParam = firstParam(raw.status);
   const filters = {

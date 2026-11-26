@@ -45,7 +45,7 @@ export default async function AdminAgenciesPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const session = await getAdminSession();
-  const canDelete = can(session?.role, 'agents.delete');
+  const canDelete = can(session, 'agents.delete');
   let list = null;
   let loadError = null;
   try {

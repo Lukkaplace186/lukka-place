@@ -54,7 +54,7 @@ export default async function AdminAgentReviewsPage({ searchParams }) {
   };
   const returnTo = buildHref(PATH, params);
   const session = await getAdminSession();
-  const canModerate = can(session?.role, 'listings.moderate');
+  const canModerate = can(session, 'listings.moderate');
 
   let result = null;
   let loadError = null;

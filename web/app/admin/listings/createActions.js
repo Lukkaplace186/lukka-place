@@ -168,7 +168,7 @@ export async function adminCreateListingAction(formData) {
 
   let published = false;
   let publishError = null;
-  if (publishNow && can(session.role, 'listings.moderate')) {
+  if (publishNow && can(session, 'listings.moderate')) {
     try {
       await approveListingAction(propertyId);
       published = true;

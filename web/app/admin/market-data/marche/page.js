@@ -41,7 +41,7 @@ const pct = (a, b) => (a && b ? Math.round(((a - b) / b) * 100) : null);
 export default async function MarketObservationsPage({ searchParams }) {
   const t = await getT();
   const session = await getAdminSession();
-  const canManage = can(session?.role, 'market.manage');
+  const canManage = can(session, 'market.manage');
   const raw = (await searchParams) || {};
   const source = MARKET_SOURCES.includes(firstParam(raw.source)) ? firstParam(raw.source) : null;
   const commune = firstParam(raw.commune) || null;

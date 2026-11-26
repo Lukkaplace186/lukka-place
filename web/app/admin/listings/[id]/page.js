@@ -97,7 +97,7 @@ export default async function AdminListingEditPage({ params }) {
               {t(approve.labelKey)}
             </span>
           )}
-          {can(session?.role, 'listings.delete') ? (
+          {can(session, 'listings.delete') ? (
             <div className="ml-auto">
               <DeleteListingButton id={listing.id} />
             </div>
@@ -158,13 +158,13 @@ export default async function AdminListingEditPage({ params }) {
             the WhatsApp alert's link approves without scrolling past the whole
             editor. Side column from xl, as before. */}
         <div className="order-first flex flex-col gap-4 xl:order-none">
-          {can(session?.role, 'listings.edit') ? <ListingAgentCard listingId={listing.id} current={currentAgent} /> : null}
+          {can(session, 'listings.edit') ? <ListingAgentCard listingId={listing.id} current={currentAgent} /> : null}
           {moderation ? (
             <ListingModerationPanel
               listingId={listing.id}
               info={moderation}
-              canModerate={can(session?.role, 'listings.moderate')}
-              canEdit={can(session?.role, 'listings.edit')}
+              canModerate={can(session, 'listings.moderate')}
+              canEdit={can(session, 'listings.edit')}
             />
           ) : null}
           <EntityTimeline entityType="listing" entityId={listing.id} history={history} notes={[]} canWrite={false} />

@@ -91,11 +91,11 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   // same 404 as a missing one.
   if (!(await agentInScope(await getSalesScope(), agent.id))) notFound();
   const base = `/admin/agents/${agent.id}`;
-  const canManageSales = can(session?.role, 'sales.manage');
+  const canManageSales = can(session, 'sales.manage');
   const [salesAssignment, repOptions, attribution, whatsappNumbers] = await Promise.all([
     getAgentSalesAssignment(agent.id).catch(() => null),
     canManageSales ? listActiveRepOptions().catch(() => []) : Promise.resolve([]),
-    can(session?.role, 'sales.view') ? getAgentAttribution(agent.id).catch(() => null) : Promise.resolve(null),
+    can(session, 'sales.view') ? getAgentAttribution(agent.id).catch(() => null) : Promise.resolve(null),
     // The other numbers this agent WhatsApps listings from (engine, console only).
     listAgentWhatsAppNumbers(agent.id).catch(() => null),
   ]);
@@ -112,7 +112,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
     ]);
     content = (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
-        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session?.role, 'agents.manage')} />
+        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session, 'agents.manage')} />
         <div className="flex flex-col gap-6">
         {/* The same Or / Argent / Bronze card the agency sees on its dashboard. */}
         <Suspense fallback={null}>
@@ -170,7 +170,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
         <ModerationTable
           rows={queue?.rows || []}
           status={status}
-          canModerate={can(session?.role, 'listings.moderate')}
+          canModerate={can(session, 'listings.moderate')}
           renderedAt={renderTime()}
           footer={queue ? <Pagination pathname={base} params={listParams} total={queue.total} page={page} pageSize={pageSize} /> : null}
         />
@@ -292,7 +292,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
       listNotes('agent', agent.id).catch(() => []),
       listEntityAudit('agent', agent.id, 100).catch(() => []),
     ]);
-    content = <EntityTimeline entityType="agent" entityId={agent.id} notes={notes} history={history} canWrite={can(session?.role, 'notes.write')} />;
+    content = <EntityTimeline entityType="agent" entityId={agent.id} notes={notes} history={history} canWrite={can(session, 'notes.write')} />;
   }
 
   return (
@@ -336,12 +336,12 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
             agentId={agent.id}
             numbers={whatsappNumbers?.numbers ?? null}
             available={Boolean(whatsappNumbers?.available)}
-            canManage={can(session?.role, 'agents.manage')}
+            canManage={can(session, 'agents.manage')}
           />
         ) : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {can(session?.role, 'agents.manage') ? (
+          {can(session, 'agents.manage') ? (
             <Link
               href={`${base}#profil`}
               className="u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-ink hover:border-blue"
@@ -350,7 +350,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               {t('admin.agentPanel.editProfile')}
             </Link>
           ) : null}
-          {can(session?.role, 'agents.manage') && !agent.deleted_at ? (
+          {can(session, 'agents.manage') && !agent.deleted_at ? (
             <AgentAgencyControl
               agentId={agent.id}
               agentName={displayName}
@@ -358,12 +358,12 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               currentVendorName={agent.vendor_name || null}
             />
           ) : null}
-          {can(session?.role, 'agents.manage') ? <VerificationReminderButton agentId={agent.id} /> : null}
-          {can(session?.role, 'agents.manage') && !agent.phone_verified_at && !agent.deleted_at ? (
+          {can(session, 'agents.manage') ? <VerificationReminderButton agentId={agent.id} /> : null}
+          {can(session, 'agents.manage') && !agent.phone_verified_at && !agent.deleted_at ? (
             <AdminVerifyAgentButton agentId={agent.id} phone={agent.phone} />
           ) : null}
-          {can(session?.role, 'agents.delete') ? <AgentDeleteButton agentId={agent.id} agentName={displayName} /> : null}
-          {can(session?.role, 'accounts.impersonate') ? (
+          {can(session, 'agents.delete') ? <AgentDeleteButton agentId={agent.id} agentName={displayName} /> : null}
+          {can(session, 'accounts.impersonate') ? (
             <ImpersonateButton targetType="agent" targetId={agent.id} targetLabel={displayName} sharedSession={Boolean(session?.shared)} />
           ) : null}
           {salesAssignment || canManageSales ? (

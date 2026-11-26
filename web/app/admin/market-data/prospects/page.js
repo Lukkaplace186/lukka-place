@@ -27,7 +27,7 @@ const PAGE_SIZE = 50;
 export default async function ProspectsPage({ searchParams }) {
   const t = await getT();
   const session = await getAdminSession();
-  const canManage = can(session?.role, 'market.manage');
+  const canManage = can(session, 'market.manage');
   const raw = (await searchParams) || {};
   const statusParam = firstParam(raw.status);
   // 'agents': numbers that already have a Lukka Place account, whatever their follow-up status.

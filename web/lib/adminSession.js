@@ -3,7 +3,8 @@ import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { ADMIN_SESSION_COOKIE, parseSessionToken, sharedPasswordEnabled } from './adminAuth';
 import { getAdminUserById } from './adminUsers';
-import { can } from './adminRoles';
+import { PERMISSIONS, can, customRoleId, resolvePermissions } from './adminRoles';
+import { getCustomRolesByIds } from './adminCustomRoles';
 
 /**
  * Who is using the console right now, resolved once per request.
@@ -15,7 +16,13 @@ import { can } from './adminRoles';
  * Server Action — actions do not pass through the layout, so they must check
  * for themselves.
  *
- * @returns {Promise<null | {id: number|null, shared: boolean, role: string, name: string, email: string|null}>}
+ * `roles` is every role the person holds (primary first, `role`), and
+ * `permissions` what they add up to — built-in rows plus each custom role's
+ * list as it stands NOW, so editing a custom role applies on the next request.
+ * `customRoleNames` labels the person's custom roles in the chrome.
+ *
+ * @returns {Promise<null | {id: number|null, shared: boolean, role: string, roles: string[],
+ *   permissions: string[], customRoleNames: Record<string, string>, name: string, email: string|null}>}
  */
 export const getAdminSession = cache(async () => {
   const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
@@ -24,7 +31,10 @@ export const getAdminSession = cache(async () => {
 
   if (parsed.adminId === 0) {
     if (!sharedPasswordEnabled()) return null;
-    return { id: null, shared: true, role: 'owner', name: 'Mot de passe partagé', email: null, tokenVersion: 0 };
+    return {
+      id: null, shared: true, role: 'owner', roles: ['owner'], permissions: Object.keys(PERMISSIONS),
+      customRoleNames: {}, name: 'Mot de passe partagé', email: null, tokenVersion: 0,
+    };
   }
 
   let user = null;
@@ -35,8 +45,27 @@ export const getAdminSession = cache(async () => {
     return null;
   }
   if (!user || user.status !== 'active' || Number(user.token_version) !== parsed.tokenVersion) return null;
+  const roles = user.roles?.length ? user.roles : [user.role];
+  const customIds = roles.map(customRoleId).filter((id) => id !== null);
+  let customRoles = [];
+  if (customIds.length) {
+    try {
+      customRoles = await getCustomRolesByIds(customIds);
+    } catch (err) {
+      // Fail closed: without its custom roles the account keeps only what its built-in roles grant.
+      console.error(`[admin/session] could not load custom roles for admin #${user.id}: ${err.message}`);
+    }
+  }
   return {
-    id: user.id, shared: false, role: user.role, name: user.full_name, email: user.email, tokenVersion: Number(user.token_version),
+    id: user.id,
+    shared: false,
+    role: roles[0],
+    roles,
+    permissions: resolvePermissions(roles, customRoles),
+    customRoleNames: Object.fromEntries(customRoles.map((role) => [role.key, role.name])),
+    name: user.full_name,
+    email: user.email,
+    tokenVersion: Number(user.token_version),
   };
 });
 
@@ -49,7 +78,7 @@ export class AdminAccessError extends Error {}
 export async function requireAdmin(permission = null) {
   const session = await getAdminSession();
   if (!session) throw new AdminAccessError('Session expirée — reconnectez-vous.');
-  if (permission && !can(session.role, permission)) {
+  if (permission && !can(session, permission)) {
     throw new AdminAccessError(`Action non autorisée pour votre rôle (${permission}).`);
   }
   return session;

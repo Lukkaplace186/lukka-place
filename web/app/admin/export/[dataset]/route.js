@@ -232,7 +232,7 @@ export async function GET(request, { params }) {
 
   const session = await getAdminSession();
   if (!session) return new Response('Not authenticated', { status: 401 });
-  if (!can(session.role, config.permission)) return new Response('Forbidden', { status: 403 });
+  if (!can(session, config.permission)) return new Response('Forbidden', { status: 403 });
 
   const search = new URL(request.url).searchParams;
   let rows;

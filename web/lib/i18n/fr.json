@@ -4460,7 +4460,7 @@
       "sharedBanner": "Vous êtes connecté(e) avec le mot de passe partagé : vos actions sont journalisées comme « mot de passe partagé », pas à votre nom.",
       "sharedBannerLink": "Créer des comptes individuels",
       "forbiddenTitle": "Vous n’avez pas accès à cette section",
-      "forbiddenBody": "Votre rôle ({role}) ne permet pas d’ouvrir cette page. Demandez à un propriétaire si vous en avez besoin."
+      "forbiddenBody": "Vos rôles ({role}) ne permettent pas d’ouvrir cette page. Demandez à un propriétaire si vous en avez besoin."
     },
     "nav": {
       "dashboard": "Tableau de bord",
@@ -6516,7 +6516,7 @@
     },
     "team": {
       "title": "Équipe",
-      "subtitle": "Qui peut utiliser la console et avec quel rôle. Chacun choisit son mot de passe via un lien d’invitation.",
+      "subtitle": "Qui peut utiliser la console et avec quels rôles. Chacun choisit son mot de passe via un lien d’invitation.",
       "loadError": "Impossible de charger l’équipe : {error}",
       "sharedOnTitle": "Le mot de passe partagé est toujours actif",
       "sharedOnBootstrap": "Invitez au moins un propriétaire, faites-lui activer son compte, puis désactivez le mot de passe partagé (ADMIN_SHARED_LOGIN=off sur le serveur).",
@@ -6538,7 +6538,7 @@
       "resetAccess": "Réinitialiser l’accès",
       "enable": "Réactiver",
       "disable": "Désactiver",
-      "roleChanged": "Rôle mis à jour.",
+      "roleChanged": "Rôles mis à jour.",
       "disabled": "Compte désactivé — ses sessions sont terminées.",
       "enabled": "Compte réactivé.",
       "reissued": "Nouveau lien créé — les sessions précédentes sont terminées.",
@@ -6563,7 +6563,8 @@
         "moderator": "Approuve, rejette et modifie les annonces ; gère les agents et les demandes.",
         "support": "Aide les agents et les clients : conversations, visites, réinitialisation d’accès.",
         "finance": "Forfaits, paiements, renouvellements et mises en vedette ; exports.",
-        "analyst": "Consultation des annonces, agents et statistiques ; exports."
+        "analyst": "Consultation des annonces, agents et statistiques ; exports.",
+        "sales": "Commercial terrain : sa propre page, ses agents et ses commissions. Cumulé avec un rôle plus large, il voit tout ce que ce rôle permet."
       },
       "status": {
         "invited": "Invité(e)",
@@ -6580,7 +6581,161 @@
       "lastOwner": "La console doit garder au moins un propriétaire actif.",
       "notFound": "Compte introuvable.",
       "passwordTooShort": "Le mot de passe doit contenir au moins {min} caractères.",
-      "passwordMismatch": "Les deux mots de passe ne correspondent pas."
+      "passwordMismatch": "Les deux mots de passe ne correspondent pas.",
+      "rolesLabel": "Rôles",
+      "rolesFor": "Rôles de {name}",
+      "pickRoles": "Choisir les rôles",
+      "builtInRoles": "Rôles de base",
+      "combineHint": "Une personne peut cumuler plusieurs rôles : ses droits s’additionnent. Propriétaire inclut déjà tout.",
+      "saveRoles": "Enregistrer",
+      "cancel": "Annuler",
+      "migrationMissing": "Cumuler des rôles ou créer des rôles personnalisés nécessite la migration migrations/20261126_admin_combined_custom_roles.sql.",
+      "custom": {
+        "title": "Rôles personnalisés",
+        "subtitle": "Composez un rôle sur mesure à partir des droits ci-dessous. La gestion de l’équipe reste réservée aux propriétaires.",
+        "noneYet": "Aucun rôle personnalisé pour l’instant.",
+        "create": "Créer un rôle",
+        "createTitle": "Nouveau rôle personnalisé",
+        "editTitle": "Modifier le rôle",
+        "dialogBody": "Cochez ce que ce rôle permet. Les changements s’appliquent dès la page suivante de chaque personne qui l’a.",
+        "name": "Nom du rôle",
+        "namePlaceholder": "ex. Rédacteur, Responsable qualité",
+        "description": "Description (facultatif)",
+        "save": "Enregistrer",
+        "delete": "Supprimer",
+        "editNamed": "Modifier le rôle {name}",
+        "deleteNamed": "Supprimer le rôle {name}",
+        "deleteTitle": "Supprimer « {name} » ?",
+        "deleteBody": "Personne n’a ce rôle. Il sera supprimé définitivement.",
+        "allInGroup": "Tout cocher",
+        "noneInGroup": "Tout décocher",
+        "teamNote": "« Gérer l’équipe » n’est jamais proposé : seul le rôle Propriétaire le donne, pour que personne ne puisse s’attribuer plus de droits.",
+        "permissionCount": {
+          "zero": "Aucun droit",
+          "one": "{count} droit",
+          "other": "{count} droits"
+        },
+        "holders": {
+          "zero": "attribué à personne",
+          "one": "{count} personne",
+          "other": "{count} personnes"
+        },
+        "stillAssigned": {
+          "one": "{count} personne a encore ce rôle : retirez-le-lui d’abord.",
+          "other": "{count} personnes ont encore ce rôle : retirez-le-leur d’abord."
+        },
+        "created": "Rôle « {name} » créé.",
+        "updated": "Rôle « {name} » mis à jour.",
+        "deletedOk": "Rôle « {name} » supprimé.",
+        "deleted": "Rôle supprimé",
+        "nameRequired": "Donnez un nom au rôle.",
+        "permissionsRequired": "Cochez au moins un droit.",
+        "nameTaken": "Un rôle porte déjà ce nom.",
+        "notFound": "Rôle introuvable."
+      },
+      "permGroups": {
+        "listings": "Annonces et contenu",
+        "agents": "Agents",
+        "customers": "Clients, demandes et visites",
+        "money": "Finance, commerciaux et partenaires",
+        "data": "Données et marché",
+        "admin": "Administration"
+      },
+      "perms": {
+        "listings": {
+          "view": "Voir les annonces",
+          "moderate": "Approuver ou rejeter les annonces",
+          "edit": "Modifier les annonces",
+          "delete": "Supprimer des annonces (avec annulation)"
+        },
+        "projects": {
+          "manage": "Gérer les projets neufs"
+        },
+        "blog": {
+          "manage": "Écrire et publier les guides et actualités"
+        },
+        "agents": {
+          "view": "Voir les agents et agences",
+          "manage": "Gérer les agents",
+          "bulk": "Actions groupées sur les agents",
+          "security": "Sécurité des comptes agents (accès, mots de passe)",
+          "delete": "Supprimer définitivement un agent"
+        },
+        "verifications": {
+          "view": "Voir les vérifications d’identité"
+        },
+        "leads": {
+          "view": "Voir les demandes et conversations",
+          "manage": "Gérer les demandes",
+          "delete": "Supprimer définitivement des demandes"
+        },
+        "customers": {
+          "view": "Voir les clients",
+          "manage": "Gérer les comptes clients",
+          "delete": "Supprimer définitivement un client"
+        },
+        "conversations": {
+          "reply": "Répondre dans les conversations"
+        },
+        "viewings": {
+          "manage": "Gérer les visites",
+          "delete": "Supprimer définitivement des visites"
+        },
+        "accounts": {
+          "impersonate": "« Voir en tant que » un agent ou un client",
+          "demo": "Comptes de démonstration"
+        },
+        "notes": {
+          "write": "Écrire des notes internes"
+        },
+        "billing": {
+          "view": "Voir forfaits et paiements",
+          "manage": "Gérer forfaits, paiements et mises en vedette"
+        },
+        "sales": {
+          "view": "Voir l’équipe commerciale",
+          "manage": "Gérer commerciaux et commissions",
+          "delete": "Retirer un commercial ou un plan de commission"
+        },
+        "partners": {
+          "view": "Voir partenaires, campagnes et liens",
+          "manage": "Gérer codes créateurs et campagnes",
+          "payout": "Payer les crédits de parrainage",
+          "stats": "Saisir les statistiques hebdomadaires"
+        },
+        "analytics": {
+          "view": "Tableau de bord et statistiques"
+        },
+        "market": {
+          "view": "Données de marché et SEO",
+          "manage": "Saisir ou exclure des prix observés"
+        },
+        "data": {
+          "export": "Exporter les données"
+        },
+        "health": {
+          "view": "État du système"
+        },
+        "audit": {
+          "view": "Lire le journal d’audit"
+        },
+        "routing": {
+          "manage": "Routage des demandes"
+        },
+        "cms": {
+          "manage": "Contenu et réglages du site"
+        }
+      },
+      "delete": "Supprimer",
+      "deleteInvite": "Annuler l’invitation",
+      "deleteTitle": "Supprimer le compte de {name} ?",
+      "deleteBody": "Le compte {email} sera supprimé définitivement. Ses actions passées restent dans le journal d’audit, à son nom.",
+      "deleteConfirm": "Supprimer définitivement",
+      "deleted": "Compte de {name} supprimé.",
+      "deleteActive": "Désactivez d’abord ce compte, puis supprimez-le.",
+      "deleteSelf": "Vous ne pouvez pas supprimer votre propre compte.",
+      "deleteImpersonated": "Ce compte a utilisé « Voir en tant que » : il reste désactivé pour garder la trace de qui a consulté quel compte.",
+      "deleteBlocked": "Ce compte est encore référencé ailleurs dans la console ; il reste désactivé."
     },
     "views": {
       "title": "Vues enregistrées",

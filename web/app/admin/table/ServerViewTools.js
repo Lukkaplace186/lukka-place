@@ -20,7 +20,7 @@ export default async function ServerViewTools({ path, params = {}, exportDataset
       query={query.toString()}
       views={views}
       canSave={Boolean(session?.id)}
-      exportDataset={exportDataset && can(session?.role, 'data.export') ? exportDataset : null}
+      exportDataset={exportDataset && can(session, 'data.export') ? exportDataset : null}
     />
   );
 }

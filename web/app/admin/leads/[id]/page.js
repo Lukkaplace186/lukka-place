@@ -40,7 +40,7 @@ const REQUEST_LABELS = [
  */
 export default async function AdminLeadDetailPage({ params }) {
   const t = await getT();
-  const canDeleteLeads = can((await getAdminSession())?.role, 'leads.delete');
+  const canDeleteLeads = can(await getAdminSession(), 'leads.delete');
   const { id: idParam } = await params;
   const id = Number.parseInt(idParam, 10);
   if (!Number.isFinite(id)) notFound();

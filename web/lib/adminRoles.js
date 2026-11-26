@@ -6,10 +6,20 @@
  * every action (lib/adminSession.js requireAdmin / requirePagePermission).
  * Hiding a link is a courtesy; the server check is the rule.
  *
- * Roles are deliberately few and job-shaped rather than a free-form permission
- * builder: a moderator approves listings, support helps agents and customers,
- * finance handles plans and payments, an analyst reads. `owner` is everything,
- * including managing the team and reading the audit log.
+ * The built-in roles are job-shaped: a moderator approves listings, support
+ * helps agents and customers, finance handles plans and payments, an analyst
+ * reads. `owner` is everything, including managing the team and reading the
+ * audit log.
+ *
+ * Since 2026-11-26 a person may hold SEVERAL roles (their permissions add up)
+ * and an owner may define CUSTOM roles: a name plus a set of the permissions
+ * below (`console_admin_custom_roles`, keys `custom:<id>`). `team.manage` is
+ * never delegable — only the owner role grants it, so nobody can promote
+ * themselves and "there is always an owner" stays meaningful. `owner` is held
+ * alone: it already includes everything.
+ *
+ * `can()` takes a role key, a list of role keys, or a session/access object
+ * carrying `permissions` (resolved server-side from built-in + custom roles).
  */
 
 // `sales` is a field rep: their own performance and commissions (/admin/sales),
@@ -86,7 +96,6 @@ export const PERMISSIONS = {
   'health.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
 };
 
-/** @returns {boolean} */
 /**
  * Where each role lands on /admin: the queue that is its job. The console
  * used to send everyone to Conversations, which a sales rep or an analyst is
@@ -101,12 +110,136 @@ export const ROLE_HOME = {
   sales: '/admin/sales/me',
 };
 
-export function can(role, permission) {
+/**
+ * @param {string|string[]|{permissions?: string[], roles?: string[], role?: string}|null} subject
+ * @returns {boolean}
+ */
+export function can(subject, permission) {
   if (!permission) return true;
   const allowed = PERMISSIONS[permission];
   if (!allowed) return false; // an unknown permission is refused, never assumed open
-  return allowed.includes(role);
+  if (!subject) return false;
+  if (typeof subject === 'string') return allowed.includes(subject);
+  if (Array.isArray(subject)) return subject.some((role) => allowed.includes(role));
+  if (Array.isArray(subject.permissions)) return subject.permissions.includes(permission);
+  return can(subject.roles || subject.role || null, permission);
 }
+
+// ── Combined and custom roles ────────────────────────────────────────────────
+
+/** Never granted by a custom role: managing the team stays with `owner`. */
+export const NON_DELEGABLE_PERMISSIONS = ['team.manage'];
+
+export const CUSTOM_ROLE_PREFIX = 'custom:';
+const CUSTOM_ROLE_PATTERN = /^custom:([1-9][0-9]{0,17})$/;
+
+export function customRoleKey(id) {
+  return `${CUSTOM_ROLE_PREFIX}${Number(id)}`;
+}
+
+/** @returns {number|null} the custom role id inside a `custom:<id>` key */
+export function customRoleId(key) {
+  const match = CUSTOM_ROLE_PATTERN.exec(String(key || ''));
+  return match ? Number(match[1]) : null;
+}
+
+export function isRoleKey(key) {
+  return ADMIN_ROLES.includes(key) || customRoleId(key) !== null;
+}
+
+/**
+ * Clean a list of role keys: known shapes only, no duplicates, built-in roles
+ * first (in ADMIN_ROLES order), then custom roles by id. `owner` absorbs the
+ * rest. The first key is the person's primary role — the one whose home page
+ * they land on, stored in `console_admin_users.role`.
+ * @returns {string[]}
+ */
+export function normalizeRoleKeys(keys) {
+  const list = (Array.isArray(keys) ? keys : [keys]).map((key) => String(key || '').trim()).filter(isRoleKey);
+  if (list.includes('owner')) return ['owner'];
+  const builtIn = ADMIN_ROLES.filter((role) => list.includes(role));
+  const custom = [...new Set(list.map(customRoleId).filter((id) => id !== null))].sort((a, b) => a - b).map(customRoleKey);
+  return [...builtIn, ...custom];
+}
+
+/** Permissions a custom role may carry: every known one except the non-delegable. */
+export function cleanCustomPermissions(list) {
+  const wanted = new Set(Array.isArray(list) ? list : []);
+  return Object.keys(PERMISSIONS).filter((permission) => wanted.has(permission) && !NON_DELEGABLE_PERMISSIONS.includes(permission));
+}
+
+/**
+ * Everything a set of roles may do: the union of each built-in role's row in
+ * PERMISSIONS and each custom role's stored list. A custom key whose role was
+ * not found grants nothing.
+ * @param {string[]} roleKeys
+ * @param {Array<{id: number, permissions: string[]}>} customRoles
+ * @returns {string[]}
+ */
+export function resolvePermissions(roleKeys, customRoles = []) {
+  const roles = normalizeRoleKeys(roleKeys);
+  const byId = new Map(customRoles.map((role) => [Number(role.id), role]));
+  const granted = new Set();
+  for (const [permission, allowed] of Object.entries(PERMISSIONS)) {
+    if (roles.some((role) => allowed.includes(role))) granted.add(permission);
+  }
+  for (const key of roles) {
+    const custom = byId.get(customRoleId(key));
+    if (custom) cleanCustomPermissions(custom.permissions).forEach((permission) => granted.add(permission));
+  }
+  return Object.keys(PERMISSIONS).filter((permission) => granted.has(permission));
+}
+
+/** The role keys a subject holds, whatever shape it came in. */
+export function rolesOf(subject) {
+  if (!subject) return [];
+  if (typeof subject === 'string') return [subject];
+  if (Array.isArray(subject)) return subject;
+  if (Array.isArray(subject.roles)) return subject.roles;
+  return subject.role ? [subject.role] : [];
+}
+
+/**
+ * A field rep confined to their own rep page and their own agents: holds the
+ * `sales` role and nothing that reaches further than it. Combining Commercial
+ * with another role (built-in or custom) that grants more lifts the limit —
+ * that person is trusted with the wider view by the other role.
+ */
+export function salesRepOnly(subject) {
+  if (!rolesOf(subject).includes('sales')) return false;
+  const permissions = subject && Array.isArray(subject.permissions) ? subject.permissions : resolvePermissions(rolesOf(subject));
+  return permissions.every((permission) => PERMISSIONS[permission]?.includes('sales'));
+}
+
+/** Where a person opens /admin: their first role with a home they may open, else the first section they may. */
+export function homeFor(subject) {
+  for (const role of rolesOf(subject)) {
+    const home = ROLE_HOME[role];
+    if (home && can(subject, sectionPermission(home))) return home;
+  }
+  const first = Object.keys(SECTION_PERMISSIONS).find((path) => can(subject, SECTION_PERMISSIONS[path]));
+  return first || '/admin/dashboard';
+}
+
+/**
+ * The permission checklist on /admin/team, grouped the way the console is.
+ * Every key of PERMISSIONS but the non-delegable appears exactly once
+ * (tests/unit/admin-custom-roles.test.js).
+ */
+export const PERMISSION_GROUPS = [
+  { key: 'listings', permissions: ['listings.view', 'listings.moderate', 'listings.edit', 'listings.delete', 'projects.manage', 'blog.manage'] },
+  { key: 'agents', permissions: ['agents.view', 'agents.manage', 'agents.bulk', 'agents.security', 'agents.delete', 'verifications.view'] },
+  {
+    key: 'customers',
+    permissions: ['leads.view', 'leads.manage', 'leads.delete', 'customers.view', 'customers.manage', 'customers.delete', 'conversations.reply', 'viewings.manage', 'viewings.delete', 'accounts.impersonate', 'accounts.demo', 'notes.write'],
+  },
+  { key: 'money', permissions: ['billing.view', 'billing.manage', 'sales.view', 'sales.manage', 'sales.delete', 'partners.view', 'partners.manage', 'partners.payout', 'partners.stats'] },
+  { key: 'data', permissions: ['analytics.view', 'market.view', 'market.manage', 'data.export', 'health.view'] },
+  { key: 'admin', permissions: ['audit.view', 'routing.manage', 'cms.manage'] },
+];
+
+/** i18n key of one permission's label: `admin.team.perms.listings.view`. */
+export const permissionLabelKey = (permission) => `admin.team.perms.${permission}`;
 
 /**
  * The permission needed to OPEN each console section. Longest prefix wins, so

@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request, { params }) {
   const session = await getAdminSession();
-  if (!session || !can(session.role, 'partners.view')) return new NextResponse('Forbidden', { status: 403 });
+  if (!session || !can(session, 'partners.view')) return new NextResponse('Forbidden', { status: 403 });
   const { id } = await params;
   const partnerId = Number.parseInt(id, 10);
   if (!Number.isSafeInteger(partnerId) || partnerId <= 0) return new NextResponse('Not found', { status: 404 });

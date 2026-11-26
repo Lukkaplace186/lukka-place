@@ -53,8 +53,8 @@ export default async function AdminCustomersPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const session = await getAdminSession();
-  const canDeleteCustomers = can(session?.role, 'customers.delete');
-  const canImpersonate = can(session?.role, 'accounts.impersonate');
+  const canDeleteCustomers = can(session, 'customers.delete');
+  const canImpersonate = can(session, 'accounts.impersonate');
   let result = null;
   let loadError = null;
   try {

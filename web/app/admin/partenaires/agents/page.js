@@ -69,8 +69,8 @@ export default async function AdminAgentReferralsPage({ searchParams }) {
   };
   const returnTo = buildHref(PATH, params);
   const session = await getAdminSession();
-  const canPay = can(session?.role, 'partners.payout');
-  const canAnnounce = can(session?.role, 'partners.manage');
+  const canPay = can(session, 'partners.payout');
+  const canAnnounce = can(session, 'partners.manage');
   const announceTemplate = canAnnounce ? announcementTemplateName() : null;
   const campaign = await getReferralCampaign();
 

@@ -42,12 +42,12 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
   // only those agents in the roster.
   const scope = await getSalesScope();
   if (!(await agencyInScope(scope, agency.id))) notFound();
-  const canManageAgents = can(session?.role, 'agents.manage');
+  const canManageAgents = can(session, 'agents.manage');
   const { page, pageSize, limit, offset } = parsePage(raw);
   const base = `/admin/agencies/${agency.id}`;
   const branchParam = firstParam(raw.branch);
   const branchFilter = branchParam === 'none' || /^\d+$/.test(branchParam || '') ? branchParam : undefined;
-  const canManageBranches = can(session?.role, 'agents.manage');
+  const canManageBranches = can(session, 'agents.manage');
   // null before migrations/20261113_partner_agencies.sql: no chip, no toggle.
   const partner = await isPartnerAgency(agency.id).catch(() => null);
   // The agency's one referral code (2026-11-16), created on first view.
@@ -80,8 +80,8 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           <h1 className="normal-case u-title-page text-ink">{agency.name}</h1>
           {partner ? <Chip tone="blue">{t('admin.agencies.partner.chip')}</Chip> : null}
         </div>
-        {can(session?.role, 'agents.manage') ? <RenameAgencyForm vendorId={agency.id} name={agency.name} /> : null}
-        {partner !== null && can(session?.role, 'agents.manage') ? (
+        {can(session, 'agents.manage') ? <RenameAgencyForm vendorId={agency.id} name={agency.name} /> : null}
+        {partner !== null && can(session, 'agents.manage') ? (
           <div className="mt-2">
             <PartnerToggle vendorId={agency.id} partner={partner} />
           </div>
@@ -138,14 +138,14 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           <section className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="u-title-card text-ink">{t('admin.agencies.rosterTitle')}</h2>
-              {can(session?.role, 'agents.bulk') && idsResult.status === 'fulfilled' ? (
+              {can(session, 'agents.bulk') && idsResult.status === 'fulfilled' ? (
                 <AgencyBulkActions agentIds={idsResult.value} agencyName={agency.name} />
               ) : null}
             </div>
             <AgentsTable
               rows={toAgentTableRows(agents.rows, loginSummaries, t.locale)}
               vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.name }))}
-              canImpersonate={can(session?.role, 'accounts.impersonate')}
+              canImpersonate={can(session, 'accounts.impersonate')}
               canManage={canManageAgents}
               sharedSession={Boolean(session?.shared)}
               branchContext={canManageBranches && branches?.length ? { vendorId: agency.id, branches: branches.map((branch) => ({ id: branch.id, name: branch.name })) } : null}
@@ -176,7 +176,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           entityId={agency.id}
           notes={notesResult.status === 'fulfilled' ? notesResult.value : []}
           history={historyResult.status === 'fulfilled' ? historyResult.value : []}
-          canWrite={can(session?.role, 'notes.write')}
+          canWrite={can(session, 'notes.write')}
         />
       </div>
     </div>

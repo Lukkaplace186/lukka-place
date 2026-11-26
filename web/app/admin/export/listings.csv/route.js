@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request) {
   const session = await getAdminSession();
   if (!session) return new Response('Not authenticated', { status: 401 });
-  if (!can(session.role, 'data.export')) return new Response('Forbidden', { status: 403 });
+  if (!can(session, 'data.export')) return new Response('Forbidden', { status: 403 });
 
   const excel = new URL(request.url).searchParams.get('format') === 'excel';
   const base = await getListingExportRows();

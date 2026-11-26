@@ -37,7 +37,7 @@ const SOURCE_TONE = { WHATSAPP_AGENT_REPLY: 'success', DIRECT_INPUT: 'blue', ADM
 export default async function AdminMarketDataPage({ searchParams }) {
   const t = await getT();
   const session = await getAdminSession();
-  const canExport = can(session?.role, 'data.export');
+  const canExport = can(session, 'data.export');
   const raw = (await searchParams) || {};
   const purpose = MARKET_PURPOSES.includes(firstParam(raw.purpose)) ? firstParam(raw.purpose) : 'rent';
   const priceCommune = firstParam(raw.pc) || null;

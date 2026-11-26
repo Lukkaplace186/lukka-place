@@ -4,12 +4,15 @@ import { getPool } from './db';
 import { getAdminSession } from './adminSession';
 import { getSalesRepIdForAdmin } from './sales';
 import { repAgentCondition } from './salesScopeSql';
+import { salesRepOnly } from './adminRoles';
 
 export { repAgentCondition };
 
 /**
  * What a `sales` console account may see of the network: only the agents its
- * rep brought in. Every other role gets `null` (no scope, the whole network).
+ * rep brought in. Every other role gets `null` (no scope, the whole network) —
+ * including a person who holds Commercial together with a role that grants
+ * more (lib/adminRoles.js salesRepOnly).
  *
  * "Brought in" is the same set the Sales team page counts: an ACTIVE
  * assignment to the rep (`sales_account_assignments`, ended_at NULL) or the
@@ -24,7 +27,7 @@ export { repAgentCondition };
 /** @returns {Promise<null | {repId: number}>} */
 export const getSalesScope = cache(async () => {
   const session = await getAdminSession();
-  if (!session || session.role !== 'sales') return null;
+  if (!session || !salesRepOnly(session)) return null;
   const repId = session.id && !session.shared ? await getSalesRepIdForAdmin(session.id).catch(() => null) : null;
   return { repId: repId || 0 };
 });

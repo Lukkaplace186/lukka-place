@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, MessageCircle, Printer, Share2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { getAdminSession } from '@/lib/adminSession';
-import { can } from '@/lib/adminRoles';
+import { can, salesRepOnly } from '@/lib/adminRoles';
 import { buildHref, firstParam, parsePage } from '@/lib/adminPagination';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { COMMISSION_STATUSES, SALES_PERIODS, formatMoneyList, periodRange } from '@/lib/salesRules';
@@ -86,9 +86,9 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
   const period = SALES_PERIODS.includes(firstParam(raw.period)) ? firstParam(raw.period) : 'month';
   const rep = await getSalesRep(id, periodRange(period));
   if (!rep) notFound();
-  const ownPageOnly = session?.role === 'sales';
+  const ownPageOnly = salesRepOnly(session);
   if (ownPageOnly && (rep.admin_user_id == null || Number(rep.admin_user_id) !== Number(session.id))) notFound();
-  const canManage = can(session?.role, 'sales.manage');
+  const canManage = can(session, 'sales.manage');
   const isLaunch = rep.plan_kind === 'launch_milestones';
 
   const status = COMMISSION_STATUSES.includes(firstParam(raw.status)) ? firstParam(raw.status) : undefined;

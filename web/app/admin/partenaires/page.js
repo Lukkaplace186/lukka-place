@@ -56,7 +56,7 @@ export default async function AdminPartnersPage({ searchParams }) {
     size: pageSize === 25 ? undefined : String(pageSize),
   };
   const session = await getAdminSession();
-  const canManage = can(session?.role, 'partners.manage');
+  const canManage = can(session, 'partners.manage');
   const showForm = canManage && firstParam(raw.new) === '1';
 
   let result = null;

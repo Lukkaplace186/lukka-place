@@ -24,7 +24,7 @@ function cell(value) {
  */
 export async function GET() {
   const session = await getAdminSession();
-  if (!session || !can(session.role, 'partners.payout')) return new NextResponse('Forbidden', { status: 403 });
+  if (!session || !can(session, 'partners.payout')) return new NextResponse('Forbidden', { status: 403 });
   const credits = await listCredits({ status: null, limit: 10000 });
   const lines = [COLUMNS.join(',')];
   for (const c of credits) {

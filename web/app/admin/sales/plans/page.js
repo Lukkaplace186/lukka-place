@@ -35,8 +35,8 @@ export default async function AdminSalesPlansPage() {
       </div>
       {loadError ? <ErrorNote>{t('admin.sales.loadError', { error: loadError })}</ErrorNote> : null}
       <PlansManager
-        canManage={can(session?.role, 'sales.manage')}
-        canDelete={can(session?.role, 'sales.delete')}
+        canManage={can(session, 'sales.manage')}
+        canDelete={can(session, 'sales.delete')}
         plans={plans.map((plan) => ({
           ...plan,
           created_at: undefined,

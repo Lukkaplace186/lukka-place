@@ -54,7 +54,7 @@ export default async function AdminContactsPage({ searchParams }) {
     ['days', 'channel', 'known', 'q', 'agent', 'wants', 'page', 'size'].map((key) => [key, firstParam(raw[key]) || undefined]),
   );
   const session = await getAdminSession();
-  const canExport = can(session?.role, 'data.export');
+  const canExport = can(session, 'data.export');
 
   const { rows, errors, capped } = await loadContactLog({ days });
   const filtered = filterContactRows(rows, { channel, agentId, known, q, wants });

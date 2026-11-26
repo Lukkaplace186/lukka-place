@@ -19,7 +19,7 @@ export const metadata = {
 export default async function AdminCreateAgentPage() {
   const t = await getT();
   const session = await getAdminSession();
-  if (!can(session?.role, 'agents.manage')) notFound();
+  if (!can(session, 'agents.manage')) notFound();
 
   const { communes } = await getLocationHierarchyWithFallback({ city: 'all' });
 

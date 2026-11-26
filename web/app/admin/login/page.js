@@ -24,10 +24,10 @@ const FIELD = 'u-focus-ring w-full rounded-md border border-line bg-white px-3 p
 const LABEL = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45';
 
 /**
- * Sign in with an individual team account. The shared team password stays
- * available underneath while `ADMIN_SHARED_LOGIN` is not `off`, as the way in
- * for whoever creates the first accounts — it is labelled as such, and
- * everything done under it is audited as the shared password.
+ * Sign in with an individual team account. The shared team password is
+ * deactivated (2026-11-26); its form appears only while the break-glass
+ * `ADMIN_SHARED_LOGIN=on` is set — labelled as such, and everything done under
+ * it is audited as the shared password.
  */
 export default async function AdminLoginPage({ searchParams }) {
   const t = await getT();

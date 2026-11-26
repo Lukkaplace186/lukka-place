@@ -49,8 +49,9 @@ export async function loginAction(formData) {
 }
 
 /**
- * The legacy shared team password — kept so the team can reach the console to
- * create the first individual accounts. Same per-IP throttle as account logins.
+ * The legacy shared team password — deactivated 2026-11-26; refused unless the
+ * break-glass `ADMIN_SHARED_LOGIN=on` is set. Same per-IP throttle as account
+ * logins.
  */
 export async function sharedLoginAction(formData) {
   const next = safeNext(formData.get('next'));

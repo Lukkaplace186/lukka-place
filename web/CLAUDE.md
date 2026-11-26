@@ -351,12 +351,15 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   action (`requireAdmin(permission)`), so disabling someone or resetting their
   access (both bump `token_version`) ends their sessions at once. The layout
   learns the path from `x-admin-pathname`, set (and overwritten) by middleware.
-- **The shared password still works, deliberately, as bootstrap owner access**
-  (`adminId 0`). Without it, deploying accounts would have locked the team out
-  until someone created the first owner. Everything it does is audited as
-  `shared-password` and a banner says so. **Turn it off with
-  `ADMIN_SHARED_LOGIN=off` once an owner account is active.** A pre-v2 token is
-  read as that shared session so nobody was signed out by the deploy.
+- **The shared password is DEACTIVATED (owner, 2026-11-26).** It was bootstrap
+  owner access (`adminId 0`) while the team created its first accounts. It is
+  now off unless `ADMIN_SHARED_LOGIN=on` (and `ADMIN_PASSWORD_HASH` set) — a
+  break-glass switch for the day no owner can sign in, removed again after;
+  `off`, unset or anything else keeps it off. While off, the login page has no
+  shared form, `sharedLoginAction` refuses, and `getAdminSession` rejects any
+  account-0 or pre-v2 token, so a shared session still open is signed out on
+  its next page. When on, everything it does is audited as `shared-password`
+  and /admin/team says so. `tests/unit/admin-auth-roles.test.js`.
 - **Roles are `lib/adminRoles.js`**: owner / moderator / support / finance /
   analyst, a fixed permission table, `SECTION_PERMISSIONS` for pages (longest
   prefix wins). The sidebar hides what a role can't open; the layout and every

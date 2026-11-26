@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSessionToken, isValidSessionToken, parseSessionToken } from '@/lib/adminAuth';
+import { createHash } from 'node:crypto';
+import {
+  createSessionToken, isValidSessionToken, parseSessionToken, sharedPasswordEnabled, verifyPassword,
+} from '@/lib/adminAuth';
+import { scryptHex } from '@/lib/authCrypto';
 import { ADMIN_ROLES, PERMISSIONS, can, sectionPermission } from '@/lib/adminRoles';
 
 /**
@@ -12,6 +16,32 @@ test('a shared-password token parses as account 0', () => {
   const parsed = parseSessionToken(createSessionToken());
   assert.equal(parsed.adminId, 0);
   assert.equal(parsed.legacy, false);
+});
+
+// Deactivated 2026-11-26 (owner): the shared password is off unless the
+// break-glass ADMIN_SHARED_LOGIN=on is set — unset or `off` keeps it off.
+test('the shared password is off by default and only an explicit "on" opens it', () => {
+  const saved = { hash: process.env.ADMIN_PASSWORD_HASH, flag: process.env.ADMIN_SHARED_LOGIN };
+  const salt = createHash('sha256').update('unit-salt').digest('hex').slice(0, 32);
+  process.env.ADMIN_PASSWORD_HASH = `${salt}:${scryptHex('correct horse', salt)}`;
+  try {
+    for (const flag of [undefined, '', 'off', 'OFF', 'true', '1', 'yes']) {
+      if (flag === undefined) delete process.env.ADMIN_SHARED_LOGIN;
+      else process.env.ADMIN_SHARED_LOGIN = flag;
+      assert.equal(sharedPasswordEnabled(), false, `ADMIN_SHARED_LOGIN=${flag}`);
+      assert.equal(verifyPassword('correct horse'), false, `ADMIN_SHARED_LOGIN=${flag}`);
+    }
+    process.env.ADMIN_SHARED_LOGIN = ' On ';
+    assert.equal(sharedPasswordEnabled(), true);
+    assert.equal(verifyPassword('correct horse'), true);
+    assert.equal(verifyPassword('wrong'), false);
+    process.env.ADMIN_PASSWORD_HASH = '';
+    assert.equal(sharedPasswordEnabled(), false, 'on without a hash stays off');
+  } finally {
+    process.env.ADMIN_PASSWORD_HASH = saved.hash;
+    if (saved.flag === undefined) delete process.env.ADMIN_SHARED_LOGIN;
+    else process.env.ADMIN_SHARED_LOGIN = saved.flag;
+  }
 });
 
 test('an account token carries its id and token version', () => {

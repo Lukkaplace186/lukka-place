@@ -1,0 +1,26 @@
+{
+  "version": "1.1.0",
+  "organization": "Capgo",
+  "date": "October 2026",
+  "abstract": "Set up and debug remote push in Capacitor apps with @capacitor/push-notifications or Capgo plugins: APNs, FCM, AppDelegate token forwarding under UIScene, Android 13+ permission, channels, foreground presentation options (Capacitor 9 removes alert), and delivery troubleshooting.",
+  "triggers": [
+    "push notification",
+    "fcm",
+    "apns",
+    "firebase messaging",
+    "push token",
+    "aps-environment",
+    "POST_NOTIFICATIONS",
+    "notification channel",
+    "presentationOptions",
+    "firebaseMessagingVersion",
+    "pushNotificationActionPerformed"
+  ],
+  "references": [
+    "https://capacitorjs.com/docs/apis/push-notifications",
+    "https://capacitorjs.com/docs/guides/push-notifications-firebase",
+    "https://capacitorjs.com/docs/updating/9-0",
+    "https://capgo.app/docs/plugins/firebase-messaging/",
+    "https://capgo.app/docs/plugins/notifications/"
+  ]
+}

@@ -16,13 +16,14 @@ import { scryptHex, safeEqualHex, hmacSign } from './authCrypto';
  * action, so disabling a person or resetting their access (both bump
  * token_version) ends their sessions at once rather than at the 12h expiry.
  *
- * `adminId = 0` is the SHARED-PASSWORD session. It is kept deliberately as the
- * bootstrap path: without it, deploying individual accounts would lock the
- * team out of the console until someone could create the first owner. Every
- * action it takes is audited as "shared-password". Turn it off with
- * `ADMIN_SHARED_LOGIN=off` (or by unsetting ADMIN_PASSWORD_HASH) once the team
- * has accounts. A pre-v2 token (`<expiresAtMs>.<hmac>`) is read as that same
- * shared session, so nobody signed in at deploy time is thrown out.
+ * `adminId = 0` is the SHARED-PASSWORD session. It was the bootstrap path while
+ * the team created its first individual accounts, and is DEACTIVATED since
+ * 2026-11-26 (owner): every way into the console now carries a name. It is off
+ * unless `ADMIN_SHARED_LOGIN=on` AND ADMIN_PASSWORD_HASH is set — a break-glass
+ * switch for the day no owner account can sign in, not a normal setting. While
+ * it is off, a shared session token (v2 account 0, or a pre-v2
+ * `<expiresAtMs>.<hmac>` one) is refused by lib/adminSession.js, so anyone
+ * still signed in that way is signed out on their next page or action.
  */
 
 const SESSION_COOKIE = 'lukka_admin_session';
@@ -34,9 +35,13 @@ function sessionSecret() {
   return secret;
 }
 
-/** Whether the legacy shared team password may still be used to sign in. */
+/**
+ * Whether the legacy shared team password may be used. Off by default
+ * (deactivated 2026-11-26); only an explicit `ADMIN_SHARED_LOGIN=on` with a
+ * hash set turns it back on. Read at call time.
+ */
 export function sharedPasswordEnabled() {
-  return Boolean(process.env.ADMIN_PASSWORD_HASH) && String(process.env.ADMIN_SHARED_LOGIN || '').toLowerCase() !== 'off';
+  return Boolean(process.env.ADMIN_PASSWORD_HASH) && String(process.env.ADMIN_SHARED_LOGIN || '').trim().toLowerCase() === 'on';
 }
 
 /**

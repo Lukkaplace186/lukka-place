@@ -60,12 +60,19 @@ export default function AppTabBar() {
             return (
               <li key={tab.key} className="relative">
                 {isActive ? (
+                  // The logo's roofline over the active tab (app design
+                  // 2026-11-26), in place of the plain bar. The wrapper
+                  // carries the layout animation, so the svg keeps its shape.
                   <m.span
                     layoutId="app-tab-active"
                     aria-hidden="true"
-                    className="absolute inset-x-6 top-0 h-[3px] rounded-b-full bg-blue"
+                    className="absolute inset-x-0 top-1 flex justify-center text-blue"
                     transition={{ type: 'spring', stiffness: 520, damping: 40 }}
-                  />
+                  >
+                    <svg viewBox="0 0 30 10" className="h-2.5 w-8" fill="none">
+                      <path d="M2 9.5 15 1.5 28 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+                    </svg>
+                  </m.span>
                 ) : null}
                 <Link
                   href={localizeHref(tab.href, locale)}

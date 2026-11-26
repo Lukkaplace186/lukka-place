@@ -75,27 +75,29 @@ export default function AppTopBar() {
             <ChevronLeft strokeWidth={2} className="h-6 w-6" aria-hidden="true" />
           </button>
         ) : null}
-        {/* The supplied logo, as components/Brand.js draws it (static local
-            PNGs, so plain imgs): the white one over the photo, the colour one
-            on white. Both are mounted on the home screen so the change is a
-            cross-fade, not a reload. */}
+        {/* The owner's logo (bold "Lukka", light "Place" under the double
+            roof), cut from the artwork in marketing/video-src/pub-facebook-4k
+            (2026-11-26): app-logo-royal on white, app-logo-white over the
+            photo. public/brand/logo-* are an older drawing, still the
+            website's. Static PNGs, so plain imgs. Both are mounted on the
+            home screen so the change is a cross-fade, not a reload. */}
         <Link href={localizeHref('/', locale)} aria-label="Lukka Place" className="relative inline-flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/logo-light.png?v=2"
+            src="/brand/app-logo-royal.png"
             alt=""
-            width={2354}
-            height={746}
-            className={cn('block h-7 w-auto transition-opacity duration-300', overPhoto && 'opacity-0')}
+            width={280}
+            height={96}
+            className={cn('block h-8 w-auto transition-opacity duration-300', overPhoto && 'opacity-0')}
           />
           {onHome ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src="/brand/logo-dark.png?v=2"
+              src="/brand/app-logo-white.png"
               alt=""
-              width={2354}
-              height={746}
-              className={cn('absolute inset-0 block h-7 w-auto transition-opacity duration-300', !overPhoto && 'opacity-0')}
+              width={280}
+              height={96}
+              className={cn('absolute inset-0 block h-8 w-auto transition-opacity duration-300', !overPhoto && 'opacity-0')}
             />
           ) : null}
         </Link>

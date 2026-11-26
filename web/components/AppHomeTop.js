@@ -1,6 +1,7 @@
 'use client';
 
 import Link from '@/components/IntentLink';
+import { useSyncExternalStore } from 'react';
 import { m } from 'motion/react';
 import { Bell, ChevronRight, CircleDollarSign, History, Sparkles } from 'lucide-react';
 import SearchBar from './SearchBar';
@@ -13,6 +14,7 @@ import { ChartBars, ChartContainer } from './ui/chart';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizeHref } from '@/lib/localePaths';
+import { getEmptyRecentSearches, readRecentSearches, subscribeRecentSearches } from '@/lib/searchHistory';
 
 // The screen's one entrance: the title and its line (AppHomeHero), then the
 // search card settling onto the photo, then the rail's cards sliding in from
@@ -70,6 +72,17 @@ export default function AppHomeTop({
   const t = useT();
   const locale = useLocale();
   const rail = listings.slice(0, RAIL_SIZE);
+  // "Reprendre" (app design 2026-11-26, the mockup's "continue where you left
+  // off"): the latest saved search when the customer has one, else the last
+  // search made on this phone (lib/searchHistory.js, written by FilterBar).
+  // The server and the first render see no local history, so a guest's line
+  // appears just after hydration; it never replaces a saved search.
+  const recent = useSyncExternalStore(subscribeRecentSearches, readRecentSearches, getEmptyRecentSearches);
+  const resume = savedSearch
+    ? { href: `/listings?${savedSearch.query || ''}`, label: savedSearch.label || t('appShell.home.continueFallback') }
+    : recent[0]?.href?.startsWith('/listings?')
+      ? { href: recent[0].href, label: recent[0].label }
+      : null;
   const more = listings.slice(RAIL_SIZE);
   const shortcuts = [
     { href: '/favoris?onglet=recherches', Icon: Bell, label: t('appShell.home.shortcuts.searches') },
@@ -85,23 +98,23 @@ export default function AppHomeTop({
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} compact />
       </m.div>
 
-      {/* Back to the customer's latest saved search: one quiet line, theirs only. */}
-      {savedSearch ? (
+      {/* Back to their latest saved search, or their last search here: one quiet line. */}
+      {resume ? (
         <Link
-          href={localizeHref(`/listings?${savedSearch.query || ''}`, locale)}
+          href={localizeHref(resume.href, locale)}
           className="mx-4 mt-2 flex min-h-11 items-center gap-2 px-1 text-[0.8125rem] text-ink-70 active:text-ink"
         >
           <History strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4 flex-none text-ink-45" />
           <span className="min-w-0 flex-1 truncate">
             {t('appShell.home.resume')}{' '}
-            <span className="font-semibold text-ink">{savedSearch.label || t('appShell.home.continueFallback')}</span>
+            <span className="font-semibold text-ink">{resume.label}</span>
           </span>
           <ChevronRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4 flex-none text-ink-35" />
         </Link>
       ) : null}
 
       {rail.length ? (
-        <section className={savedSearch ? 'pt-3' : 'pt-7'}>
+        <section className={resume ? 'pt-3' : 'pt-7'}>
           <div className="mb-3 flex items-baseline justify-between px-4">
             <h2 className={SECTION_TITLE}>{t('appShell.home.latest')}</h2>
             <Link href={localizeHref('/listings', locale)} className="u-hit relative text-[0.875rem] font-semibold text-blue-deep">

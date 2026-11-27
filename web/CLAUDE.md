@@ -5707,3 +5707,13 @@ the same day (c22b2f70). `tests/unit/trust-features.test.js`.
   "Zone dessinée" chip that removes `zone` with the box it set. The hint no
   longer says "avec le doigt".
 - Not checked locally: anything on the Google map (it refuses `localhost`).
+- **Fixes the same day (owner report: a drawing "just zoomed in")**: setZone
+  writes the zone to the address bar (`history.replaceState`) before
+  `router.replace`, because framing fires `onAreaChange`, which copies
+  `window.location` and used to erase the zone. The map frames the zone from
+  the URL itself whenever the zone or the map object changes (padding 4 %),
+  so a re-render, reload or shared link opens on the shape. The zone in force
+  is shaded grey (`#2C3444`, 18 %) with a near-black 2.5 px edge. Checked live:
+  47 homes inside a drawn shape vs 116 in its box.
+- **Agent ratings hidden again** the same day (owner: "remove this for now"):
+  `AGENT_RATINGS_PUBLIC = false` in lib/agentReviews.js; nothing is read while off.

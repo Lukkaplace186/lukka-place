@@ -137,7 +137,7 @@ test('the zone follows the drawing: shaded inside, a solid dark edge, enough cor
   assert.match(map, /window\.history\.replaceState\(window\.history\.state, '', next\);\s*router\.replace\(next, \{ scroll: false \}\);/);
   // And the map frames the zone from the URL itself, so a re-render, a reload
   // or a shared link still opens on the shape, not on the wider box.
-  assert.match(map, /fitTo\(mapInstance, padBounds\(zoneBounds\(urlZone\), 0\.15\)\);/);
+  assert.match(map, /fitTo\(mapInstance, padBounds\(zoneBounds\(urlZone\), 0\.04\)\);/);
   assert.doesNotMatch(draw, /strokeDasharray|repeat: '/, 'no dashes, on the map or while drawing');
   // A wobbly stroke keeps its wobble: the corners kept are points of the stroke itself.
   const wobbly = Array.from({ length: 240 }, (_, i) => {

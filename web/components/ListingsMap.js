@@ -902,7 +902,9 @@ export default function ListingsMap({
     if (framed.param === urlZoneParam && framed.map === mapInstance) return;
     framedZoneRef.current = { param: urlZoneParam, map: mapInstance };
     areaRef.current = { baseline: null, reported: null };
-    fitTo(mapInstance, padBounds(zoneBounds(urlZone), 0.15));
+    // A thin margin: with 15 % plus fitBounds' own 32 px the zone sat one
+    // whole zoom step out (about 40 % of a phone's width, live 2026-11-27).
+    fitTo(mapInstance, padBounds(zoneBounds(urlZone), 0.04));
   }, [mapReady, mapInstance, urlZone, urlZoneParam]);
 
   // "Près de moi" (2026-11-27): a link carrying ?pres=1 (the app home's

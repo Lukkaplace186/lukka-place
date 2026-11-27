@@ -350,7 +350,8 @@ export default function ListingsMap({
     // zone and erased it — a drawing then only zoomed (owner, 2026-11-27).
     window.history.replaceState(window.history.state, '', next);
     router.replace(next, { scroll: false });
-    if (points && mapRef.current) fitTo(mapRef.current, padBounds(zoneBounds(points), 0.15));
+    // Framing is the effect below's job: it runs on the zone in the URL, so
+    // it also holds after the page re-renders, a reload or a shared link.
   }, [router]);
   const hadUrlAreaRef = useRef(hasUrlArea);
 
@@ -882,6 +883,27 @@ export default function ListingsMap({
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
   }, [flash]);
+
+  // A zone in the URL is always framed: the map zooms to the drawn shape
+  // (padded) whenever the zone changes, the map is (re)built, or the page
+  // opens on a shared link. Framing it only at the moment of drawing lost to
+  // the re-render that follows, which put the map back on the wider box it
+  // had before (owner, 2026-11-27: "not just zoomed in" — the area must fill
+  // the view with its outline). The next idle is a baseline, not a move the
+  // visitor made.
+  const framedZoneRef = useRef({ param: '', map: null });
+  useEffect(() => {
+    if (!urlZone) {
+      framedZoneRef.current = { param: '', map: null };
+      return;
+    }
+    if (!mapReady || !mapInstance) return;
+    const framed = framedZoneRef.current;
+    if (framed.param === urlZoneParam && framed.map === mapInstance) return;
+    framedZoneRef.current = { param: urlZoneParam, map: mapInstance };
+    areaRef.current = { baseline: null, reported: null };
+    fitTo(mapInstance, padBounds(zoneBounds(urlZone), 0.15));
+  }, [mapReady, mapInstance, urlZone, urlZoneParam]);
 
   // "Près de moi" (2026-11-27): a link carrying ?pres=1 (the app home's
   // "Biens près de moi") runs the same locate step once the map is ready —

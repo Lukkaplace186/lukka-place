@@ -179,3 +179,9 @@ test('app home: the rental market in figures and the card slot fed by guides and
   assert.match(page, /marketCommunes\(guides, \{ label: communeLabel, keep: \(commune\) => cityOfCommune\(commune\) === DEFAULT_CITY \}\)/);
   for (const dict of [fr, en]) for (const key of ['marketAll', 'promoTitle', 'promoGuide', 'promoNews']) assert.ok(dict.appShell.home[key], key);
 });
+
+test('the phone map strip draws only the cards near the middle (iOS crash 2026-11-27)', () => {
+  const src = readFileSync(path.join(process.cwd(), 'components/MapCardCarousel.js'), 'utf8');
+  assert.match(src, /export const CARD_WINDOW = 2;/);
+  assert.match(src, /Math\.abs\(index - centreIndex\) > CARD_WINDOW && !active/);
+});

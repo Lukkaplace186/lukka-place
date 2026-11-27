@@ -32,6 +32,9 @@ import { cachedListings, loadListings } from '@/lib/mapListingCache';
  * `near` — `{ label, point }` of a searched landmark — adds "à 1,2 km de UPN"
  * from the listing's own stored point, never from a commune centroid.
  */
+// Cards drawn in full on each side of the one in the middle.
+export const CARD_WINDOW = 2;
+
 export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, near = null }) {
   const t = useT();
   const scrollerRef = useRef(null);
@@ -42,6 +45,13 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
   // so its card draws on the first frame; the rest arrive batch by batch.
   const [listings, setListings] = useState(() => cachedListings(ids));
   const [failed, setFailed] = useState(false);
+  // The card nearest the middle of the row, followed while it scrolls. Only
+  // cards within CARD_WINDOW of it are drawn in full; the rest are empty
+  // frames of the same size. Drawing every card in view (a 100+ listing
+  // viewport) mounted hundreds of photos and ~5,000 elements on the first pin
+  // tap, and iOS Safari killed the tab ("A problem repeatedly occurred",
+  // 2026-11-27).
+  const [centreId, setCentreId] = useState(() => String(selectedId));
   const idsKey = ids.join(',');
 
   useEffect(() => {
@@ -78,6 +88,7 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     const card = cardRefs.current.get(String(selectedId));
     const scroller = scrollerRef.current;
     if (!card || !scroller) return;
+    setCentreId(String(selectedId));
     const left = card.offsetLeft - (scroller.clientWidth - card.clientWidth) / 2;
     if (Math.abs(scroller.scrollLeft - left) < 4) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -90,11 +101,11 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     const scroller = scrollerRef.current;
     if (!scroller) return undefined;
     let timer;
+    let frame = 0;
     const touched = () => {
       userRef.current = true;
     };
-    const settle = () => {
-      if (!userRef.current) return;
+    const nearest = () => {
       const centre = scroller.scrollLeft + scroller.clientWidth / 2;
       let best = null;
       let bestDistance = Infinity;
@@ -105,9 +116,21 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
           best = id;
         }
       }
+      return best;
+    };
+    const settle = () => {
+      if (!userRef.current) return;
+      const best = nearest();
       if (best) onSettle?.(best);
     };
     const onScroll = () => {
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          const best = nearest();
+          if (best) setCentreId(best);
+        });
+      }
       clearTimeout(timer);
       timer = setTimeout(settle, 140);
     };
@@ -117,6 +140,7 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     scroller.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       clearTimeout(timer);
+      if (frame) cancelAnimationFrame(frame);
       scroller.removeEventListener('pointerdown', touched);
       scroller.removeEventListener('touchstart', touched);
       scroller.removeEventListener('wheel', touched);
@@ -126,6 +150,7 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
 
   const byId = useMemo(() => new Map(listings.map((row) => [String(row.id), row])), [listings]);
   const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+  const centreIndex = Math.max(0, ordered.findIndex((row) => String(row.id) === centreId));
 
   return (
     // Clear of Google's logo and attribution line at the map's bottom edge.
@@ -149,19 +174,23 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
             {failed ? t('listings.map.fetchError') : t('listings.map.loading')}
           </div>
         ) : null}
-        {ordered.map((listing) => {
+        {ordered.map((listing, index) => {
           const id = String(listing.id);
           const active = id === String(selectedId);
+          const cardRef = (node) => {
+            if (node) cardRefs.current.set(id, node);
+            else cardRefs.current.delete(id);
+          };
+          if (Math.abs(index - centreIndex) > CARD_WINDOW && !active) {
+            return <div key={id} ref={cardRef} data-id={id} aria-hidden="true" className="w-[84vw] max-w-sm shrink-0 snap-center rounded-2xl bg-surface/80" />;
+          }
           return (
             <MapCard
               key={id}
               listing={listing}
               active={active}
               near={near}
-              cardRef={(node) => {
-                if (node) cardRefs.current.set(id, node);
-                else cardRefs.current.delete(id);
-              }}
+              cardRef={cardRef}
             />
           );
         })}

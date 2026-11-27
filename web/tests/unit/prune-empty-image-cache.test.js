@@ -32,5 +32,5 @@ test('a missing cache directory is not an error', async () => {
 
 test('runs before next start', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-  assert.equal(pkg.scripts.prestart, 'node scripts/prune-empty-image-cache.mjs');
+  assert.equal(pkg.scripts.prestart, 'node scripts/patch-next-image-cache.mjs && node scripts/prune-empty-image-cache.mjs');
 });

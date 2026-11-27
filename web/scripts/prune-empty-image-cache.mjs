@@ -17,6 +17,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export const PRUNE_BATCH = 64;
+
 export async function pruneEmptyImageCache(cacheDir) {
   let keys;
   try {
@@ -25,13 +27,16 @@ export async function pruneEmptyImageCache(cacheDir) {
     return [];
   }
   const removed = [];
-  for (const key of keys) {
+  // 64 entries at a time: one by one, ~198,000 entries took about two
+  // minutes, all of it before `next start`, so the site answered 502
+  // ("Bad gateway") for that long after every restart (2026-11-27).
+  const pruneEntry = async (key) => {
     const dir = path.join(cacheDir, key);
     let files;
     try {
       files = await fs.readdir(dir);
     } catch {
-      continue;
+      return;
     }
     for (const file of files) {
       const full = path.join(dir, file);
@@ -45,6 +50,9 @@ export async function pruneEmptyImageCache(cacheDir) {
         // A file another process removed meanwhile is not our concern.
       }
     }
+  };
+  for (let i = 0; i < keys.length; i += PRUNE_BATCH) {
+    await Promise.all(keys.slice(i, i + PRUNE_BATCH).map(pruneEntry));
   }
   return removed;
 }

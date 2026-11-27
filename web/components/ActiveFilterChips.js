@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, DEPOSIT_RANGE_OPTIONS, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';
 import { MAP_BOUNDS_PARAMS, parseBounds } from '@/lib/mapViewport';
+import { ZONE_PARAM, parseZone } from '@/lib/mapZone';
 import { getT } from '@/lib/i18n/server';
 import { UTILITY_FILTERS } from '@/lib/utilityTags';
 import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
@@ -48,7 +49,12 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
   // (lib/listings.js getListings), so their chips would name a place the
   // results no longer follow. Removing the area brings them back.
   const hasMapArea = Boolean(parseBounds(params).bounds);
-  if (hasMapArea) {
+  // A drawn zone (lib/mapZone.js) sets the box too: its chip removes both, or
+  // the box would be rebuilt from the zone and the chip would do nothing.
+  const hasZone = Boolean(parseZone(params[ZONE_PARAM]));
+  if (hasZone) {
+    chips.push({ key: 'zone', label: t('listings.chips.zone'), href: hrefWithoutKeys(params, [ZONE_PARAM, ...MAP_BOUNDS_PARAMS, 'page']) });
+  } else if (hasMapArea) {
     chips.push({ key: 'map_area', label: t('listings.chips.mapArea'), href: hrefWithoutKeys(params, [...MAP_BOUNDS_PARAMS, 'page']) });
   } else if (params.quartier) {
     chips.push({ key: 'quartier', label: params.quartier, href: hrefWithoutKeys(params, ['quartier', 'radius']) });

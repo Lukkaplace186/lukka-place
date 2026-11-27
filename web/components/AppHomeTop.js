@@ -3,12 +3,13 @@
 import Link from '@/components/IntentLink';
 import { useSyncExternalStore } from 'react';
 import { m } from 'motion/react';
-import { Bell, ChevronRight, CircleDollarSign, History, Sparkles } from 'lucide-react';
+import { Bell, ChevronRight, CircleDollarSign, History, LocateFixed, Sparkles } from 'lucide-react';
 import SearchBar from './SearchBar';
 import AppHomeHero from './app/AppHomeHero';
 import AppListingCard from './app/AppListingCard';
 import AppRailCard from './app/AppRailCard';
 import AppPromoCarousel from './app/AppPromoCarousel';
+import RecentlyViewed from './RecentlyViewed';
 import HomeMarketExplorer from './HomeMarketExplorer';
 import { ChartBars, ChartContainer } from './ui/chart';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -112,6 +113,22 @@ export default function AppHomeTop({
           <ChevronRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4 flex-none text-ink-35" />
         </Link>
       ) : null}
+
+      {/* "Biens près de moi" (2026-11-27): opens the map, which then locates the
+          phone (ListingsMap, ?pres=1); the position never leaves the phone. */}
+      <Link
+        href={localizeHref('/listings?view=map&pres=1', locale)}
+        className="mx-4 mt-1 flex min-h-11 items-center gap-2 px-1 text-[0.8125rem] font-semibold text-blue-deep active:text-ink"
+      >
+        <LocateFixed strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4 flex-none" />
+        <span className="min-w-0 flex-1 truncate">{t('appShell.home.nearMe')}</span>
+        <ChevronRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4 flex-none text-ink-35" />
+      </Link>
+
+      {/* "Récemment consultés" (2026-11-27): the homes opened on this phone,
+          the website home's slim strip, from two up (components/RecentlyViewed.js,
+          local only — nothing on the server). */}
+      <RecentlyViewed variant="app" minItems={2} className="px-4 pt-5" />
 
       {rail.length ? (
         <section className={resume ? 'pt-3' : 'pt-7'}>

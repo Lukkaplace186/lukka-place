@@ -810,7 +810,8 @@
       "priceRange": "{min}$ - {max}$",
       "priceFrom": "Dès {min}$",
       "priceUpTo": "Max {max}$",
-      "mapArea": "Zone de la carte"
+      "mapArea": "Zone de la carte",
+      "zone": "Zone dessinée"
     },
     "specs": {
       "beds": "ch",
@@ -853,6 +854,45 @@
           "one": "{count} bien loué ou vendu",
           "other": "{count} biens loués ou vendus"
         }
+      },
+      "report": {
+        "open": "Signaler cette annonce",
+        "title": "Signaler cette annonce",
+        "lead": "Dites-nous ce qui ne va pas. L’équipe Lukka Place vérifie chaque signalement ; l’agent n’est pas prévenu de votre part.",
+        "reasonLabel": "Raison",
+        "reasons": {
+          "scam": "Arnaque ou demande d’argent suspecte",
+          "unavailable": "Le bien n’est plus disponible",
+          "wrong_price": "Le prix est faux",
+          "wrong_info": "Photos ou description fausses",
+          "duplicate": "Annonce en double",
+          "other": "Autre chose"
+        },
+        "noteLabel": "Précisions (facultatif)",
+        "noteRequired": "Précisions",
+        "notePlaceholder": "Ce que vous avez vu ou ce qu’on vous a dit",
+        "privacy": "Votre nom et votre numéro ne sont jamais montrés à l’agent.",
+        "submit": "Envoyer le signalement",
+        "sending": "Envoi…",
+        "thanksTitle": "Merci, c’est noté",
+        "thanksBody": "L’équipe vérifie l’annonce. Si elle pose problème, nous la corrigeons ou la retirons.",
+        "close": "Fermer",
+        "errors": {
+          "reason": "Choisissez une raison.",
+          "otherNeedsNote": "Écrivez en quelques mots ce qui ne va pas.",
+          "tooLong": "Votre message est trop long (500 caractères au plus).",
+          "tooMany": "Vous avez envoyé plusieurs signalements à la suite. Réessayez dans une minute.",
+          "gone": "Cette annonce n’est plus en ligne.",
+          "failed": "Le signalement n’a pas pu être envoyé. Réessayez plus tard.",
+          "offline": "Pas de connexion. Réessayez quand vous êtes en ligne."
+        }
+      },
+      "priceHistory": {
+        "title": "Historique du prix",
+        "listed": "Mis en ligne",
+        "down": "Baisse de {percent} %",
+        "up": "Hausse de {percent} %",
+        "note": "Les changements enregistrés depuis la mise en ligne. Une correction de saisie n’est pas comptée."
       }
     },
     "sidebar": {
@@ -1211,7 +1251,7 @@
       "sourceDated": "Réponses de l’agence sur WhatsApp, le {date}. Vérifiez-les pendant la visite."
     },
     "zone": {
-      "hint": "Dessinez votre zone avec le doigt",
+      "hint": "Dessinez votre zone sur la carte",
       "cancel": "Annuler le dessin",
       "clear": "Effacer la zone",
       "draw": "Dessiner une zone",
@@ -1997,7 +2037,9 @@
         "one": "{count} autre commune",
         "other": "{count} autres communes"
       },
-      "metaUnnamed": "Une agence"
+      "metaUnnamed": "Une agence",
+      "ratingOutOf5": "{average} sur 5",
+      "reviewStars": "{stars} étoiles sur 5"
     },
     "completion": {
       "nameLabel": "Nom renseigné",
@@ -4581,7 +4623,8 @@
       "moveProjects": "Projets de déménagement",
       "demo": "Comptes démo",
       "contacts": "Contacts",
-      "codes": "Codes envoyés"
+      "codes": "Codes envoyés",
+      "reports": "Signalements"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -8990,6 +9033,43 @@
         "phoneChange": "Changement de numéro",
         "other": "Autre"
       }
+    },
+    "reports": {
+      "title": "Signalements",
+      "subtitle": "Ce que les visiteurs ont signalé avec « Signaler cette annonce », le plus récent d’abord. Vérifiez l’annonce depuis sa page, puis marquez le signalement comme traité ou ignoré.",
+      "status": {
+        "open": "À traiter",
+        "resolved": "Traités",
+        "dismissed": "Ignorés"
+      },
+      "cols": {
+        "time": "Reçu le",
+        "listing": "Annonce",
+        "reason": "Raison",
+        "note": "Précisions",
+        "from": "Envoyé par",
+        "action": "Suite"
+      },
+      "listingGone": "Annonce n° {id} (n’existe plus)",
+      "viewPublic": "Voir la page publique",
+      "notPublic": "Plus en ligne",
+      "openOnListing": "{count} signalements ouverts sur cette annonce",
+      "noNote": "Aucune précision",
+      "fromCustomer": "Client connecté",
+      "fromVisitor": "Visiteur",
+      "mark": {
+        "resolved": "Traité",
+        "dismissed": "Ignorer"
+      },
+      "reopen": "Rouvrir",
+      "handled": "Par {who}, le {when}",
+      "empty": {
+        "open": "Aucun signalement à traiter.",
+        "resolved": "Aucun signalement traité.",
+        "dismissed": "Aucun signalement ignoré."
+      },
+      "loadError": "Les signalements n’ont pas pu être chargés : {error}",
+      "notReady": "La table des signalements n’existe pas encore (migration 20261127_listing_reports.sql)."
     }
   },
   "errors": {
@@ -9961,7 +10041,8 @@
       "marketAll": "Tous les prix",
       "promoTitle": "Guides et actualités",
       "promoGuide": "Guide",
-      "promoNews": "Actualité"
+      "promoNews": "Actualité",
+      "nearMe": "Biens près de moi"
     },
     "card": {
       "photos": {

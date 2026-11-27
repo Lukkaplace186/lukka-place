@@ -14,6 +14,8 @@ export const ADMIN_NAV_GROUPS = [
     items: [
       { href: '/admin/dashboard', labelKey: 'admin.nav.dashboard', icon: 'BarChart3' },
       { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: 'FileText' },
+      // "Signaler cette annonce": what visitors reported on a listing (2026-11-27).
+      { href: '/admin/signalements', labelKey: 'admin.nav.reports', icon: 'Flag' },
       { href: '/admin/projets', labelKey: 'admin.nav.projects', icon: 'Building' },
       { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: 'CalendarClock' },
       // Every customer -> agent contact, one row each: who, which agent, how (2026-11-15).

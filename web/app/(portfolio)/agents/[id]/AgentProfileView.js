@@ -18,6 +18,7 @@ import {
   Phone,
   Share2,
   Sparkles,
+  Star,
 } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
 import CardImageCarousel from '@/components/CardImageCarousel';
@@ -353,13 +354,24 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col gap-2.5 lg:pt-1">
-              {agent.verifiedLabel || agent.upToDateLabel || agent.memberSince ? (
+              {agent.verifiedLabel || agent.ratingLabel || agent.upToDateLabel || agent.memberSince ? (
                 <div className="flex flex-wrap gap-2">
                   {agent.verifiedLabel ? (
                     <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-brass-tint pl-2 pr-3 text-xs font-bold text-brass-deep">
                       <BadgeCheck strokeWidth={2} className="h-4 w-4 text-brass" aria-hidden="true" />
                       {agent.verifiedLabel}
                     </span>
+                  ) : null}
+                  {/* Customers' stars after a visit that happened (lib/agentReviews.js),
+                      from MIN_PUBLIC_REVIEWS up; page.js decides. */}
+                  {agent.ratingLabel ? (
+                    <a
+                      href="#avis"
+                      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-brass-tint pl-2 pr-3 text-xs font-bold text-ink"
+                    >
+                      <Star strokeWidth={2} className="h-3.5 w-3.5 fill-brass text-brass" aria-hidden="true" />
+                      {agent.ratingLabel}
+                    </a>
                   ) : null}
                   {/* "Annonces à jour": every listing online confirmed or
                       published within the check's window (page.js decides). */}

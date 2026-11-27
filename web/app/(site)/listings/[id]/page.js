@@ -34,6 +34,8 @@ import PropertyDescription from '@/components/listings/PropertyDescription';
 import ListingAlertCard from '@/components/ListingAlertCard';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
+import ReportListingButton from '@/components/listings/ReportListingButton';
+import PriceHistory from '@/components/listings/PriceHistory';
 import ListingExploreLinks from '@/components/listings/ListingExploreLinks';
 import ListingEquipment from '@/components/listings/ListingEquipment';
 import PracticalFacts from '@/components/listings/PracticalFacts';
@@ -493,6 +495,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <MarketMedianLine listing={listing} />
             </Suspense>
 
+            {/* "Historique du prix" (2026-11-27): recorded changes only,
+                nothing when the price never moved after publication. */}
+            <Suspense fallback={null}>
+              <PriceHistory listingId={listing.id} className={RULE} />
+            </Suspense>
+
             {/* The app (2026-11-12): the bottom bar already carries WhatsApp,
                 the chat and the visit request, so only the agent stands here;
                 the alert card follows the location. */}
@@ -524,6 +532,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 <SimilarAlertButton query={alertQuery} />
               </div>
             ) : null}
+
+            {/* "Signaler cette annonce" (2026-11-27): scam, already let, wrong
+                price or details. Read by the team on /admin/signalements. */}
+            <div className={RULE}>
+              <ReportListingButton listingId={listing.id} />
+            </div>
           </div>
 
           {/* The rail stays docked for the whole scroll — Description,

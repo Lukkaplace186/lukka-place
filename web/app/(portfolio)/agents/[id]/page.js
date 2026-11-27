@@ -21,6 +21,8 @@ import { getCurrentCustomerId } from '@/lib/customers';
 import { isFollowing } from '@/lib/customerFollows';
 import { listingPath } from '@/lib/listingSlug';
 import { agentMetaDescription, agentOgImage } from '@/lib/agentProfileSeo';
+import { formatAverage, getAgentPublicRating } from '@/lib/agentReviews';
+import { Star } from 'lucide-react';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -109,9 +111,11 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
 
   // Both tabs at once: the segmented control shows each tab's count and
   // switches without a round trip. Projects never take the profile down.
-  // No rating on the profile for now (owner decision, 2026-11-04: the
-  // ratings feature is not launched) — lib/agentReviews.js is untouched.
-  const [rentals, sales, projects, locale, trackRecord] = await Promise.all([
+  // Customers' ratings are public on the profile since 2026-11-27 (owner;
+  // they were held back 2026-11-04 until the feature launched): from
+  // MIN_PUBLIC_REVIEWS up, with the comments the team approved
+  // (lib/agentReviews.js). Never on a listing page. Never throws.
+  const [rentals, sales, projects, locale, trackRecord, rating] = await Promise.all([
     getAgentListings(agent.id, { transactionType: 'location', limit: LISTINGS_PER_TAB }),
     getAgentListings(agent.id, { transactionType: 'vente', limit: LISTINGS_PER_TAB }),
     getPublicProjects({ agentId: agent.id }).catch((err) => {
@@ -122,6 +126,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     // "N biens loués ou vendus" and "Annonces à jour" (web/CLAUDE.md,
     // "Incentives for keeping listings up to date"); never throws.
     getAgentTrackRecord(agent.id),
+    getAgentPublicRating(agent.id),
   ]);
 
   // A shared ?tab= wins; otherwise open on À louer unless it is empty and
@@ -227,6 +232,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     subline: subline || null,
     communes: communes.map((c) => communeLabel(c)),
     verifiedLabel: isVerifiedLevel(agent.verification_level) ? t(LEVEL_LABEL_KEYS[agent.verification_level]) : null,
+    ratingLabel: rating ? `${formatAverage(rating.average, locale)} · ${t('agent.portfolio.reviewsCount', { count: rating.count })}` : null,
     memberSince,
     // Shown only when every public live listing is up to date (and there is
     // at least one) — absent otherwise, never "pas à jour".
@@ -355,6 +361,7 @@ ${profileUrl}`),
           <InquiryForm agentId={agent.id} agentName={name} sent={sp.inquiry_sent === '1'} error={sp.inquiry_error} />
         }
       >
+        {rating ? <AgentReviewsSection rating={rating} locale={locale} /> : null}
         {projects.length ? (
           <section className="flex flex-col gap-4">
             <div>
@@ -368,5 +375,54 @@ ${profileUrl}`),
         ) : null}
       </AgentProfileView>
     </>
+  );
+}
+
+const REVIEW_MONTH = {
+  fr: new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'Africa/Kinshasa' }),
+  en: new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Kinshasa' }),
+};
+
+/**
+ * "Avis des clients" (2026-11-27): the average from customers who visited
+ * with this agent, then the comments the team approved (/admin/agent-reviews).
+ * Each review comes from a real visit (one per viewing request, engine
+ * services/agentReviews.js); no name is shown.
+ */
+async function AgentReviewsSection({ rating, locale }) {
+  const t = await getT();
+  const month = REVIEW_MONTH[locale] || REVIEW_MONTH.fr;
+  return (
+    <section id="avis" className="flex scroll-mt-24 flex-col gap-4">
+      <div>
+        <h2 className="u-title-section text-ink">{t('agent.portfolio.reviewsTitle')}</h2>
+        <p className="mt-1 flex items-center gap-1.5 text-[0.9375rem] font-semibold text-ink">
+          <Star strokeWidth={2} className="h-4 w-4 fill-brass text-brass" aria-hidden="true" />
+          {t('agent.portfolio.ratingOutOf5', { average: formatAverage(rating.average, locale) })}
+          <span className="font-normal text-ink-45">· {t('agent.portfolio.reviewsCount', { count: rating.count })}</span>
+        </p>
+        <p className="u-meta mt-1">{t('agent.portfolio.reviewsNote')}</p>
+      </div>
+      {rating.comments?.length ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {rating.comments.map((review) => (
+            <li key={review.id} className="u-card flex flex-col gap-2 rounded-card bg-surface p-4">
+              <span className="flex items-center gap-0.5" aria-label={t('agent.portfolio.reviewStars', { stars: review.stars })}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star
+                    key={n}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                    className={`h-4 w-4 ${n <= review.stars ? 'fill-brass text-brass' : 'text-ink-25'}`}
+                  />
+                ))}
+              </span>
+              <p className="text-[0.9375rem] leading-relaxed text-ink-70">{review.comment}</p>
+              <p className="u-meta">{month.format(new Date(review.created_at))}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }

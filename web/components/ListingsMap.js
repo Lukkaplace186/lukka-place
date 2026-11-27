@@ -876,6 +876,21 @@ export default function ListingsMap({
     );
   }, [flash]);
 
+  // "Près de moi" (2026-11-27): a link carrying ?pres=1 (the app home's
+  // "Biens près de moi") runs the same locate step once the map is ready —
+  // the phone's position only pans the map and is never written to the URL.
+  // The flag is then dropped, so a reload or a shared link does not ask again.
+  const autoLocatedRef = useRef(false);
+  useEffect(() => {
+    const pres = typeof params?.get === 'function' ? params.get('pres') : params?.pres;
+    if (!mapReady || autoLocatedRef.current || pres !== '1') return;
+    autoLocatedRef.current = true;
+    locate();
+    const url = new URL(window.location.href);
+    url.searchParams.delete('pres');
+    router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: false });
+  }, [mapReady, params, locate, router]);
+
   // One line of text, never an icon to decode. A capped answer (more
   // matches than the map will draw) replaces the count, because "2000 biens"
   // would then be false.

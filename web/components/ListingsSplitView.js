@@ -309,8 +309,10 @@ export default function ListingsSplitView({
               onAreaChange={onAreaChange}
               onInViewChange={setInView}
               openCardsRequest={cardsRequest}
-              // Inside the store app: the pencil that draws a zone on the map.
-              zoneDraw={appMode}
+              // The pencil that draws a zone on the map: the app since
+              // 2026-11-13, the website too since 2026-11-27 (pointer events,
+              // so a mouse draws like a finger).
+              zoneDraw
               resultSheet={appMode}
               className="h-full w-full"
             />

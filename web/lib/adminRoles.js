@@ -115,6 +115,8 @@ export function can(role, permission) {
 export const SECTION_PERMISSIONS = {
   '/admin/dashboard': 'analytics.view',
   '/admin/listings': 'listings.view',
+  // Visitors' reports on listings; marking one handled is listings.moderate.
+  '/admin/signalements': 'listings.view',
   '/admin/projets': 'listings.view',
   '/admin/demande': 'analytics.view',
   '/admin/conversations': 'leads.view',

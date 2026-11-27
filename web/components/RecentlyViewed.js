@@ -57,6 +57,9 @@ export default function RecentlyViewed({ excludeId = null, minItems = 1, variant
   const listings = key && result.key === key ? result.listings : [];
   if (listings.length < minItems) return null;
   if (variant === 'strip') return <RecentStrip listings={listings} label={t('listings.recent.title')} className={className} />;
+  // The app home (2026-11-27): the same strip under a visible title, on the
+  // screen's own ground.
+  if (variant === 'app') return <RecentStrip listings={listings} label={t('listings.recent.title')} className={className} app />;
 
   return (
     // pt-6/pb-1 on a phone (was py-12 + the rail's pb-4): with the next
@@ -78,11 +81,11 @@ export default function RecentlyViewed({ excludeId = null, minItems = 1, variant
   );
 }
 
-function RecentStrip({ listings, label, className }) {
+function RecentStrip({ listings, label, className, app = false }) {
   return (
-    <section aria-label={label} className={`bg-canvas ${className}`}>
-      <div className="mx-auto flex max-w-[1600px] items-center gap-6 px-4 pt-6 sm:px-6 sm:pt-9 lg:px-8">
-        <p className="hidden shrink-0 items-center gap-2 text-[0.8125rem] font-semibold text-ink-45 md:flex">
+    <section aria-label={label} className={`${app ? '' : 'bg-canvas'} ${className}`}>
+      <div className={app ? 'flex flex-col gap-3' : 'mx-auto flex max-w-[1600px] items-center gap-6 px-4 pt-6 sm:px-6 sm:pt-9 lg:px-8'}>
+        <p className={`${app ? 'flex' : 'hidden md:flex'} shrink-0 items-center gap-2 text-[0.8125rem] font-semibold text-ink-45`}>
           <History strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4" />
           {label}
         </p>

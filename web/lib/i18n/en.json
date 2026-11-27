@@ -810,7 +810,8 @@
       "priceRange": "${min} - ${max}",
       "priceFrom": "From ${min}",
       "priceUpTo": "Up to ${max}",
-      "mapArea": "Map area"
+      "mapArea": "Map area",
+      "zone": "Drawn area"
     },
     "specs": {
       "beds": "bed",
@@ -853,6 +854,45 @@
           "one": "{count} let or sold",
           "other": "{count} let or sold"
         }
+      },
+      "report": {
+        "open": "Report this listing",
+        "title": "Report This Listing",
+        "lead": "Tell us what is wrong. The Lukka Place team checks every report; the agent is not told it came from you.",
+        "reasonLabel": "Reason",
+        "reasons": {
+          "scam": "Scam or a suspicious request for money",
+          "unavailable": "The property is no longer available",
+          "wrong_price": "The price is wrong",
+          "wrong_info": "Wrong photos or description",
+          "duplicate": "Duplicate listing",
+          "other": "Something else"
+        },
+        "noteLabel": "Details (optional)",
+        "noteRequired": "Details",
+        "notePlaceholder": "What you saw or what you were told",
+        "privacy": "Your name and number are never shown to the agent.",
+        "submit": "Send report",
+        "sending": "Sending…",
+        "thanksTitle": "Thank You, Noted",
+        "thanksBody": "The team is checking the listing. If something is wrong, we correct it or take it down.",
+        "close": "Close",
+        "errors": {
+          "reason": "Choose a reason.",
+          "otherNeedsNote": "Write a few words about what is wrong.",
+          "tooLong": "Your message is too long (500 characters at most).",
+          "tooMany": "You sent several reports in a row. Try again in a minute.",
+          "gone": "This listing is no longer online.",
+          "failed": "The report could not be sent. Try again later.",
+          "offline": "No connection. Try again when you are online."
+        }
+      },
+      "priceHistory": {
+        "title": "Price History",
+        "listed": "Listed",
+        "down": "Reduced by {percent}%",
+        "up": "Increased by {percent}%",
+        "note": "Changes recorded since the listing went online. A typing correction is not counted."
       }
     },
     "sidebar": {
@@ -1211,7 +1251,7 @@
       "sourceDated": "The agency’s answers on WhatsApp, on {date}. Check them during the visit."
     },
     "zone": {
-      "hint": "Draw your zone with a finger",
+      "hint": "Draw your area on the map",
       "cancel": "Cancel drawing",
       "clear": "Clear the zone",
       "draw": "Draw a zone",
@@ -1997,7 +2037,9 @@
         "one": "{count} other commune",
         "other": "{count} other communes"
       },
-      "metaUnnamed": "An agency"
+      "metaUnnamed": "An agency",
+      "ratingOutOf5": "{average} out of 5",
+      "reviewStars": "{stars} stars out of 5"
     },
     "completion": {
       "nameLabel": "Name provided",
@@ -4581,7 +4623,8 @@
       "moveProjects": "Move Projects",
       "demo": "Demo Accounts",
       "contacts": "Contacts",
-      "codes": "Codes Sent"
+      "codes": "Codes Sent",
+      "reports": "Reports"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -8990,6 +9033,43 @@
         "phoneChange": "Number change",
         "other": "Other"
       }
+    },
+    "reports": {
+      "title": "Listing Reports",
+      "subtitle": "What visitors reported with “Report this listing”, newest first. Check the listing from its page, then mark the report handled or dismissed.",
+      "status": {
+        "open": "To handle",
+        "resolved": "Handled",
+        "dismissed": "Dismissed"
+      },
+      "cols": {
+        "time": "Received",
+        "listing": "Listing",
+        "reason": "Reason",
+        "note": "Details",
+        "from": "Sent by",
+        "action": "Outcome"
+      },
+      "listingGone": "Listing #{id} (no longer exists)",
+      "viewPublic": "View public page",
+      "notPublic": "No longer online",
+      "openOnListing": "{count} open reports on this listing",
+      "noNote": "No details",
+      "fromCustomer": "Signed-in customer",
+      "fromVisitor": "Visitor",
+      "mark": {
+        "resolved": "Handled",
+        "dismissed": "Dismiss"
+      },
+      "reopen": "Reopen",
+      "handled": "By {who}, {when}",
+      "empty": {
+        "open": "No reports to handle.",
+        "resolved": "No handled reports.",
+        "dismissed": "No dismissed reports."
+      },
+      "loadError": "Reports could not be loaded: {error}",
+      "notReady": "The reports table does not exist yet (migration 20261127_listing_reports.sql)."
     }
   },
   "errors": {
@@ -9961,7 +10041,8 @@
       "marketAll": "All prices",
       "promoTitle": "Guides and News",
       "promoGuide": "Guide",
-      "promoNews": "News"
+      "promoNews": "News",
+      "nearMe": "Homes near me"
     },
     "card": {
       "photos": {

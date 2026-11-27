@@ -237,6 +237,20 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   `marketBenchmarks.js`, deliberately: a sold listing is not on the market.
   Yearly rent ÷ 12 exactly as `lib/format.js` renders it; `price <= 0` is "prix
   sur demande", counted apart and never averaged in as $0.
+- **Agent reply rate and « Sans réponse »** (2026-11-21, root
+  docs/claude/leads-and-enquiries.md, "Agent reply rate and the desk's
+  « Clients sans réponse »"): `lib/agentReplyRate.js` (pure, FR/EN inside,
+  not the dictionaries) turns the engine's `GET /admin/contact-taps/reply-rates`
+  into « Vous nous avez confirmé avoir répondu à 4 clients sur 10 ces 30
+  derniers jours » — the agent's answer to our alert, never "a écrit au
+  client" (the chat is invisible to us). `components/AgentReplyRateCard.js` on
+  the agent overview (own agent, ≥ 3 alerts, nothing when the engine fails)
+  and on `/admin/agents/[id]` (`audience="admin"`, raw counts under 3); a
+  « Réponses aux alertes » column on `/admin/agents` (no sort: SQLite counts
+  beside a Postgres list). `/admin/contacts?reponse=sans` (and the CSV) keeps
+  the contacts where an agent answer was expected and none is recorded
+  (`isUnanswered`), the list the desk's 8:30 WhatsApp links to.
+  `tests/unit/agent-reply-rate.test.js`.
 - **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
   Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
   direct-to-agent tap is invisible to us and is shown beside the rate, never in
@@ -314,53 +328,8 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
     against the first listing, shows a red banner for the same agent, and on
     an older live copy offers "Retirer (doublon) — garder n° X"
     (`compare/actions.js`: hide, audit `listing.withdraw_duplicate`, engine
-    message `withdrawn_duplicate` with `keep_id`). The queue's red "N annonces
-    en ligne en double" banner was removed on the owner's request the same
-    day; the list is `?status=approved&flag=same_agent_resend` (the i18n keys
-    `compare.liveResends` / `cleanUp` are kept, unused, for when it returns).
-- **The approval row shows each fact once** (2026-11-10, `lib/moderationRow.js`,
-  `tests/unit/moderation-row.test.js`): photo count on the thumbnail (amber
-  1–2, red none), place as "quartier, commune" under the title, the median
-  ratio under the price, and an agent cell with initials, person (never
-  `vendors.username`), agency when it differs, a `tel:` number and facts —
-  unverified, "Nouveau compte" (< 7 days), "1ʳᵉ annonce" or N listings. The
-  checks column keeps only flags no other cell shows, plus ONE duplicate link
-  for every listing the row matches ("Doublon possible · autre agent", red
-  "Déjà publiée par le même agent"). Table from `md`, one card per listing on
-  a phone; the live tab drops the decision column for "Publié sur", so the
-  table fits a 1440 px screen without scrolling. A new account's first
-  listing is the one to read twice: on 2026-11-10 two customers were onboarded
-  as agents by the WhatsApp intake, their message text became their "name".
-- **Review mode and the queue split** (2026-11-10, same day). Cells shared by
-  the queue and review mode: `app/admin/listings/ModerationCells.js`; rules:
-  `lib/moderationRow.js` (`readiness`, `splitQueue`, `reviewOrder`,
-  `queueSummary`, `nameLooksLikeSentence`, `agentTextLine`).
-  - **Pending tab, unfiltered**: a summary line ("5 en attente · la plus
-    ancienne il y a 3 h · 2 à vérifier", over the whole pending queue up to
-    100; past 100 the "à vérifier" count is left out) with "Commencer la
-    revue", then **À vérifier** ("Revoir ces N" → `?only=check`) and
-    **Prêtes** = verified agent registered more than 7 days ago, no flag at
-    all, ≥3 photos, with "Tout approuver (N)" (the same bulk action, which still
-    re-checks each listing and reports skips). A filter or sort shows one table.
-  - **Each row** has the agent's first words in grey: the first inbound
-    WhatsApp text (engine `GET /admin/properties/sources`,
-    `services/listingSource.js`: inbound messages from 15 min before to 30 min
-    after the draft, `adminApi.getListingSources`), else the text we read,
-    else the description (web-form listing). Engine down = no grey line, never
-    a broken page. The thumbnail opens `PhotoViewer` (all photos, ← → inside it,
-    swipe, approve/reject). Decided tabs show only the date; who, when and the
-    note open in a popover (hover or tap).
-  - **`/admin/listings/review`** (`listings.moderate`): full screen over the
-    console, À vérifier then Prêtes, oldest first. Photo gallery, agent card,
-    checks, "Message de l'agent" (those inbound messages) beside "Ce que nous
-    avons lu" (`getListingFactsForReview`; NULL = "non indiqué", the three
-    entry costs separate). Keys: A approve, R reasons (1–7, Entrée confirms),
-    → skip, ← back, Échap leaves; ignored while typing or with the photo viewer
-    open. Each decision opens the next undecided listing; the end screen counts
-    approved / rejected / skipped and can go back over the skipped ones. Reject
-    reasons are chips everywhere (`RejectReasons.js`, also the queue's dialog).
-    A same-agent re-send is still refused by `moderateListingsAction` and the
-    reason is shown; compare first.
+    message `withdrawn_duplicate` with `keep_id`). The queue's banner links
+    `?status=approved&flag=same_agent_resend` ("Faire le ménage").
 - **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
   Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
   server-side; the browser polls `/admin/api/queue-counts` every 30s while
@@ -627,8 +596,8 @@ cascade; engine leads and visits stay).
   exist: agents log in individually and `vendors` has no account of its own.
   Branches are admin-managed until then.
 - **Card payments** are not offered. Mobile-money payment through FlexPaie
-  (invoices, failed-payment tracking, and since 2026-11-12 the checkout page)
-  is built but not live until its credentials are set — see "FlexPaie" below. Receipts cover what the ledger can prove.
+  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
+  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
 
 ## Layout & shell
 
@@ -639,7 +608,6 @@ cascade; engine leads and visits stay).
 - **Desktop header utility row, left to right**: search icon (only where nothing else on the page owns search), account, currency, `Demandes`, language, "Publier un bien". `Demandes` sits beside the currency toggle and the FR|EN control sits immediately before the CTA — both placements are deliberate and documented in `Header.js`. The language control is `LanguageToggle.js`, a segmented FR|EN pill rather than a `<select>`, matching `CurrencyToggle` beside it; it writes the `NEXT_LOCALE` cookie *and* the `lukka_locale` localStorage mirror, then `router.refresh()`es so Server Components re-render in the new language (see `lib/i18n/`).
 - **The homepage's second section is personalised when it can be.** `app/(site)/page.js` renders `SavedListings` ("Biens Enregistrés") instead of `FeaturedListings` ("Sélection de la Semaine") for a signed-in visitor with at least one saved property. The choice comes from `lib/savedHome.js`'s `getSavedHomeSection()`, which returns `null` for a signed-out visitor *and* for a signed-in one with an empty shelf — the fallback covers both. Deliberate: an empty personalised shelf would replace a full section of real listings with a prompt. The shelf is a horizontal snap rail at every breakpoint (`SavedListingsRail.js`), unlike `FeaturedListingsCarousel`'s scroll-then-grid, because its length is a fact about the visitor rather than a catalogue that continues.
 - **The header is solid on every route, homepage included.** It used to start transparent over the hero photo and solidify on scroll (`Hero.js` carried `-mt-16` to bleed up under it, cancelling the layout's `pt-16`). The "Landing refondue" screen is explicit that it never goes transparent — the wordmark has to stay legible over whatever photograph the hero carries — so the scroll listener, the `overHero` flag and every `inverted` variant it drove (including `CurrencyToggle`'s) are gone, and the hero band starts below the header.
-- **App mode (2026-11-11): inside the store app the site draws an app layout.** `lib/appModeRules.js` (pure) / `lib/appMode.js` `isAppRequest()`: on when the `lp_app` cookie is set (GET `/app`, where the app starts, sets it; `/app?web=1` clears it) or the user agent carries `LukkaPlaceApp` (`appendUserAgent` in `mobile/capacitor.config.json`). Then `app/(site)/layout.js` draws `components/app/AppTopBar.js` (serif wordmark + notifications bell with the unread count; royal on `/`, white elsewhere; same h-16 as Header) instead of Header, and `AppTabBar` (Rechercher `/`, Enregistrés `/favoris`, Compte `/compte/menu`; hidden on a listing page) instead of the footer. The home page is `AppHomePage` → `components/AppHomeTop.js` (the owner's app design, "Search home": serif title, real live count, the site's SearchBar, the latest saved search, the 6 newest listings as `components/app/AppListingCard.js`). `/compte/menu` is the account screen and the old hamburger menu (public in middleware; private rows only with a session). `/favoris` is `components/app/AppSavedScreen.js` (Biens / Recherches, `AppSegmented`; homes from lib/favorites.js through `/api/listings?ids=`; signed-in searches read server-side with id + `alert_frequency`, the `AppSwitch` writes `updateAlertPreferencesAction` on → weekly / off; a shared `?ids=` link keeps FavorisView). Results keep the website's filters, map and relaxation logic: `ListingsSplitView appMode` draws `AppListingCard`, `FloatingControlBar aboveTabBar` sits over the tabs, and the tab bar hides on `?view=map` (Suspense, useSearchParams). Every app screen sits on `bg-canvas-alt`. Listing page: `components/app/AppListingBar.js` replaces MobileListingBar (call / WhatsApp / chat as icons under the same rules and tracking, "Demander une visite" wide → `/listings/<id>/visite`); off the tabs the top bar shows a back arrow. `/listings/<id>/visite` is `components/app/AppVisitBooking.js`: two steps in ONE form (VisitSlotPicker stays mounted, hidden, on step 2 so the slot posts), the same `submitVisitRequestAction` with `return_to=app` (answers back there with `visit_sent` 1/team or `visit_error`), then "Visite demandée". No video call, no add-to-calendar (the time is a request). Never submit it from a local preview: the local engine URL is production and the agent is WhatsApped. Filters: `FilterModal app` (FilterBar `appMode`) renders `components/app/AppFilterSheet.js` around the SAME `fields` block and FilterBar's live count — rounded bottom sheet ≤ 88dvh, handle-only motion drag to close (offset > 110 or velocity > 600), "Réinitialiser", one "Voir N résultats". Loaded with next/dynamic so the website never ships motion; the website keeps its full-height sheet. Agents in the app: the agent layout asks `isAppRequest()` and `AgentSidebar appMode` shows five tabs (Accueil overview, Biens, Demandes, Visites, Compte) instead of the website's up to seven; Compte is `app/compte/agent/menu` (messages and alerts with counts, Faites le point, overview, projects if on, settings, subscription if on, public page, language, "Chercher un logement" → `/`, sign out). The client book stays hidden (2026-09-22 decision). UI kit (2026-11-12, owner's shadcn list, hand-written in `components/ui/*.jsx`, Lukka Place tokens, no new packages): accordion, alert, attachment, avatar, badge, breadcrumb, bubble, button-group, calendar, carousel, chart, date-picker, marker, message, message-scroller, skeleton, spinner. Carousel/calendar/chart are built on motion (no Embla, react-day-picker, recharts); MessageScroller is the AI demo's scroll behaviour without the AI SDK, for Messagerie. Used so far: AppAvatar (Compte screens), AppCardBadges (app cards), Alert + Spinner (booking), Skeleton + Alert (Enregistrés), FAQ Accordion (Compte), ChartBars "Où chercher" (home). All variants on `/app-demo?vue=composants`. Messagerie in the app: ChatThread keeps ALL its logic (poll, optimistic send + Réessayer, read receipts, load-older offset, block/report/archive, agent waiting banner) and, with `appMode` (both thread pages pass `isAppRequest()`), draws `components/chat/AppChatList.js` (next/dynamic, so the website's chat never loads motion): day Markers, bubbles grouped per sender (`lib/chatGroups.js`), the other side's AppAvatar, Envoyé / Lu under the reader's last message; only messages that arrive while open spring in. No typing indicator (the chat has no such signal). `/messages/<id>` hides the tab bar; the top bar's back arrow goes to /messages; the agent layout wraps children in AppMotion in app mode. Example on `/app-demo?vue=composants`. Rules: secondary grey is canvas-deep (screens are canvas-alt); a date posts its local day, never toISOString; a sliding-out calendar month is inert (useIsPresent). The design's lister-verification, access-code and add-a-property screens are London-specific and not built: agents are verified by phone + documents, listings arrive on WhatsApp or the existing form. Design reference: the owner's Claude Design export "Lukkaplace App" (30 screens, written for London — keep its layout, use our data and wording). **Motion here is the `motion` package** (owner's choice for the app), unlike the website's CSS-only rule below: `components/app/AppMotion.js` (LazyMotion + `m.*`, reducedMotion user) wraps app mode only, so the website never loads it. Entrances move, never fade (server HTML must show the search card on 3G). The display serif is DM Serif Display (`lib/appFont.js`, not preloaded, `.u-app-serif`), app mode only — the website dropped it 2026-10-24. Preview locally: the `app-preview` launch entry (port 3005, `--webpack`), open `/app` once. `tests/unit/app-mode.test.js`.
 
 ## Gotchas that cost real debugging time
 
@@ -676,7 +644,6 @@ cascade; engine leads and visits stay).
   - Radix content portals to `document.body`, so it is **outside the `<form>`**. `FilterBar` therefore owns every filter value in React state and renders hidden inputs inside the form; the pill panels and the sheet are pure UI. Don't put a named form field inside a portalled panel and expect it to submit.
 - **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
 - **Motion is CSS, not a library.** `framer-motion`, `lib/motion.js` and `lib/useMotionSafe.js` are gone (see "Mobile performance & resilience" below). The presets live in `app/globals.css`: `.u-pop` (a toggled icon — key the span on a counter and apply the class only when it is > 0, so it never plays on mount), `.u-reveal` (entrance on mount), `.u-rise` (small panel over the map), `.u-reveal-in-view` (scroll-driven, `animation-timeline: view()`, no JS; a browser without it shows the element with no reveal). All are gated on `prefers-reduced-motion` in the CSS itself. Radix `Dialog`/`Sheet` animate via `data-state` + `tw-animate-css`. Don't add a motion library back for decoration: it was ~40 KB gzip on every page for effects most of them never ran on a phone.
-  - **One exception, owner's request 2026-11-13: `/guides` uses Motion (`motion` package) for its App Store "Today" cards** (`components/blog/GuideCards.js`, modelled on motion.dev's react-app-store example). A tap lifts the card into a panel (photo, title, summary, the article's opening from `articleIntro`, "Lire l'article complet"); Escape, the backdrop, the ✕ and Android's back button (a `#slug` history entry) close it, and the read link uses `replace` so back from the article lands on /guides. It stays on that page only: `LazyMotion strict` + `m.*` components, with `domMax` loaded by dynamic import (`guideCardFeatures.js`), and every card is a server-rendered `<a href>` that opens the article without JS or with a modifier key. Cards are all one size (owner, 2026-11-13). A cover sits under the title in a 16:9 box, closed and open, so it is never cropped and only scales evenly (a layout animation is a transform: a box that changes shape stretches its content); the title box keeps one width (`--gc-title`) for the same reason. Without a cover, the blue ground keeps one pixel size (`--gc-w/--gc-h`) and the title sits over it in white. Covers are 3840×2160 on white with the subject filling ~84 % of the width (`content/blog/images/src/higgsfield/recompose.cjs`); the article page shows them whole at 16:9. Don't import `motion` anywhere else without the same scoping.
   - **The motion layer (2026-09-23)** adds, same file, same rules: `.u-stagger` (a list's rows enter on mount, 60ms apart, capped at 7) and `.u-stagger-inner` (the same on each row's *content*, for hairline grids where a fading cell flashes `bg-line` — `AgentStatGrid`); `.u-stagger-in-view` / `.u-stagger-in-view-inner` (scroll-driven per child, columns of a grid row cascading via `--u-col`); `.u-rail-reveal` (FeaturedListingsCarousel only: whole strip below `sm`, per card from `sm`); `.u-hero-settle` + `.u-lift-in` (hero photo and headline — transform only, never opacity, because the hero is the LCP); `.u-attention` (three beats on an overdue to-do badge, then still); `.u-header-elevate` (the header's shadow deepens over the first 120px of scroll, via a pseudo-element's opacity on `scroll(root)`). Card photos zoom 1.04 on hover and the card presses to 0.985 unless the press is on one of its buttons.
   - **Keyframes use `translate`/`scale`, never `transform`.** A `both`-filled entrance holds its last frame forever, and a held `transform: none` silently kills every transform-based hover/press on that element (`.u-press`, `.u-card-interactive`, `.u-btn-primary`). Don't put an entrance on an element that uses Tailwind's `translate-*`/`scale-*` utilities either — that is the property they now share.
   - To stagger a list that shares its parent with other elements, wrap the `map` in `<div className="u-stagger contents">`: no box, so the parent's gap is untouched, and `nth-child` counts only the rows.
@@ -802,13 +769,146 @@ loading or error boundary anywhere outside the client portal and `/admin`.
 - **Deliberately not done here:**
   - **Cacheable HTML.** The locale cookie makes every route dynamic (see
     "Bilingual FR/EN"). The fix is the `app/[locale]/` migration, a URL change
-    that is a product decision in its own right.
+    that is a product decision in its own right. (Since 2026-11-21 Cloudflare
+    may keep the ANONYMOUS French render of the main public pages for a
+    minute — "Edge caching of anonymous HTML" below; still dynamic at origin.)
   - **Direct-to-Storage per-photo uploads with progress.** That needs
     signed upload URLs, ownership checks on the returned paths, and a new
     offline-replay contract. Shrinking already removes most of the upload time.
   - **`PropertyCard` as a Server Component.** It renders inside client parents
     (`ListingsSplitView`, both rails), so it stays a client component until
     those are restructured.
+
+### Public JS and HTML diet (2026-11-21)
+
+Measured on live 2026-11-21: ~370 KB compressed first-party JS on `/`,
+`/listings` and a listing (28 scripts; 257 KB gzip on 2026-09-15), and 67–79 KB
+compressed HTML, of which ~104 KB raw was the i18n dictionary in the RSC
+payload. Before/after on a local `next build --webpack` (same bundler both
+sides; production is Turbopack, so absolute sizes differ), first-load JS =
+main-app + every layout/error/loading/not-found entry of the route + the page,
+`next/dynamic` chunks excluded (gzip -9; React + Next runtime are a fixed
+~126 KB of each):
+
+| Route | Before | After |
+| --- | --- | --- |
+| `/` | 281.1 KB (35 scripts) | 239.8 KB (33) |
+| `/listings` | 305.9 KB (40) | 298.8 KB (40) |
+| `/listings/[id]` | 281.3 KB (40) | 244.3 KB (36) |
+| `/location/…` | 254.5 KB | 211.7 KB |
+| `/a-propos` | 217.8 KB | 182.9 KB |
+
+`/listings` moves little: FilterBar, MapQuickFilters and SortDropdown import
+the same Radix primitives statically. The dictionary each page carries, from
+`pickMessages` over the real layout lists (JSON as escaped in the flight
+payload): every public page 105.6 KB (31.2 KB gzip) before; after, home
+47.0 KB (14.6), /listings, a listing, landing pages, /guides, /combien-coute
+37.5 KB (12.3), /compte/* 95.6 KB, /agents/[id] 32.5 KB (was 84.2).
+`tests/unit/public-js-diet.test.js`, `i18n-namespaces.test.js`.
+
+- **Header's drawer and account menu are on-demand chunks**
+  (`components/HeaderDrawer.js`, `HeaderAccountMenu.js`): Radix Dialog /
+  DropdownMenu / Popper, react-remove-scroll and tailwind-merge left every
+  public page. The ☰ is a plain button (`aria-haspopup`, `aria-expanded`)
+  that fetches the drawer on hover / focus / touch and mounts it on first
+  open; focus goes back to it on close (`returnFocusRef`). A signed-in
+  visitor gets a look-alike account button until the menu's chunk arrives.
+  The test fails if Radix, `components/ui/*` or `lib/constants.js` come back
+  into the shell's static graph.
+- **The WhatsApp sheet and the visit dialog load on demand**:
+  `WhatsAppIntentSheet.js` keeps the button, routing, tap logging and the
+  « message parti ? » card; the sheet (Radix Sheet + PhoneField and its
+  country list) is `WhatsAppIntentPanel.js`. `EnquiryCard`'s
+  `VisitRequestDialog` likewise. Both are fetched on hover / focus / touch;
+  on the listing page (the page's main actions) also once the browser is
+  idle, never under Data Saver (`prefersLightData`). The visit dialog is
+  mounted closed after that idle load, as before, so the account prefill
+  still arrives before the tap.
+- **`lib/iconStyle.js`** holds ICON_SIZE / ICON_STROKE_WIDTH /
+  ICON_ACCENT_CLASS (re-exported by `lib/constants.js`); shell components
+  import it so the 12 KB constants module is not in every page.
+- **`storedPosition` (lib/listingPin.js) no longer imports mapViewport**, which
+  pulled the geocoder, quartier data and the city list into the listing
+  page for a range check on two numbers.
+- **Motion**: not imported anywhere on this branch's public pages (the test
+  walks the static graph of the shell, home, /listings and a listing). On the
+  app branch (origin/master) Motion's `m` components are imported by the app
+  shell (`AppTabBar`, `AppHomeTop`, `components/app/*`): put them behind
+  next/dynamic or CSS when merging, or this test fails — that is its job.
+- **The dictionary ships per section** (dot-path subtrees, see "Bilingual
+  FR/EN"): the (site) shell keeps `breadcrumb listings enquiry search` and a
+  few subtrees (`account.limits`, `account.requests.call`,
+  `account.move.steps.reasons`, the phone field's five `auth.*` labels,
+  `auth.nudge`, `chat.inbox.unreadLabel`, `chat.cta`, `chat.errors`,
+  `home.search`, `home.exploreCommunes`, `home.popularCommunes`); `home`
+  ships from `(home)/layout.js`, `account auth chat` from `compte/layout.js`,
+  `account auth` from `favoris/`, `chat auth` from `messages/`, `auth` from
+  `mot-de-passe-oublie/`; `(portfolio)` takes subtrees too. `about`,
+  `contact` and `updates` are server-only and no longer ship.
+- **Not done**: the home hero's search (`LocationAutocomplete` + gazetteer +
+  search parser, ~55 KB raw) is above the fold and wired into SearchBar's own
+  parsing — a lazy split there needs its own pass; `listings` (20 KB of
+  copy) still ships on every public page; FilterBar on /listings is 31 KB raw.
+
+### Edge caching of anonymous HTML (2026-11-21)
+
+Every public page was `private, no-store` (`cf-cache-status: DYNAMIC`), so
+each one crossed to Paris. `lib/edgeCache.js` + `middleware.js`: for `/`,
+`/listings`, `/listings/<id>`, `/location…`, `/vente…`, `/combien-coute…`,
+`/guides…`, a GET with **no `lukka_*` cookie, no `lp_staff`, NEXT_LOCALE
+absent or `fr`, no RSC / router / `next-action` header, no `_rsc=` and no
+`x-lukka-url-locale`** gets `Cache-Control: public, max-age=0, must-revalidate`
+(browsers keep nothing) and `CDN-Cache-Control: public, max-age=60,
+stale-while-revalidate=300` (Cloudflare only). Next keeps a Cache-Control the
+proxy set on a dynamic page; any other request keeps `private, no-store`.
+A response that sets a cookie is never marked.
+
+- **Why it is safe**: on those routes the server render reads only the
+  customer session (home's "Biens enregistrés", the listing's
+  ProjectFitLine), the demo / "view as" cookies (banners) and the locale —
+  all excluded. Header state, favourites, the visit cart and currency are
+  read in the browser. **A new server-side cookie or header read on these
+  routes must be added to `isPersonalCookie` / `edgeCacheable`, and a new
+  personal cookie must be named `lukka_…`** (the Cloudflare rule bypasses on
+  that prefix). `tests/unit/edge-cache.test.js`.
+- **Accepted staleness**: a price change, a listing going offline or a new
+  listing shows up to 60 s late (+ one stale hit while Cloudflare
+  revalidates); a streamed error page could be kept 60 s.
+- **The owner must add the Cloudflare rule** (nothing is cached until then;
+  Caching → Cache Rules → Create rule, name "Anonymous public pages"), custom
+  expression:
+
+  ```
+  (http.host eq "lukkaplace.com" and http.request.method in {"GET" "HEAD"}
+   and (http.request.uri.path in {"/" "/listings" "/location" "/vente" "/combien-coute" "/guides"}
+        or starts_with(http.request.uri.path, "/listings/")
+        or starts_with(http.request.uri.path, "/location/")
+        or starts_with(http.request.uri.path, "/vente/")
+        or starts_with(http.request.uri.path, "/combien-coute/")
+        or starts_with(http.request.uri.path, "/guides/"))
+   and not http.cookie contains "lukka_"
+   and not http.cookie contains "lp_staff"
+   and not http.cookie contains "NEXT_LOCALE=en"
+   and not http.request.uri.query contains "_rsc=")
+  ```
+
+  Then: **Cache eligibility: Eligible for cache. Edge TTL: Use cache-control
+  header if present, bypass cache if not** (Cloudflare reads
+  CDN-Cache-Control). **Browser TTL: Respect origin.** Cache key: default
+  (query string included). If the dashboard offers status-code TTLs, set
+  400–599 to "No store". Check: `curl -sI https://lukkaplace.com/listings`
+  twice → second `cf-cache-status: HIT`; with
+  `-H 'Cookie: lukka_logged_in=1'` → `BYPASS` or `DYNAMIC`, never HIT.
+- **Ad clicks carry a unique `fbclid`**, and the query string is in the cache
+  key, so ad landings miss the cache. If the plan allows excluding query
+  parameters from the cache key, exclude `fbclid`, `gclid`, `ttclid` and
+  `utm_*` (no server render reads them; check before adding another).
+- **Deploys**: HTML kept at the edge (≤ 60 s + one stale hit) names the
+  previous build's chunks, and a swap deletes them — the unstyled-site
+  failure. Keep the old `/_next/static` files in the new build
+  (`cp -rn <old>/.next/static/. <new>/.next/static/` before the restart), or
+  purge the cached pages (Custom purge by URL) right after it. Not done in
+  the deploy procedure yet.
 
 ## Phone numbers are international now — the country is data, not a guess
 
@@ -1198,6 +1298,14 @@ migration is to `app/[locale]/`, not to reading the cookie in fewer places.
   real import graph and fails if a client component resolves a namespace its
   layout doesn't provide — that gap is otherwise silent in production, warned
   about only in dev.
+  - **A layout can ship a dot-path subtree** (`'account.limits'`, 2026-11-21,
+    `lib/i18n/messageSubset.js`); providers deep-merge. For a namespace a
+    chain ships only in subtrees, the same test checks every key literal (or
+    template prefix) in everything the browser runs under that layout —
+    `import()` targets and plain lib files included. A key built from a bare
+    variable right after the namespace fails it: ship the namespace whole in
+    that section's layout. Which sections ship what: "Public JS and HTML
+    diet" under Mobile performance.
 
 ### The three mistakes that actually happened here, repeatedly
 
@@ -2243,8 +2351,6 @@ anywhere. `tests/unit/seo-pages.test.js`.
   reading a listing, renting without scams, buying from the diaspora. No
   market figures in them (those live on the landing pages); the diaspora one
   says to consult an avocat/notaire. Review the copy before promoting it.
-  (Since 2026-11-11 only the 3+1+1 guide remains — see "The 3 + 1 + 1 guide
-  and `:::calculateur`" under Guides & Actualités.)
 - **Sitemap** now lists landing pages with listings and the guides instead
   of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
   landing pages; Guides joined the Lukka Place column.
@@ -3035,22 +3141,8 @@ From an owner walkthrough on a phone. Engine migration
     subscription active. A second callback is a no-op.
   - **The API shape comes from the community SDK's docs, not FlexPaie's own**
     (none was available): confirm field names and codes with a sandbox
-    payment before setting the key in production.
-  - **Checkout page (2026-11-12)**: `/compte/agent/abonnement/paiement?forfait=<id>`
-    (`components/AgentCheckout.js`, pure rules `lib/checkoutRules.js`,
-    `tests/unit/agent-checkout.test.js`), built from the "Paiement abonnement
-    agent" design. Plan, price and perks are the `packages` row; agency and
-    phone the agent's own. Operator choice (M-Pesa / Orange / Airtel) only
-    words the instructions — FlexPaie routes by number. Departures from the
-    design, on purpose: no card (not built), no "Abonnement automatique"
-    (FlexPaie push has no recurring mandate), no "non remboursable" (no terms
-    say so; the checkbox links `/conditions`). Flow: initiate → waiting
-    (poll `/status` every 4 s, up to 5 min) → paid / failed / timeout.
-    The plan picker shows "Payer en ligne" only when `isFlexpaieConfigured()`;
-    otherwise the request queue is unchanged. **Going live** = the three
-    FlexPaie env vars on the server (after a sandbox payment) + the
-    `agentSubscriptions` switch on `/admin/settings`; a free or trial plan is
-    never payable online.
+    payment before setting the key in production. There is no payment UI yet;
+    the Abonnements tab stays hidden until there is.
 
 ## Console create / delete for listings and agents (2026-10-20)
 
@@ -3973,9 +4065,8 @@ Tests: `tests/unit/blog.test.js`.
   segment's skeleton; the index lives in `guides/(index)/` with its own.
 - **No HTML anywhere.** The body is a textarea in a small format parsed by
   `parseBody` (`## titre`, `- point`, `1. étape`, blank line = paragraph,
-  `[texte](/chemin)` or https links only, plus the rich blocks below) into
-  the same blocks the code guides use, rendered by
-  `components/blog/ArticleBody.js` as text.
+  `[texte](/chemin)` or https links only) into the same blocks the code guides
+  use, rendered by `components/blog/ArticleBody.js` as text.
 - **Linked to the listings**: a post can name a transaction, a commune and a
   type; the article ends with three live listings (`getListings`, public gate)
   and a button to the matching landing page (`postListingsHref`: `seoPath`,
@@ -3988,52 +4079,6 @@ Tests: `tests/unit/blog.test.js`.
 - Every write is audited (`blog.create|update|unpublish|delete`, body length,
   never the text). Delete is soft and frees the slug. Preview at
   `/admin/blog/[id]/apercu` whatever the state or the switch.
-- **Rich blocks, written with Claude (2026-11-10, owner decision: articles are
-  written in Claude, not in a console editor).** The body format gained pipe
-  tables and `:::` directives — `tableau`, `chiffres` (key figures),
-  `graphique` (bars / line; `source=` required), `astuce|attention|info`,
-  `citation`, and two LIVE blocks: `prix` (the price guide's medians via
-  `getPriceGuides`, a commune short of listings is named, never priced) and
-  `annonces` (three public listings). `parseBody` never throws (an unreadable
-  block is `{invalid}`); `bodyProblems` makes Save and the import refuse it
-  with the block's name (`badBlock` + `detail`). Still no HTML path.
-  Rendering: `components/blog/ArticleBody.js` (async; a plain body stays
-  translator-free), `BlogChart.js` (server HTML bars / SVG line, axis from 0,
-  no chart library), `LiveBlocks.js` (`:::prix`), `LiveListings.js` — passed
-  as `listingsBlock` by the public page ONLY, because PropertyCard's client
-  namespaces are not provided under /admin; the preview names the search.
-  Motion: `Reveal.js` arms a below-the-fold block and plays it on scroll
-  (`[data-reveal]` in globals.css: rise, bars grow, line draws), `CountUp.js`
-  counts the first number of a key figure (writes textContent, no state);
-  SSR output is the final content and reduced motion shows it still.
-- **`npm run blog:import -- content/blog/<slug>.md [--write]`**
-  (`scripts/blog-import.mjs`): header between `---` lines (titre, resume,
-  categorie, slug, commune, type, transaction, couverture, couverture_alt,
-  titre_en, resume_en), French body, optional English after
-  `=== english ===`. Dry run by default; new posts are drafts, a re-import
-  updates the text and KEEPS the state (a published post's new text is live —
-  it warns); a local cover is resized and uploaded like the console's. Audited
-  as `script:blog-import`. Source files live in `content/blog/`; the writing
-  rules are the user-level `lukka-blog` skill.
-  `tests/unit/blog-rich-blocks.test.js`.
-- **The 3 + 1 + 1 guide and `:::calculateur` (2026-11-11, owner decision).**
-  `lib/guides.js` now holds ONE code guide, `garantie-3-1-1-kinshasa`,
-  rewritten around Loi n° 15/025 (arts. 3, 5, 10, 17–22, 39, 43, sourced in
-  the text) with an interactive calculator. The three other guides were
-  deleted on the owner's request; `next.config.mjs` 308s their URLs to
-  `/guides` (`REMOVED_GUIDE_SLUGS`), and SeoLandingPage lists the one guide on
-  rental pages only. A code guide may carry an `en` version (title,
-  description, body, optional cta — all or nothing, like a post);
-  `articleFromGuide(guide, locale)` serves it to an English reader.
-  The calculator is a block, `{ calculator: { kind: 'garantie' } }`, also
-  writable in a post as the one-line `:::calculateur` (`CALCULATORS`).
-  Maths in `lib/depositCalc.js` (pure: the three costs stay separate, the
-  first advance month is rent, legal ceiling 3 / first month only / 1);
-  UI `components/blog/DepositCalculator.js` (client, opens on 670 $ 3+1+1);
-  `LiveDepositCalculator` (LiveBlocks.js) resolves `guides.calculator.*` as
-  templates and passes `getCdfRate()` with its own date, so FC amounts are
-  "≈" at the site's reference rate, never an editable or dealing rate.
-  `tests/unit/deposit-guide.test.js`.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
 
@@ -4405,10 +4450,7 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   node:crypto → access token → searchAnalytics + sitemaps, cached 10 min,
   never throws. Env `GSC_SERVICE_ACCOUNT_JSON` (raw JSON or base64),
   `GSC_PROPERTY` (default `sc-domain:lukkaplace.com`). Setup steps are on the
-  page. **Connected 2026-11-10** (service account
-  `lukka-seo-reader@project-93c8620f-b903-4735-9e2.iam.gserviceaccount.com`,
-  Restricted user; key base64 in the VPS `.env.local`); checked live:
-  queries, positions and the sitemap come back.
+  page. **Not connected yet, so that half is unverified against Google.**
 - **Coverage** per commune (≤5 listings = thin, 0 = noindex page) and
   **listing quality** over every public listing (<3 photos, no commune, no
   quartier, description <120 chars, no price, land with bedrooms and no
@@ -4417,34 +4459,6 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
   /admin/settings links over the env ones, no WhatsApp, query strings
   stripped). Before, only `NEXT_PUBLIC_*_URL` was read, so the Instagram and
   TikTok links the footer showed never reached Google's Organization data.
-
-## Keyword listing URLs and the homepage's search words (2026-11-10)
-
-First Search Console week: 174 impressions, average position 16; the
-homepage ranked for "luka place" and little else, "maison à louer à
-kinshasa" sat at 58. mediacongo and expat.com own those searches, with the
-words in every listing URL and title.
-
-- **Listing URLs carry words**: `/listings/509-appartement-1-chambre-a-louer-limete`
-  (`lib/listingSlug.js` `listingPath`; kind → rooms → louer/vendre → commune,
-  quartier or city; French whatever the reader's language; a missing fact is
-  left out). The id is the only part read back (`getListingById` parses the
-  leading integer), so `/listings/509`, an old slug and every WhatsApp link
-  open the same page. **No redirect, by choice**: the page declares the slug
-  URL canonical and the sitemap, JSON-LD and public cards (`PropertyCard`,
-  map previews, `RecentlyViewed`, agent profile, landing-page ItemList) link
-  it — a 308 would cost a Kinshasa phone ~330 ms on every old link.
-  Dashboards, admin and messages still build `/listings/<id>`; that is fine.
-- **Analytics unchanged**: `ListingViewTracker` records `/listings/<id>`
-  whatever the address; `listingIdFromPath` and `lib/localePaths.js`
-  (`/en/listings/…`) accept either form, so a slug page is not counted again
-  as a site page. `tests/unit/listing-slug.test.js`.
-- **Homepage**: its own `<title>` / description (`home.seoTitle`,
-  `home.seoDescription`; a title saved on /admin/cms still wins) and a small
-  first line inside the hero `<h1>` (`home.hero.kicker`, "Maisons et
-  appartements à louer et à vendre à Kinshasa et en RDC") above the stacked
-  nouns. The phone hero grew 19.5 → 22.25rem so the "N nouveaux biens" pill
-  stays clear of the search panel. The site-wide default title is unchanged.
 
 ## English pages for search engines — `/en/…` (2026-11-05)
 
@@ -5134,7 +5148,8 @@ This replaces the 2026-10-27 "no target" decision on that page.
 - **Entry** = where a sign-up started (`lib/signupFunnelRules.js`
   `SIGNUP_ENTRIES`): favorite / save_search / alert (AuthPromptModal, by its
   `trigger`), nudge (SignupNudge), messages, updates, login_page,
-  partner_invite (static links), price_guide (reserved), direct (no or
+  partner_invite (static links), price_guide (the guide pages' alert, a
+  prompt since 2026-11-21), direct (no or
   unknown entry). It rides to `/compte/inscription` as `?entree=`, then a
   hidden `entry` field into `signupAction`. A new sign-up link adds
   `withSignupEntry(href, entry)`; a new entry is added to the rules list,
@@ -5480,3 +5495,215 @@ is open. Not built: the sheet's sort and the "above the median rent" line.
 **App home: market figures and the card slot (2026-11-13).** Under the listings rail the app home shows the website's own `HomeMarketExplorer` (same `marketCommunes(getPriceGuides())` feed and 60-second copy as HomeMarketBand), then `components/app/AppPromoCarousel.js`: a card slot fed by `lib/appPromoRules.js` `promoItemsFromArticles` (the latest guides and news; a card without a cover draws no picture). The slot takes plain `{ href, title, kicker, imageUrl }` items so its feed can become partner agencies later without a layout change. **The zone's line** is now solid brand blue, 3.5px, and keeps up to 64 corners (`MAX_ZONE_POINTS`) so it follows what was drawn.
 
 **Store legal requirements (2026-11-14).** `/confidentialite` is the stores' Privacy Policy URL and `/contact` their Support URL; the values to paste are in `mobile/store/google-play-listing.md`, "Legal requirements". The policy text is `lib/legal/privacyPolicy.js` (French and English, same section ids in the same order; `#suppression` is the stores' deletion link and must keep its id): every sentence describes what the code does, so a new data flow (a permission, a third party, something stored about a device) changes that file in the same commit. It is plain-language, not lawyer-reviewed. `lib/legal/contact.js` holds the one e-mail address (the terms' own, article 1) and the desk WhatsApp number. `/contact` shows WhatsApp and e-mail and states no opening hours or answer time (none decided). In the app the footer is gone, so `components/app/AppLegalLinks.js` puts Aide et contact / Confidentialité / Conditions as three small links under "Se déconnecter" on both Compte screens (`/compte/menu`, `/compte/agent/menu`). `tests/unit/store-legal.test.js`.
+
+## Marketing plan, first fixes (2026-11-21)
+
+From the marketing plan (production data, 18–20 Nov): 9,893 paid Facebook
+visitors, 7 WhatsApp taps (0.07 %) against 10.6 % of organic visitors the
+week before; the sign-up nudge made 2 accounts from 197 showings in 30 days.
+`tests/unit/marketing-quick-wins.test.js`.
+
+- **"Pas encore trouvé ?" in the /listings feed** (`components/FeedRequestCard.js`,
+  rendered by `ListingsSplitView`'s `renderCard`): once, after the 6th card or
+  the last of a shorter first page (`feedRequestIndex`), page 1 only. It links
+  to `/trouver-pour-moi` with the search's transaction, commune, type, budget
+  and bedrooms (`feedRequestHref` in `lib/guestRequestRules.js`; the form's
+  `guestRequestPrefill` re-checks them). No account: the request goes to the
+  agencies of the commune, who answer on WhatsApp.
+- **Sign-up opens on the three-field form** with its benefits. The moving
+  questionnaire (`MoveOnboarding`) comes first only with `?projet=1`;
+  `?direct=1` still works. The questions are asked after the account exists
+  (Accueil's "Parlez-nous de votre déménagement"). The invite page no longer
+  says the number is confirmed by WhatsApp (false since 2026-11-06).
+- **Trust facts beside the agent** (`components/listings/AgentTrustLine.js`,
+  rules `lib/agentTrustRules.js`): "Numéro vérifié" only when the listing
+  carries `agent_phone` (verified + routable), "N biens en ligne" and
+  "N biens loués ou vendus" from `getAgentTrackRecord` (one query per request,
+  React `cache`), from 1. Never a negative. Phone row (`ListingAgentRow`) and
+  under the desktop EnquiryCard.
+- **Thin landing pages leave the index**: a type in one commune, or in a city
+  other than Kinshasa, needs `MIN_NARROW_LANDING_LISTINGS` (3) to be indexed
+  (`landingIndexable`) and listed in the sitemap (`landingPathsFromFacets`);
+  78 of 199 indexed landings had ≤ 2. Communes, cities and Kinshasa-wide type
+  pages keep "from 1". Landing pages now carry the first listing photo as
+  `og:image` (WhatsApp / Facebook previews showed none).
+- **Sitemap dates are real**: no more `lastModified: now`. Home and /listings
+  carry the newest listing's date; static, discovery and landing pages none.
+- **Structured data**: the site is an `Organization` (was `RealEstateAgent`,
+  against "platform, not agency"); a listing's Offer names its agent as
+  `offeredBy` (displayableAgencyName — never a number), Lukka Place stays
+  `provider`.
+- **`/llms.txt`** (`app/llms.txt/route.js`, `lib/llmsTxt.js`): the pages an AI
+  assistant can cite, with every price-guide page. ChatGPT was the top source
+  of WhatsApp taps in the ten days before the ad.
+- **An ad landing is not a search** (`lib/adLanding.js`): a /listings URL with
+  `utm_*`, `fbclid`, `gclid` or `ttclid` records no `search_events` row and no
+  Meta "Search" event (from 11-19 the ads logged about one search per paid
+  visitor). The `[search]` log line is kept with `landing: true`. FilterBar
+  rebuilds the URL without ad parameters, so the visitor's own next search
+  counts.
+- **Not done here (owner's accounts):** the Meta Pixel id and `META_CAPI_TOKEN`
+  (code ready since 2026-10-27), the ad's landing URL and placements, Bing
+  Webmaster and the Google Business Profile verification.
+- **WhatsApp tap drop, 2026-11-19 15:17 UTC → 11-21 (cause not found).**
+  The listing page's bottom-bar WhatsApp recorded no tap for ~38 h while
+  listing visitors peaked; organic visitors who opened a gallery tapped ~25 %
+  of the time before and 0 % after. The `whatsapp_clicks` id sequence has no
+  gaps; there were no rate-limit refusals, no deploy or setting change, and
+  the tap-path files on the VPS matched HEAD. A local test (writes stubbed)
+  shows sheet → choice → beacon → wa.me working. Two changes so the next one
+  can be answered and a slow page loses no customer:
+  - **Funnel log lines** (`lib/waSheetRules.js`, `POST /api/telemetry/wa-sheet`):
+    `[wa-sheet]` `open` / `choose` from the sheet, and one `[lead-click]` line
+    per tap the endpoint answers, each with the browser kind (`fb_inapp`,
+    `ig_inapp`, `webview`…). `grep -E '\[(wa-sheet|lead-click)\]'` in the web
+    pm2 log: opens without chooses = people leave the sheet; chooses without
+    lead-click lines = taps lost on the way.
+  - **The listing page's triggers are real links** (`WhatsAppIntentButton
+    standalone`, MobileListingBar and EnquiryCard): `<a href=wa.me…>` until
+    hydration, then the sheet. Cards keep the `<button>` (they sit inside a
+    card link). A tap before hydration reaches WhatsApp unrecorded.
+
+## Measurement fixes (2026-11-21)
+
+Three gaps found while reading the Facebook-ad traffic.
+`tests/unit/measurement-fixes.test.js`, engine verify-pipeline §128.
+
+- **The landing query is stored** (`page_views.query`, engine
+  `migrations/20261121_page_views_query.sql` — **run it at deploy**; the code
+  works before it: `recordPageView` falls back on 42703 and skips the query
+  tier for a minute). `path` drops the query, so an ad opening
+  `/listings?ville=toutes&transaction_type=location` looked like a plain
+  `/listings` visit. `SitePageViewTracker` / `ListingViewTracker` send
+  `cleanLandingQuery(window.location.search)` and `lib/trackIngest.js` cleans
+  it again (`lib/landingQuery.js`): a WHITELIST of `/listings` filters and
+  `utm_*`, one value per key, ≤80 characters per value, no phone-shaped value,
+  ≤400 in all (the migration's CHECK). No `q`, phone, name, token, code, click
+  id or map coordinates — a key nobody thought of may carry a person.
+- **Plausible goals** (`lib/plausibleGoals.js`): `WhatsApp tap` (in
+  `trackLeadClick`), `Account created` (a customer account created on
+  /compte/inscription or activated on /compte/activer), `Alert created` (a
+  saved search the API answered `added` — it now returns `{ ok, status }` —
+  or the alert a "Mon projet" created). Server Actions queue a goal in the
+  `lp_goal` cookie (`lib/plausibleGoalServer.js`, 10 min, goal names only,
+  never for a demo account); `components/PlausibleGoals.js` (root layout)
+  fires it on the next page and clears it. Sent through Plausible's own queue
+  shim; nothing throws when Plausible is blocked. **The owner must add the
+  three names as custom-event goals in the Plausible dashboard**, exact
+  spelling, or Plausible shows nothing.
+- **Agent sign-ups send CompleteRegistration** (`registrationAdEvent`,
+  `lib/adTrackingRules.js`): `reg-a-<agent id>`, `content_name` "Compte agent"
+  / `content_category` "agent" (customers keep `reg-c-<id>`, now with "Compte
+  client" / "customer"), browser + server under one id as for customers. It
+  fires when the agent's number is proven for the FIRST time (code on
+  /compte/agent/inscription/verifier, the WhatsApp proof, or a login that
+  collects a pending proof) — what completes an agent sign-up; the form submit
+  only creates an unproven row and sends nothing. Nothing leaves without a
+  pixel id (`metaPixelId` null = no-op) or consent. The browser copy waits in
+  `lp_adq` for the next storefront page (AdTracking is mounted in `(site)`
+  only; the agent lands on /compte/agent/parametres); the server copy goes at
+  once. TikTok gets the event without the content fields.
+- **Not on this branch:** production's `feat/agent-app-push` "Continuer avec
+  WhatsApp" sign-in (`checkWhatsAppSignInAction`) fires `reg-c-` on a new
+  account's first proof; when merged it should also queue `Account created`
+  and pass `registrationParams('customer')`.
+## Price guide and agent profile SEO (2026-11-21)
+
+From the marketing plan: the price guide (`/combien-coute`, ~5,000 price
+observations, every commune × bedrooms median from 5 listings) is the site's
+unique asset, but only the homepage linked to it, it showed no date, carried
+no structured data and asked for nothing; ChatGPT already sends the
+best-converting visitors, and assistants cite dated, sourced figures.
+Pure rules: `lib/priceGuideSeo.js`, `lib/agentProfileSeo.js`.
+`tests/unit/price-guide-agent-seo.test.js`.
+
+- **"Mis à jour le <date>" is a date from the data**, never the request's
+  clock. `lib/marketGuide.js` gives every guide row a `seen_at` (a Lukka
+  listing: the later of creation and approval; an observation:
+  `last_seen_at`, refreshed by the nightly collection) and the guide query
+  returns `updated_on` = the newest one behind the commune × bedrooms pair,
+  on the Kinshasa calendar (`UPDATED_ON_SQL`, also in the pre-migration
+  fallback). `getPriceGuides` → `updatedOn`; the index shows the newest across
+  all guides. Both pages say what the date means (`home.prices.updatedNote`).
+  **Not yet run against production** (a read-only probe was not permitted in
+  the building session): run the guide query once `BEGIN READ ONLY` before
+  deploying — `getPriceGuides` returns `[]` on any SQL error, which would
+  empty the guide, the homepage band and their sitemap entries.
+- **Structured data**: a schema.org `Dataset` on each guide (question as name,
+  answer + range + sources as description, the method text as
+  `measurementTechnique`, the commune as `spatialCoverage`, `dateModified`
+  from the data, creator/publisher the site Organization `@id`, the median
+  with p25/p75 and the listing count as `variableMeasured`) and on the index
+  (each guide as `hasPart`). No `distribution`: there is no file to download.
+- **Share image**: `combien-coute/[slug]/opengraph-image.js` (+ twitter twin),
+  the Indice Lukka card style — question, median, count, range, date. French
+  always; an unknown slug is a 404.
+- **Links to the guide**: the landing pages' "Le marché en chiffres" (a
+  commune page lists its guides by bedrooms with the guide's median; other
+  pages link the index — never a slug that does not exist), the listing
+  page's market line (`MarketMedianLine`: the guide for the listing's commune
+  × bedrooms, long-term rentals only; below the 1,000-listing threshold the
+  line is that link alone, with no figure, so the owner's hidden median stays
+  hidden), and "Prix des loyers" in the footer's Annonces column (code-level,
+  `components/Footer.js`). Pages that only link read `cachedPriceGuides()`
+  (`lib/memo.js`, 5 min, a failed read not kept).
+- **The guide's alert sends listings, not prices**: "Nouvelles locations à
+  <commune>" saves the guide's own search (`guideAlertQuery`: rentals, the
+  commune, at least that many bedrooms, long term; `ville` outside Kinshasa)
+  through `QueryAlertButton` with `trigger="price_guide"` — signed in, the
+  usual confirm; a guest, `AuthPromptModal` with sign-up entry `price_guide`
+  (now in `PROMPT_ENTRIES`). The copy says it is not a price report. A monthly
+  price report does not exist; build it before promising one.
+- **Agent profiles** (`/agents/[id]`): the meta description is built from the
+  public name (never a phone number — "Une agence"), the declared communes
+  (three, then "et N autres communes") and `live_listing_count`; the bio is no
+  longer the description. og:image = the agency logo (https), else the
+  newest public listing's photo, else the layout's default card (passed on
+  from `parent`, since a page's `openGraph` replaces the layout's).
+- **Sitemap**: agent profiles with at least one public live listing
+  (`getSitemapAgents`, `lib/agencies.js`): active, not deleted, not a demo
+  number (`notDemoAgentSql`), not `is_test`; `lastModified` = their latest
+  listing activity (created/updated), none when unknown.
+
+## Trust and search pass (2026-11-27)
+
+The owner's list after comparing with Zillow, Rightmove and Zoopla. Branch
+`feat/app-design-customer`, which was first synced with production's web code
+the same day (c22b2f70). `tests/unit/trust-features.test.js`.
+
+- **"Signaler cette annonce"** (website and app, foot of the listing's main
+  column): `components/listings/ReportListingButton.js` (the form,
+  `ReportListingDialog.js`, loads on tap), `app/(site)/listings/[id]/reportActions.js`,
+  `lib/listingReportRules.js` (reasons = the migration's CHECK list),
+  `lib/listingReports.js`, table `listing_reports`
+  (`migrations/20261127_listing_reports.sql`, RLS on, no anon grants, no FK
+  to properties). Public listings only; the visitor is the `lp_vid` cookie or
+  the address, stored as a SHA-256; one open report per visitor and listing;
+  5 a minute per visitor. Nothing goes to the agent. The team reads them on
+  **`/admin/signalements`** (`listings.view`; "Traité" / "Ignorer" /
+  "Rouvrir" need `listings.moderate`, audited `listing_report.status`). The
+  row links to the listing's console page, where suspending or correcting
+  happens. Before the migration the form answers "failed" and the page says
+  the table is missing.
+- **"Historique du prix"** (`components/listings/PriceHistory.js`,
+  `lib/priceHistory.js`, `lib/priceHistoryRules.js`): from
+  `property_price_history` only. Start = the price at publication (the
+  badge's bound); only prices on the listing's CURRENT currency, purpose and
+  period are compared (#340's mois/day/jour flips are label corrections);
+  a move of more than 50 % is a typo fix (#831, 2 500 → 20 000 $); no change
+  after publication = no section.
+- **Agent ratings on the profile** (`/agents/<id>`): the brass "4,7 · 12 avis
+  vérifiés" chip and an "Avis clients" section with approved comments, from
+  `getAgentPublicRating` (MIN_PUBLIC_REVIEWS = 5). Launched by the owner,
+  reversing the 2026-11-04 hold. Still never on a listing page (a rating is
+  about the agent). On 2026-11-27 no agent had a review yet, so nothing shows.
+- **Récemment consultés** on the app home (`RecentlyViewed variant="app"`, from
+  two listings up, local only).
+- **"Biens près de moi"** on the app home: `/listings?view=map&pres=1`;
+  ListingsMap runs its own locate step once the map is ready and drops `pres`
+  from the URL. The position only pans the map; it is never in a URL.
+- **Drawing a zone on the website too**: `ListingsSplitView` passes `zoneDraw`
+  everywhere (pointer events, so a mouse draws). `ActiveFilterChips` has a
+  "Zone dessinée" chip that removes `zone` with the box it set. The hint no
+  longer says "avec le doigt".
+- Not checked locally: anything on the Google map (it refuses `localhost`).

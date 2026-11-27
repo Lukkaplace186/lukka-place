@@ -82,7 +82,11 @@ test('with a zone, the list covers the whole zone and the listings read narrows 
   assert.match(map, /<MapZoneDraw map=\{mapReady \? mapInstance : null\} zone=\{urlZone\} onZone=\{setZone\} enabled=\{zoneDraw\} \/>/);
   // The map can be rebuilt after a filter change: the drawing layer gets the current one.
   assert.match(map, /mapRef\.current = map;\s*setMapInstance\(map\);/);
-  assert.match(read('components/ListingsSplitView.js'), /zoneDraw=\{appMode\}/, 'the pencil is the app’s');
+  // The pencil is on in the app and on the website (2026-11-27); a drawn zone
+  // has its own chip that clears the zone with the box it set.
+  assert.match(read('components/ListingsSplitView.js'), /\n\s*zoneDraw\r?\n/, 'the pencil is on everywhere');
+  const chips = read('components/ActiveFilterChips.js');
+  assert.match(chips, /hrefWithoutKeys\(params, \[ZONE_PARAM, \.\.\.MAP_BOUNDS_PARAMS, 'page'\]\)/);
 });
 
 test('the drawing layer takes the touch, never scrolls the page, and the pencil can be made private again', () => {

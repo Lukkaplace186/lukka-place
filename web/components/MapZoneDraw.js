@@ -9,10 +9,10 @@ import { ZONE_DRAW_PUBLIC, simplifyScreenPath } from '@/lib/mapZone';
 // The site's action blue (--blue). Google's shapes cannot read CSS variables
 // (see lib/mapIcons.js), so the token's value is repeated here.
 const ZONE_BLUE = '#1E3AA8';
-// The zone in force: ink-grey inside, near-black edge (the site's --ink,
-// repeated as hex for the same reason).
+// The zone in force: ink-grey inside, and the edge in the action blue
+// (owner, 2026-11-27: the line joins the branding), as hex for Google.
 const ZONE_SHADE = '#2C3444';
-const ZONE_EDGE = '#0B1120';
+const ZONE_EDGE = ZONE_BLUE;
 
 // A screen point inside the map's box → its place on the ground, from the
 // map's own projection (no tilt or rotation on this map).
@@ -80,8 +80,8 @@ export default function MapZoneDraw({ map, zone = null, onZone, enabled = false 
       // A solid line on the path that was drawn (owner, 2026-11-13): the
       // dashed outline read as a suggestion, not as the zone.
       strokeColor: ZONE_EDGE,
-      strokeOpacity: 0.9,
-      strokeWeight: 2.5,
+      strokeOpacity: 1,
+      strokeWeight: 3,
       zIndex: 2,
     });
     shapesRef.current = [fill, outline];

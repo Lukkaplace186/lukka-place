@@ -130,7 +130,8 @@ test('the zone follows the drawing: shaded inside, a solid dark edge, enough cor
   assert.match(draw, /const ZONE_BLUE = '#1E3AA8';/, 'the action blue, repeated as a hex for Google (the stroke while drawing)');
   // 2026-11-27 (owner): the zone in force is an area with its borders — grey inside, a dark edge.
   assert.match(draw, /fillColor: ZONE_SHADE, fillOpacity: 0\.18/, 'the inside is visibly shaded');
-  assert.match(draw, /strokeColor: ZONE_EDGE,\s*strokeOpacity: 0\.9,\s*strokeWeight: 2\.5,/, 'a solid edge on the map');
+  assert.match(draw, /strokeColor: ZONE_EDGE,\s*strokeOpacity: 1,\s*strokeWeight: 3,/, 'a solid edge on the map');
+  assert.match(draw, /const ZONE_EDGE = ZONE_BLUE;/, 'the edge is the brand blue (owner, 2026-11-27)');
   // The zone reaches the address bar before the map moves, so the map's own
   // "area changed" update (which copies window.location) keeps it.
   const map = read('components/ListingsMap.js');

@@ -11,6 +11,8 @@ import { listLeads } from '@/lib/adminApi';
 import { SITE_URL } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
+import AppAddListingWhatsApp from '@/components/app/AppAddListingWhatsApp';
+import { isAppRequest } from '@/lib/appMode';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPortfolioBanner from '@/components/AgentPortfolioBanner';
@@ -167,6 +169,8 @@ async function OverviewMilestones({ agentId, propertyIds }) {
 }
 
 async function OverviewCreateAction({ agentId }) {
+  // In the store app "+" opens the WhatsApp intake (owner, 2026-11-26).
+  if (await isAppRequest()) return <AppAddListingWhatsApp variant="icon" />;
   // Same degrade posture as Mes biens: a failed read costs the dialog its
   // options, never the overview.
   const [listingQuota, createHierarchy, createCategories] = await Promise.all([

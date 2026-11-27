@@ -8,6 +8,8 @@ import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
+import AppAddListingWhatsApp from '@/components/app/AppAddListingWhatsApp';
+import { isAppRequest } from '@/lib/appMode';
 import AgentListingsTable from '@/components/AgentListingsTable';
 import { getListingQuota } from '@/lib/listingQuota';
 import { CONTACT_PATH, UPGRADE_PATH } from '@/lib/listingQuotaRules';
@@ -57,6 +59,9 @@ export default async function AgentListingsPage({ searchParams }) {
   const requestedPage = Math.max(Number.parseInt(params.page, 10) || 1, 1);
 
   const agentId = await getCurrentAgentId();
+  // In the store app a listing is added on WhatsApp, not with the form
+  // (owner, 2026-11-26): the card replaces the "Ajouter un bien" dialog.
+  const app = await isAppRequest();
   // getAgentDashboardContext returns null when the session's agent row is gone
   // (deleted account, restored database, cookie outliving the row). The layout
   // redirects on exactly this condition, but layout and page render
@@ -189,6 +194,7 @@ export default async function AgentListingsPage({ searchParams }) {
         ) : quota?.capped ? (
           <p className="text-xs text-ink-45">{t('agent.quota.usage', { used: quota.used, limit: quota.limit })}</p>
         ) : null}
+        {app ? <AppAddListingWhatsApp /> : null}
         {statusSuggestions && (
           <AgentStatusOfTheDayLauncher
             items={statusSuggestions.items.map(serialiseSuggestion)}
@@ -206,12 +212,14 @@ export default async function AgentListingsPage({ searchParams }) {
             title={`${listings.length} bien${listings.length === 1 ? '' : 's'}`}
             emptyMessage={listings.length === 0 ? t('agent.listings.emptyDashboard') : 'Aucune annonce ne correspond à ces filtres.'}
             action={
+              app ? null : (
               <CreateListingDialog
                 communes={communes}
                 categories={categories}
                 draftKey={`agent:${agentId}:new-listing`}
                 quota={quota ? { atLimit: quota.atLimit, limit: quota.limit, used: quota.used, planTitle: quota.planTitle } : null}
               />
+              )
             }
           />
         </div>

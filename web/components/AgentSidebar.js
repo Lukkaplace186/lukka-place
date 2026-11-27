@@ -220,12 +220,19 @@ export default function AgentSidebar({
                 // Full prefetch: see the sidebar link above.
                 prefetch
                 aria-current={active ? 'page' : undefined}
-                className={`u-press relative flex min-h-[3.625rem] flex-col items-center justify-center gap-1 py-2 text-[0.6875rem] font-semibold transition-colors ${
+                className={`u-press relative flex min-h-[3.625rem] flex-col items-center justify-center gap-1 ${appMode ? 'pb-1.5 pt-4' : 'py-2'} text-[0.6875rem] font-semibold transition-colors ${
                   active ? 'text-blue' : 'text-ink-45'
                 }`}
               >
-                {/* The active tab carries a short bar on its top edge. */}
-                {active && <span aria-hidden="true" className="absolute inset-x-[28%] top-0 h-[3px] rounded-b-[3px] bg-blue" />}
+                {/* The active tab carries a short bar on its top edge; in the
+                    store app, the logo's roofline (app design 2026-11-26,
+                    same mark as the customer tab bar, components/AppTabBar.js). */}
+                {active && !appMode && <span aria-hidden="true" className="absolute inset-x-[28%] top-0 h-[3px] rounded-b-[3px] bg-blue" />}
+                {active && appMode && (
+                  <svg aria-hidden="true" viewBox="0 0 30 10" fill="none" className="absolute left-1/2 top-1 h-2 w-7 -translate-x-1/2">
+                    <path d="M2 9.5 15 1.5 28 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+                  </svg>
+                )}
                 <span className="relative">
                   <item.icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.375rem] w-[1.375rem]" />
                   {!!count && (

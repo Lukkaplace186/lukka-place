@@ -3163,6 +3163,12 @@
         "network": "Connexion perdue. Vérifiez votre réseau et réessayez.",
         "generic": "Une erreur est survenue. Réessayez."
       }
+    },
+    "appAdd": {
+      "title": "Ajouter un bien",
+      "body": "Envoyez les photos et la description sur WhatsApp au {number}. Nous lisons votre annonce et la vérifions avant de la publier.",
+      "cta": "Envoyer sur WhatsApp",
+      "unavailable": "L’envoi sur WhatsApp n’est pas disponible pour le moment. Réessayez plus tard."
     }
   },
   "status": {

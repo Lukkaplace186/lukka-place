@@ -3163,6 +3163,12 @@
         "network": "Connection lost. Check your network and try again.",
         "generic": "Something went wrong. Try again."
       }
+    },
+    "appAdd": {
+      "title": "Add a Property",
+      "body": "Send the photos and the description on WhatsApp to {number}. We read your listing and check it before it goes live.",
+      "cta": "Send on WhatsApp",
+      "unavailable": "Sending on WhatsApp is not available right now. Try again later."
     }
   },
   "status": {

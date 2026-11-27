@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lukka Place app</title>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+@font-face{font-family:"Plus Jakarta Sans";src:url("fonts/pj.ttf") format("truetype");font-weight:200 800;font-display:swap}
+:root{
+  --white:#fff;--page:#f8f9fa;--chalk:#f7f7f5;--mist:#eff1f6;
+  --ink:#0b1120;--ink-70:#2c3444;--ink-45:#5c6679;--ink-35:#7c879c;--ink-25:#cbd2e0;--line:#e2e6ef;
+  --blue:#1e3aa8;--blue-deep:#16307e;--blue-900:#0c1d50;--blue-400:#4761d8;--blue-tint:#eef2ff;
+  --logo:#144fc5;--logo-deep:#0f3fa3;
+  --green:#00b050;--green-deep:#00963f;--green-ink:#007c34;--green-tint:#e6f8ee;
+  --warning-tint:#fbf1df;--warning-ink:#7a5619;--danger:#b3261e;
+  --card:inset 0 0 0 1px var(--line),0 2px 8px rgba(0,0,0,.06);
+  --lift:0 1px 2px rgb(11 17 32/.06),0 8px 24px -6px rgb(11 17 32/.1);
+  --sheet:0 -12px 40px -12px rgb(11 17 32/.22);
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box}
+::selection{background:var(--blue-tint);color:var(--blue-deep)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--chalk);font-family:"Plus Jakarta Sans",-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink-70);letter-spacing:.1px;font-feature-settings:"tnum" 0}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--blue-400);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ---------- presentation sheet ---------- */
+.sheet-head{max-width:1400px;margin:0 auto;padding:40px 24px 8px;display:flex;flex-wrap:wrap;gap:24px 48px;align-items:flex-end;justify-content:space-between}
+.sheet-head img{height:44px;display:block}
+.sheet-head h1{margin:18px 0 0;font-size:28px;line-height:1.2;font-weight:700;color:var(--ink);letter-spacing:-.015em}
+.sheet-head p{margin:8px 0 0;max-width:62ch;font-size:15px;line-height:1.6}
+.legend{font-size:13px;line-height:1.5;color:var(--ink-45);max-width:44ch}
+.flow{max-width:1400px;margin:0 auto;padding:40px 24px 8px}
+.flow>h2{margin:0;font-size:20px;line-height:1.3;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.flow>p{margin:6px 0 22px;max-width:70ch;font-size:15px;line-height:1.6}
+.row{display:flex;flex-wrap:wrap;gap:32px 36px;padding:4px 4px 28px;scrollbar-width:thin}
+.shot{flex:none;display:flex;flex-direction:column;gap:12px;margin:0}
+.shot figcaption{font-size:13px;font-weight:600;color:var(--ink-45);padding-left:6px}
+.foot{max-width:1400px;margin:0 auto;padding:24px 24px 64px;font-size:13px;line-height:1.6;color:var(--ink-45)}
+
+/* ---------- phone ---------- */
+.phone{width:390px;height:844px;background:var(--page);border-radius:44px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 0 0 10px #10131c,0 30px 60px -20px rgb(11 17 32/.45);margin:10px}
+.status{height:46px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;font-size:14px;font-weight:700;color:var(--ink);position:relative;z-index:6}
+.status .ic{display:flex;gap:6px;align-items:center}
+.status svg{width:15px;height:15px;stroke-width:2.2}
+.on-blue .status{color:#fff}
+.scroll{flex:1;overflow:hidden;position:relative}
+svg.lucide{stroke-width:1.75;flex:none}
+
+/* ---------- tab bar (signature: the roofline) ---------- */
+.tabbar{height:82px;flex:none;background:#fff;box-shadow:inset 0 1px 0 var(--line);display:flex;padding:6px 8px 22px;position:relative;z-index:5}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;border:0;background:none;font-size:11px;font-weight:600;color:var(--ink-45);padding-top:11px;position:relative;min-height:44px}
+.tab svg.lucide{width:23px;height:23px}
+.tab .roof{position:absolute;top:0;width:30px;height:10px;opacity:0}
+.tab.on{color:var(--blue)}
+.tab.on .roof{opacity:1}
+.tab .count{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px #fff}
+
+/* ---------- shared ---------- */
+.topbar{height:56px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;background:#fff;box-shadow:inset 0 -1px 0 var(--line);position:relative;z-index:4}
+.topbar h3{flex:1;margin:0;font-size:17px;font-weight:700;color:var(--ink);letter-spacing:-.005em}
+.ibtn{width:44px;height:44px;border:0;border-radius:999px;background:transparent;display:grid;place-items:center;color:var(--ink)}
+.ibtn svg{width:22px;height:22px}
+.pad{padding:0 16px}
+.title-page{margin:0;font-size:24px;line-height:1.2;font-weight:700;color:var(--ink);letter-spacing:-.015em}
+.title-sec{margin:0;font-size:18px;line-height:1.3;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.meta{font-size:14px;line-height:1.5;color:var(--ink-45)}
+.micro{font-size:13px;line-height:1.45;color:var(--ink-45)}
+.price{font-size:24px;font-weight:500;color:var(--ink);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.price small{font-size:14px;font-weight:500;color:var(--ink-45);letter-spacing:0;margin-left:2px}
+.btn{height:50px;border-radius:999px;border:0;font-size:15px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 22px;white-space:nowrap}
+.btn svg{width:20px;height:20px}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-wa{background:var(--green-ink);color:#fff}
+.btn-white{background:#fff;color:var(--logo)}
+.btn-line{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.btn-quiet{background:var(--mist);color:var(--ink)}
+.btn-block{width:100%}
+.wa-glyph{width:20px;height:20px;fill:currentColor}
+.chip{height:36px;border-radius:999px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;background:#fff;color:var(--ink-70);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;border:0}
+.chip svg{width:16px;height:16px}
+.chip.on{background:var(--blue-tint);color:var(--blue-deep);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.chips{display:flex;gap:8px;overflow:hidden}
+.field{height:52px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--ink-25);display:flex;align-items:center;gap:10px;padding:0 14px;font-size:16px;color:var(--ink)}
+.field.focus{box-shadow:inset 0 0 0 1.5px var(--blue),0 0 0 3px rgba(71,97,216,.28)}
+.field .ph{color:var(--ink-45)}
+.label{display:block;font-size:13px;font-weight:600;color:var(--ink-70);margin:0 0 6px}
+.card{background:#fff;border-radius:14px;box-shadow:var(--card)}
+.glass{background:rgba(255,255,255,.92);color:var(--ink);box-shadow:0 1px 3px rgb(11 17 32/.15)}
+.capsule{height:26px;padding:0 10px;border-radius:999px;background:rgba(12,29,80,.62);color:#fff;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.capsule svg{width:13px;height:13px}
+.badge{height:22px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px}
+.badge-wait{background:var(--warning-tint);color:var(--warning-ink)}
+.badge-ok{background:var(--green-tint);color:var(--green-ink)}
+.badge-blue{background:var(--blue-tint);color:var(--blue-deep)}
+.seg{display:flex;background:var(--mist);border-radius:999px;padding:4px;gap:4px}
+.seg button{flex:1;height:38px;border:0;border-radius:999px;background:transparent;font-size:14px;font-weight:600;color:var(--ink-45)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgb(11 17 32/.12)}
+.hr{height:1px;background:var(--line)}
+.photo{display:block;width:100%;height:100%;object-fit:cover}
+
+/* listing card (vertical, results) */
+.lc{background:#fff;border-radius:14px;box-shadow:var(--card);overflow:hidden}
+.lc .ph{height:208px;position:relative}
+.lc .ph .heart{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:999px;display:grid;place-items:center}
+.lc .ph .heart svg{width:20px;height:20px}
+.lc .ph .capsule{position:absolute;left:10px;bottom:10px}
+.lc .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px}
+.lc .spec{font-size:14px;color:var(--ink-70)}
+.lc .where{font-size:14px;color:var(--ink-45);display:flex;align-items:center;gap:4px}
+.lc .where svg{width:15px;height:15px}
+.lc .agent{margin-top:8px;padding-top:10px;box-shadow:inset 0 1px 0 var(--line);font-size:13px;color:var(--ink-45);display:flex;align-items:center;gap:8px}
+.av{width:28px;height:28px;border-radius:999px;background:var(--blue-tint);color:var(--blue-deep);font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
+.av.lg{width:44px;height:44px;font-size:15px}
+
+/* ---------- screen: welcome ---------- */
+.welcome{background:var(--logo);color:#fff}
+.welcome .scroll{display:flex;flex-direction:column;padding:0 28px 34px}
+.welcome .bigroof{position:absolute;left:-30px;right:-30px;top:120px;width:450px;height:260px;opacity:.16}
+.welcome .bigroof path{stroke:#fff;stroke-width:3;fill:none;stroke-linecap:square;stroke-dasharray:900;stroke-dashoffset:900;animation:draw 1.6s var(--ease) .2s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.welcome .brand{margin-top:auto;position:relative}
+.welcome .brand img{width:250px;display:block}
+.welcome h2{margin:28px 0 0;font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.02em;max-width:15ch}
+.welcome p{margin:12px 0 0;font-size:16px;line-height:1.55;color:rgba(255,255,255,.86);max-width:32ch}
+.welcome .actions{margin-top:36px;display:flex;flex-direction:column;gap:10px}
+.welcome .linkbtn{height:48px;border:0;background:transparent;color:#fff;font-size:15px;font-weight:600}
+
+/* ---------- screen: home ---------- */
+.home-head{background:var(--logo);padding:2px 16px 22px;color:#fff;position:relative}
+.home-head .top{display:flex;align-items:center;justify-content:space-between;height:48px}
+.home-head .top img{height:26px}
+.home-head .ibtn{color:#fff}
+.home-head h3{margin:14px 0 14px;font-size:24px;line-height:1.2;font-weight:700;letter-spacing:-.015em}
+.searchbox{height:54px;border-radius:999px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:var(--ink-45);font-size:16px;box-shadow:0 24px 50px -24px rgba(12,29,80,.6)}
+.searchbox svg{width:20px;height:20px;color:var(--ink)}
+.searchbox .go{margin-left:auto;width:40px;height:40px;border-radius:999px;background:var(--blue);display:grid;place-items:center}
+.searchbox .go svg{color:#fff}
+.home-tabs{display:flex;gap:20px;margin-top:14px}
+.home-tabs span{font-size:14px;font-weight:600;color:rgba(255,255,255,.86);padding-bottom:6px}
+.home-tabs span.on{color:#fff;box-shadow:inset 0 -2px 0 #fff}
+.resume{margin:18px 16px 0;padding:14px;display:flex;align-items:center;gap:12px}
+.resume .ic{width:44px;height:44px;border-radius:12px;background:var(--blue-tint);color:var(--blue);display:grid;place-items:center;flex:none}
+.resume .ic svg{width:22px;height:22px}
+.resume b{display:block;font-size:15px;color:var(--ink);font-weight:700}
+.sect{display:flex;align-items:baseline;justify-content:space-between;padding:24px 16px 12px}
+.sect a{font-size:14px;font-weight:600;color:var(--blue);text-decoration:none}
+.rail{display:flex;gap:12px;padding:0 16px;overflow:hidden}
+.rc{width:236px;flex:none}
+.rc .ph{height:150px;border-radius:12px;overflow:hidden;position:relative}
+.rc .ph .heart{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:999px;display:grid;place-items:center}
+.rc .ph .heart svg{width:18px;height:18px}
+.rc .price{font-size:18px;margin-top:9px}
+.rc .meta{font-size:13px}
+.communes{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px}
+
+/* ---------- screen: results ---------- */
+.res-bar{background:#fff;padding:6px 12px 12px;box-shadow:inset 0 -1px 0 var(--line);position:relative;z-index:4}
+.res-q{display:flex;align-items:center;gap:6px}
+.res-q .q{flex:1;height:46px;border-radius:999px;background:var(--mist);display:flex;align-items:center;gap:8px;padding:0 16px;font-size:15px;font-weight:600;color:var(--ink)}
+.res-q .q svg{width:18px;height:18px}
+.res-q .q span{font-weight:500;color:var(--ink-45)}
+.res-bar .chips{margin-top:10px}
+.res-count{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px}
+.res-count b{font-size:15px;color:var(--ink)}
+.res-list{display:flex;flex-direction:column;gap:14px;padding:0 16px}
+
+/* ---------- screen: map ---------- */
+.map{position:absolute;inset:0;background:#e9eef4}
+.map .tiles{position:absolute;left:12px;bottom:146px;font-size:11px;line-height:1.4;color:var(--ink-45);background:rgba(255,255,255,.8);padding:6px 10px;border-radius:8px}
+.pin{position:absolute;transform:translate(-50%,-100%);height:28px;padding:0 10px;border-radius:999px;background:#fff;color:var(--ink);font-size:12.5px;font-weight:700;display:flex;align-items:center;box-shadow:0 0 0 1px rgb(11 17 32/.14),0 2px 6px rgb(11 17 32/.16);font-variant-numeric:tabular-nums}
+.pin::after{content:"";position:absolute;left:50%;bottom:-5px;width:9px;height:9px;background:inherit;transform:translateX(-50%) rotate(45deg);box-shadow:1px 1px 0 rgb(11 17 32/.12)}
+.pin.on{background:var(--blue);color:#fff;z-index:2}
+.map-top{position:absolute;left:12px;right:12px;top:6px;display:flex;gap:8px;z-index:3}
+.map-top .q{flex:1;height:46px;border-radius:999px;background:#fff;box-shadow:var(--lift);display:flex;align-items:center;gap:8px;padding:0 16px;font-size:15px;font-weight:600;color:var(--ink)}
+.map-top .q svg{width:18px;height:18px}
+.map-top .ibtn{background:#fff;box-shadow:var(--lift);width:46px;height:46px}
+.map-zone{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:3}
+.map-prev{position:absolute;left:12px;right:12px;bottom:14px;display:flex;gap:12px;padding:10px;z-index:3;box-shadow:var(--lift),inset 0 0 0 1px var(--line)}
+.map-prev .ph{width:112px;height:112px;border-radius:10px;overflow:hidden;flex:none}
+.map-prev .price{font-size:19px}
+.map-toggle{position:absolute;right:12px;bottom:146px;left:auto;transform:none;transform:translateX(-50%);z-index:3}
+
+/* ---------- screen: listing ---------- */
+.lp-photo{height:290px;position:relative}
+.lp-photo .bar{position:absolute;left:12px;right:12px;top:4px;display:flex;gap:8px}
+.lp-photo .bar .sp{flex:1}
+.lp-photo .ibtn{width:42px;height:42px}
+.lp-photo .ibtn svg{width:20px;height:20px}
+.lp-photo .capsule{position:absolute;right:12px;bottom:12px}
+.lp-body{padding:18px 16px 0}
+.lp-title{margin:6px 0 0;font-size:17px;line-height:1.4;font-weight:700;color:var(--ink)}
+.lp-where{margin-top:6px;display:flex;align-items:center;gap:5px;font-size:14px;color:var(--ink-45)}
+.lp-where svg{width:16px;height:16px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);margin-top:18px;background:#fff;border-radius:14px;box-shadow:var(--card)}
+.fact{padding:14px 12px;display:flex;flex-direction:column;gap:6px}
+.fact+.fact{box-shadow:inset 1px 0 0 var(--line)}
+.fact svg{width:20px;height:20px;color:var(--blue)}
+.fact b{font-size:16px;color:var(--ink)}
+.fact span{font-size:12px;color:var(--ink-45)}
+.entry{margin-top:12px;padding:14px;display:flex;gap:12px;align-items:flex-start}
+.entry svg{width:20px;height:20px;color:var(--ink-45);margin-top:1px}
+.entry b{display:block;font-size:14px;color:var(--ink)}
+.agentcard{margin-top:12px;padding:14px;display:flex;align-items:center;gap:12px}
+.agentcard b{display:block;font-size:15px;color:var(--ink)}
+.actionbar{flex:none;background:#fff;box-shadow:inset 0 1px 0 var(--line),0 -8px 24px -12px rgb(11 17 32/.12);padding:12px 16px 28px;display:flex;gap:10px;position:relative;z-index:5}
+.actionbar .btn{flex:1;padding:0 12px}
+
+/* ---------- sheet (visit) ---------- */
+.dim{position:absolute;inset:0;background:rgba(11,17,32,.42);z-index:7}
+.bsheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;box-shadow:var(--sheet);z-index:8;padding:8px 16px 30px}
+.grab{width:40px;height:5px;border-radius:999px;background:var(--ink-25);margin:0 auto 14px}
+.bsheet h4{margin:0;font-size:20px;line-height:1.3;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.mini{display:flex;gap:10px;align-items:center;margin-top:12px;padding:10px;border-radius:12px;background:var(--chalk)}
+.mini .ph{width:52px;height:52px;border-radius:8px;overflow:hidden;flex:none}
+.mini b{display:block;font-size:14px;color:var(--ink)}
+.days{display:flex;gap:8px;margin-top:10px}
+.day{flex:1;height:64px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:#fff;border:0}
+.day span{font-size:12px;color:var(--ink-45);font-weight:600}
+.day b{font-size:18px;color:var(--ink)}
+.day.on{background:var(--blue);box-shadow:none}
+.day.on span,.day.on b{color:#fff}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.slot{height:44px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);background:#fff;border:0;font-size:14px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.slot.on{background:var(--blue-tint);color:var(--blue-deep);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.slot.off{color:var(--ink-25);text-decoration:line-through}
+.sub{margin:18px 0 0;font-size:14px;font-weight:700;color:var(--ink)}
+
+/* ---------- confirmation ---------- */
+.done{display:flex;flex-direction:column;padding:28px 20px 24px;height:100%}
+.done .mark{width:72px;height:72px;border-radius:999px;background:var(--green-tint);color:var(--green-ink);display:grid;place-items:center}
+.done .mark svg{width:34px;height:34px;stroke-width:2}
+.done h3{margin:22px 0 0;font-size:26px;line-height:1.2;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.done p{margin:10px 0 0;font-size:15px;line-height:1.6}
+.summary{margin-top:24px;overflow:hidden}
+.summary .ph{height:120px}
+.summary dl{margin:0;padding:6px 14px}
+.summary dl div{display:flex;justify-content:space-between;gap:16px;padding:10px 0;font-size:14px}
+.summary dl div+div{box-shadow:inset 0 1px 0 var(--line)}
+.summary dt{color:var(--ink-45)}
+.summary dd{margin:0;color:var(--ink);font-weight:600;text-align:right}
+.done .actions{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+
+/* ---------- saved / account / lists ---------- */
+.sr{display:flex;gap:12px;padding:12px;align-items:center}
+.sr .ph{width:88px;height:88px;border-radius:10px;overflow:hidden;flex:none}
+.sr .price{font-size:18px}
+.sr .heart{align-self:flex-start;color:var(--blue)}
+.sr .heart svg{fill:var(--blue)}
+.alert{display:flex;align-items:center;gap:12px;padding:14px}
+.switch{width:46px;height:28px;border-radius:999px;background:var(--blue);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgb(0 0 0/.2)}
+.switch.off{background:var(--ink-25)}
+.switch.off::after{right:auto;left:3px}
+.menu{overflow:hidden}
+.menu a{display:flex;align-items:center;gap:14px;padding:0 14px;height:56px;color:var(--ink);text-decoration:none;font-size:15px;font-weight:500}
+.menu a+a{box-shadow:inset 0 1px 0 var(--line)}
+.menu a svg:first-child{width:21px;height:21px;color:var(--ink-45)}
+.menu a .chev{margin-left:auto;width:18px;height:18px;color:var(--ink-35)}
+.visit{padding:14px;display:flex;flex-direction:column;gap:12px}
+.visit .top{display:flex;gap:12px;align-items:center}
+.visit .ph{width:60px;height:60px;border-radius:10px;overflow:hidden;flex:none}
+.visit .when{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);font-weight:600}
+.visit .when svg{width:18px;height:18px;color:var(--blue)}
+.visit .acts{display:flex;gap:8px}
+.visit .acts .btn{height:44px;font-size:14px;flex:1;padding:0 10px}
+
+/* ---------- agent ---------- */
+.agent-head{background:var(--logo);color:#fff;padding:4px 16px 18px}
+.agent-head .top{display:flex;align-items:center;justify-content:space-between;height:48px}
+.agent-head .top img{height:22px}
+.agent-head .ibtn{color:#fff}
+.agent-head h3{margin:10px 0 2px;font-size:22px;font-weight:700;letter-spacing:-.015em}
+.agent-head p{margin:0;font-size:14px;color:rgba(255,255,255,.88)}
+.send{margin:-2px 16px 0;position:relative;top:-10px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--lift),inset 0 0 0 1px var(--line)}
+.send .t{display:flex;gap:12px;align-items:flex-start}
+.send .wa{width:40px;height:40px;border-radius:12px;background:var(--green-tint);color:var(--green-ink);display:grid;place-items:center;flex:none}
+.send b{display:block;font-size:15px;color:var(--ink)}
+.al{display:flex;gap:12px;padding:12px;align-items:center}
+.al .ph{width:72px;height:72px;border-radius:10px;overflow:hidden;flex:none}
+.al .price{font-size:17px}
+.al .stats{display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--ink-45)}
+.al .stats b{color:var(--ink);font-size:13px;margin-right:3px}
+.al .more{align-self:flex-start;width:36px;height:36px}
+.req{padding:14px;display:flex;flex-direction:column;gap:12px}
+.req .who{display:flex;gap:12px;align-items:center}
+.req .who b{display:block;font-size:15px;color:var(--ink)}
+.req .slotline{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:var(--chalk)}
+.req .slotline svg{width:20px;height:20px;color:var(--blue)}
+.req .slotline b{font-size:15px;color:var(--ink)}
+.req .acts{display:flex;gap:8px}
+.req .acts .btn{height:44px;font-size:14px;padding:0 12px}
+.req .acts .btn:first-child{flex:1}
+.timer{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--warning-ink)}
+.timer svg{width:14px;height:14px}
+
+@media (prefers-reduced-motion:reduce){.welcome .bigroof path{animation:none;stroke-dashoffset:0}}
+@media (max-width:480px){.phone{transform:scale(.86);transform-origin:top left;margin-right:-50px;margin-bottom:-110px}.sheet-head h1{font-size:24px}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="roof" viewBox="0 0 30 10"><path d="M2 9.5 15 1.5 28 9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></symbol>
+    <symbol id="wa" viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.910c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.870 9.870 0 0 0 4.74 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.13c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.12.11-1.8-.11-.42-.13-.95-.3-1.64-.6-2.88-1.24-4.76-4.14-4.9-4.33-.14-.19-1.170-1.56-1.17-2.98s.73-2.11 1-2.4c.26-.29.57-.36.76-.36h.55c.18 0 .42-.07.65.5.24.58.81 2 .88 2.14.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.6-.07.16-.19.68-.79.86-1.06.18-.28.36-.23.6-.14.24.09 1.55.73 1.81.86.26.14.44.2.5.31.07.12.07.68-.17 1.35z"/></symbol>
+  </defs>
+</svg>
+
+<header class="sheet-head">
+  <div>
+    <img src="img/logo-royal.png" alt="Lukka Place">
+    <h1>L'application Lukka Place</h1>
+    <p>Douze écrans pour le Play Store et l'App Store, tirés de la maquette du 26 novembre et traduits pour Kinshasa : le site en blanc et bleu royal, le logo, la connexion par WhatsApp et les vraies annonces.</p>
+  </div>
+  <p class="legend">Annonces, prix, quartiers, agences et photos viennent de lukkaplace.com (annonces n° 1536, 1524, 1513, 1492, 1494 et 1537, le 26 novembre). Les noms de clients, les créneaux et les chiffres de vues sont des exemples.</p>
+</header>
+
+<!-- ================= 1. Bienvenue et connexion ================= -->
+<section class="flow">
+  <h2>Bienvenue et connexion</h2>
+  <p>Le premier écran est bleu logo, le seul fond plein de l'application. On entre avec son nom et son numéro WhatsApp, sans mot de passe, ou on regarde les annonces sans compte.</p>
+  <div class="row">
+
+    <figure class="shot"><div class="phone welcome on-blue">
+      <div class="status"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll">
+        <svg class="bigroof" viewBox="0 0 450 260" aria-hidden="true"><path d="M20 250 225 45 430 250"/><path d="M150 140 225 70 380 225"/></svg>
+        <div class="brand"><img src="img/logo-white.png" alt="Lukka Place"></div>
+        <h2>Trouvez où vivre à Kinshasa</h2>
+        <p>Des annonces d'agents vérifiées avant publication, le prix en dollars et l'agent sur WhatsApp.</p>
+        <div class="actions">
+          <button class="btn btn-white btn-block">Commencer</button>
+          <button class="linkbtn">J'ai déjà un compte</button>
+        </div>
+      </div>
+    </div><figcaption>Bienvenue</figcaption></figure>
+
+    <figure class="shot"><div class="phone" style="background:#fff">
+      <div class="status"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="topbar" style="box-shadow:none"><button class="ibtn" aria-label="Retour"><i data-lucide="chevron-left"></i></button><h3></h3><button class="btn" style="height:44px;background:none;color:var(--ink-45);font-size:14px;padding:0 10px">Plus tard</button></div>
+      <div class="scroll pad" style="display:flex;flex-direction:column;padding-top:8px;padding-bottom:30px">
+        <h2 class="title-page" style="font-size:26px">Votre nom et votre numéro WhatsApp</h2>
+        <p class="meta" style="margin:10px 0 0;font-size:15px;line-height:1.6">Vos favoris, vos alertes et vos visites vous suivent sur le site et dans l'application.</p>
+        <div style="margin-top:26px">
+          <label class="label">Nom et prénom</label>
+          <div class="field">Grâce Mbuyi</div>
+        </div>
+        <div style="margin-top:16px">
+          <label class="label">Numéro WhatsApp</label>
+          <div class="field focus"><span style="display:flex;align-items:center;gap:6px;font-weight:600;padding-right:10px;box-shadow:inset -1px 0 0 var(--line);height:28px">+243 <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-45)"></i></span><span class="num">81 234 5</span><span style="width:1.5px;height:22px;background:var(--blue);margin-left:-8px"></span></div>
+        </div>
+        <button class="btn btn-wa btn-block" style="margin-top:24px"><svg class="wa-glyph"><use href="#wa"/></svg>Continuer avec WhatsApp</button>
+        <p class="micro" style="margin:14px 0 0;text-align:center">Pas de mot de passe. Votre numéro suffit.</p>
+        <div style="margin-top:auto" class="card">
+          <div style="padding:14px;display:flex;gap:12px;align-items:flex-start">
+            <i data-lucide="briefcase" style="width:20px;height:20px;color:var(--blue);margin-top:2px"></i>
+            <div><b style="display:block;font-size:14px;color:var(--ink)">Vous êtes agent ou commissionnaire ?</b><span class="micro">Entrez le numéro qui envoie vos annonces : votre espace agent s'ouvre.</span></div>
+          </div>
+        </div>
+      </div>
+    </div><figcaption>Connexion</figcaption></figure>
+
+  </div>
+</section>
+
+<!-- ================= 2. Chercher ================= -->
+<section class="flow">
+  <h2>Chercher un logement</h2>
+  <p>L'accueil reprend la dernière recherche et montre les nouvelles annonces. Les résultats sont une liste de cartes, la carte affiche chaque prix là où se trouve le bien.</p>
+  <div class="row">
+
+    <figure class="shot"><div class="phone on-blue">
+      <div class="status" style="background:var(--logo)"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll">
+        <div class="home-head">
+          <div class="top"><img src="img/logo-white.png" alt="Lukka Place"><button class="ibtn" aria-label="Notifications"><i data-lucide="bell"></i></button></div>
+          <h3>Bonjour Grâce, où voulez-vous habiter ?</h3>
+          <div class="searchbox"><i data-lucide="search"></i>Commune, quartier ou référence<span class="go"><i data-lucide="arrow-right"></i></span></div>
+          <div class="home-tabs"><span class="on">Louer</span><span>Acheter</span><span>Projets neufs</span></div>
+        </div>
+        <div class="card resume">
+          <span class="ic"><i data-lucide="history"></i></span>
+          <div style="flex:1"><b>Ngaliema, à louer</b><span class="micro">2 chambres et plus, jusqu'à 700 $ par mois</span></div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--ink-35)"></i>
+        </div>
+        <div class="sect"><h3 class="title-sec">Nouvelles à Kinshasa</h3><a href="#">Tout voir</a></div>
+        <div class="rail">
+          <div class="rc"><div class="ph"><img class="photo" src="img/1492.webp" alt=""><span class="heart glass"><i data-lucide="heart"></i></span></div>
+            <div class="price">350 $<small>/mois</small></div><div class="meta">2 chambres, Appartement</div><div class="meta">Mbudi, Mont-Ngafula</div></div>
+          <div class="rc"><div class="ph"><img class="photo" src="img/1536.webp" alt=""><span class="heart glass"><i data-lucide="heart"></i></span></div>
+            <div class="price">700 $<small>/mois</small></div><div class="meta">3 chambres, Appartement</div><div class="meta">Immocongo, Kalamu</div></div>
+        </div>
+        <div class="sect"><h3 class="title-sec">Communes recherchées</h3></div>
+        <div class="communes"><span class="chip">Ngaliema</span><span class="chip">Gombe</span><span class="chip">Limete</span><span class="chip">Kalamu</span><span class="chip">Mont-Ngafula</span></div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="search"></i>Rechercher</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="heart"></i>Favoris<span class="count">3</span></button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Accueil</figcaption></figure>
+
+    <figure class="shot"><div class="phone">
+      <div class="status" style="background:#fff"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="res-bar">
+        <div class="res-q"><button class="ibtn" aria-label="Retour"><i data-lucide="chevron-left"></i></button><div class="q"><i data-lucide="search"></i>Ngaliema <span>à louer</span></div><button class="ibtn" aria-label="Carte"><i data-lucide="map"></i></button></div>
+        <div class="chips"><span class="chip"><i data-lucide="sliders-horizontal"></i>Filtres</span><span class="chip on">2 ch. et plus<i data-lucide="x"></i></span><span class="chip on">Jusqu'à 700 $<i data-lucide="x"></i></span><span class="chip">Type<i data-lucide="chevron-down"></i></span></div>
+      </div>
+      <div class="scroll">
+        <div class="res-count"><b>Appartements à louer à Ngaliema</b><button class="chip" style="height:32px;box-shadow:none;padding:0 4px;background:none"><i data-lucide="arrow-down-up"></i>Récents</button></div>
+        <div class="res-list">
+          <article class="lc"><div class="ph"><img class="photo" src="img/1524.webp" alt=""><span class="heart glass"><i data-lucide="heart"></i></span><span class="capsule"><i data-lucide="image"></i>3</span></div>
+            <div class="body"><div class="price">600 $<small>/mois</small></div><div class="spec">3 chambres, 2 salles de bain, Appartement</div><div class="where"><i data-lucide="map-pin"></i>Mimosa, Ngaliema</div>
+            <div class="agent"><span class="av">AM</span>Agence immobilière Mathias Black</div></div></article>
+          <article class="lc"><div class="ph"><img class="photo" src="img/1513.webp" alt="" style="object-position:50% 60%"><span class="heart glass"><i data-lucide="heart"></i></span><span class="capsule"><i data-lucide="image"></i>6</span></div>
+            <div class="body"><div class="price">500 $<small>/mois</small></div><div class="spec">2 chambres, 2 salles de bain, Appartement</div><div class="where"><i data-lucide="map-pin"></i>Mont-Fleury, Ngaliema</div></div></article>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="search"></i>Rechercher</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="heart"></i>Favoris<span class="count">3</span></button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Résultats</figcaption></figure>
+
+    <figure class="shot"><div class="phone">
+      <div class="status" style="background:transparent;position:absolute;left:0;right:0;top:0"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll" style="margin-top:0">
+        <div class="map" id="map"><div class="tiles">Fond Google Maps du site<br>(parcs, eau, routes)</div></div>
+        <div class="map-top" style="top:52px"><button class="ibtn" aria-label="Retour"><i data-lucide="chevron-left"></i></button><div class="q"><i data-lucide="search"></i>Ngaliema, à louer</div><button class="ibtn" aria-label="Filtres"><i data-lucide="sliders-horizontal"></i></button></div>
+        <button class="chip map-toggle" style="box-shadow:var(--lift);height:42px;padding:0 18px"><i data-lucide="list"></i>Liste</button>
+        <div class="card map-prev">
+          <div class="ph"><img class="photo" src="img/1513.webp" alt="" style="object-position:50% 60%"></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding-top:2px">
+            <div class="price">500 $<small>/mois</small></div>
+            <div class="meta" style="color:var(--ink-70)">2 chambres, 2 salles de bain</div>
+            <div class="meta">Mont-Fleury, Ngaliema</div>
+            <div style="margin-top:auto;display:flex;gap:6px"><span class="badge badge-blue">Appartement</span></div>
+          </div>
+          <span class="ibtn" style="width:36px;height:36px;align-self:flex-start"><i data-lucide="heart" style="width:20px;height:20px"></i></span>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="search"></i>Rechercher</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="heart"></i>Favoris<span class="count">3</span></button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Carte</figcaption></figure>
+
+  </div>
+</section>
+
+<!-- ================= 3. Annonce et visite ================= -->
+<section class="flow">
+  <h2>L'annonce et la demande de visite</h2>
+  <p>La photo de l'agent ouvre la fiche. Sous les chiffres, ce qui n'est pas indiqué est dit tel quel. La barre du bas remplace les onglets : WhatsApp vers l'agent, ou une visite sur place ou en vidéo.</p>
+  <div class="row">
+
+    <figure class="shot"><div class="phone" style="background:var(--page)">
+      <div class="scroll">
+        <div class="lp-photo"><img class="photo" src="img/1524.webp" alt="">
+          <div class="status" style="position:absolute;left:0;right:0;top:0;color:#fff;text-shadow:0 1px 3px rgb(0 0 0/.4)"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+          <div class="bar" style="top:52px"><button class="ibtn glass" aria-label="Retour"><i data-lucide="chevron-left"></i></button><span class="sp"></span><button class="ibtn glass" aria-label="Partager"><i data-lucide="share-2"></i></button><button class="ibtn glass" aria-label="Enregistrer"><i data-lucide="heart"></i></button></div>
+          <span class="capsule">1 / 3</span>
+        </div>
+        <div class="lp-body">
+          <div class="price">600 $<small>/mois</small></div>
+          <h3 class="lp-title">3 chambres — Appartement à louer à Ngaliema</h3>
+          <div class="lp-where"><i data-lucide="map-pin"></i>Mimosa, Ngaliema</div>
+          <div class="facts">
+            <div class="fact"><i data-lucide="bed-double"></i><b>3</b><span>Chambres</span></div>
+            <div class="fact"><i data-lucide="bath"></i><b>2</b><span>Salles de bain</span></div>
+            <div class="fact"><i data-lucide="building-2"></i><b>Appartement</b><span>Type</span></div>
+          </div>
+          <div class="card entry"><i data-lucide="receipt-text"></i><div><b>Garantie, avance et commission</b><span class="micro">Non indiquées par l'agent. Demandez-les avant la visite.</span></div></div>
+          <div class="card agentcard"><span class="av lg">AM</span><div style="flex:1"><b>Agence immobilière Mathias Black</b><span class="micro">Agence qui publie cette annonce</span></div><i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--ink-35)"></i></div>
+        </div>
+      </div>
+      <div class="actionbar">
+        <button class="btn btn-wa"><svg class="wa-glyph"><use href="#wa"/></svg>WhatsApp</button>
+        <button class="btn btn-primary"><i data-lucide="calendar-plus"></i>Demander une visite</button>
+      </div>
+    </div><figcaption>Annonce</figcaption></figure>
+
+    <figure class="shot"><div class="phone">
+      <div class="scroll">
+        <div class="lp-photo"><img class="photo" src="img/1524.webp" alt=""></div>
+        <div class="dim"></div>
+        <div class="bsheet">
+          <div class="grab"></div>
+          <h4>Demander une visite</h4>
+          <div class="mini"><span class="ph"><img class="photo" src="img/1524.webp" alt=""></span><div><b>600 $/mois, 3 chambres</b><span class="micro">Mimosa, Ngaliema</span></div></div>
+          <p class="sub">Comment voulez-vous visiter ?</p>
+          <div class="seg" style="margin-top:10px"><button class="on">Sur place</button><button>En vidéo</button></div>
+          <p class="sub">Le jour</p>
+          <div class="days">
+            <button class="day"><span>jeu.</span><b>27</b></button>
+            <button class="day on"><span>ven.</span><b>28</b></button>
+            <button class="day"><span>sam.</span><b>29</b></button>
+            <button class="day"><span>lun.</span><b>1</b></button>
+            <button class="day"><span>mar.</span><b>2</b></button>
+          </div>
+          <p class="sub">L'heure</p>
+          <div class="slots">
+            <button class="slot">09:00</button><button class="slot">10:30</button><button class="slot on">13:00</button><button class="slot">14:30</button>
+            <button class="slot">16:00</button><button class="slot off">17:30</button>
+          </div>
+          <p class="micro" style="margin:16px 0 0">L'agent accepte ce créneau ou en propose un autre. La réponse arrive dans l'application.</p>
+          <button class="btn btn-primary btn-block" style="margin-top:14px">Demander pour ven. 28 nov. à 13:00</button>
+        </div>
+      </div>
+    </div><figcaption>Choisir un créneau</figcaption></figure>
+
+    <figure class="shot"><div class="phone" style="background:#fff">
+      <div class="status"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll">
+        <div class="done">
+          <span class="mark"><i data-lucide="check"></i></span>
+          <h3>Visite demandée</h3>
+          <p>Agence immobilière Mathias Black reçoit votre demande maintenant. Nous vous prévenons dès que l'agent répond.</p>
+          <div class="card summary">
+            <div class="ph"><img class="photo" src="img/1524.webp" alt=""></div>
+            <dl>
+              <div><dt>Bien</dt><dd>3 chambres, Mimosa, Ngaliema</dd></div>
+              <div><dt>Quand</dt><dd>ven. 28 nov. à 13:00</dd></div>
+              <div><dt>Visite</dt><dd>Sur place</dd></div>
+            </dl>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary btn-block">Voir mes visites</button>
+            <button class="btn btn-quiet btn-block">Retour à l'annonce</button>
+          </div>
+        </div>
+      </div>
+    </div><figcaption>Demande envoyée</figcaption></figure>
+
+  </div>
+</section>
+
+<!-- ================= 4. Favoris et visites ================= -->
+<section class="flow">
+  <h2>Favoris, alertes et visites</h2>
+  <p>Les biens enregistrés et les recherches suivies vivent dans Favoris ; une alerte arrive en notification dans l'application. Visites suit chaque demande jusqu'à la réponse de l'agent.</p>
+  <div class="row">
+
+    <figure class="shot"><div class="phone">
+      <div class="status" style="background:#fff"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll" style="background:var(--page)">
+        <div style="background:#fff;padding:8px 16px 14px;box-shadow:inset 0 -1px 0 var(--line)">
+          <h2 class="title-page">Favoris</h2>
+          <div class="seg" style="margin-top:14px"><button class="on">Biens (3)</button><button>Recherches (1)</button></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:14px 16px">
+          <div class="card sr"><span class="ph"><img class="photo" src="img/1536.webp" alt=""></span><div style="flex:1;min-width:0"><div class="price">700 $<small>/mois</small></div><div class="meta" style="color:var(--ink-70)">3 chambres, Appartement</div><div class="meta">Immocongo, Kalamu</div></div><span class="ibtn heart"><i data-lucide="heart"></i></span></div>
+          <div class="card sr"><span class="ph"><img class="photo" src="img/1492.webp" alt=""></span><div style="flex:1;min-width:0"><div class="price">350 $<small>/mois</small></div><div class="meta" style="color:var(--ink-70)">2 chambres, Appartement</div><div class="meta">Mbudi, Mont-Ngafula</div></div><span class="ibtn heart"><i data-lucide="heart"></i></span></div>
+          <div class="card sr"><span class="ph"><img class="photo" src="img/1494.webp" alt="" style="object-position:50% 70%"></span><div style="flex:1;min-width:0"><div class="price">1 500 $<small>/mois</small></div><div class="meta" style="color:var(--ink-70)">4 chambres, Parcelle</div><div class="meta">Industriel, Limete</div></div><span class="ibtn heart"><i data-lucide="heart"></i></span></div>
+          <h3 class="title-sec" style="font-size:15px;margin-top:10px">Recherche suivie</h3><div class="card alert"><i data-lucide="bell-ring" style="width:22px;height:22px;color:var(--blue)"></i><div style="flex:1"><b style="display:block;font-size:15px;color:var(--ink)">Ngaliema, à louer</b><span class="micro">Une notification dès qu'un bien correspond</span></div><span class="switch"></span></div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="search"></i>Rechercher</button>
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="heart"></i>Favoris</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Favoris</figcaption></figure>
+
+    <figure class="shot"><div class="phone">
+      <div class="status" style="background:#fff"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll" style="background:var(--page)">
+        <div style="background:#fff;padding:8px 16px 14px;box-shadow:inset 0 -1px 0 var(--line)">
+          <h2 class="title-page">Mes visites</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:14px 16px">
+          <div class="card visit">
+            <div class="top"><span class="ph"><img class="photo" src="img/1524.webp" alt=""></span><div style="flex:1"><b style="display:block;font-size:15px;color:var(--ink)">3 chambres, Mimosa, Ngaliema</b><span class="micro">Agence immobilière Mathias Black</span></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span class="when"><i data-lucide="calendar"></i>ven. 28 nov. à 13:00</span><span class="badge badge-wait">En attente de l'agent</span></div>
+            <div class="acts"><button class="btn btn-quiet">Annuler</button><button class="btn btn-wa"><svg class="wa-glyph"><use href="#wa"/></svg>Écrire à l'agent</button></div>
+          </div>
+          <div class="card visit">
+            <div class="top"><span class="ph"><img class="photo" src="img/1513.webp" alt="" style="object-position:50% 60%"></span><div style="flex:1"><b style="display:block;font-size:15px;color:var(--ink)">2 chambres, Mont-Fleury, Ngaliema</b><span class="micro">Golden touch consulting Rdc</span></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span class="when"><i data-lucide="video"></i>sam. 29 nov. à 10:30</span><span class="badge badge-ok">Confirmée, en vidéo</span></div>
+          </div>
+          <div class="card visit" style="background:var(--blue-tint);box-shadow:inset 0 0 0 1.5px var(--blue)">
+            <div style="display:flex;gap:10px;align-items:flex-start"><i data-lucide="calendar-clock" style="width:20px;height:20px;color:var(--blue);margin-top:2px"></i><div><b style="display:block;font-size:15px;color:var(--blue-deep)">L'agent propose un autre créneau</b><span class="micro" style="color:var(--blue-deep)">Mbudi, Mont-Ngafula : lun. 1 déc. à 09:00</span></div></div>
+            <div class="acts"><button class="btn btn-primary">Accepter</button><button class="btn btn-line" style="background:#fff">Autre heure</button></div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="search"></i>Rechercher</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="heart"></i>Favoris<span class="count">3</span></button>
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Mes visites</figcaption></figure>
+
+    <figure class="shot"><div class="phone">
+      <div class="status" style="background:#fff"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll" style="background:var(--page)">
+        <div style="background:#fff;padding:8px 16px 18px;box-shadow:inset 0 -1px 0 var(--line);display:flex;gap:14px;align-items:center">
+          <span class="av lg" style="width:56px;height:56px;font-size:18px">GM</span>
+          <div><h2 class="title-page" style="font-size:22px">Grâce Mbuyi</h2><span class="meta num">+243 81 234 5678</span></div>
+        </div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+          <div class="card menu">
+            <a href="#"><i data-lucide="bell"></i>Notifications<i class="chev" data-lucide="chevron-right"></i></a>
+            <a href="#"><i data-lucide="message-square-text"></i>Mes demandes<i class="chev" data-lucide="chevron-right"></i></a>
+            <a href="#"><i data-lucide="sliders-horizontal"></i>Alertes et préférences<i class="chev" data-lucide="chevron-right"></i></a>
+            <a href="#"><i data-lucide="user-round-pen"></i>Mon profil<i class="chev" data-lucide="chevron-right"></i></a>
+          </div>
+          <div class="card menu">
+            <a href="#"><i data-lucide="languages"></i>Langue<span class="micro" style="margin-left:auto">Français</span><i class="chev" data-lucide="chevron-right" style="margin-left:6px"></i></a>
+            <a href="#"><i data-lucide="circle-dollar-sign"></i>Devise<span class="micro" style="margin-left:auto">USD</span><i class="chev" data-lucide="chevron-right" style="margin-left:6px"></i></a>
+            <a href="#"><i data-lucide="life-buoy"></i>Aide et service client<i class="chev" data-lucide="chevron-right"></i></a>
+          </div>
+          <div class="card menu"><a href="#" style="color:var(--blue);font-weight:600"><i data-lucide="briefcase" style="color:var(--blue)"></i>Passer à l'espace agent<i class="chev" data-lucide="chevron-right"></i></a></div>
+          <button class="btn" style="background:none;color:var(--danger);height:44px">Se déconnecter</button>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="search"></i>Rechercher</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="heart"></i>Favoris<span class="count">3</span></button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Compte</figcaption></figure>
+
+  </div>
+</section>
+
+<!-- ================= 5. Agent ================= -->
+<section class="flow">
+  <h2>L'espace agent</h2>
+  <p>Même application, quatre onglets pour l'agent. Une annonce s'envoie toujours sur WhatsApp, au numéro d'annonces ; l'application montre ce qu'elle rapporte et les demandes de visite à traiter vite.</p>
+  <div class="row">
+
+    <figure class="shot"><div class="phone on-blue">
+      <div class="status" style="background:var(--logo)"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll">
+        <div class="agent-head">
+          <div class="top"><img src="img/logo-white.png" alt="Lukka Place"><button class="ibtn" aria-label="Alertes"><i data-lucide="bell"></i></button></div>
+          <h3>Mes annonces</h3>
+          <p>Ligne 11 immobilier</p>
+        </div>
+        <div class="card send">
+          <div class="t"><span class="wa"><svg class="wa-glyph"><use href="#wa"/></svg></span><div><b>Ajouter un bien</b><span class="micro">Envoyez les photos et la description au <span class="num">+243 976 321 848</span>. Nous la lisons et vous la faisons valider.</span></div></div>
+          <button class="btn btn-wa btn-block" style="height:46px">Envoyer sur WhatsApp</button>
+        </div>
+        <div class="chips pad" style="margin-top:2px"><span class="chip on">En ligne (2)</span><span class="chip">En attente</span><span class="chip">Loués, vendus</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:12px 16px">
+          <div class="card al"><span class="ph"><img class="photo" src="img/1536.webp" alt=""></span><div style="flex:1;min-width:0"><div class="price">700 $<small>/mois</small></div><div class="micro">Immocongo, Kalamu</div><div class="stats num"><span><b>214</b>vues</span><span><b>9</b>WhatsApp</span><span><b>2</b>visites</span></div></div><span class="ibtn more"><i data-lucide="ellipsis-vertical" style="width:20px;height:20px"></i></span></div>
+          <div class="card al"><span class="ph"><img class="photo" src="img/1494.webp" alt="" style="object-position:50% 70%"></span><div style="flex:1;min-width:0"><div class="price">1 500 $<small>/mois</small></div><div class="micro">Industriel, Limete</div><div class="stats num"><span><b>88</b>vues</span><span><b>3</b>WhatsApp</span><span><b>0</b>visite</span></div></div><span class="ibtn more"><i data-lucide="ellipsis-vertical" style="width:20px;height:20px"></i></span></div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="layout-list"></i>Annonces</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="message-square"></i>Demandes<span class="count">2</span></button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites<span class="count">1</span></button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Mes annonces</figcaption></figure>
+
+    <figure class="shot"><div class="phone">
+      <div class="status" style="background:#fff"><span>9:41</span><span class="ic"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="scroll" style="background:var(--page)">
+        <div style="background:#fff;padding:8px 16px 14px;box-shadow:inset 0 -1px 0 var(--line)">
+          <h2 class="title-page">Visites</h2>
+          <div class="seg" style="margin-top:14px"><button class="on">À répondre (1)</button><button>À venir (2)</button></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:14px 16px">
+          <div class="card req">
+            <div class="who"><span class="av lg">JI</span><div style="flex:1"><b>Jonathan Ilunga</b><span class="micro">3 chambres, Immocongo, Kalamu</span></div><span class="timer"><i data-lucide="timer"></i>12 min</span></div>
+            <div class="slotline"><i data-lucide="calendar"></i><div><b>ven. 28 nov. à 13:00</b><div class="micro">Sur place</div></div></div>
+            <div class="acts"><button class="btn btn-primary">Accepter</button><button class="btn btn-line">Autre créneau</button><button class="btn btn-quiet" aria-label="Décliner">Décliner</button></div>
+          </div>
+          <h3 class="title-sec" style="font-size:15px;margin-top:8px">À venir</h3>
+          <div class="card visit">
+            <div class="top"><span class="av lg">PK</span><div style="flex:1"><b style="display:block;font-size:15px;color:var(--ink)">Patrick Kalonji</b><span class="micro">1 500 $/mois, Industriel, Limete</span></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span class="when"><i data-lucide="calendar"></i>sam. 29 nov. à 09:00</span><span class="badge badge-ok">Confirmée</span></div>
+            <div class="acts"><button class="btn btn-wa"><svg class="wa-glyph"><use href="#wa"/></svg>Écrire au client</button></div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="layout-list"></i>Annonces</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="message-square"></i>Demandes<span class="count">2</span></button>
+        <button class="tab on"><svg class="roof"><use href="#roof"/></svg><i data-lucide="calendar"></i>Visites</button>
+        <button class="tab"><svg class="roof"><use href="#roof"/></svg><i data-lucide="user"></i>Compte</button>
+      </nav>
+    </div><figcaption>Visites à traiter</figcaption></figure>
+
+  </div>
+</section>
+
+<p class="foot">Règles de cette maquette : Plus Jakarta Sans seule ; bleu logo #144FC5 pour l'écran d'accueil et les en-têtes, bleu royal #1E3AA8 pour chaque action ; vert pour WhatsApp seulement ; le toit du logo marque l'onglet actif. Les prix, quartiers, agences et photos sont réels ; une donnée absente est dite absente.</p>
+
+<script>
+// Real pins (lukkaplace.com /api/listings/map, 26 Nov 2026), rentals around Ngaliema.
+const PINS=[[-4.3380529,15.2664192,1100],[-4.3542164,15.256897,2000],[-4.338637,15.3094565,600],[-4.3713817,15.2534377,500,1],[-4.34245,15.30392,800],[-4.3456982,15.2863618,750],[-4.3639201,15.25084,1700],[-4.3334054,15.2604322,2500],[-4.338195,15.219712,600],[-4.3512303,15.1990045,350],[-4.330572,15.3023037,2000]];
+const W=390,H=716,lng0=15.185,lng1=15.322,lat0=-4.318,lat1=-4.392;
+const map=document.getElementById('map');
+const fmt=p=>p>=1000?('$'+(p/1000)+'k'):('$'+p);
+for(const [la,ln,p,on] of PINS){const d=document.createElement('span');d.className='pin'+(on?' on':'');d.textContent=fmt(p);d.style.left=((ln-lng0)/(lng1-lng0)*W)+'px';d.style.top=(170+(la-lat0)/(lat1-lat0)*430)+'px';map.appendChild(d)}
+lucide.createIcons();
+</script>
+</body>
+</html>

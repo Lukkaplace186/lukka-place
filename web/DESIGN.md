@@ -375,3 +375,16 @@ Inside the Lukka Place app (app mode) the same tokens, type scale and components
 - **Don't** use backdrop blur that stays on for touch screens, or ship an animation library on the website beyond the /guides cards (the store app loads `motion`, in app mode only).
 - **Don't** use stock or stand-in photographs where a listing's own photo belongs.
 - **Don't** "fix" the map back to the site palette.
+
+## The app (Play + App Store)
+
+The store app (`mobile/`, a Capacitor shell over `lukkaplace.com/app`, screens in `components/app/*`, branch `feat/app-design-customer`) follows the owner's app design of 2026-11-26. It is the same WhiteBlue Royal system as the site, so every rule above still holds.
+
+- **Design reference: `web/Design/app/lukka/index.html`** (committed with its photos, logo and font): 12 screens built from the owner's 30-screen mockup and translated for Kinshasa — real listings, prices, agencies and photos from lukkaplace.com, French, USD, sign-in with a name and a WhatsApp number. Customer names, visit times and view counts on it are labelled examples. The original London mockup is not part of the repo.
+- **Owner choices (2026-11-26):** both sides, key screens first; "Ajouter un bien" in the app sends the agent to the WhatsApp intake (no in-app listing form); sign-in by WhatsApp number only.
+- **Signature: the logo's roofline.** It marks the active tab on both tab bars (`components/AppTabBar.js`, `components/AgentSidebar.js` in app mode) and draws itself once behind the logo on the design's welcome screen. The website keeps its plain bar.
+- **The logo in the app is the owner's artwork** (`public/brand/app-logo-white.png` over the home photo, `app-logo-royal.png` on white), cut from `marketing/video-src/pub-facebook-4k/src/logo-white.png`. `public/brand/logo-*` are an older drawing, still the website's.
+- **Live 2026-11-26/27:** owner logo in `AppTopBar`, roofline tabs, a guest "Reprendre" line on home from the last local search (`lib/searchHistory.js`), and on the agent side `components/app/AppAddListingWhatsApp.js` (the overview's "+" and a card on Mes biens opening `wa.me/<intake number>` with an empty chat).
+- **Kept from production as it was:** the photo hero on the app home (the owner's 2026-11-12 layout, also the mockup's), the four customer tabs (Rechercher, Enregistrés, Activité, Compte), the five agent tabs, and the listing bar's one main action ("Demander une visite", WhatsApp beside it).
+- **A fixed bottom tab bar** is the app's navigation, the one exception to "no bottom tab bar" above, which stays true for the website.
+- **Not built, by design:** the mockup's lister verification, access code and six-step add-a-property form (agents are verified by phone and documents; listings arrive on WhatsApp). The design page's darker WhatsApp green (`green-ink` fill, for 4.5:1 white text) is a proposal, not yet the site's button.

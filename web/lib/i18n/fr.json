@@ -1475,7 +1475,9 @@
       "in": "à {place}",
       "radiusKm": "+{km}km",
       "citywide": "(toute la ville)",
-      "quoted": "\"{query}\""
+      "quoted": "\"{query}\"",
+      "inZone": "dans la zone dessinée",
+      "inMapArea": "dans la zone de la carte"
     },
     "tags": {
       "rental": "Location",

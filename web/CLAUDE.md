@@ -5719,3 +5719,16 @@ the same day (c22b2f70). `tests/unit/trust-features.test.js`.
   47 homes inside a drawn shape vs 116 in its box.
 - **Agent ratings hidden again** the same day (owner: "remove this for now"):
   `AGENT_RATINGS_PUBLIC = false` in lib/agentReviews.js; nothing is read while off.
+- **Zone checked against the database (2026-11-27)**: for one drawn shape,
+  the results list, the map and an independent winding-number test all give
+  47 (also 40 with "à louer", 34 with "2 ch. et +"); three listings 2–14 m
+  outside the line are correctly left out. 337 public listings have no
+  coordinates and can never be inside a zone (the "never claimed" rule).
+  **Saving a zone as an alert**: the saved query keeps `zone` and its box;
+  both sweeps (`searchAlertSweep`, `instantMatchSweep`) re-run it through
+  `parseListingsSearchParams` + `getListings`, so alerts are the zone too
+  (simulated: only the 2 inside of 6 candidates). The alert is named "… dans
+  la zone dessinée" and tagged "Zone dessinée" (`buildSearchLabel`,
+  `searchCriteriaTags`; a map box alone is "dans la zone de la carte"), and a
+  zone is narrow enough for the feed's alert card without a commune
+  (`feedAlertReady`). `tests/unit/trust-features.test.js`.

@@ -1475,7 +1475,9 @@
       "in": "in {place}",
       "radiusKm": "+{km}km",
       "citywide": "(citywide)",
-      "quoted": "\"{query}\""
+      "quoted": "\"{query}\"",
+      "inZone": "in the drawn area",
+      "inMapArea": "in the map area"
     },
     "tags": {
       "rental": "To rent",

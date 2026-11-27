@@ -8,6 +8,8 @@
  * of them were ever offered an account (sign-up baseline of 2026-11-24).
  */
 
+import { ZONE_PARAM, parseZone } from './mapZone';
+
 /** Params that say how the page was reached or laid out, never what is searched. */
 const NOT_A_CRITERION = /^(page|view|cursor|sort|ref|entree|fbclid|gclid|ttclid|msclkid|utm_.+|lkp_.+)$/;
 
@@ -53,6 +55,10 @@ export function feedAlertReady(params = {}) {
     return typeof v === 'string' && v.trim() !== '';
   };
   if (has('commune') || has('quartier')) return true;
+  // A drawn zone is a precise area already: the alert is that zone
+  // (2026-11-27), never "pick a commune" on top of it.
+  const zone = Array.isArray(params[ZONE_PARAM]) ? params[ZONE_PARAM][0] : params[ZONE_PARAM];
+  if (parseZone(zone)) return true;
   const city = cityOf(params);
   return city !== 'kinshasa' && city !== 'toutes';
 }

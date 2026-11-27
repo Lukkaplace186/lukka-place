@@ -2,6 +2,14 @@ import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from './cons
 import { UTILITY_FILTERS } from '@/lib/utilityTags';
 import { normaliseLeaseTerm } from '@/lib/leaseTerm';
 import { bedroomRangeLabel } from '@/lib/bedroomRange';
+import { ZONE_PARAM, parseZone } from '@/lib/mapZone';
+
+// The map's box in a query (sw_lat…ne_lng, lib/mapViewport.js parseBounds):
+// all four as numbers. Read here without importing mapViewport, which brings
+// the commune centroids into the browser bundle.
+function hasMapBox(searchParams) {
+  return ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng'].every((key) => Number.isFinite(Number.parseFloat(searchParams.get(key))));
+}
 
 const PARCELLE_LABEL_KEYS = Object.fromEntries(PARCELLE_SUBTYPES.map(({ value, labelKey }) => [value, labelKey]));
 
@@ -54,8 +62,15 @@ export function buildSearchLabel(searchParams, t) {
 
   const quartier = searchParams.get('quartier');
   const commune = searchParams.get('commune');
+  // A drawn zone (lib/mapZone.js) or the map's area replaces the place the
+  // search started from (lib/listings.js getListings), so the name says the
+  // area, never a commune the results no longer follow (2026-11-27).
+  const hasZone = Boolean(parseZone(searchParams.get(ZONE_PARAM)));
+  const hasMapArea = !hasZone && hasMapBox(searchParams);
+  if (hasZone) parts.push(t('search.label.inZone'));
+  else if (hasMapArea) parts.push(t('search.label.inMapArea'));
   // Place names are real data, never translated — only the preposition is.
-  if (quartier) parts.push(t('search.label.in', { place: quartier }));
+  else if (quartier) parts.push(t('search.label.in', { place: quartier }));
   else if (commune) {
     // "Gombe ou Ngaliema" names every commune the search covers.
     const extra = (searchParams.get('communes') || '').split(',').map((c) => c.trim()).filter(Boolean);
@@ -64,7 +79,7 @@ export function buildSearchLabel(searchParams, t) {
   }
 
   const radius = searchParams.get('radius');
-  if (commune && radius) {
+  if (commune && radius && !hasZone && !hasMapArea) {
     if (['1', '3', '5'].includes(radius)) parts.push(t('search.label.radiusKm', { km: radius }));
     else if (radius === 'citywide') parts.push(t('search.label.citywide'));
   }
@@ -109,13 +124,17 @@ export function searchCriteriaTags(searchParams, t) {
   else if (propertyType === 'appartement') tags.push(t('search.tags.apartment'));
   else if (propertyType === 'parcelle') tags.push(t('search.tags.plot'));
 
+  // A drawn zone or the map's area is the place (see buildSearchLabel).
+  if (parseZone(get(ZONE_PARAM))) tags.push(t('listings.chips.zone'));
+  else if (hasMapBox(searchParams)) tags.push(t('listings.chips.mapArea'));
   // Commune and quartier are real place names — pushed through untouched.
-  const commune = get('commune');
+  const area = Boolean(parseZone(get(ZONE_PARAM)) || hasMapBox(searchParams));
+  const commune = area ? null : get('commune');
   if (commune) tags.push(commune);
-  for (const extra of (get('communes') || '').split(',').map((c) => c.trim()).filter(Boolean)) {
+  for (const extra of (area ? '' : get('communes') || '').split(',').map((c) => c.trim()).filter(Boolean)) {
     if (extra !== commune && !tags.includes(extra)) tags.push(extra);
   }
-  const quartier = get('quartier');
+  const quartier = area ? null : get('quartier');
   if (quartier) tags.push(quartier);
   if (commune && get('radius') === 'citywide') tags.push(t('search.tags.citywide'));
 

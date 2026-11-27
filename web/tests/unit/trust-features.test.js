@@ -103,3 +103,34 @@ test('app home: recently viewed strip and "Biens près de moi", which never puts
   assert.match(map, /url\.searchParams\.delete\('pres'\)/);
   assert.equal(fr.appShell.home.nearMe, 'Biens près de moi');
 });
+
+test('a saved drawn zone is named and tagged as the zone, and is enough for an alert on its own', async () => {
+  const { buildSearchLabel, searchCriteriaTags } = await import('@/lib/searchLabel');
+  const { feedAlertReady } = await import('@/lib/feedAlertRules');
+  const t = (key, vars) => {
+    const value = key.split('.').reduce((o, k) => o?.[k], fr);
+    return typeof value === 'string' ? value.replace(/\{(\w+)\}/g, (_, k) => vars?.[k] ?? '') : key;
+  };
+  const zone = '-4.31,15.29;-4.31,15.31;-4.33,15.31;-4.33,15.29';
+  const withZone = new URLSearchParams(`commune=Lingwala&transaction_type=location&zone=${zone}&sw_lat=-4.33&sw_lng=15.29&ne_lat=-4.31&ne_lng=15.31`);
+  assert.equal(buildSearchLabel(withZone, t), 'Biens à louer dans la zone dessinée');
+  assert.deepEqual(searchCriteriaTags(withZone, t).slice(0, 2), ['Location', 'Zone dessinée']);
+  assert.ok(!searchCriteriaTags(withZone, t).includes('Lingwala'), 'the commune the search started from is not the place any more');
+  // The map's box alone (no zone) names the map area; a plain search keeps its commune.
+  assert.equal(buildSearchLabel(new URLSearchParams('commune=Gombe&sw_lat=-4.33&sw_lng=15.29&ne_lat=-4.31&ne_lng=15.31'), t), 'Biens disponibles dans la zone de la carte');
+  assert.equal(buildSearchLabel(new URLSearchParams('commune=Gombe&transaction_type=location'), t), 'Biens à louer à Gombe');
+  // No commune but a zone: the alert card does not ask for a commune first.
+  assert.equal(feedAlertReady({ zone }), true);
+  assert.equal(feedAlertReady({}), false);
+});
+
+test('the alert sweeps re-run a saved search with the same parser, so a zone narrows alerts too', () => {
+  for (const file of ['lib/searchAlertSweep.js', 'lib/instantMatchSweep.js']) {
+    const src = read(file);
+    assert.match(src, /parseListingsSearchParams\(new URLSearchParams\(search\.query\)\)/, file);
+    assert.match(src, /getListings\(\{ \.\.\.filters, ids: candidateIds/, file);
+  }
+  // A saved search keeps the zone and its box: neither is "not a criterion".
+  const rules = read('lib/feedAlertRules.js');
+  assert.doesNotMatch(rules.match(/const NOT_A_CRITERION = (.*);/)[1], /zone|sw_lat/);
+});

@@ -185,3 +185,9 @@ test('the phone map strip draws only the cards near the middle (iOS crash 2026-1
   assert.match(src, /export const CARD_WINDOW = 2;/);
   assert.match(src, /Math\.abs\(index - centreIndex\) > CARD_WINDOW && !active/);
 });
+
+test('a pin tap jumps to its card instead of gliding through the others', () => {
+  const src = readFileSync(path.join(process.cwd(), 'components/MapCardCarousel.js'), 'utf8');
+  assert.match(src, /scroller\.scrollTo\(\{ left, behavior: 'auto' \}\)/);
+  assert.doesNotMatch(src, /behavior: reduce \? 'auto' : 'smooth'/);
+});

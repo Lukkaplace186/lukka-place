@@ -91,8 +91,11 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     setCentreId(String(selectedId));
     const left = card.offsetLeft - (scroller.clientWidth - card.clientWidth) / 2;
     if (Math.abs(scroller.scrollLeft - left) < 4) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    scroller.scrollTo({ left, behavior: reduce ? 'auto' : 'smooth' });
+    // A jump, not a glide: gliding past every card between the old one and
+    // the tapped one drew each of them (and fetched its photo) on the way,
+    // so the row visibly flicked through other listings before landing
+    // (owner, iPhone, 2026-11-27).
+    scroller.scrollTo({ left, behavior: 'auto' });
   }, [selectedId, listings]);
 
   // A swipe: once the row the visitor touched has been still for a moment,

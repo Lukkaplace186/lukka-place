@@ -21,7 +21,7 @@ import { getCurrentCustomerId } from '@/lib/customers';
 import { isFollowing } from '@/lib/customerFollows';
 import { listingPath } from '@/lib/listingSlug';
 import { agentMetaDescription, agentOgImage } from '@/lib/agentProfileSeo';
-import { formatAverage, getAgentPublicRating } from '@/lib/agentReviews';
+import { AGENT_RATINGS_PUBLIC, formatAverage, getAgentPublicRating } from '@/lib/agentReviews';
 import { Star } from 'lucide-react';
 
 const PROFILE_MESSAGE =
@@ -111,10 +111,10 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
 
   // Both tabs at once: the segmented control shows each tab's count and
   // switches without a round trip. Projects never take the profile down.
-  // Customers' ratings are public on the profile since 2026-11-27 (owner;
-  // they were held back 2026-11-04 until the feature launched): from
-  // MIN_PUBLIC_REVIEWS up, with the comments the team approved
-  // (lib/agentReviews.js). Never on a listing page. Never throws.
+  // Customers' ratings on the profile (lib/agentReviews.js): from
+  // MIN_PUBLIC_REVIEWS up, with the comments the team approved; never on a
+  // listing page. Switched off again by the owner on 2026-11-27
+  // (AGENT_RATINGS_PUBLIC) — nothing is read while it is off. Never throws.
   const [rentals, sales, projects, locale, trackRecord, rating] = await Promise.all([
     getAgentListings(agent.id, { transactionType: 'location', limit: LISTINGS_PER_TAB }),
     getAgentListings(agent.id, { transactionType: 'vente', limit: LISTINGS_PER_TAB }),
@@ -126,7 +126,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     // "N biens loués ou vendus" and "Annonces à jour" (web/CLAUDE.md,
     // "Incentives for keeping listings up to date"); never throws.
     getAgentTrackRecord(agent.id),
-    getAgentPublicRating(agent.id),
+    AGENT_RATINGS_PUBLIC ? getAgentPublicRating(agent.id) : null,
   ]);
 
   // A shared ?tab= wins; otherwise open on À louer unless it is empty and

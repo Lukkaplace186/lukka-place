@@ -124,11 +124,17 @@ test('map chips and result sheet: one-tap amenities, and a sheet that lists only
   }
 });
 
-test('the zone line follows the drawing: a solid brand-blue line, enough corners to trace it', () => {
+test('the zone follows the drawing: shaded inside, a solid dark edge, enough corners to trace it', () => {
   assert.ok(MAX_ZONE_POINTS >= 48, 'enough corners for the line to read as what was drawn');
   const draw = read('components/MapZoneDraw.js');
-  assert.match(draw, /const ZONE_BLUE = '#1E3AA8';/, 'the action blue, repeated as a hex for Google');
-  assert.match(draw, /strokeColor: ZONE_BLUE,\s*strokeOpacity: 1,\s*strokeWeight: 3\.5,/, 'a solid line on the map');
+  assert.match(draw, /const ZONE_BLUE = '#1E3AA8';/, 'the action blue, repeated as a hex for Google (the stroke while drawing)');
+  // 2026-11-27 (owner): the zone in force is an area with its borders — grey inside, a dark edge.
+  assert.match(draw, /fillColor: ZONE_SHADE, fillOpacity: 0\.18/, 'the inside is visibly shaded');
+  assert.match(draw, /strokeColor: ZONE_EDGE,\s*strokeOpacity: 0\.9,\s*strokeWeight: 2\.5,/, 'a solid edge on the map');
+  // The zone reaches the address bar before the map moves, so the map's own
+  // "area changed" update (which copies window.location) keeps it.
+  const map = read('components/ListingsMap.js');
+  assert.match(map, /window\.history\.replaceState\(window\.history\.state, '', next\);\s*router\.replace\(next, \{ scroll: false \}\);\s*if \(points && mapRef\.current\) fitTo/);
   assert.doesNotMatch(draw, /strokeDasharray|repeat: '/, 'no dashes, on the map or while drawing');
   // A wobbly stroke keeps its wobble: the corners kept are points of the stroke itself.
   const wobbly = Array.from({ length: 240 }, (_, i) => {

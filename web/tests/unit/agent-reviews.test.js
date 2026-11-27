@@ -70,11 +70,12 @@ test('the profile names the agent, not the property, and the rating card is the 
   assert.match(card, /needsAgentRating\(visit\)/);
   const actions = read('app/(site)/compte/client/actions.js');
   assert.match(actions, /customerRateAgent\(id, \{ waId, stars: value/);
-  // Ratings are public on the profile since 2026-11-27 (owner; held back
-  // 2026-11-04 until launch): read through the one helper, which applies
-  // MIN_PUBLIC_REVIEWS. Never on a listing page (a rating is about the agent).
+  // The profile reads ratings through the one helper (MIN_PUBLIC_REVIEWS)
+  // only while AGENT_RATINGS_PUBLIC is on — off again since 2026-11-27
+  // (owner: "remove this for now"). Never on a listing page.
   const page = read('app/(portfolio)/agents/[id]/page.js');
-  assert.match(page, /getAgentPublicRating\(agent\.id\)/);
+  assert.match(page, /AGENT_RATINGS_PUBLIC \? getAgentPublicRating\(agent\.id\) : null/);
+  assert.match(read('lib/agentReviews.js'), /export const AGENT_RATINGS_PUBLIC = false;/);
   const listingPage = read('app/(site)/listings/[id]/page.js');
   assert.doesNotMatch(listingPage, /getAgentPublicRating|agentReviews/);
   const fr = JSON.parse(read('lib/i18n/fr.json'));

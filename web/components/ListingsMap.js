@@ -342,7 +342,14 @@ export default function ListingsMap({
       for (const key of ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng']) url.searchParams.delete(key);
     }
     url.searchParams.delete('page');
-    router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: false });
+    const next = `${url.pathname}?${url.searchParams.toString()}`;
+    // Written to the address bar at once, before the map moves: framing the
+    // zone fires the map's own "area changed" (onAreaChange in
+    // ListingsSplitView), which copies window.location. router.replace lands
+    // a moment later, so that copy used to come from the URL WITHOUT the
+    // zone and erased it — a drawing then only zoomed (owner, 2026-11-27).
+    window.history.replaceState(window.history.state, '', next);
+    router.replace(next, { scroll: false });
     if (points && mapRef.current) fitTo(mapRef.current, padBounds(zoneBounds(points), 0.15));
   }, [router]);
   const hadUrlAreaRef = useRef(hasUrlArea);

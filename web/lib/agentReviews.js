@@ -15,6 +15,14 @@ import { getPool } from '@/lib/db';
  */
 export const MIN_PUBLIC_REVIEWS = 5;
 
+/**
+ * Whether the public agent profile shows ratings (owner, 2026-11-27: "remove
+ * this for now", the day they went live). The chip and the "Avis clients"
+ * section in app/(portfolio)/agents/[id] read it; set true to show them again.
+ * The directory's own average (app/(portfolio)/agents/page.js) is unchanged.
+ */
+export const AGENT_RATINGS_PUBLIC = false;
+
 /** How many approved comments the public profile shows. */
 export const PUBLIC_COMMENTS_LIMIT = 6;
 

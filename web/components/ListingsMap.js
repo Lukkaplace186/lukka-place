@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LocateFixed, Loader2, X } from 'lucide-react';
 import MapZoneDraw from './MapZoneDraw';
-import { ZONE_PARAM, parseZone, zoneBounds, zoneToParam } from '@/lib/mapZone';
+import { ZONE_PARAM, keepPinInZone, parseZone, zoneBounds, zoneToParam } from '@/lib/mapZone';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { placeResolvedListings } from '@/lib/geocoding';
 import { compactPrice, priceZIndex } from '@/lib/mapIcons';
@@ -329,6 +329,11 @@ export default function ListingsMap({
   // The zone drawn by hand, read back from the URL (lib/mapZone.js).
   const urlZoneParam = typeof params?.get === 'function' ? params.get(ZONE_PARAM) : params?.[ZONE_PARAM];
   const urlZone = useMemo(() => parseZone(urlZoneParam), [urlZoneParam]);
+  // Read by renderMarkers (a stable callback): pins stay inside the zone.
+  const zoneRef = useRef(urlZone);
+  useEffect(() => {
+    zoneRef.current = urlZone;
+  }, [urlZone]);
   // Drawing or clearing a zone goes through the URL: the pins, the count and
   // the list all read it from there. The map's box is set to the zone's own,
   // and the map frames the zone.
@@ -457,12 +462,16 @@ export default function ListingsMap({
       if (p) placed.push({ id, group, lat: p.lat, lng: p.lng });
     }
     const positions = spreadColocatedPins(placed.map(({ id, lat, lng }) => ({ id, lat, lng })));
+    const zone = zoneRef.current;
 
     const pins = [];
     for (const { id, group } of placed) {
-      const position = positions.get(id);
-      if (!position) continue;
+      const spread = positions.get(id);
+      if (!spread) continue;
       const r = group.representative;
+      // A drawn zone: the privacy blur must not carry a pin over the line
+      // (lib/mapZone.js keepPinInZone); the server checked the real point.
+      const position = zone ? keepPinInZone(zone, { lat: r.lat, lng: r.lng }, spread) : spread;
       pins.push({
         key: group.key,
         id: group.isBuilding ? null : String(r.id),

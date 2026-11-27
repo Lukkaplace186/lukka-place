@@ -511,6 +511,10 @@ async function geocodeListingRow(row, options = {}) {
   const box = buildGeocodeQueries(row).length ? await areaBox(row, options) : null;
   for (const query of buildGeocodeQueries(row)) {
     const point = await geocodeQuery(query, { ...options, box });
+    // The padded box is a rectangle: Limete's reaches Masina. Google must
+    // also place the answer IN the commune (2026-11-27: 11 of 712 public
+    // points from this path were in another commune, #366 Limete in Masina).
+    if (point && !(await pointInCommune(point, row, options))) continue;
     if (point) return { ...point, query, how: 'geocoded' };
   }
   return null;

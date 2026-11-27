@@ -76,6 +76,47 @@ export function pointInZone(points, point) {
   return inside;
 }
 
+/**
+ * Where a pin is drawn while a zone is on (2026-11-27, owner: "some stuff
+ * outside of the circle"). The server keeps only listings whose REAL point is
+ * inside the zone, but a pin is drawn 200–400 m away from it for privacy (up
+ * to ~1.1 km when several share a point, lib/geocoding.js), so a listing near
+ * the line was drawn outside it. In order:
+ *   - the drawn point, when it is inside;
+ *   - the same distance from the real point in another direction (the
+ *     nearest turn first, 16 directions), so the blur keeps its size;
+ *   - else (a zone narrower than the blur) the point on the line from the
+ *     real point to the drawn one closest to the drawn one, just inside.
+ * Deterministic: the same zone always draws a listing at the same place.
+ * Display only; the real point is never shown or stored.
+ */
+export const ZONE_PIN_DIRECTIONS = 16;
+
+export function keepPinInZone(points, real, drawn) {
+  if (!Array.isArray(points) || points.length < MIN_ZONE_POINTS || !valid(real) || !valid(drawn)) return drawn;
+  if (pointInZone(points, drawn) || !pointInZone(points, real)) return drawn;
+  const scale = Math.max(Math.cos((real.lat * Math.PI) / 180), 0.1);
+  const dy = drawn.lat - real.lat;
+  const dx = (drawn.lng - real.lng) * scale;
+  const at = (x, y) => ({ lat: real.lat + y, lng: real.lng + x / scale });
+  for (let k = 1; k <= ZONE_PIN_DIRECTIONS / 2; k += 1) {
+    for (const sign of [1, -1]) {
+      if (sign === -1 && k === ZONE_PIN_DIRECTIONS / 2) continue;
+      const turn = (sign * k * 2 * Math.PI) / ZONE_PIN_DIRECTIONS;
+      const candidate = at(dx * Math.cos(turn) - dy * Math.sin(turn), dx * Math.sin(turn) + dy * Math.cos(turn));
+      if (pointInZone(points, candidate)) return candidate;
+    }
+  }
+  let inside = 0;
+  let outside = 1;
+  for (let i = 0; i < 20; i += 1) {
+    const t = (inside + outside) / 2;
+    if (pointInZone(points, at(dx * t, dy * t))) inside = t;
+    else outside = t;
+  }
+  return at(dx * inside * 0.9, dy * inside * 0.9);
+}
+
 // Douglas–Peucker on { x, y } points.
 function thin(points, tolerance) {
   if (points.length <= 2) return points;

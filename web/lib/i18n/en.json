@@ -968,6 +968,13 @@
           "other": "{count}+ bed"
         },
         "parking": "Parking"
+      },
+      "building": {
+        "fallbackName": "Building",
+        "unitsAvailable": "{count} units available",
+        "project": "View the project →",
+        "close": "Close",
+        "view": "View"
       }
     },
     "alertModal": {

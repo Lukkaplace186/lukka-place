@@ -968,6 +968,13 @@
           "other": "{count} ch.+"
         },
         "parking": "Parking"
+      },
+      "building": {
+        "fallbackName": "Immeuble",
+        "unitsAvailable": "{count} unités disponibles",
+        "project": "Voir le projet →",
+        "close": "Fermer",
+        "view": "Voir"
       }
     },
     "alertModal": {

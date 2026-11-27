@@ -15,6 +15,14 @@
  *       # An unchecked Geocoding answer never replaces a stored point.
  *       # Never touches a project unit (exact building point) or a row whose
  *       # coordinates an admin edited (console audit log).
+ *   node scripts/backfill-listing-coordinates.js --recompute --clear-outside [--write] [--ids=…]
+ *       # also: a row KEPT above (no checked match, or an unchecked answer)
+ *       # whose stored point Google places outside the listing's own commune
+ *       # (pointInCommune, reverse geocode) has its point cleared — the map
+ *       # then shows it around its commune, marked approximate. 2026-11-27:
+ *       # 22 of 712 public points were in another commune (#366, "18ème Rue
+ *       # Industriel, Limete", sat in Masina), all stored before the
+ *       # 2026-10-24 name checks. A point is never invented to replace one.
  *
  * Covers live rows (`status = 1`) that are approved or still pending
  * moderation, so a listing approved tomorrow is already placed. Rows that
@@ -28,7 +36,7 @@
 require('dotenv').config();
 
 const { Pool } = require('pg');
-const { buildGeocodeQueries, geocodeListingRow, storeListingCoordinates, distanceKm } = require('../services/geocoding');
+const { buildGeocodeQueries, geocodeListingRow, storeListingCoordinates, distanceKm, pointInCommune } = require('../services/geocoding');
 
 const CONTENT_LANGUAGE_ID = 20;
 const RATE_LIMIT_MS = 100;
@@ -123,6 +131,7 @@ async function recompute(write) {
   const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
   if (!apiKey) throw new Error('GOOGLE_MAPS_SERVER_KEY is not set');
   const minKm = Number.parseFloat(argValue('min-km') ?? '0.3');
+  const clearOutside = process.argv.includes('--clear-outside');
   const ids = (argValue('ids') || '').split(',').map((v) => Number.parseInt(v, 10)).filter(Number.isFinite);
   const pool = new Pool({
     host: process.env.DB_HOST,
@@ -158,9 +167,9 @@ async function recompute(write) {
       console.log(`(audit log not readable: ${err.message} — no row is treated as admin-set)`);
     }
 
-    console.log(`Mode: RECOMPUTE ${write ? `WRITE (moves > ${minKm} km)` : 'DRY RUN'} — ${rows.length} row(s)
+    console.log(`Mode: RECOMPUTE ${write ? `WRITE (moves > ${minKm} km)` : 'DRY RUN'}${clearOutside ? ' + CLEAR OUTSIDE COMMUNE' : ''} — ${rows.length} row(s)
 `);
-    const tally = { moved: 0, same: 0, unresolved: 0, skipped: 0, written: 0 };
+    const tally = { moved: 0, same: 0, unresolved: 0, skipped: 0, written: 0, cleared: 0, clearedWritten: 0 };
     for (const row of rows) {
       const label = `#${row.id} [${row.quartier || '—'} | ${row.reference || '—'} | ${row.commune || '—'}]`;
       if (row.development_id || adminEdited.has(String(row.id))) {
@@ -169,22 +178,44 @@ async function recompute(write) {
         continue;
       }
       const old = { lat: Number.parseFloat(row.latitude), lng: Number.parseFloat(row.longitude) };
+      // A kept point that lies in another commune is wrong, whatever else is
+      // unknown: cleared with --clear-outside (see the header).
+      const keepOrClear = async (why) => {
+        if (clearOutside && row.commune && !(await pointInCommune(old, row, { apiKey }))) {
+          tally.cleared += 1;
+          console.log(`${label}: ${why}, and the stored point (${old.lat}, ${old.lng}) is OUTSIDE ${row.commune} — CLEARS`);
+          if (write) {
+            const res = await pool.query(
+              'UPDATE properties SET latitude = NULL, longitude = NULL WHERE id = $1 AND latitude = $2 AND longitude = $3',
+              [row.id, row.latitude, row.longitude],
+            );
+            tally.clearedWritten += res.rowCount;
+          }
+          return;
+        }
+        tally.unresolved += 1;
+        console.log(`${label}: ${why} — current point kept (${old.lat}, ${old.lng})`);
+      };
       const point = await geocodeListingRow(row, { apiKey });
       if (!point) {
-        tally.unresolved += 1;
-        console.log(`${label}: no checked match — current point kept (${old.lat}, ${old.lng})`);
+        await keepOrClear('no checked match');
         continue;
       }
       const km = distanceKm(old, point);
       const how = `${point.how}${point.term ? ` "${point.term}"` : ''}${point.matched ? ` → "${point.matched}"` : ''}`;
+      // A plain Geocoding answer is checked against the commune's padded box
+      // only; landing on the stored point again proves nothing about it.
+      if (km <= minKm && point.how === 'geocoded' && clearOutside) {
+        await keepOrClear(`unchecked answer at the same place (${km.toFixed(2)} km)`);
+        continue;
+      }
       if (km <= minKm) {
         tally.same += 1;
         console.log(`${label}: same place (${km.toFixed(2)} km) via ${how}`);
         continue;
       }
       if (point.how === 'geocoded' || !row.commune) {
-        tally.unresolved += 1;
-        console.log(`${label}: unchecked answer ${km.toFixed(2)} km away (${point.how}${row.commune ? '' : ', no commune'}) — current point kept`);
+        await keepOrClear(`unchecked answer ${km.toFixed(2)} km away (${point.how}${row.commune ? '' : ', no commune'})`);
         continue;
       }
       tally.moved += 1;
@@ -199,7 +230,7 @@ async function recompute(write) {
       await sleep(RATE_LIMIT_MS);
     }
     console.log(`
-Done: ${tally.moved} would move${write ? ` (${tally.written} written)` : ''}, ${tally.same} unchanged, ${tally.unresolved} unresolved (kept), ${tally.skipped} kept by rule.`);
+Done: ${tally.moved} would move${write ? ` (${tally.written} written)` : ''}, ${tally.cleared} outside their commune, cleared${write ? ` (${tally.clearedWritten} written)` : ' on --write'}, ${tally.same} unchanged, ${tally.unresolved} unresolved (kept), ${tally.skipped} kept by rule.`);
   } finally {
     await pool.end();
   }

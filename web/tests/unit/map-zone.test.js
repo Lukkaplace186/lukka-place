@@ -191,3 +191,29 @@ test('a pin tap jumps to its card instead of gliding through the others', () => 
   assert.match(src, /scroller\.scrollTo\(\{ left, behavior: 'auto' \}\)/);
   assert.doesNotMatch(src, /behavior: reduce \? 'auto' : 'smooth'/);
 });
+
+test('a pin blurred over the zone line is drawn inside it, at the same distance when it fits', async () => {
+  const { keepPinInZone, pointInZone } = await import('@/lib/mapZone');
+  // A 2.2 km square; the real point 100 m inside its east edge.
+  const zone = [{ lat: -4.31, lng: 15.30 }, { lat: -4.31, lng: 15.32 }, { lat: -4.33, lng: 15.32 }, { lat: -4.33, lng: 15.30 }];
+  const real = { lat: -4.32, lng: 15.3191 };
+  const drawn = { lat: -4.32, lng: 15.3221 }; // ~330 m east: outside
+  const kept = keepPinInZone(zone, real, drawn);
+  assert.ok(pointInZone(zone, kept));
+  const km = (a, b) => Math.hypot((a.lat - b.lat) * 111.32, (a.lng - b.lng) * 111.32 * Math.cos(a.lat * Math.PI / 180));
+  assert.ok(Math.abs(km(real, kept) - km(real, drawn)) < 0.01, 'the blur keeps its size');
+  assert.deepEqual(keepPinInZone(zone, real, drawn), kept, 'deterministic');
+  // Inside already, no zone, or a real point outside: unchanged.
+  const inside = { lat: -4.321, lng: 15.31 };
+  assert.equal(keepPinInZone(zone, real, inside), inside);
+  assert.equal(keepPinInZone(null, real, drawn), drawn);
+  // A zone narrower than the blur: pulled towards the real point, just inside.
+  const thin = [{ lat: -4.3200, lng: 15.300 }, { lat: -4.3200, lng: 15.301 }, { lat: -4.3205, lng: 15.301 }, { lat: -4.3205, lng: 15.300 }];
+  const pulled = keepPinInZone(thin, { lat: -4.3202, lng: 15.3005 }, { lat: -4.3232, lng: 15.3005 });
+  assert.ok(pointInZone(thin, pulled));
+});
+
+test('the map draws pins through keepPinInZone while a zone is on', () => {
+  const src = readFileSync(path.join(process.cwd(), 'components/ListingsMap.js'), 'utf8');
+  assert.match(src, /zone \? keepPinInZone\(zone, \{ lat: r\.lat, lng: r\.lng \}, spread\) : spread/);
+});

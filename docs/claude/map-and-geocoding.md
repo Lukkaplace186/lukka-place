@@ -29,3 +29,36 @@ Real Google Maps rendering on `/listings` (`?view=map`, toggle button next to So
 - **Publish-time geocoding** (`services/geocoding.js`): after COMMIT, `syncListingToPostgres` fills blank `latitude`/`longitude` with the same landmark rule and precision check as the client cascade (a commune outline is refused, a key/quota refusal throws rather than cascading). Needs `GOOGLE_MAPS_SERVER_KEY` (IP-restricted; requests go out over IPv4 because the VPS is dual-stack). Never overwrites an existing coordinate; a correction that changes quartier, commune tag or landmark reference clears the old one first. Backfill: `node scripts/backfill-listing-coordinates.js [--write]`. §30 of verify-pipeline.
 - **Markers** (2026-09-23, "sleek map" pass): on `/listings`, HTML speech-bubble pills drawn by one `google.maps.OverlayView` (`web/lib/mapPinLayer.js`, styles `.lkp-pin` in `app/globals.css`) — the site font, CSS transitions, no Map ID, and off the deprecated `google.maps.Marker`. White with charcoal text and a stem whose tip is the coordinate; the active one (hovered card / open preview) royal blue; listings this browser opened (`lib/recentlyViewed.js`) or tapped greyed; `verified_at` a small check. **Every listing always shows its price**: no clustering, and the overlap-to-dot collapse tried the same day was removed on product direction ("the blue dots … I don't understand it"). Labels are the map's own format, `$750` / `$1.5k` / `$185k` / `$1.2M` (`compactPrice`), no "/m", "/an" kept for yearly rents. The detail page (2026-09-28) loads by itself near the viewport (Data Saver keeps the tap) and shows the one listing: with stored coordinates `ListingPinMap` at zoom 14 shows only a pale 500 m approximate-zone circle and a "Zone approximative" chip — no pin, symbol, label or price (2026-10-23, owner's choice; a navy point and then an irregular zone with a white type badge came before it); a comparison with nearby similar listings was tried and reverted on 2026-09-28; without coordinates `PropertyMap`'s SVG `google.maps.Marker` tags (`lib/mapIcons.js`), same white/blue. Also: `cameraControl` off, "Autour de moi" (geolocation on tap, refused outside `KINSHASA_PROVINCE_ENVELOPE`), a 60s per-tab cache of marker answers, and the top pill is text only (no ⓘ) and hidden on a phone once settled — "Voir N biens" carries the count. Stacking: active on top, then higher price in front. Co-located pins are separated by the fan described above.
 - **Known environment limitation, not a code bug**: this session's sandboxed test browser has no real GPU (WebGL reports available but the renderer is unaccelerated software — `"WebKit WebGL"` with no hardware string), which makes Google's Maps JS API silently fall back to `StaticMapService.GetMapImage` (a static, non-interactive image) instead of the normal vector-tile renderer, so full interactive rendering (pan/zoom/cluster click/InfoWindow) could not be visually confirmed in that pane. What **was** confirmed directly: all 8 real listings resolve to real coordinates (`console.log` per listing — 7 geocoded, 1 via the commune-fallback fix above, 0 unresolved), `google.maps.Marker` instances are genuinely created (its deprecation warning only fires on real construction), no JS errors anywhere in the pipeline, and lint is clean. **Verify the actual interactive experience (pan/zoom/clusters/popup clicks) in a real desktop browser** — it should Just Work there; the static-image fallback is specific to unaccelerated/headless environments.
+
+## Drawn zone, points in the wrong commune, building sheet (2026-11-27)
+
+Owner, phone screenshots: pins outside a drawn zone, a Limete listing in
+Masina, a building pin opening a white panel with no way out.
+
+- **Pins outside the zone**: the server keeps only listings whose stored
+  point is inside the shape, but every pin is drawn 200–400 m away for
+  privacy (up to ~1.1 km when several share a point), so pins near the line
+  were drawn across it. `web/lib/mapZone.js` `keepPinInZone` (used by
+  `ListingsMap` renderMarkers while a zone is on): the same blur distance
+  turned to a direction inside the zone, else pulled toward the real point
+  just inside. Display only. `web/tests/unit/map-zone.test.js`.
+- **Points in another commune**: 22 of 712 located public listings were
+  outside their commune by Google's reverse geocode (`pointInCommune`), all
+  stored before the 2026-10-24 name checks; #366 "TRANSCO, 18ème Rue
+  Industriel", Limete sat in Masina. The Geocoding cascade only enforced the
+  commune's padded RECTANGLE (Limete's reaches Masina); it now also asks
+  `pointInCommune` and moves on to the next query when Google says another
+  commune. `scripts/backfill-listing-coordinates.js --recompute
+  --clear-outside [--write]` clears a stored point that no name-checked
+  lookup confirms and that lies outside the commune (an unchecked answer
+  landing on the same point counts as unconfirmed); the map then scatters
+  the listing over its commune, marked approximate. Dry run on the 22:
+  11 cleared, 1 moved (#575 to "GARE CENTRALE"), 10 name-checked landmark
+  points kept (e.g. "walesa" for six Limete Industriel listings, which
+  Google's reverse lookup places just over the Barumbu line). verify-pipeline
+  §30 check "a cascade answer Google places in another commune is refused".
+- **Building sheet**: `web/components/BuildingUnitsDrawer.js` is a bottom
+  sheet on phones (≤62% of the map, z-40, under the floating search panel,
+  whole row = link, FR/EN keys `listings.map.building.*`); desktop keeps the
+  side panel. It was a full-height panel whose title and close button sat
+  under the search panel (z-30, later in the DOM).

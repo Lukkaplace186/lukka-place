@@ -8387,7 +8387,8 @@ console.log('\n2. services/openai.js');
   }
   const noPlaces = fakePlaces({}).placesRequest;
   const BOX_QUERY = 'Lemba, Kinshasa, RD Congo';
-  const cascadeAsked = (google) => google.asked.filter((q) => q !== BOX_QUERY);
+  // Forward queries only: the box lookup and the reverse "is it in the commune" checks (address null) are not the cascade.
+  const cascadeAsked = (google) => google.asked.filter((q) => q !== BOX_QUERY && q !== null);
 
   /** A pg client that answers the coordinate read and records every statement. */
   function fakeCoordinateDb(existing) {
@@ -8427,6 +8428,26 @@ console.log('\n2. services/openai.js');
     const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
     assert.deepStrictEqual([point.lat, point.lng, point.query], [-4.401, 15.312, 'Righini, Lemba, Kinshasa, RD Congo']);
     assert.strictEqual(cascadeAsked(google).length, 2);
+  });
+  await checkAsync('a cascade answer Google places in another commune is refused (2026-11-27, #366 Limete in Masina)', async () => {
+    const google = fakeGoogle({
+      'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.3953, lng: 15.4165 },
+      'Righini, Lemba, Kinshasa, RD Congo': { lat: -4.401, lng: 15.312 },
+    });
+    const request = async (url) => {
+      const latlng = new URL(url).searchParams.get('latlng');
+      if (latlng) {
+        google.asked.push(null);
+        const name = Number(latlng.split(',')[1]) > 15.39 ? 'Masina' : 'Lemba';
+        return { status: 'OK', results: [{ address_components: [{ long_name: name }] }] };
+      }
+      return google.request(url);
+    };
+    const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request, placesRequest: noPlaces, ignoreTable: true });
+    assert.deepStrictEqual([point.lat, point.lng, point.query], [-4.401, 15.312, 'Righini, Lemba, Kinshasa, RD Congo']);
+    const src = fs.readFileSync(path.join(__dirname, 'backfill-listing-coordinates.js'), 'utf8');
+    assert.match(src, /--clear-outside/);
+    assert.match(src, /SET latitude = NULL, longitude = NULL WHERE id = \$1 AND latitude = \$2 AND longitude = \$3/);
   });
   await checkAsync('a refused key throws instead of cascading to a vaguer query', async () => {
     const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': 'DENIED' });

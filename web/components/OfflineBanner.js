@@ -1,7 +1,7 @@
 'use client';
 
 import { WifiOff } from 'lucide-react';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH } from '@/lib/iconStyle';
 import { useOnline } from '@/lib/useOnline';
 import { useT } from '@/lib/i18n/client';
 

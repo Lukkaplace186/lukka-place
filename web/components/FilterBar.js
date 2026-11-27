@@ -14,7 +14,7 @@ import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildSearchLabel } from '@/lib/searchLabel';
-import { searchedPlaceLabel } from '@/lib/searchParser';
+import { searchedPlaceLabel } from '@/lib/searchPlaceLabel';
 import { useT } from '@/lib/i18n/client';
 import {
   pushRecentSearch,
@@ -26,7 +26,9 @@ import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { cn } from '@/lib/utils';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
 import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
+import { BUDGET_CHIPS, activeBudgetChip, budgetChipToggle, showBudgetChips } from '@/lib/budgetChips';
 import { frNumber } from '@/lib/format';
+import { bedsRangeLabel } from '@/lib/mapQuickFilters';
 
 const LEASE_ICONS = { long: CalendarRange, short: CalendarClock };
 
@@ -38,7 +40,7 @@ const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin', 'plotMin', 'plo
 // result set, so changing only those shouldn't spawn a new history entry.
 const FILTER_PARAM_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'beds_max', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
 ];
 // Fallback only for the genuinely-empty-catalog case (lib/listings.js's
 // getPriceRange() returns null) — otherwise the real ceiling comes from
@@ -161,6 +163,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // A legacy `deposit_max` link keeps filtering until the visitor picks an
   // Avance exigée band, which replaces it.
   const legacyDepositMax = depositRange ? '' : defaults.depositMax || '';
+  // The phone map's "2 à 3 chambres" (MapQuickFilters) has no field here; it
+  // rides along with every change, and goes when a new minimum passes it.
+  const keptBedsMax =
+    defaults.bedsMax && !(bedsMin && Number(defaults.bedsMax) < Number(bedsMin)) ? String(defaults.bedsMax) : '';
   const [amenities, setAmenities] = useState(defaults.amenities || []);
   // Taille du terrain, m² (lib/listingDetails.js).
   const [plotMin, setPlotMin] = useState(defaults.plotMin || '');
@@ -236,6 +242,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (propertyType) qs.set('property_type', propertyType);
       if (propertyType === 'parcelle' && parcelleSubtype) qs.set('parcelle_subtype', parcelleSubtype);
       if (bedsMin) qs.set('beds_min', bedsMin);
+      if (keptBedsMax) qs.set('beds_max', keptBedsMax);
       if (bathMin) qs.set('bath_min', bathMin);
       if (priceMin) qs.set('price_min', priceMin);
       if (priceMax) qs.set('price_max', priceMax);
@@ -272,6 +279,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     propertyType,
     parcelleSubtype,
     bedsMin,
+    keptBedsMax,
     bathMin,
     priceMin,
     priceMax,
@@ -338,6 +346,14 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     };
   }
 
+  // A budget chip sets both ends at once (lib/budgetChips.js).
+  function chooseBudget(chip) {
+    const next = budgetChipToggle(chip, priceMin, priceMax);
+    setPriceMin(next.min);
+    setPriceMax(next.max);
+    queueMicrotask(submit);
+  }
+
   const hidden = [
     // Carries the current free-text search forward across every other pill
     // action. LocationAutocomplete's own box does its own client-side
@@ -363,6 +379,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],
     ['beds_min', bedsMin],
+    ['beds_max', keptBedsMax],
     ['bath_min', bathMin],
     ['price_min', priceMin],
     ['price_max', priceMax],
@@ -553,7 +570,15 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 hint pointing here). */}
             <FilterPill
               label={t('listings.filters.bedrooms')}
-              value={bedsMin ? t('listings.filters.bedsValue', { count: bedsMin }) : null}
+              // A range handed over by the homepage or the map ("2 – 4 ch",
+              // "Studio – 2 ch", "Studio") reads as one; a bare minimum stays "2+".
+              value={
+                bedsMin && (keptBedsMax || bedsMin === '0')
+                  ? bedsRangeLabel(bedsMin, keptBedsMax, t('listings.specs.beds'), t('home.search.studio'))
+                  : bedsMin
+                    ? t('listings.filters.bedsValue', { count: bedsMin })
+                    : null
+              }
               active={Boolean(bedsMin)}
             >
               <PillFieldLabel>{t('listings.filters.bedroomsMin')}</PillFieldLabel>
@@ -730,6 +755,31 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 })}
               </div>
             ) : null}
+          </div>
+        ) : null}
+
+        {/* Budget chips (2026-11-25, lib/budgetChips.js): ad visitors land
+            on "up to $750" and most budgets are $350; one tap narrows the
+            feed. Monthly rents only, hidden once the bar condenses. */}
+        {!condensed && showBudgetChips(transaction, leaseTerm) ? (
+          <div className="mt-2 flex gap-2 overflow-x-auto" role="group" aria-label={t('listings.budgetChips.label')}>
+            {BUDGET_CHIPS.map((chip) => {
+              const on = activeBudgetChip(priceMin, priceMax)?.key === chip.key;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => chooseBudget(chip)}
+                  className={cn(
+                    'u-press inline-flex min-h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors lg:text-[0.8125rem]',
+                    on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
+                  )}
+                >
+                  {t(`listings.budgetChips.${chip.key}`)}
+                </button>
+              );
+            })}
           </div>
         ) : null}
 

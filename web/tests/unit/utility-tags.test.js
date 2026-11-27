@@ -37,18 +37,18 @@ test('a chip matches the structured codes OR the listing text — never only one
   enqueue([]);
   await listings.getListings({ amenities: ['eau'] });
   const { sql, values } = calls[0];
-  assert.match(sql, /COALESCE\(to_jsonb\(p\) -> 'utilities', '\[\]'::jsonb\) \?\| \$\d+::text\[\] OR pc\.title ~\* \$\d+/);
+  assert.match(sql, /COALESCE\(to_jsonb\(p\.utilities\), '\[\]'::jsonb\) \?\| \$\d+::text\[\] OR pc\.title ~\* \$\d+/);
   assert.ok(values.some((v) => Array.isArray(v) && v.join() === 'regideso,citerne,forage'));
   assert.ok(values.includes('\\yregideso'));
   // The words live in `features` far more often than in the description.
   assert.match(sql, /array_to_string\(COALESCE\(p\.features, '\{\}'::text\[\]\), ' '\) ~\* \$\d+/);
-  assert.ok(!/p\.utilities/.test(sql), 'read through to_jsonb, so the query cannot 42703 before the migration');
+  assert.ok(!/to_jsonb\(p\)/.test(sql), 'one column, never the whole row (the embedding vector)');
 });
 
-test('the public listing row carries the codes through to_jsonb', async () => {
+test('the public listing row carries the codes as a jsonb array', async () => {
   enqueue([]);
   await listings.getListingById(310);
-  assert.match(calls.map((c) => c.sql).join('\n'), /COALESCE\(to_jsonb\(p\) -> 'utilities', '\[\]'::jsonb\) AS utilities/);
+  assert.match(calls.map((c) => c.sql).join('\n'), /COALESCE\(to_jsonb\(p\.utilities\), '\[\]'::jsonb\) AS utilities/);
 });
 
 test('saved-search labels name the chips', () => {
@@ -68,7 +68,8 @@ test('every code and chip has a label in both languages', () => {
 });
 
 test('the listing page says "déclaré", never "vérifié"', () => {
-  const badges = read('components/listings/UtilityBadges.js');
+  // One "Équipements" section since 2026-11-18 (utility tags + practical details).
+  const badges = read('components/listings/ListingEquipment.js');
   assert.match(badges, /listings\.utilities\.declared/);
   assert.ok(!/verified|vérifi/i.test(badges.replace(/\/\*[\s\S]*?\*\//g, '')));
 });

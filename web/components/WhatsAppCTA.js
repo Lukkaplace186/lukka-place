@@ -1,8 +1,8 @@
 'use client';
 
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
-import { trackLeadClick } from '@/lib/analyticsClient';
 import { useT } from '@/lib/i18n/client';
+import WhatsAppIntentButton from './WhatsAppIntentSheet';
 
 export function WhatsAppIcon(props) {
   return (
@@ -65,19 +65,12 @@ export function WhatsAppIcon(props) {
 export default function WhatsAppCTA({ listing, variant = 'compact', placement = 'card' }) {
   const t = useT();
   // Verified agent directly, central number otherwise — lib/leadRouting.js.
-  const { href, routingType } = resolveWhatsAppRouting(listing);
+  const { href } = resolveWhatsAppRouting(listing);
 
   if (!href) {
     // No real number is configured yet (see .env.local's TODO) — render
     // nothing rather than ship a wa.me link with an empty number.
     return null;
-  }
-
-  function handleClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    trackLeadClick(listing, routingType, placement);
-    window.open(href, '_blank', 'noopener,noreferrer');
   }
 
   // `link` is the Rightmove-style bottom action bar's left slot: a bare
@@ -88,38 +81,38 @@ export default function WhatsAppCTA({ listing, variant = 'compact', placement = 
   // in a two-item row.
   if (variant === 'link') {
     return (
-      <button
-        type="button"
-        onClick={handleClick}
+      <WhatsAppIntentButton
+        listing={listing}
+        placement={placement}
         className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-medium text-ink transition-colors hover:text-ink-70"
       >
         <WhatsAppIcon className="h-4 w-4" />
         {t('common.shared.whatsapp')}
-      </button>
+      </WhatsAppIntentButton>
     );
   }
 
   if (variant === 'block') {
     return (
-      <button
-        type="button"
-        onClick={handleClick}
+      <WhatsAppIntentButton
+        listing={listing}
+        placement={placement}
         className="u-press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-green px-4 text-[0.875rem] font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
       >
         <WhatsAppIcon className="h-4 w-4" />
         {t('common.shared.whatsapp')}
-      </button>
+      </WhatsAppIntentButton>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
+    <WhatsAppIntentButton
+      listing={listing}
+      placement={placement}
       className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-full bg-green px-3.5 py-1.5 text-[0.75rem] font-semibold text-white transition-colors hover:bg-green-deep"
     >
       <WhatsAppIcon className="h-3.5 w-3.5" />
       {t('common.shared.whatsapp')}
-    </button>
+    </WhatsAppIntentButton>
   );
 }

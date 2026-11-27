@@ -82,7 +82,10 @@ test('every customer sign-in claims the taps, after the session is set', () => {
   for (const [file, who] of [
     ['app/(site)/compte/inscription/actions.js', 'customer.id'],
     ['app/(site)/compte/connexion/actions.js', 'customer.id'],
-    ['app/(site)/compte/connexion/whatsappActions.js', 'attempt.id'],
+    // One finishSignIn for the sent code and the WhatsApp message (2026-11-24),
+    // and the new-number sign-in (lib/newCustomerSession.js).
+    ['app/(site)/compte/connexion/whatsappActions.js', 'id'],
+    ['lib/newCustomerSession.js', 'id'],
   ]) {
     const src = read(file);
     const session = src.indexOf('establishCustomerSession(');
@@ -96,11 +99,13 @@ test('every listing WhatsApp tap reaches the prompt, mounted once on the site', 
   const trackLeadClick = analytics.slice(analytics.indexOf('export function trackLeadClick'));
   assert.match(trackLeadClick.slice(0, 1200), /dispatchEvent\(new CustomEvent\(WHATSAPP_TAP_EVENT/);
   assert.match(read('app/(site)/layout.js'), /<ContactSignupPrompt \/>/);
-  const prompt = read('components/ContactSignupPrompt.js');
+  // The sheet is its own chunk since 2026-11-22 (components/ContactSignupSheet.js).
+  const prompt = read('components/ContactSignupPrompt.js') + read('components/ContactSignupSheet.js');
   assert.match(prompt, /isLoggedInClient\(\) \|\| isAgentSignedInClient\(\)/, 'never offered to a signed-in customer or agent');
   assert.match(prompt, /const ENTRY = 'after_whatsapp';/);
   assert.match(prompt, /<WhatsAppSignInForm/, 'the same no-password sign-in as the ♥ prompt');
-  assert.match(prompt, /keepListingNext\(window\.location, id\)/, 'the contacted listing is kept');
+  // Or, with a "homes like this one" search, those results (2026-11-24).
+  assert.match(prompt, /similarAlertNext\(tap\.similarQuery, tap\.id\) \|\| keepListingNext\(window\.location, tap\.id\)|similarNext \|\| keepListingNext\(window\.location, tap\.id\)/, 'the contacted listing is kept');
   assert.match(prompt, /snoozeContactSignup\(\)/);
 });
 

@@ -5,6 +5,7 @@ import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import { deleteAgentAccount, getAgentDeletionImpact } from '@/lib/adminAgentDeletion';
+import { listAgenciesForAdmin } from '@/lib/adminAgencies';
 
 export async function updateAgentStatusAction(agentId, formData) {
   const session = await requireAdmin('agents.manage');
@@ -27,18 +28,68 @@ export async function reassignAgentVendorAction(agentId, formData) {
   const session = await requireAdmin('agents.manage');
   const raw = formData.get('vendor_id');
   const vendorId = raw ? Number.parseInt(raw, 10) : null;
+  if (raw && !Number.isFinite(vendorId)) throw new Error('Invalid vendor_id');
 
   const pool = getPool();
 
   if (vendorId !== null) {
-    const { rows } = await pool.query('SELECT id FROM vendors WHERE id = $1', [vendorId]);
+    // A soft-deleted agency (lib/adminSoftDelete.js) is not a destination.
+    const { rows } = await pool.query('SELECT id FROM vendors WHERE id = $1 AND deleted_at IS NULL', [vendorId]);
     if (!rows.length) throw new Error(`No vendor #${vendorId}`);
   }
 
+  const { rows: before } = await pool.query('SELECT vendor_id FROM agents WHERE id = $1', [agentId]);
+  if (!before.length) throw new Error(`No agent #${agentId}`);
+  const previousVendorId = Number(before[0].vendor_id) > 0 ? Number(before[0].vendor_id) : null;
+
   await pool.query('UPDATE agents SET vendor_id = $1, updated_at = NOW() WHERE id = $2', [vendorId, agentId]);
-  await recordAudit(session, { action: 'agent.vendor', entityType: 'agent', entityId: agentId, details: { vendorId } });
+  await recordAudit(session, {
+    action: 'agent.vendor',
+    entityType: 'agent',
+    entityId: agentId,
+    details: { vendorId, from: previousVendorId },
+  });
+
+  // An account created on its own (admin creation, WhatsApp onboarding) gets an
+  // agency of its own; moving that agent into their real agency leaves it empty
+  // (Chris Lubamba → Joker Agency, 2026-11-12). Say so, so the team can remove it.
+  let previousLeftEmpty = false;
+  if (previousVendorId && previousVendorId !== vendorId) {
+    const { rows } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM agents WHERE vendor_id = $1 AND deleted_at IS NULL',
+      [previousVendorId],
+    );
+    previousLeftEmpty = (rows[0]?.n ?? 0) === 0;
+  }
+
   revalidatePath('/admin/agents');
+  revalidatePath(`/admin/agents/${agentId}`);
   revalidatePath('/admin/agencies');
+  if (vendorId) revalidatePath(`/admin/agencies/${vendorId}`);
+  if (previousVendorId) revalidatePath(`/admin/agencies/${previousVendorId}`);
+  return { ok: true, previousVendorId, previousLeftEmpty };
+}
+
+/**
+ * The agent profile's "Changer d'agence" search: agencies matching a name, an
+ * agent's name or a number (the Agencies list's own search), most agents first.
+ * The agents list's dialog loads every agency into a <select>; at 1,000+
+ * agencies a search is the only usable picker.
+ */
+export async function searchAgenciesForAgentAction(q) {
+  await requireAdmin('agents.manage');
+  const term = String(q || '').trim().slice(0, 80);
+  if (term.length < 2) return { ok: true, agencies: [] };
+  const { rows } = await listAgenciesForAdmin({ q: term, sort: 'agents', limit: 8 });
+  return {
+    ok: true,
+    agencies: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      agents: Number(row.agents) || 0,
+      contactName: row.contact_name || null,
+    })),
+  };
 }
 
 /**

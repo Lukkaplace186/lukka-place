@@ -14,6 +14,8 @@ import { refParamApplies, searchWithoutRef } from '@/lib/partnerRules';
 import { isEnglishPath, toFrenchPath } from '@/lib/localePaths';
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from '@/lib/i18n/config';
 import { URL_LOCALE_HEADER } from '@/lib/i18n/urlLocale';
+import { CRAWL_REFUSAL, isFilteredDirectoryRequest, looksLikeImpersonatedChrome } from '@/lib/directoryCrawlGuard';
+import { BROWSER_CACHE_CONTROL, CACHEABLE_PATH, CDN_CACHE_CONTROL, edgeCacheable } from '@/lib/edgeCache';
 
 /**
  * Gates /admin/* (team password), /compte/agent/* (agent self-service
@@ -38,7 +40,8 @@ export const config = {
     // Every other page and API route too, but ONLY for a browser carrying the
     // "view as" cookie: while an admin views the site as another account, no
     // write may go through anywhere (lib/impersonationToken.js). Ordinary
-    // storefront traffic never reaches this proxy.
+    // storefront traffic reaches this proxy only on the edge-cacheable pages
+    // listed last (2026-11-21).
     {
       source: '/((?!_next/static|_next/image|favicon\\.ico).*)',
       has: [{ type: 'cookie', key: 'lukka_impersonation' }],
@@ -55,6 +58,32 @@ export const config = {
       source: '/((?!_next/static|_next/image|favicon\\.ico|api/|go/|r/).*)',
       has: [{ type: 'query', key: 'ref' }],
     },
+    // A FILTERED /agents search (lib/directoryCrawlGuard.js): a script wearing
+    // Chrome's name is turned away before the directory queries run. One entry
+    // per filter key (a matcher's `has` is AND); the plain directory and its
+    // `?page=N` never reach the proxy. /en/agents comes through '/en/:path*'.
+    // Literal on purpose: Next reads the matcher at build time and accepts
+    // only static values. Keep in step with DIRECTORY_FILTER_KEYS (a test
+    // compares them).
+    { source: '/agents', has: [{ type: 'query', key: 'q' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'nom' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'ville' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'communes' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'commune' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'pres' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'offre' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'verifies' }] },
+    { source: '/agents', has: [{ type: 'query', key: 'tri' }] },
+    // The public pages Cloudflare may keep for an anonymous visitor
+    // (lib/edgeCache.js, 2026-11-21): the proxy marks their response
+    // cacheable only when nothing in the request personalises the render.
+    '/',
+    '/listings',
+    '/listings/:id',
+    '/location/:path*',
+    '/vente/:path*',
+    '/combien-coute/:path*',
+    '/guides/:path*',
   ],
   runtime: 'nodejs',
 };
@@ -134,6 +163,16 @@ function withStaffMarker(request, response) {
 
 export function middleware(request) {
   const { pathname, search } = request.nextUrl;
+
+  // Crawlers on the directory's endless filter combinations
+  // (lib/directoryCrawlGuard.js): refused before any rendering or query.
+  if (
+    request.method === 'GET' &&
+    isFilteredDirectoryRequest(pathname, request.nextUrl.searchParams) &&
+    looksLikeImpersonatedChrome(request.headers)
+  ) {
+    return new NextResponse(CRAWL_REFUSAL.body, { status: CRAWL_REFUSAL.status, headers: CRAWL_REFUSAL.headers });
+  }
 
   const impersonation = impersonationDecision({
     method: request.method,
@@ -268,5 +307,26 @@ export function middleware(request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return withEdgeCache(request, NextResponse.next());
+}
+
+/**
+ * Anonymous public HTML: Cloudflare may keep it for a minute (lib/edgeCache.js
+ * has the rules and why). Next keeps a Cache-Control the proxy already set on
+ * a dynamic page; every other response keeps Next's `private, no-store`.
+ */
+function withEdgeCache(request, response) {
+  const { pathname, search } = request.nextUrl;
+  if (!CACHEABLE_PATH.test(pathname)) return response;
+  const cacheable = edgeCacheable({
+    method: request.method || 'GET',
+    pathname,
+    search,
+    headers: request.headers || new Headers(),
+    cookies: request.cookies.getAll ? request.cookies.getAll() : [],
+  });
+  if (!cacheable || response.cookies.getAll().length > 0) return response;
+  response.headers.set('Cache-Control', BROWSER_CACHE_CONTROL);
+  response.headers.set('CDN-Cache-Control', CDN_CACHE_CONTROL);
+  return response;
 }

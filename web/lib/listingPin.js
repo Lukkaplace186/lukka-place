@@ -1,5 +1,3 @@
-import { resolveMarkerPosition } from './mapViewport';
-
 /**
  * The detail page's map (components/ListingPinMap.js): only the approximate
  * zone, a pale circle around the listing's jittered point (2026-10-23, owner's
@@ -26,8 +24,13 @@ export function storedPosition(listing) {
   const lat = numberOrNull(listing?.latitude);
   const lng = numberOrNull(listing?.longitude);
   if (lat === null || lng === null || (lat === 0 && lng === 0)) return null;
-  const position = resolveMarkerPosition({ lat, lng });
-  return position && !position.approximate ? position : null;
+  // The range check resolveMarkerPosition (lib/mapViewport.js) applies to real
+  // coordinates; its commune-centroid fallback is "approximate", which this
+  // function always refused. Inlined on 2026-11-21 so the listing page's
+  // JavaScript no longer carries mapViewport + geocoding + cities (~20 KB raw)
+  // just to read two numbers; tests/unit/listing-pin.test.js pins the result.
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng, approximate: false };
 }
 
 /**

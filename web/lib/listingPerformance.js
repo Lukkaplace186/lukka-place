@@ -152,7 +152,7 @@ export const PERFORMANCE_LISTING_SQL = `
   SELECT p.id, p.agent_id, p.price, p.purpose, p.price_period, p.beds, p.category_id, p.featured_image,
          p.status, p.approve_status, p.listing_status, p.archived_at, p.sold_at, p.sold_price,
          p.created_at, p.reference,
-         NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz AS availability_confirmed_at,
+         p.availability_confirmed_at AS availability_confirmed_at,
          pc.title,
          (SELECT ac.name FROM property_amenities pa
             JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}

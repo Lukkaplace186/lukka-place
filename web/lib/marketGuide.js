@@ -57,13 +57,16 @@ export const LUKKA_RENTS_SQL = `
   SELECT ${COMMUNE_EXPR} AS commune, p.beds::int AS beds,
          (CASE WHEN p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END)::numeric AS amount,
          'lukka'::text AS src,
-         (GREATEST(p.created_at, COALESCE((to_jsonb(p) ->> 'moderated_at')::timestamptz, p.created_at))
-            >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent
+         (GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))
+            >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent,
+         -- When this ask was last recorded: the day it went public (seen_at, the
+         -- guide's "Mis à jour le" date — browseFeatures.js getPriceGuides).
+         GREATEST(p.created_at, COALESCE((to_jsonb(p) ->> 'moderated_at')::timestamptz, p.created_at))::timestamptz AS seen_at
     FROM properties p
    WHERE p.status = 1 AND p.approve_status = 1
      AND p.purpose = 'rent' AND p.price > 0
      AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
-     AND COALESCE((to_jsonb(p) ->> 'furnished')::boolean, false) = false
+     AND COALESCE(p.furnished, false) = false
      AND p.beds BETWEEN 1 AND 5
      AND ${NOT_TEST_LISTING_SQL}
 `;
@@ -71,7 +74,9 @@ export const LUKKA_RENTS_SQL = `
 /** Market observations that count, one row each. $2 = residential kinds. */
 export const MARKET_RENTS_SQL = `
   SELECT o.commune, o.beds::int AS beds, o.monthly_usd::numeric AS amount, o.source AS src,
-         (COALESCE(o.posted_at, o.first_seen_at) >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent
+         (COALESCE(o.posted_at, o.first_seen_at) >= NOW() - INTERVAL '${RECENT_DAYS} days') AS recent,
+         -- Last confirmed online by the nightly collection (or recorded by hand).
+         o.last_seen_at::timestamptz AS seen_at
     FROM market_observations o
    WHERE o.excluded_reason IS NULL
      AND o.purpose = 'rent'
@@ -90,6 +95,15 @@ export const MARKET_RENTS_SQL = `
                OR (to_jsonb(lp) ->> 'deleted_at') IS NOT NULL)
      )
 `;
+
+/**
+ * A guide's "Mis à jour le" day (2026-11-21): the newest `seen_at` behind the
+ * commune × bedrooms pair, on the Kinshasa calendar, as 'YYYY-MM-DD'. A real
+ * date from the data, never the request's clock. Every row that entered the
+ * pair counts, including a price de-duplicated against another source: it
+ * still confirmed that price that day.
+ */
+export const UPDATED_ON_SQL = `to_char(MAX(seen_at) AT TIME ZONE 'Africa/Kinshasa', 'YYYY-MM-DD')`;
 
 /**
  * The blended guide: every commune × bedrooms with at least $1 listings after
@@ -137,13 +151,20 @@ export const BLENDED_GUIDES_SQL = `
     SELECT commune, beds, jsonb_object_agg(src, n) AS sources
       FROM (SELECT commune, beds, src, SUM(n)::int AS n FROM per_src WHERE src <> 'lukka' GROUP BY commune, beds, src) s
      GROUP BY commune, beds
+  ),
+  fresh AS (
+    SELECT commune, beds, ${UPDATED_ON_SQL} AS updated_on
+      FROM all_rows WHERE commune IS NOT NULL
+     GROUP BY commune, beds
   )
   SELECT s.commune, s.beds, s.listings, s.median, s.p25, s.p75,
          COALESCE(l.lukka, 0)::int AS lukka_listings,
-         COALESCE(src.sources, '{}'::jsonb) AS sources
+         COALESCE(src.sources, '{}'::jsonb) AS sources,
+         f.updated_on
     FROM stats s
     LEFT JOIN lukka l ON l.commune = s.commune AND l.beds = s.beds
     LEFT JOIN sources src ON src.commune = s.commune AND src.beds = s.beds
+    LEFT JOIN fresh f ON f.commune = s.commune AND f.beds = s.beds
    ORDER BY s.listings DESC, s.commune, s.beds
 `;
 
@@ -154,7 +175,8 @@ export const LUKKA_ONLY_GUIDES_SQL = `
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)::float AS median,
          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount)::float AS p25,
          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount)::float AS p75,
-         COUNT(*)::int AS lukka_listings, '{}'::jsonb AS sources
+         COUNT(*)::int AS lukka_listings, '{}'::jsonb AS sources,
+         ${UPDATED_ON_SQL} AS updated_on
     FROM all_rows WHERE commune IS NOT NULL
    GROUP BY commune, beds
   HAVING COUNT(*) >= $1

@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createLead } from '@/lib/adminApi';
 import { getAgentProfile } from '@/lib/agencies';
 
@@ -15,7 +16,9 @@ import { getAgentProfile } from '@/lib/agencies';
  */
 export async function submitInquiryAction(agentId, formData) {
   const name = String(formData.get('name') || '').trim();
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   const message = String(formData.get('message') || '').trim();
 
   // The form's "Type de bien" and "Budget" selects are real answers, but the

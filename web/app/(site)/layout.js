@@ -6,16 +6,19 @@ import SitePageViewTracker from '@/components/SitePageViewTracker';
 import SignupNudge from '@/components/SignupNudge';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
-import AppTabBar from '@/components/AppTabBar';
-import AppTopBar from '@/components/app/AppTopBar';
-import AppMotion from '@/components/app/AppMotion';
-import AppPullToRefresh from '@/components/app/AppPullToRefresh';
+// The app's chrome loads on demand, only in app mode (components/app/AppChrome.js).
+import { AppMotion, AppPullToRefresh, AppTabBar, AppTopBar } from '@/components/app/AppChrome';
 import { isAppRequest } from '@/lib/appMode';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
 import ContactSignupPrompt from '@/components/ContactSignupPrompt';
+import NewAccountWelcome from '@/components/NewAccountWelcome';
+import { cookies } from 'next/headers';
+import { WELCOME_COOKIE, welcomeFromCookie } from '@/lib/newAccountWelcome';
 import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
+import DemoBanner from '@/components/DemoBanner';
+import ContactTapBeacon from '@/components/ContactTapBeacon';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { getI18n } from '@/lib/i18n/server';
@@ -62,8 +65,29 @@ import { I18nProvider } from '@/lib/i18n/client';
  * own instead, which is what keeps admin copy out of a public visitor's
  * payload.
  */
+/*
+ * Whole namespaces every public page's client components use, plus dot-path
+ * SUBTREES of the big ones (lib/i18n/messageSubset.js, 2026-11-21): the shell
+ * needs three `account.limits.*` strings, the card's "Appeler", the phone
+ * field's five labels, the sign-up nudge and two chat labels — not the ~60 KB
+ * of `account`, `auth`, `chat` and `home` copy that rode along in every public
+ * page's HTML. The rest ships from the layout of the section that renders it:
+ * `home` from (home)/, `account` + `auth` from compte/ and favoris/, `chat`
+ * from messages/, `auth` from mot-de-passe-oublie/. `about`, `contact` and
+ * `updates` are read only by Server Components (getT holds the whole
+ * dictionary), so they no longer ship at all.
+ * tests/unit/i18n-namespaces.test.js checks every key the browser can resolve
+ * under each layout against these lists, subtrees included.
+ */
+// On the app branch (production), auth.whatsappSignIn, auth.errors.phoneInvalid and chat.verified
+// are shipped for the WhatsApp sign-in form in AuthPromptModal and the app verified mark.
 const SITE_NAMESPACES = [
-  'appShell', 'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates', 'chat',
+  'appShell', 'breadcrumb', 'listings', 'enquiry', 'search',
+  'account.limits', 'account.requests.call', 'account.move.steps.reasons',
+  'auth.nudge', 'auth.phoneNumber', 'auth.phonePlaceholder', 'auth.countryCode', 'auth.searchCountry', 'auth.noCountryFound',
+  'chat.inbox.unreadLabel', 'chat.cta', 'chat.errors',
+  'home.search', 'home.exploreCommunes', 'home.popularCommunes',
+  'auth.whatsappSignIn', 'auth.errors.phoneInvalid', 'chat.verified',
 ];
 // `projects` ships from app/(site)/projets/layout.js only.
 
@@ -71,6 +95,9 @@ export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();
   const { locale, messages } = await getI18n(SITE_NAMESPACES);
   const [features, growth, app] = await Promise.all([getFeatureFlags(), getGrowthSettings(), isAppRequest()]);
+  // "Votre compte est créé" once, right after a name and a number opened it
+  // (lib/newCustomerSession.js sets the cookie, the card clears it).
+  const welcome = welcomeFromCookie((await cookies()).get(WELCOME_COOKIE)?.value);
 
   // Inside the store app (lib/appModeRules.js): the app's top bar and tab bar
   // instead of the website's header and footer, the motion provider, and the
@@ -86,6 +113,7 @@ export default async function SiteLayout({ children }) {
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <ContactSignupPrompt />
+        <NewAccountWelcome name={welcome} />
         <VisitCartMount />
         {/* The app's list screens refresh on a pull down (a WebView has no such gesture of its own). */}
         {app ? <AppPullToRefresh /> : null}
@@ -113,12 +141,15 @@ export default async function SiteLayout({ children }) {
           )}
         </SiteShell>
         <ImpersonationBanner />
+        <DemoBanner />
         {/* Meta / TikTok pixels, and the consent banner in Europe (lib/adTrackingRules.js). */}
         <AdTracking metaPixelId={growth.metaPixelId} tiktokPixelId={growth.tiktokPixelId} />
         {/* Our own page_view on every page but a listing's (that one sends its own). */}
         <SitePageViewTracker />
         {/* "Créez un compte…" at the right moments (growth plan item 24). */}
         <SignupNudge />
+        {/* Direct WhatsApp / call taps outside a listing — projects, Espace Client (/admin/contacts). */}
+        <ContactTapBeacon />
       </CurrencyRateProvider>
       </div>
       </Chrome>

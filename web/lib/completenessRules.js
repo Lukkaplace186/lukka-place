@@ -48,7 +48,7 @@ export const LISTING_GAP_CODES = [
 ];
 
 /** Profile gap codes, most consequential first. */
-export const PROFILE_GAP_CODES = ['no_communes', 'phone_unverified', 'no_logo', 'no_agency_name', 'no_working_hours'];
+export const PROFILE_GAP_CODES = ['no_communes', 'no_min_rental_budget', 'phone_unverified', 'no_logo', 'no_agency_name', 'no_working_hours'];
 
 /*
  * Where each gap is fixed. Settings anchors are the ids on
@@ -62,6 +62,7 @@ const PROFILE_GAP_ANCHORS = {
   no_logo: 'identity',
   no_agency_name: 'agency_name',
   no_working_hours: 'hours',
+  no_min_rental_budget: 'requests',
 };
 
 const LISTING_GAP_ANCHORS = {
@@ -155,6 +156,12 @@ export function profileGaps(agent) {
   const vendorName = /^Agence #\d+$/.test(String(agent.vendor_name ?? '').trim()) ? null : agent.vendor_name;
   if (!displayableAgencyName(agent.agency_name) && !displayableAgencyName(vendorName)) gaps.add('no_agency_name');
   if (blank(agent.working_hours)) gaps.add('no_working_hours');
+  // « À partir de quel loyer prenez-vous une demande ? » (2026-11-25, owner).
+  // Answered once the agency saved it, an empty answer ("tous les budgets")
+  // included: lib/agentMinBudget.js stamps min_budget_updated_at either way.
+  // Only an explicit `false` is a gap: unknown (before the migration, or a
+  // caller that did not read it) asks nothing.
+  if (agent.min_budget_answered === false) gaps.add('no_min_rental_budget');
 
   return PROFILE_GAP_CODES.filter((code) => gaps.has(code));
 }
@@ -167,7 +174,7 @@ const GAP_COVERED_BY = {
 };
 // Gaps with no completion item of their own; always listed, done or not, so
 // the percentage does not move just because one of them is missing.
-const EXTRA_PROFILE_ITEMS = ['no_agency_name', 'no_working_hours'];
+const EXTRA_PROFILE_ITEMS = ['no_min_rental_budget', 'no_agency_name', 'no_working_hours'];
 
 /**
  * ONE profile checklist for Réglages (2026-10-05): agentProfileCompletion's

@@ -12,6 +12,7 @@ import ListingLimitDialog from '@/components/ListingLimitDialog';
 import SoldShareHost from '@/components/SoldShareHost';
 import { getFeatureFlags } from '@/lib/siteSettings';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
+import DemoBanner from '@/components/DemoBanner';
 import { agentLogoutAction } from './actions';
 import { getI18n, getT } from '@/lib/i18n/server';
 import { countUnread } from '@/lib/chat';
@@ -124,6 +125,7 @@ export default async function AgentDashboardLayout({ children }) {
         </ToastProvider>
         <ListingLimitDialog subscriptionsEnabled={features.agentSubscriptions} />
         <ImpersonationBanner />
+        <DemoBanner />
       </div>
     </I18nProvider>
   );

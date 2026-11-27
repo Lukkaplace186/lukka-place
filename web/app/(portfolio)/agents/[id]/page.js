@@ -20,6 +20,7 @@ import FollowAgentButton from '@/components/FollowAgentButton';
 import { getCurrentCustomerId } from '@/lib/customers';
 import { isFollowing } from '@/lib/customerFollows';
 import { listingPath } from '@/lib/listingSlug';
+import { agentMetaDescription, agentOgImage } from '@/lib/agentProfileSeo';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -35,18 +36,48 @@ const TABS = [
 // the whole portfolio rather than one page of it; 60 covers every agency today.
 const LISTINGS_PER_TAB = 60;
 
-export async function generateMetadata({ params }) {
+export async function generateMetadata({ params }, parent) {
   const { id } = await params;
   const agent = await getAgentProfile(id);
   if (!agent) return {};
 
+  const t = await getT();
   const name = agentPublicName(agent);
+  // Facts only (2026-11-21, lib/agentProfileSeo.js): the public name, the
+  // communes the agent declared, the count of their public live listings
+  // (the profile's own live_listing_count). A bio was the description before
+  // and was empty for most agents.
+  const description = agentMetaDescription({
+    name,
+    liveCount: agent.live_listing_count,
+    communes: agent.primary_communes || [],
+    t,
+    locale: t.locale,
+    label: communeLabel,
+  });
+  // The share image: the agency's logo, else a photo of its newest public
+  // listing, else the site's default card (the parent's).
+  let image = agentOgImage({ logo: agent.image });
+  if (!image && agent.live_listing_count > 0) {
+    const newest = await getAgentListings(agent.id, { limit: 1, sort: 'newest' }).catch(() => ({ data: [] }));
+    image = agentOgImage({ listingPhoto: listingImages(newest.data?.[0] || {})[0] || null });
+  }
+  // A page's openGraph / twitter replace the layout's whole objects, so the
+  // default card is carried over explicitly when there is no image of ours.
+  const inherited = await parent;
+  const title = `${name} — Lukka Place`;
   return {
-    title: `${name} — Lukka Place`,
-    description: agent.bio?.slice(0, 160),
+    title,
+    description,
     alternates: await localizedAlternates(`/agents/${agent.id}`),
-    // Test / demo accounts open from a direct link but are never indexed.
-    ...(agent.is_test ? { robots: { index: false, follow: false } } : {}),
+    openGraph: {
+      title,
+      description,
+      url: `/agents/${agent.id}`,
+      type: 'profile',
+      images: image ? [{ url: image, alt: name }] : inherited?.openGraph?.images || [],
+    },
+    twitter: { card: 'summary_large_image', title, description, images: image ? [image] : inherited?.twitter?.images || [] },
   };
 }
 
@@ -217,6 +248,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     // Contact goes to Lukka Place's desk when the agency's number is not
     // published; the button says so instead of promising the agency.
     whatsappIsCentral: !routablePhone,
+    // A direct tap reports itself (lib/contactTapAttrs.js, /admin/contacts);
+    // one to our number is recorded when the message arrives.
+    contactAgentId: routablePhone ? agent.id : null,
     // A share to anyone (WhatsApp's contact picker), French — read by the
     // agency's customers whatever language this visitor browses in.
     shareHref: buildWhatsAppShareLink(`${hasRealName ? name : 'Une agence'} sur Lukka Place : ses biens à louer et à vendre.

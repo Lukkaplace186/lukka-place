@@ -19,6 +19,9 @@ import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerS
 import { consumeProofAtLogin } from '@/lib/whatsappVerify';
 import { parseMoveProject } from '@/lib/moveProjectRules';
 import { saveProjectAndAlert } from '@/lib/moveProjects';
+import { queuePlausibleGoal } from '@/lib/plausibleGoalServer';
+import { PLAUSIBLE_GOALS } from '@/lib/plausibleGoals';
+import { autoSendMoveProject } from '@/lib/moveProjectRequest';
 import { getT } from '@/lib/i18n/server';
 import { claimRecentContactTaps } from '@/lib/contactTapClaim';
 
@@ -119,8 +122,11 @@ export async function loginAction(_prevState, formData) {
   // lost. saveProjectAndAlert never throws and refuses past 5 projects.
   const { project, hasAnswers } = parseMoveProject(parseJson(formData.get('moveProject')));
   if (hasAnswers) {
-    const { saved, id } = await saveProjectAndAlert(Number(customer.id), project, await getT());
+    const { saved, id, alert } = await saveProjectAndAlert(Number(customer.id), project, await getT());
     console.log(`[move-project] login customer #${customer.id} saved=${saved} project=${id ?? 'none'}`);
+    if (alert === 'added') await queuePlausibleGoal(PLAUSIBLE_GOALS.ALERT_CREATED, { phone, props: { from: 'move_project' } });
+    // Sent to agencies as on sign-up (lib/moveProjectRequest.js). Never throws.
+    if (saved && id != null) await autoSendMoveProject(Number(customer.id), id);
     if (saved && id != null && next === '/compte/client') redirect(`/compte/client/projet/${id}?nouveau=1`);
   }
 

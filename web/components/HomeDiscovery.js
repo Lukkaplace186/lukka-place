@@ -5,7 +5,6 @@ import HomeSectionHeader, { HOME_SECTION } from '@/components/HomeSectionHeader'
 import { getT } from '@/lib/i18n/server';
 import { listingImages } from '@/lib/listingView';
 import { getCollectionTiles, getVideoListings } from '@/lib/browseFeatures';
-import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces';
 import { memo } from '@/lib/memo';
 
 /**
@@ -30,22 +29,10 @@ import { memo } from '@/lib/memo';
  * lib/browseFeatures.js getListingOfTheDay.
  */
 const MAX_TILES = 4;
-const MAX_CHIPS = 6;
 
-function typeChips(propertyTypes, commercialLabel) {
-  const { residential, commercial } = groupTypeFacets(propertyTypes.filter((type) => type.count > 0));
-  const singles = commercial.filter((type) => !type.umbrella);
-  const commercialChip = singles.length > 1
-    ? { value: COMMERCIAL_FILTER_VALUE, label: commercialLabel, count: singles.reduce((sum, type) => sum + type.count, 0) }
-    : singles[0] || null;
-  // Six chips at most, as the type tiles had: the busiest residential types,
-  // then the commercial one. Every type stays one tap away in the hero's
-  // "Type de bien" select and on /listings.
-  const busiest = [...residential].sort((a, b) => b.count - a.count).slice(0, commercialChip ? MAX_CHIPS - 1 : MAX_CHIPS);
-  return [...busiest, commercialChip].filter(Boolean);
-}
-
-export default async function HomeDiscovery({ propertyTypes = [] }) {
+// No "Par type de bien" chips since 2026-11-18 (owner: no repetition): the
+// hero's "Type de bien" select right above offers the same types.
+export default async function HomeDiscovery() {
   const t = await getT();
   const [tiles, videos] = await memo('home-discovery:v2', 60_000, () => Promise.all([
     getCollectionTiles(),
@@ -53,9 +40,7 @@ export default async function HomeDiscovery({ propertyTypes = [] }) {
   ]));
 
   const shownTiles = tiles.slice(0, MAX_TILES);
-  const chips = typeChips(propertyTypes, t('listings.commercial.group.commercial'));
-  const showTypes = chips.length >= 2;
-  if (!shownTiles.length && !showTypes && !videos.length) return null;
+  if (!shownTiles.length && !videos.length) return null;
 
   return (
     <section className="bg-canvas">
@@ -93,21 +78,9 @@ export default async function HomeDiscovery({ propertyTypes = [] }) {
           </ul>
         ) : null}
 
-        {showTypes || videos.length ? (
-          <div className={shownTiles.length ? 'mt-6 sm:mt-7' : ''}>
-            {showTypes ? <p className="mb-3 text-[0.8125rem] font-semibold text-ink-45">{t('home.types.title')}</p> : null}
+        {videos.length ? (
+          <div className={shownTiles.length ? 'mt-5 sm:mt-6' : ''}>
             <ul className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-              {showTypes ? chips.map(({ value, label, count }) => (
-                <li key={value} className="shrink-0">
-                  <Link
-                    href={`/listings?property_type=${encodeURIComponent(value)}`}
-                    className="u-press inline-flex min-h-11 items-center gap-2 rounded-full bg-canvas-alt px-4 text-[0.875rem] font-semibold text-ink transition-colors hover:bg-blue-tint"
-                  >
-                    {label}
-                    <span className="u-tabular font-normal text-ink-45">{count}</span>
-                  </Link>
-                </li>
-              )) : null}
               {videos.length ? (
                 <li className="shrink-0">
                   <Link

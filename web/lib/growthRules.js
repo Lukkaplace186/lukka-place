@@ -33,7 +33,7 @@ const PAID_MEDIUMS = new Set(['paid', 'cpc', 'ppc', 'ads', 'paid_social']);
  */
 export function channelOf(row) {
   if (!row || row.hasAcquisition === false) return 'inconnu';
-  if (row.partnerKind === 'agent') return 'agents';
+  if (row.partnerKind === 'agent' || row.partnerKind === 'agency') return 'agents';
   if (row.partnerKind === 'creator') return 'createurs';
   if (row.partnerKind === 'campaign') return 'campagnes';
   if (row.channel === 'whatsapp') return 'whatsapp_inscription';

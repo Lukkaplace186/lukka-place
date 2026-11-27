@@ -71,6 +71,7 @@ function stepDetail(key, viewing, translate) {
       return [
         translate('account.visits.detail.requestedOn', { date: viewing.createdAtLabel }),
         slot ? translate('account.visits.detail.slotRequested', { time: slot }) : null,
+        viewing.video ? translate('account.visits.detail.video') : null,
       ].filter(Boolean).join(' · ');
     case 'awaitingAgent':
       return translate('account.visits.detail.awaitingAgent');
@@ -78,9 +79,14 @@ function stepDetail(key, viewing, translate) {
       return translate('account.visits.detail.alternativesSent');
     case 'newSlot':
       return slot ? translate('account.visits.detail.proposedSlot', { time: slot }) : null;
-    case 'confirmed':
-      if (scheduled) return translate('account.visits.detail.scheduledFor', { date: scheduled });
-      return slot ? translate('account.visits.detail.slot', { time: slot }) : null;
+    case 'confirmed': {
+      const when = scheduled
+        ? translate('account.visits.detail.scheduledFor', { date: scheduled })
+        : slot ? translate('account.visits.detail.slot', { time: slot }) : null;
+      // A video visit: who calls whom, and the owner's payment warning.
+      if (!viewing.video) return when;
+      return [when, translate('account.visits.detail.videoConfirmed')].filter(Boolean).join(' · ');
+    }
     case 'visit':
       return scheduled
         ? translate('account.visits.detail.scheduledFor', { date: scheduled })

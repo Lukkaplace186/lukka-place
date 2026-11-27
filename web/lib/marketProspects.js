@@ -141,6 +141,7 @@ export function buildProspectListQuery({ status = 'open', q = '', source = '', l
   const params = [];
   const where = [];
   if (status === 'open') where.push(`mp.status IN ('todo', 'noanswer', 'callback', 'interested')`);
+  else if (status === 'agents') where.push(IS_AGENT_SQL);
   else if (PROSPECT_STATUSES.includes(status)) { params.push(status); where.push(`mp.status = $${params.length}`); }
   const term = String(q || '').trim();
   if (term) {
@@ -185,10 +186,17 @@ export async function listProspects(options = {}, { pool = getPool() } = {}) {
 
 export const PROSPECT_COUNTS_SQL = 'SELECT status, COUNT(*)::int AS n FROM market_prospects GROUP BY status';
 
+/** Prospects whose number is already a live Lukka Place agent account (the "Déjà agents" tab). */
+export const AGENT_PROSPECTS_COUNT_SQL = `SELECT COUNT(*)::int AS n FROM market_prospects mp WHERE ${IS_AGENT_SQL}`;
+
+/** `{ [status]: n, agents: n }` — `agents` is the live account check, whatever the status. */
 export async function prospectCounts({ pool = getPool() } = {}) {
   try {
-    const { rows } = await pool.query(PROSPECT_COUNTS_SQL);
-    return Object.fromEntries(rows.map((row) => [row.status, row.n]));
+    const [{ rows }, agents] = await Promise.all([
+      pool.query(PROSPECT_COUNTS_SQL),
+      pool.query(AGENT_PROSPECTS_COUNT_SQL),
+    ]);
+    return { ...Object.fromEntries(rows.map((row) => [row.status, row.n])), agents: agents.rows[0]?.n || 0 };
   } catch (err) {
     if (err.code === '42P01') return null;
     throw err;

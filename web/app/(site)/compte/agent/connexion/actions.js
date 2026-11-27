@@ -1,18 +1,20 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { registrationAdEvent } from '@/lib/adTrackingRules';
 import { phoneFromForm } from '@/lib/phone';
 import {
   getAgentByPhone,
   recordAgentFailedLogin,
   clearAgentFailedLogins,
-  sendAgentOtp,
   consumeAgentOtp,
 } from '@/lib/agents';
 import { verifyPasswordAgainstHash, burnConstantTime, MAX_FAILED_LOGIN_ATTEMPTS, LOCKOUT_MS } from '@/lib/agentAuth';
 import { establishAgentSession, rememberAgentPhone } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
-import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { agentOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { sendAgentCode } from '@/lib/agentCode';
 import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
 import { consumeProofAtLogin } from '@/lib/whatsappVerify';
 import { startAgentPasswordSetup } from '@/lib/agentPasswordSetup';
@@ -86,13 +88,15 @@ export async function agentLoginAction(_prevState, formData) {
   if (!agent.phone_verified_at && (await consumeProofAtLogin({ role: 'agent', id: agent.id, phone }))) {
     await consumeAgentOtp(agent.id);
     await recordAgentLoginAttempt(agent.id, 'whatsapp_verified');
+    // First proof of the number = the agent's sign-up completed (reg-a-<id>). Never throws.
+    await recordAdEventFromAction({ ...registrationAdEvent('agent', agent.id), phone });
     agent.phone_verified_at = new Date();
   }
   // Signed in now, or sent on to prove the number first (the console shows
   // the second as "vérification en attente").
   await recordAgentLoginAttempt(agent.id, agent.phone_verified_at ? 'success' : 'verify_required');
 
-  if (!agent.phone_verified_at && otpBypassEnabled()) {
+  if (!agent.phone_verified_at && agentOtpBypassEnabled()) {
     // No code is sent, but the number is still proven: the verify page asks
     // for a WhatsApp message from it (lib/whatsappVerify.js). A matching
     // password proves the account, never the number.
@@ -101,16 +105,10 @@ export async function agentLoginAction(_prevState, formData) {
     redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}`);
   } else if (!agent.phone_verified_at) {
     await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
-    let sent = true;
-    try {
-      await sendAgentOtp(agent.id, phone);
-    } catch (err) {
-      console.error(`[agent-auth] OTP send failed for agent #${agent.id}: ${err.message}`);
-      sent = false;
-    }
+    const sent = await sendAgentCode({ id: agent.id, phone });
     // A failed send still lands on the verify page (2026-11-08): it has
     // "resend" and the WhatsApp proof, where sign-in had only "réessayez".
-    redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}${sent ? '' : '&error=send_failed'}`);
+    redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}${sent === 'sent' ? '' : `&error=send_${sent}`}`);
   }
 
   await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });

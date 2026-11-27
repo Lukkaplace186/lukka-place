@@ -6,8 +6,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, Landmark, Search, SlidersHorizontal, X, Clock, BedDouble, Bath, Home, DollarSign, Hash, CalendarClock } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
-import { searchGazetteer, findLocationMention } from '@/lib/gazetteer';
+import { escapeRegExp } from '@/lib/searchPlaceLabel';
+// The parser and the place gazetteer arrive after the page has painted
+// (lib/searchEngine.js, phone speed 2026-11-26); every reader waits for them.
+import { loadSearchEngine, useSearchEngine } from '@/lib/searchEngine';
+import { withoutPlacePrefixes } from '@/lib/searchKeywords';
 import { useT } from '@/lib/i18n/client';
 
 const PROPERTY_TYPE_LABEL_KEYS = {
@@ -302,6 +305,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   const reactId = useId();
 
   const [value, setValue] = useState(initialValue);
+  const engine = useSearchEngine();
   // `remote` is the API's answer and the query it answered. Suggestions for
   // typed text are computed right here from the same gazetteer the API
   // searches (it is already in this bundle, for submitFreeText), so they
@@ -335,9 +339,10 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
       setLivePreview(null);
       return undefined;
     }
-    const timer = setTimeout(() => setLivePreview(parseSearchQuery(value)), DEBOUNCE_MS);
+    if (!engine) return undefined;
+    const timer = setTimeout(() => setLivePreview(engine.parseSearchQuery(value)), DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [value, hideDropdown]);
+  }, [value, hideDropdown, engine]);
 
   function removePreviewField(pill) {
     const fields = pill.spanFields || [pill.field];
@@ -352,7 +357,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     }
     next = next.replace(/\s+/g, ' ').trim();
     setValue(next);
-    setLivePreview(next ? parseSearchQuery(next) : null);
+    setLivePreview(next && engine ? engine.parseSearchQuery(next) : null);
   }
 
   const containerRef = useRef(null);
@@ -385,15 +390,18 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   }, []);
 
   const trimmedValue = value.trim();
-  const results = useMemo(() => {
+  const localResults = useMemo(() => {
     if (remote.query === trimmedValue) return remote.results;
     // The empty box lists communes ranked by listing count, which only the
     // API knows — nothing until it answers.
     if (!trimmedValue) return [];
-    let matches = searchGazetteer(trimmedValue, 8);
+    // Gazetteer still downloading: nothing local yet (the API's answer, or
+    // the gazetteer a moment later, fills the list). Never "no match".
+    if (!engine) return null;
+    let matches = engine.searchGazetteer(trimmedValue, 8);
     // Same sentence fallback the API applies ("villa ma campagne 2000$").
     if (matches.length === 0 && /\s/.test(trimmedValue)) {
-      const mention = findLocationMention(trimmedValue);
+      const mention = engine.findLocationMention(trimmedValue);
       if (mention) matches = [mention];
     }
     return matches.map((m) => ({
@@ -402,7 +410,9 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
       commune: m.commune,
       count: m.type === 'commune' ? (communeCounts.get(m.commune) ?? null) : null,
     }));
-  }, [remote, trimmedValue, communeCounts]);
+  }, [remote, trimmedValue, communeCounts, engine]);
+  const results = localResults || [];
+  const resultsPending = localResults === null;
 
   useEffect(() => {
     if (!open || hideDropdown) return undefined;
@@ -509,7 +519,8 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     for (const key of ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng']) params.delete(key);
   }
 
-  function navigateTo(result, { dropKeywords = false } = {}) {
+  async function navigateTo(result, { dropKeywords = false } = {}) {
+    const { parseSearchQuery } = await loadSearchEngine();
     const params = buildParams();
     params.delete('quartier');
     params.delete('communes');
@@ -533,7 +544,9 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     // "St Luc". As `near` it decides where the map opens and centres a km
     // radius for the list (lib/landmarks.js).
     if (result.type === 'landmark') params.set('near', result.label);
-    if (parsed.keywords && result.type !== 'landmark' && !dropKeywords) params.set('q', parsed.keywords);
+    // The letters typed to find the place are not words to search for.
+    const leftover = withoutPlacePrefixes(parsed.keywords, result.label, result.commune);
+    if (leftover && result.type !== 'landmark' && !dropKeywords) params.set('q', leftover);
 
     setOpen(false);
     router.push(`/listings?${params.toString()}`);
@@ -563,7 +576,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     if (params.toString() !== before) router.push(`/listings?${params.toString()}`);
   }
 
-  function submitFreeText(overrideText) {
+  async function submitFreeText(overrideText) {
     const text = overrideText != null ? overrideText : value;
     // An empty box only means "clear the place" on the listings page itself.
     // Everywhere else (the homepage hero) it is a search for everything the
@@ -574,6 +587,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
       clearSearch();
       return;
     }
+    const { parseSearchQuery, searchGazetteer } = await loadSearchEngine();
     const params = buildParams();
 
     // AI-mode natural-language searches only — classic mode's free text is
@@ -669,7 +683,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   }
 
   const activeOptionId = activeIndex >= 0 ? `${reactId}-option-${activeIndex}` : undefined;
-  const showEmpty = !hideDropdown && open && value.trim() && results.length === 0;
+  const showEmpty = !hideDropdown && open && value.trim() && results.length === 0 && !resultsPending;
   const showSuggestions = hideDropdown && open && suggestions.length > 0;
   const showRecentSearches = !hideDropdown && open && !value.trim() && recentSearches.length > 0;
   const showPanel =
@@ -703,7 +717,11 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
             // suggestions for a list of communes over the map.
             setOpen(Boolean(e.target.value));
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            // Typing is about to start: fetch the parser now, not at idle.
+            loadSearchEngine().catch(() => {});
+          }}
           onKeyDown={handleKeyDown}
           className={cn('min-w-0 flex-1', inputClassName)}
         />
@@ -869,7 +887,15 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                         role="option"
                         aria-selected={active}
                         onMouseDown={(e) => e.preventDefault()}
-                        onMouseEnter={() => setActiveIndex(i)}
+                        // Hover highlights the row for a MOUSE only. On an
+                        // iPhone a tap sends the hover events first, and when
+                        // a hover handler changes the page Safari treats the
+                        // tap as a hover and never sends the click: the row
+                        // lit up and nothing happened (2026-11-14, "Kintambo
+                        // does not click"). A finger gets no hover state.
+                        onPointerEnter={(e) => {
+                          if (e.pointerType === 'mouse') setActiveIndex(i);
+                        }}
                         onClick={() => navigateTo(result)}
                         className={cn(
                           'flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9375rem] sm:min-h-0 sm:text-[0.875rem] transition-colors',

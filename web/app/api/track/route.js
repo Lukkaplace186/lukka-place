@@ -2,7 +2,9 @@ import { after } from 'next/server';
 import { getPool } from '@/lib/db';
 import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
 import { analyticsDimensions } from '@/lib/requestContext';
-import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
+import {
+  clientKey, rateLimited, usableAmount, CONTACT_EVENT_TYPES, CONTACT_MAX_EVENTS, contactKey,
+} from '@/lib/eventIngest';
 import {
   LISTING_EVENT_TYPES,
   attributionFromBody,
@@ -15,6 +17,7 @@ import {
   recordPageView,
   recordSearch,
   signedInAgentIdFrom,
+  signedInCustomerIdFrom,
   viewerKindFor,
   visitorIdFrom,
 } from '@/lib/trackIngest';
@@ -70,15 +73,18 @@ import {
  */
 
 export async function POST(request) {
-  if (rateLimited(clientKey(request))) {
-    return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
-  }
-
   let body;
   try {
     body = await request.json();
   } catch {
     return Response.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  // A call or WhatsApp tap has its own budget (2026-11-21): on the shared one,
+  // page views from a Kinshasa carrier IP could refuse it during a campaign.
+  const contact = CONTACT_EVENT_TYPES.includes(body?.type);
+  if (contact ? rateLimited(contactKey(request), CONTACT_MAX_EVENTS) : rateLimited(clientKey(request))) {
+    return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
   }
 
   const { type, path, commune, listingId, price } = body || {};
@@ -99,6 +105,8 @@ export async function POST(request) {
       const refCode = partnerCodeFrom(request);
       recorded = await recordPageView(pool, {
         path, commune, device, source, visitorId, viewerKind, agentId, attribution, refCode,
+        // The landing query string (lib/landingQuery.js), whitelisted again in recordPageView.
+        query: typeof body?.query === 'string' ? body.query.slice(0, 2000) : null,
       });
       await recordVisitorTouch(pool, { visitorId, viewerKind, attribution, refCode });
     } else if (type === 'whatsapp_click') {
@@ -125,6 +133,8 @@ export async function POST(request) {
         routingType: body?.routingType,
         viewerKind,
         agentId,
+        // Who called, when signed in (/admin/contacts); kept on call taps only.
+        customerId: signedInCustomerIdFrom(request),
       });
       // "Appeler" on a verified agent: tell them a call is coming
       // (lib/contactTapAlert.js), after the response has left.

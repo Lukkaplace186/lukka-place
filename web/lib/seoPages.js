@@ -218,6 +218,13 @@ export function seoPathForParams(params = {}) {
  */
 export function landingPathsFromFacets(facets) {
   const paths = new Set();
+  // A type in one place (Bureaux à Limete, Immeubles à Lubumbashi) is listed
+  // only once it has MIN_NARROW_LANDING_LISTINGS — the same rule that keeps
+  // the page itself out of the index (landingIndexable).
+  const narrow = new Map();
+  const addNarrow = (path, count) => {
+    if (path) narrow.set(path, (narrow.get(path) || 0) + count);
+  };
   for (const [transaction, { purpose }] of Object.entries(SEO_TRANSACTIONS)) {
     paths.add(seoPath({ transaction }));
     for (const f of facets) {
@@ -226,18 +233,151 @@ export function landingPathsFromFacets(facets) {
       const city = facetCity(f);
       if (city !== DEFAULT_CITY) {
         paths.add(seoPath({ transaction, city }));
-        if (typed) paths.add(seoPath({ transaction, propertyType: typed, city }));
+        if (typed) addNarrow(seoPath({ transaction, propertyType: typed, city }), f.count);
         continue;
       }
       if (typed) paths.add(seoPath({ transaction, propertyType: typed }));
       if (f.commune) {
         paths.add(seoPath({ transaction, commune: f.commune }));
-        if (typed) paths.add(seoPath({ transaction, propertyType: typed, commune: f.commune }));
+        if (typed) addNarrow(seoPath({ transaction, propertyType: typed, commune: f.commune }), f.count);
       }
     }
   }
+  for (const [path, count] of narrow) {
+    if (count >= MIN_NARROW_LANDING_LISTINGS) paths.add(path);
+  }
   paths.delete(null);
   return [...paths];
+}
+
+/**
+ * A type in one place — a commune, or a city other than Kinshasa — needs this
+ * many listings to be indexed and listed in the sitemap (2026-11-21, marketing
+ * plan: 78 of 199 indexed landing pages had 2 listings or fewer, e.g.
+ * /vente/fermes/masina; thin pages pull the whole site down in Google). The
+ * page still works and is still followed; communes, cities and Kinshasa-wide
+ * type pages keep the old rule (indexed from one listing).
+ */
+export const MIN_NARROW_LANDING_LISTINGS = 3;
+
+/** Whether a landing page (parseSeoSegments' shape) with `total` listings is indexed. */
+export function landingIndexable(page, total) {
+  const n = Number(total) || 0;
+  if (n <= 0) return false;
+  const narrow = Boolean(page?.propertyType) && Boolean(page?.commune || (page?.city && page.city !== DEFAULT_CITY));
+  return narrow ? n >= MIN_NARROW_LANDING_LISTINGS : true;
+}
+
+/**
+ * How many links of each kind the homepage's "Recherches populaires" block
+ * shows, in this order: the most specific searches first ("appartements à
+ * louer à Gombe"), then whole communes, types across Kinshasa, other cities.
+ */
+const POPULAR_SEARCH_QUOTAS = { typeCommune: 14, commune: 8, type: 6, city: 4, cityType: 4 };
+
+/**
+ * The homepage's "Recherches populaires" links (owner, 2026-11-19: as many
+ * links to our search pages as Google will follow). Every link is a landing
+ * page that has listings right now — the sitemap's own rule
+ * (landingPathsFromFacets), never an empty page — ranked by how many it has.
+ * `excludeCities` leaves a whole city out (Goma, owner: there is a war there).
+ *
+ * @returns {Array<{kind: string, href: string, transaction: string, propertyType: string|null, commune: string|null, city: string|null, count: number}>}
+ */
+export function popularSearchLinks(facets, { excludeCities = [] } = {}) {
+  const rows = new Map();
+  const add = (key, entry, count) => {
+    const row = rows.get(key) || { propertyType: null, commune: null, city: null, ...entry, count: 0 };
+    row.count += count;
+    rows.set(key, row);
+  };
+  for (const f of facets || []) {
+    if (!(f.count > 0)) continue;
+    const transaction = Object.keys(SEO_TRANSACTIONS).find((k) => SEO_TRANSACTIONS[k].purpose === f.purpose);
+    if (!transaction) continue;
+    const city = facetCity(f);
+    if (excludeCities.includes(city)) continue;
+    const typed = typeSlugFor(f.propertyType) ? f.propertyType : null;
+    // Parcelle and commercial re-count listings already counted under a
+    // category: fine as a page of their own, not in an all-types total.
+    const overlay = OVERLAY_PROPERTY_TYPES.has(f.propertyType);
+    if (city !== DEFAULT_CITY) {
+      if (!overlay) add(`${transaction}|city|${city}`, { kind: 'city', transaction, city }, f.count);
+      if (typed) add(`${transaction}|${typed}|city|${city}`, { kind: 'cityType', transaction, propertyType: typed, city }, f.count);
+      continue;
+    }
+    if (typed) {
+      add(`${transaction}|${typed}`, { kind: 'type', transaction, propertyType: typed }, f.count);
+      if (f.commune) add(`${transaction}|${typed}|${f.commune}`, { kind: 'typeCommune', transaction, propertyType: typed, commune: f.commune }, f.count);
+    }
+    if (f.commune && !overlay) add(`${transaction}|c|${f.commune}`, { kind: 'commune', transaction, commune: f.commune }, f.count);
+  }
+  const byCount = (a, b) => b.count - a.count || a.href.localeCompare(b.href);
+  const out = [];
+  const seen = new Set();
+  for (const [kind, quota] of Object.entries(POPULAR_SEARCH_QUOTAS)) {
+    const picked = [...rows.values()]
+      .filter((r) => r.kind === kind)
+      .map((r) => ({ ...r, href: seoPath(r) }))
+      .filter((r) => r.href && !seen.has(r.href))
+      .sort(byCount)
+      .slice(0, quota);
+    for (const r of picked) {
+      seen.add(r.href);
+      out.push(r);
+    }
+  }
+  return out;
+}
+
+/**
+ * The property types an all-types landing page names in its title, from the
+ * listings it really holds (SEO plan 2026-11-26): "Maisons et appartements à
+ * louer à Limete" is what people type; "Biens immobiliers…" is not. The two
+ * kinds with the most listings in that place and transaction, each with at
+ * least MIN_TITLE_TYPE_LISTINGS, so a title never names a kind the page shows
+ * one stray listing of. Empty for a typed page or when nothing qualifies —
+ * the caller keeps the generic wording then.
+ *
+ * @returns {string[]} property_type values, most listings first (0–2)
+ */
+export const MIN_TITLE_TYPE_LISTINGS = 2;
+export function landingTitleTypes(page, facets) {
+  if (!page || page.propertyType) return [];
+  const purpose = SEO_TRANSACTIONS[page.transaction]?.purpose;
+  const pageCity = page.city || DEFAULT_CITY;
+  const counts = new Map();
+  for (const f of facets || []) {
+    if (f.purpose !== purpose || !(f.count > 0)) continue;
+    if (OVERLAY_PROPERTY_TYPES.has(f.propertyType) || !typeSlugFor(f.propertyType)) continue;
+    if (facetCity(f) !== pageCity) continue;
+    if (page.commune && f.commune !== page.commune) continue;
+    counts.set(f.propertyType, (counts.get(f.propertyType) || 0) + f.count);
+  }
+  return [...counts.entries()]
+    .filter(([, n]) => n >= MIN_TITLE_TYPE_LISTINGS)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 2)
+    .map(([type]) => type);
+}
+
+/** Cards per landing page; page 2+ is `?page=N` (crawlable, self-canonical). */
+export const LANDING_PAGE_SIZE = 24;
+
+/**
+ * `?page=` of a landing page: 1 when absent, null when it is not a whole
+ * number ≥ 1 (the caller 404s rather than serving page 1 under a second URL).
+ */
+export function landingPageNumber(raw) {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value == null || value === '') return 1;
+  if (!/^[1-9][0-9]{0,3}$/.test(String(value))) return null;
+  return Number(value);
+}
+
+/** The URL of page `n` of a landing page: page 1 is the bare path. */
+export function landingPageHref(path, n) {
+  return n > 1 ? `${path}?page=${n}` : path;
 }
 
 /** The /listings URL with the same filters — "affiner / voir sur la carte". */

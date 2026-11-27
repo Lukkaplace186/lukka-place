@@ -22,6 +22,10 @@ const VALUE_PROPS = [
  * listings section's own link. The header now links to /a-propos, where the
  * promises are argued at length. The copy was shortened to one line each;
  * the claims are the same.
+ *
+ * 2026-11-18 (owner, a shorter landing page): one row of three compact
+ * badges at every width. A phone shows the icon and the title only, three
+ * across; the one-line explanation returns from `sm` up.
  */
 export default async function ValueProposition() {
   const t = await getT();
@@ -29,15 +33,15 @@ export default async function ValueProposition() {
     <section className="bg-canvas">
       <div className={HOME_SECTION}>
         <HomeSectionHeader title={t('home.value.eyebrow')} href="/a-propos" linkLabel={t('home.value.aboutLink')} />
-        <ul className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10">
+        <ul className="grid grid-cols-3 gap-3 sm:gap-6 md:gap-10">
           {VALUE_PROPS.map(({ id, icon: Icon, titleKey, bodyKey }) => (
-            <li key={id} className="flex items-start gap-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-tint text-blue-deep">
-                <Icon strokeWidth={1.75} aria-hidden="true" className="h-[1.375rem] w-[1.375rem]" />
+            <li key={id} className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-start sm:gap-4 sm:text-left">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-tint text-blue-deep sm:h-11 sm:w-11">
+                <Icon strokeWidth={1.75} aria-hidden="true" className="h-5 w-5 sm:h-[1.375rem] sm:w-[1.375rem]" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-[1rem] font-bold leading-snug text-ink">{t(titleKey)}</h3>
-                <p className="mt-1.5 text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty">{t(bodyKey)}</p>
+                <h3 className="text-[0.8125rem] font-bold leading-snug text-ink sm:text-[1rem]">{t(titleKey)}</h3>
+                <p className="mt-1.5 hidden text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty sm:block">{t(bodyKey)}</p>
               </div>
             </li>
           ))}

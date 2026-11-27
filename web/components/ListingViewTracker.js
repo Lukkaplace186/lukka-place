@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 
 import { trackEvent } from '@/lib/analyticsClient';
+import { cleanLandingQuery } from '@/lib/landingQuery';
 import { rememberViewed } from '@/lib/recentlyViewed';
 import { adEvent } from '@/lib/adEvents';
 import { NUDGE_EVENT } from '@/lib/signupNudgeRules';
@@ -15,7 +16,14 @@ import { NUDGE_EVENT } from '@/lib/signupNudgeRules';
  */
 export default function ListingViewTracker({ path, commune, listingId = null, price = null }) {
   useEffect(() => {
-    trackEvent('page_view', { path, commune });
+    // The landing query (utm_* from a shared link or an ad), whitelisted — lib/landingQuery.js.
+    let query = null;
+    try {
+      query = cleanLandingQuery(window.location.search);
+    } catch {
+      query = null;
+    }
+    trackEvent('page_view', { path, commune, ...(query ? { query } : {}) });
   }, [path, commune]);
 
   // Feeds the "Récemment consultés" rail (components/RecentlyViewed.js), the

@@ -1,5 +1,5 @@
 import Link from '@/components/IntentLink';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import HideOnListingPage from '@/components/HideOnListingPage';
 import { cachedSeoFacets } from '@/lib/listingsCached';
 import { OVERLAY_PROPERTY_TYPES, seoPath } from '@/lib/seoPages';
 import { socialProfiles } from '@/lib/seoSchema';
@@ -13,29 +13,22 @@ import { getFeatureFlags, getSocialLinks } from '@/lib/siteSettings';
 import { mergeSocialLinks } from '@/lib/siteSettingsRules';
 
 /**
- * Social icons: WhatsApp always; Facebook / Instagram / TikTok become real
- * links once their URL is set on /admin/settings (lib/siteSettings.js) or, as
- * a fallback, in the environment (lib/seoSchema.js). A WhatsApp Business link
- * set there replaces the central number's wa.me link on the icon. Previously: only WhatsApp is a real, working link (same central number
- * used everywhere else — see CLAUDE.md's Lead Routing Rules). Facebook/
- * Instagram/LinkedIn have no real Lukka Place accounts to link to yet, so
- * they render as inert placeholders (not <a> tags — a fake href pointing
- * nowhere is worse than an icon that's honestly not clickable) rather than
- * invented URLs.
+ * Social icons: Facebook / Instagram / TikTok become real links once their URL
+ * is set on /admin/settings (lib/siteSettings.js) or, as a fallback, in the
+ * environment (lib/seoSchema.js). Until then they render as inert
+ * placeholders (not <a> tags — a fake href pointing nowhere is worse than an
+ * icon that's honestly not clickable) rather than invented URLs.
  *
- * All three stay hand-rolled brand SVGs — this lucide-react version ships no
- * brand/logo glyphs at all (Facebook/Instagram/WhatsApp import errors:
- * "Export ... doesn't exist in target module" — confirmed by a failed build,
- * not assumed), so brand marks are the one deliberate exception to
- * "icons are lucide-react".
+ * No WhatsApp icon since 2026-11-14 (owner, "too confusing for now": two
+ * Lukka Place WhatsApp numbers, one for agents' listings and one for the
+ * team). The team's number is on /contact as plain text. A WhatsApp link
+ * saved on /admin/settings is not shown here either.
+ *
+ * All stay hand-rolled brand SVGs — this lucide-react version ships no
+ * brand/logo glyphs at all ("Export ... doesn't exist in target module" —
+ * confirmed by a failed build, not assumed), so brand marks are the one
+ * deliberate exception to "icons are lucide-react".
  */
-function WhatsAppIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.87 9.87 0 0 0 4.74 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.13c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.12.11-1.8-.11-.42-.13-.95-.3-1.64-.6-2.88-1.24-4.76-4.14-4.9-4.33-.14-.19-1.17-1.56-1.17-2.98s.73-2.11 1-2.4c.26-.29.57-.36.76-.36h.55c.18 0 .42-.07.65.5.24.58.81 2 .88 2.14.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.6-.07.16-.19.68-.79.86-1.06.18-.28.36-.23.6-.14.24.09 1.55.73 1.81.86.26.14.44.2.5.31.07.12.07.68-.17 1.35z" />
-    </svg>
-  );
-}
 function FacebookIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
@@ -75,6 +68,9 @@ const NAV_COLUMNS = [
       // a link from every page is what tells Google these pages matter.
       { labelKey: 'footer.links.forSale', href: '/vente' },
       { labelKey: 'footer.links.forRent', href: '/location' },
+      // The price guide (2026-11-21, marketing plan): only the homepage
+      // linked to it; a link from every page tells search engines it matters.
+      { labelKey: 'footer.links.rentPrices', href: '/combien-coute' },
       { labelKey: 'footer.links.projects', href: '/projets' },
       { labelKey: 'footer.links.developers', href: '/promoteurs' },
       // Out of the header since 2026-10-07 (À propos took its place).
@@ -163,11 +159,6 @@ export default async function Footer() {
       ]
     : NAV_COLUMNS;
 
-  // The opening line of the WhatsApp message follows the visitor's language
-  // too — a French greeting from someone browsing in English reads as a
-  // template they were never meant to see.
-  const whatsappHref = social.whatsapp || getCentralWhatsAppHref(t('footer.whatsappGreeting'));
-
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt empty:hidden">
       {/* Inside the customer's own account the full footer was a second
@@ -242,24 +233,28 @@ export default async function Footer() {
             reading as a link rather than the section's action. It is now
             full-width and centred until sm, at h-12 (48px, the documented tap
             target), which is the only real CTA treatment on a stacked layout. */}
-        <div className="border-y border-white/15 bg-blue">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-            <div className="min-w-0 max-w-[40rem]">
-              <p className="font-bold text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
-                {t('footer.partnerBand.title')}
-              </p>
-              <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
-                {t('footer.partnerBand.subtitle')}
-              </p>
+        {/* Not on a listing's own page (owner, 2026-11-18): the visitor is
+            deciding on one home there; the band added a screen of height. */}
+        <HideOnListingPage>
+          <div className="border-y border-white/15 bg-blue">
+            <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+              <div className="min-w-0 max-w-[40rem]">
+                <p className="font-bold text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
+                  {t('footer.partnerBand.title')}
+                </p>
+                <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
+                  {t('footer.partnerBand.subtitle')}
+                </p>
+              </div>
+              <Link
+                href="/compte/agent/inscription"
+                className="u-press inline-flex h-12 w-full flex-none items-center justify-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue transition-colors hover:bg-blue-tint sm:w-auto"
+              >
+                {t('footer.partnerBand.cta')}
+              </Link>
             </div>
-            <Link
-              href="/compte/agent/inscription"
-              className="u-press inline-flex h-12 w-full flex-none items-center justify-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue transition-colors hover:bg-blue-tint sm:w-auto"
-            >
-              {t('footer.partnerBand.cta')}
-            </Link>
           </div>
-        </div>
+        </HideOnListingPage>
 
         {/* pb-28 below md: FloatingControlBar (Carte / Trier / Alerte) and
             MobileListingBar are fixed to the bottom of a phone screen, and
@@ -281,21 +276,6 @@ export default async function Footer() {
                 {t('footer.tagline')}
               </p>
               <div className="mt-5 flex items-center gap-3">
-                {whatsappHref ? (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={t('admin.leads.whatsapp')}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-green text-white transition-colors hover:bg-green-deep"
-                  >
-                    <WhatsAppIcon className="h-4.5 w-4.5" />
-                  </a>
-                ) : (
-                  <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
-                    <WhatsAppIcon className="h-4.5 w-4.5" />
-                  </span>
-                )}
                 {/* Live links once set on /admin/settings (or NEXT_PUBLIC_*_URL);
                     inert until then. */}
                 {[

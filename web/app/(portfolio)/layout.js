@@ -7,6 +7,7 @@ import { I18nProvider } from '@/lib/i18n/client';
 import { getI18n } from '@/lib/i18n/server';
 import SitePageViewTracker from '@/components/SitePageViewTracker';
 import VisitCartMount from '@/components/VisitCartMount';
+import ContactTapBeacon from '@/components/ContactTapBeacon';
 import PortfolioFooterShell from './PortfolioFooterShell';
 
 /**
@@ -51,7 +52,16 @@ import PortfolioFooterShell from './PortfolioFooterShell';
  * it, so a public page shipped raw `listings.facts.bathrooms` dot-paths to
  * real visitors. The test now discovers layouts from the filesystem instead.
  */
-const PORTFOLIO_NAMESPACES = ['listings', 'account', 'auth', 'enquiry'];
+// `account` and `auth` as the few subtrees these pages render (2026-11-21,
+// lib/i18n/messageSubset.js), not the ~50 KB of both namespaces.
+// On the app branch (production), auth.whatsappSignIn, auth.errors.phoneInvalid and chat.verified
+// are shipped for the WhatsApp sign-in form in AuthPromptModal and the app verified mark.
+const PORTFOLIO_NAMESPACES = [
+  'listings', 'enquiry',
+  'account.requests.call', 'account.limits', 'account.follow',
+  'auth.phoneNumber', 'auth.phonePlaceholder', 'auth.countryCode', 'auth.searchCountry', 'auth.noCountryFound',
+  'auth.whatsappSignIn', 'auth.errors.phoneInvalid', 'chat.verified',
+];
 
 export default async function PortfolioLayout({ children }) {
   const { locale, messages, t } = await getI18n(PORTFOLIO_NAMESPACES);
@@ -111,6 +121,8 @@ export default async function PortfolioLayout({ children }) {
         {/* "Mes visites" (lib/visitCart.js): the agent profile's listing sheet
             adds to it, so its pill and sheet are mounted here as in (site). */}
         <VisitCartMount />
+        {/* Direct WhatsApp / call taps on the profile and directory (/admin/contacts). */}
+        <ContactTapBeacon />
       </CurrencyRateProvider>
     </I18nProvider>
   );

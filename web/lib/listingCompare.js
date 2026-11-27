@@ -29,6 +29,22 @@ export function sameValue(a, b, field) {
   return left !== null && left === right;
 }
 
+/**
+ * The content fingerprint in a stored photo's name: the engine names a
+ * WhatsApp photo `whatsapp_<md5[0:13]>` of its bytes (services/supabaseStorage.js),
+ * web an agent upload `agent_<md5[0:13]>` (lib/listingStorage.js). The same
+ * photo on two listings has the same fingerprint, while the full URL always
+ * differs (it carries the listing id). Engine twin: services/resendGuard.js.
+ */
+export const PHOTO_FINGERPRINT_PATTERN = '(?:whatsapp|agent)_([0-9a-f]{13})';
+const FINGERPRINT = new RegExp(PHOTO_FINGERPRINT_PATTERN);
+
+/** What makes two photos "the same file": the fingerprint, else the URL itself. */
+export function photoKey(src) {
+  const match = typeof src === 'string' ? src.match(FINGERPRINT) : null;
+  return match ? `fp:${match[1]}` : String(src || '').trim();
+}
+
 /** The photo URLs a listing shows: featured first, then the gallery, no repeats. */
 export function photoSet(listing) {
   const out = [];
@@ -50,14 +66,34 @@ export function photoSet(listing) {
 export function compareToFirst(listings) {
   if (!listings.length) return [];
   const [first] = listings;
-  const firstPhotos = new Set(photoSet(first));
+  const firstPhotos = new Set(photoSet(first).map(photoKey));
   return listings.map((listing, index) => {
     if (index === 0) return { same: [], sharedPhotos: [] };
     return {
       same: COMPARE_FIELDS.filter((field) => sameValue(first, listing, field)),
-      sharedPhotos: photoSet(listing).filter((src) => firstPhotos.has(src)),
+      sharedPhotos: photoSet(listing).filter((src) => firstPhotos.has(photoKey(src))),
     };
   });
+}
+
+/**
+ * The photos to show on a compare card, the ones in `sharedKeys` first, so a
+ * shared photo is never hidden past the few thumbnails a card shows
+ * (2026-11-25: #1429's one photo in common with #1408 was its 8th of 11).
+ */
+export function photosSharedFirst(photos, sharedKeys) {
+  const shared = photos.filter((src) => sharedKeys.has(photoKey(src)));
+  return [...shared, ...photos.filter((src) => !sharedKeys.has(photoKey(src)))];
+}
+
+/**
+ * "Same" on the place: the quartier must match, or both have none and the
+ * commune matches. A commune alone is not the same place — on 2026-11-25
+ * GB and Macampagne, both in Ngaliema, were marked "Same".
+ */
+export function samePlace(mark, first, listing) {
+  if (mark.same.includes('quartier')) return true;
+  return mark.same.includes('commune') && !norm(first.quartier) && !norm(listing.quartier);
 }
 
 /** `/admin/listings/compare?ids=…` for a listing and the listings its flag points at. */

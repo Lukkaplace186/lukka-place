@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
+import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck, Smartphone, Trash2, Wallet } from 'lucide-react';
+import { getAgentMinBudget } from '@/lib/agentMinBudget';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getLocationHierarchySafe } from '@/lib/locations';
@@ -16,6 +17,7 @@ import {
   changeAgentPasswordAction,
   updateOwnCommunesAction,
   updateWorkingHoursAction,
+  updateMinBudgetAction,
   agentLogoutAction,
   deleteOwnAgentAccountAction,
 } from '../actions';
@@ -69,6 +71,7 @@ const SECTIONS = [
   { key: 'identity', labelKey: 'agent.settings.identityTitle', Icon: Building2 },
   { key: 'communes', labelKey: 'agent.settings.communesTitle', Icon: MapPin },
   { key: 'hours', labelKey: 'agent.settings.hoursTitle', Icon: Clock },
+  { key: 'requests', labelKey: 'agent.minBudget.title', Icon: Wallet },
   { key: 'quick-replies', labelKey: 'agent.quickReplies.settingsTitle', Icon: MessageSquareText },
   { key: 'verification', labelKey: 'agent.verification.title', Icon: ShieldCheck },
   { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound },
@@ -83,6 +86,7 @@ function openSection(params) {
   if (params.saved === 'identity' || params.error === 'name_required') return 'identity';
   if (params.saved === 'communes') return 'communes';
   if (params.saved === 'hours') return 'hours';
+  if (params.saved === 'requests' || params.error === 'min_budget') return 'requests';
   if (params.saved === 'verification' || params.verification_error) return 'verification';
   if (DELETE_ERROR_KEYS[params.error]) return 'delete-account';
   if (params.error || params.success === '1') return 'password';
@@ -120,7 +124,7 @@ export default async function AgentSettingsPage({ searchParams }) {
   // `max-lg:hidden` rather than `hidden lg:flex`, so it never fights a card's
   // own `flex`.
   const shown = (key) => (section === key ? '' : 'max-lg:hidden');
-  const LEFT = ['identity', 'communes', 'hours', 'quick-replies'];
+  const LEFT = ['identity', 'communes', 'hours', 'requests', 'quick-replies'];
   const column = (keys) => (keys.includes(section) ? '' : 'max-lg:hidden');
 
   const agentId = await getCurrentAgentId();
@@ -150,6 +154,7 @@ export default async function AgentSettingsPage({ searchParams }) {
   // drops that sentence.
   const deletionImpact = await getAgentDeletionImpact(agentId).catch(() => null);
   const deleteError = error && DELETE_ERROR_KEYS[error] ? error : null;
+  const minBudget = await getAgentMinBudget(agentId);
 
   // The profile checklist ("À compléter") moved here from the overview
   // (2026-09-28): every gap it lists is a field on this page. A failed read
@@ -406,6 +411,56 @@ export default async function AgentSettingsPage({ searchParams }) {
           </form>
         </div>
 
+        {minBudget.available ? (
+          <div className={`${shown('requests')} u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
+            <div>
+              <h2 id="requests" className="u-title-card scroll-mt-24 text-ink">{t('agent.minBudget.title')}</h2>
+              <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.minBudget.hint')}</p>
+              {/* A question until answered: saving it empty ("tous les budgets") counts. */}
+              {!minBudget.updatedAt ? (
+                <p className="mt-2 inline-flex rounded-full bg-warning-tint px-2.5 py-0.5 text-[0.75rem] font-semibold text-warning">
+                  {t('agent.minBudget.unanswered')}
+                </p>
+              ) : null}
+            </div>
+            <form action={updateMinBudgetAction} className="flex flex-col gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-[0.8125rem] text-ink-70">
+                  {t('agent.minBudget.rental')}
+                  <input
+                    type="text"
+                    name="min_rental_budget"
+                    inputMode="decimal"
+                    defaultValue={minBudget.rental ?? ''}
+                    placeholder={t('agent.minBudget.none')}
+                    className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[0.8125rem] text-ink-70">
+                  {t('agent.minBudget.sale')}
+                  <input
+                    type="text"
+                    name="min_sale_budget"
+                    inputMode="decimal"
+                    defaultValue={minBudget.sale ?? ''}
+                    placeholder={t('agent.minBudget.none')}
+                    className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
+                  />
+                </label>
+              </div>
+              {error === 'min_budget' ? (
+                <p className="text-[0.8125rem] text-danger">{t('agent.minBudget.invalid')}</p>
+              ) : null}
+              <SettingsSaveButton
+                done={saved === 'requests'}
+                className="u-btn-primary u-press h-11 self-start rounded-lg bg-blue px-5 text-sm font-bold text-white"
+              >
+                {t('common.actions.save')}
+              </SettingsSaveButton>
+            </form>
+          </div>
+        ) : null}
+
         <div id="quick-replies" className={`${shown('quick-replies')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
           <div>
             <h2 className="u-title-card text-ink">{t('agent.quickReplies.settingsTitle')}</h2>
@@ -558,7 +613,7 @@ export default async function AgentSettingsPage({ searchParams }) {
                 </div>
               ))}
 
-              {error && error !== 'name_required' && !deleteError && (
+              {error && error !== 'name_required' && error !== 'min_budget' && !deleteError && (
                 <p className="text-sm font-semibold text-danger" role="alert">
                   {t(ERROR_MESSAGE_KEYS[error] || ERROR_MESSAGE_KEYS.wrong_password)}
                 </p>

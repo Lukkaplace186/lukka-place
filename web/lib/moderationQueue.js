@@ -6,7 +6,8 @@ import { VIDEOS_SQL, VIDEO_COUNT_SQL, isVideoPoster, listingVideos } from './lis
 import { monthlyEquivalent } from './leaseTerm';
 import { SOCIAL_FILTER_SQL, hasTeamSocialPosts } from './teamSocialPosts';
 import { TARGET_KEY_PATTERN } from './teamSocialTargets';
-import { photoSet } from './listingCompare';
+import { PHOTO_FINGERPRINT_PATTERN, photoSet } from './listingCompare';
+import { hasPartnerAgencies, partnerSql } from './partnerAgencies';
 
 /**
  * The listing moderation queue — one server page at a time, with quality flags.
@@ -76,7 +77,7 @@ export const AVAILABILITY_UNANSWERED_SQL = `(
              WHERE c.property_id = p.id AND c.channel = 'WHATSAPP'
              ORDER BY c.asked_at DESC LIMIT 2) last_two
   )
-  AND COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, 'epoch'::timestamptz)
+  AND COALESCE(p.availability_confirmed_at, 'epoch'::timestamptz)
       < (SELECT MAX(c.asked_at) FROM listing_availability_checks c WHERE c.property_id = p.id AND c.channel = 'WHATSAPP')
 )`;
 
@@ -99,15 +100,25 @@ export async function hasAvailabilityChecks() {
 }
 export const FILTERABLE_FLAGS = Object.keys(FLAG_SQL);
 
+/** A reference folded for comparison: lowercase, letters and digits only. */
+const referenceKey = (column) => `lower(regexp_replace(COALESCE(${column}, ''), '[^[:alnum:]]+', '', 'g'))`;
+
 /**
- * The content fingerprint in a stored photo's name: the engine names a
- * WhatsApp photo `whatsapp_<md5[0:13]>` of its bytes (services/supabaseStorage.js),
- * web an agent upload `agent_<md5[0:13]>` (lib/listingStorage.js). The same
- * photo sent twice has the same fingerprint on two listings, while the full
- * URL always differs (it carries the listing id) — which is why comparing
- * URLs never caught a re-send. Engine twin: services/resendGuard.js.
+ * Two listings whose references clearly differ are two properties (owner,
+ * 2026-11-24: #1408 "mino congo" and #1376 "résidence d première ministre",
+ * same agent, both "2 chambres — Appartement à louer à Ngaliema" at 1 500 $,
+ * were shown as the same listing). Generated titles repeat across a whole
+ * commune, so "same title and price" needs the reference not to contradict
+ * it. Clearly differ = both set, and neither contains the other once folded,
+ * so "Saint-Luc" and "derrière Saint-Luc" may still be the same place.
  */
-export const PHOTO_FINGERPRINT_PATTERN = '(?:whatsapp|agent)_([0-9a-f]{13})';
+export const REFERENCES_DIFFER = (a, b) => `(${referenceKey(a)} <> '' AND ${referenceKey(b)} <> ''
+  AND position(${referenceKey(a)} in ${referenceKey(b)}) = 0 AND position(${referenceKey(b)} in ${referenceKey(a)}) = 0)`;
+
+// The photo content fingerprint (lib/listingCompare.js): comparing URLs never
+// caught a re-send, since a URL carries its listing id. The compare page
+// matches with the same pattern.
+export { PHOTO_FINGERPRINT_PATTERN };
 
 /** Units of one WhatsApp message are created together; a re-send comes later. */
 export const SAME_MESSAGE_SECONDS = 1800;
@@ -182,7 +193,10 @@ export const COMMUNE_OF_P = `(
   LIMIT 1
 )`;
 
-function buildBase({ status, q, commune, purpose, agentId, social, notIn, availabilityChecks = false, teamSocial = false }, params) {
+/** `?partner=` on the approval queue: only partner agencies' listings, or none of them. */
+export const PARTNER_FILTERS = ['only', 'none'];
+
+function buildBase({ status, q, commune, purpose, agentId, social, notIn, partner, availabilityChecks = false, teamSocial = false, partners = false }, params) {
   // Soft-deleted listings (lib/adminSoftDelete.js) leave every tab.
   const where = [STATUS_WHERE[status] || STATUS_WHERE.pending, 'p.deleted_at IS NULL'];
   const term = String(q || '').trim();
@@ -221,6 +235,9 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
     params.push(notIn);
     where.push(`NOT EXISTS (SELECT 1 FROM team_social_posts tsp WHERE tsp.property_id = p.id AND tsp.target_key = $${params.length})`);
   }
+  // Partner agencies (lib/partnerAgencies.js): ignored until the table exists.
+  if (partners && partner === 'only') where.push(partnerSql('a'));
+  if (partners && partner === 'none') where.push(`NOT ${partnerSql('a')}`);
   params.push(EXTRACTION_FAILURE_MARKERS.map((marker) => `%${marker}%`));
   const markersParam = params.length;
 
@@ -240,7 +257,8 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
              -- typed during onboarding). The agency is shown on its own line.
              NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), '') AS agent_name,
              NULLIF(TRIM(a.agency_name), '') AS agent_agency,
-             a.created_at AS agent_created_at
+             a.created_at AS agent_created_at,
+             ${partners ? partnerSql('a') : 'false'} AS agent_partner
       FROM properties p
       LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
       LEFT JOIN agents a ON a.id = p.agent_id
@@ -278,6 +296,7 @@ function buildBase({ status, q, commune, purpose, agentId, social, notIn, availa
           JOIN properties o ON o.id = oc.property_id
           WHERE LOWER(oc.title) = LOWER(b.title) AND oc.property_id <> b.id
             AND o.price = b.price AND o.approve_status <> 2
+            AND NOT ${REFERENCES_DIFFER('o.reference', 'b.reference')}
         )) AS f_duplicate_listing,
         (b.agent_id IS NOT NULL AND NOT b.agent_verified) AS f_agent_unverified,
         (b.agent_id IS NULL) AS f_no_agent,
@@ -346,6 +365,7 @@ function toRow(row, medians) {
     agentId: row.agent_id == null ? null : Number(row.agent_id),
     agentName: row.agent_name,
     agentAgency: row.agent_agency || null,
+    agentPartner: Boolean(row.agent_partner),
     agentPhone: row.agent_phone,
     agentVerified: Boolean(row.agent_verified),
     agentCreatedAt: row.agent_created_at ? new Date(row.agent_created_at).toISOString() : null,
@@ -385,15 +405,19 @@ function toRow(row, medians) {
  *          agentId?: number, social?: string, notIn?: string, sort?: string, limit?: number, offset?: number}} [options]
  */
 export async function listModerationQueue({
-  status = 'pending', q, commune, purpose, flag, agentId, social, notIn, sort, limit = 25, offset = 0, cursor = null,
+  status = 'pending', q, commune, purpose, flag, agentId, social, notIn, partner, sort, limit = 25, offset = 0, cursor = null,
 } = {}) {
   const resolvedStatus = MODERATION_QUEUE_STATUSES.includes(status) ? status : 'pending';
   const params = [];
-  const [availabilityChecks, teamSocial] = await Promise.all([
+  const [availabilityChecks, teamSocial, partners] = await Promise.all([
     hasAvailabilityChecks(),
     social || notIn ? hasTeamSocialPosts() : false,
+    hasPartnerAgencies(),
   ]);
-  const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId, social, notIn, availabilityChecks, teamSocial }, params);
+  const cte = buildBase({
+    status: resolvedStatus, q, commune, purpose, agentId, social, notIn,
+    partner: PARTNER_FILTERS.includes(partner) ? partner : undefined, availabilityChecks, teamSocial, partners,
+  }, params);
   const flagWhere = FLAG_SQL[flag] ? `WHERE ${FLAG_SQL[flag]}` : '';
   const resolvedSort = SORTS[sort] ? sort : resolvedStatus === 'pending' ? 'oldest' : 'newest';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
@@ -454,12 +478,14 @@ export const DUPLICATE_IDS_SQL = `
     JOIN properties o ON o.id = oc.property_id
     WHERE LOWER(oc.title) = LOWER(f.title) AND oc.property_id <> f.id
       AND o.price = f.price AND o.approve_status <> 2
+      AND NOT ${REFERENCES_DIFFER('o.reference', 'f.reference')}
     ORDER BY o.id DESC LIMIT ${DUPLICATE_LINK_LIMIT}
   ) END AS dup_listing_ids,
   (f.f_duplicate_listing AND f.agent_id IS NOT NULL AND EXISTS (
     SELECT 1 FROM property_contents oc JOIN properties o ON o.id = oc.property_id
     WHERE LOWER(oc.title) = LOWER(f.title) AND oc.property_id <> f.id
       AND o.price = f.price AND o.approve_status <> 2 AND o.agent_id = f.agent_id
+      AND NOT ${REFERENCES_DIFFER('o.reference', 'f.reference')}
   )) AS dup_listing_same_agent`;
 
 /**

@@ -1,7 +1,9 @@
 /**
  * Price steps for the homepage search card's Budget Min / Max dropdowns.
  *
- * Rent steps are the owner's list (2026-10-24): $100 steps to $1,000, then
+ * Rent steps are the owner's list (2026-10-24), $50 steps below $1,000
+ * since 2026-11-17 (owner: "from $350 to $650" on the phone map): $50 steps
+ * to $1,000, then
  * 1,250 / 1,500 / 2,000 / 2,500 / 3,000 / 4,000, then every $1,000 to
  * $10,000, then "10 000 $ +". Both dropdowns use them (Louer and Courte
  * durée alike).
@@ -18,7 +20,8 @@
  * Pure, so the rules are testable (tests/unit/budget-steps.test.js).
  */
 export const RENT_BUDGET_STEPS = [
-  100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+  100, 150, 200, 250, 300, 350, 400, 450, 500, 550,
+  600, 650, 700, 750, 800, 850, 900, 950, 1000,
   1250, 1500, 2000, 2500, 3000, 4000,
   5000, 6000, 7000, 8000, 9000, 10000,
 ];

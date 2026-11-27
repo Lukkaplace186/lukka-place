@@ -39,9 +39,9 @@ export const PARCELLE_SUBTYPES = [
 // (see app/globals.css) — for an icon signaling an active/selected/CTA state;
 // a neutral icon (e.g. inert metadata) should use `text-ink-45`
 // instead, not this class.
-export const ICON_SIZE = 18;
-export const ICON_STROKE_WIDTH = 1.75;
-export const ICON_ACCENT_CLASS = 'text-blue-deep';
+// Defined in lib/iconStyle.js (2026-11-21) so the public shell can import the
+// stroke width without pulling this whole module (~12 KB) into every page.
+export { ICON_SIZE, ICON_STROKE_WIDTH, ICON_ACCENT_CLASS } from './iconStyle';
 
 // Real deployed origin, used to build a shareable listing link inside the
 // WhatsApp pre-filled message (lib/whatsapp.js). Falls back to the real

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from '@/components/LocaleLink';
 import SafeImage from '@/components/SafeImage';
 import QueryAlertButton from '@/components/QueryAlertButton';
-import AppGuideHeader from '@/components/app/AppGuideHeader';
+import { AppGuideHeader } from '@/components/app/AppGuideHeaderLazy';
 import AppRailCard from '@/components/app/AppRailCard';
 import { getT } from '@/lib/i18n/server';
 import { isAppRequest } from '@/lib/appMode';

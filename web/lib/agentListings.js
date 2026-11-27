@@ -303,14 +303,13 @@ export async function getOwnListingForEdit(agentId, propertyId) {
             p.advance_months, p.commission_months,
             p.category_id, p.approve_status, p.listing_status, p.featured_image, p.sold_price,
             p.currency, p.price_original,
-            COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+            COALESCE(to_jsonb(p.utilities), '[]'::jsonb) AS utilities,
             -- Commercial specs through to_jsonb (nulls before the migration),
             -- and the category's own type, which decides whether the editor
             -- shows them instead of bedrooms.
-            (SELECT jsonb_build_object(
-               'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
-               'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
-             FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+            jsonb_build_object(
+              'office_count', p.office_count, 'floor_level', p.floor_level,
+              'road_frontage', p.road_frontage, 'truck_access', p.truck_access) AS commercial_specs,
             cat.type AS category_type,
             -- Practical details (lib/listingDetails.js) and the French
             -- category name, which decides which of them the editor shows.
@@ -354,6 +353,33 @@ export async function getOwnListingForEdit(agentId, propertyId) {
     // than at every comparison site.
     amenity_ids: (row.amenity_ids || []).map(Number),
   };
+}
+
+/**
+ * What a listing is placed FROM — quartier, reference, commune — read before
+ * an edit, so the edit can tell whether its map point must be looked up
+ * again (engine POST /admin/properties/:id/geocode with `replace`). Same
+ * ownership rule as every read here. Null when not this agent's.
+ */
+export async function getListingLocationText(agentId, propertyId) {
+  const { rows } = await getPool().query(
+    `SELECT p.quartier, p.reference,
+            (SELECT ac.name FROM property_amenities pa
+               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
+              LIMIT 1) AS commune
+       FROM properties p
+      WHERE p.id = $2 AND p.agent_id = $3`,
+    [CONTENT_LANGUAGE_ID, propertyId, agentId],
+  );
+  return rows[0] || null;
+}
+
+/** Did the text a listing is placed from change? Case and spacing don't count. */
+export function locationTextChanged(before, after) {
+  if (!before) return false;
+  const norm = (v) => String(v ?? '').trim().toLowerCase();
+  return ['quartier', 'reference', 'commune'].some((key) => norm(before[key]) !== norm(after?.[key]));
 }
 
 /**

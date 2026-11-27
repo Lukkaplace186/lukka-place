@@ -29,11 +29,13 @@ import { WhatsAppIcon } from './WhatsAppCTA';
 const INVITE_MESSAGE = 'Créez votre compte gratuit sur Lukka Place pour recevoir les nouveaux biens à louer et à vendre à Kinshasa : ';
 
 export default async function AgentReferralCard({ agentId }) {
-  // The programme is off while the agent campaign is stopped (/admin/campagne):
-  // an invite link that credits nothing must not be offered.
-  if (!(await getReferralCampaign()).active) return null;
   const stats = await getAgentReferralStats(agentId);
   if (!stats) return null;
+  // The programme is off while the agent campaign is stopped (/admin/campagne):
+  // an invite link that credits nothing must not be offered. A partner
+  // agency's code (2026-11-16) is a deal of its own and stays live: its agents
+  // see the agency's code and the agency's figures, together.
+  if (stats.scope !== 'agency' && !(await getReferralCampaign()).active) return null;
   const credits = await getAgentCreditSummary(agentId).catch(() => null);
   const t = await getT();
   const links = partnerLinks(stats.code, { siteUrl: SITE_URL });
@@ -54,6 +56,11 @@ export default async function AgentReferralCard({ agentId }) {
         <div className="min-w-0">
           <h2 id="agent-referrals-title" className="u-title-card text-ink">{t('agent.referrals.title')}</h2>
           <p className="u-micro mt-0.5 text-ink-70">{t('agent.referrals.lead')}</p>
+          {stats.scope === 'agency' ? (
+            <p className="u-micro-strong mt-1 text-blue-deep">
+              {t('agent.referrals.agencyShared', { agency: stats.agencyName || t('agent.referrals.yourAgency') })}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -91,7 +98,7 @@ export default async function AgentReferralCard({ agentId }) {
 
       <div className="flex flex-col gap-2">
         <div className="u-micro text-ink-45">
-          {t('agent.referrals.yourCode')} <span className="u-ref font-bold text-ink">{stats.code}</span>
+          {t(stats.scope === 'agency' ? 'agent.referrals.agencyCode' : 'agent.referrals.yourCode')} <span className="u-ref font-bold text-ink">{stats.code}</span>
         </div>
         <div className="u-micro break-all rounded-lg bg-canvas-alt px-3 py-2 text-ink-70">{links.invite}</div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

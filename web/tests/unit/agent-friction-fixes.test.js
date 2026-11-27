@@ -60,7 +60,8 @@ test('a failed code send lands on the verify page, never back on sign-up', () =>
   for (const file of [SIGNUP, LOGIN]) {
     const src = read(file);
     assert.doesNotMatch(src, /error=otp_failed/, file);
-    assert.match(src, /\/compte\/agent\/inscription\/verifier\?next=\$\{encodeURIComponent\(next\)\}\$\{sent \? '' : '&error=send_failed'\}/, file);
+    // send_failed, or send_busy past 3 codes in 10 minutes (lib/agentCode.js, 2026-11-24).
+    assert.match(src, /\/compte\/agent\/inscription\/verifier\?next=\$\{encodeURIComponent\(next\)\}\$\{sent === 'sent' \? '' : `&error=send_\$\{sent\}`\}/, file);
   }
 });
 

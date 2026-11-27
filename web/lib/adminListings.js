@@ -135,11 +135,11 @@ export async function getListingFactsForReview(ids) {
   const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 100);
   if (clean.length === 0) return new Map();
   const { rows } = await getPool().query(
-    `SELECT p.id, p.bath, p.area, p.currency,
-            to_jsonb(p) ->> 'deposit_months' AS deposit_months,
-            to_jsonb(p) ->> 'advance_months' AS advance_months,
-            to_jsonb(p) ->> 'commission_months' AS commission_months,
-            to_jsonb(p) ->> 'parcelle_subtype' AS parcelle_subtype,
+    `SELECT p.id, p.bath, p.area, p.currency, p.category_id, p.price_original, p.listing_status,
+            to_jsonb(p.deposit_months) #>> '{}' AS deposit_months,
+            to_jsonb(p.advance_months) #>> '{}' AS advance_months,
+            to_jsonb(p.commission_months) #>> '{}' AS commission_months,
+            to_jsonb(p.parcelle_subtype) #>> '{}' AS parcelle_subtype,
             (SELECT cc.name FROM property_category_contents cc
               WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name,
             pc.description
@@ -152,6 +152,10 @@ export async function getListingFactsForReview(ids) {
     bath: row.bath == null ? null : Number(row.bath),
     area: row.area,
     currency: row.currency,
+    // Raw values for review mode's inline correction (lib/reviewQuickEdit.js).
+    categoryId: row.category_id == null ? null : Number(row.category_id),
+    priceOriginal: row.price_original == null ? null : Number(row.price_original),
+    listingStatus: row.listing_status || null,
     depositMonths: row.deposit_months == null ? null : Number(row.deposit_months),
     advanceMonths: row.advance_months == null ? null : Number(row.advance_months),
     commissionMonths: row.commission_months == null ? null : Number(row.commission_months),

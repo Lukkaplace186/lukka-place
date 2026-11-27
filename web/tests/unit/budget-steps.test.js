@@ -12,9 +12,10 @@ const labels = {
 };
 const format = (a) => String(a);
 
-test('rent steps are the owner list: $100 steps to 1 000, then up to 10 000', () => {
+test('rent steps are the owner list: $50 steps to 1 000, then up to 10 000', () => {
   assert.deepEqual(RENT_BUDGET_STEPS, [
-    100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+    100, 150, 200, 250, 300, 350, 400, 450, 500, 550,
+    600, 650, 700, 750, 800, 850, 900, 950, 1000,
     1250, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
   ]);
 });

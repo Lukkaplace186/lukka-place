@@ -30,7 +30,8 @@ export default async function ProspectsPage({ searchParams }) {
   const canManage = can(session?.role, 'market.manage');
   const raw = (await searchParams) || {};
   const statusParam = firstParam(raw.status);
-  const status = statusParam === 'all' || PROSPECT_STATUSES.includes(statusParam) ? statusParam : 'open';
+  // 'agents': numbers that already have a Lukka Place account, whatever their follow-up status.
+  const status = statusParam === 'all' || statusParam === 'agents' || PROSPECT_STATUSES.includes(statusParam) ? statusParam : 'open';
   const q = String(firstParam(raw.q) || '').slice(0, 80);
   const page = Math.max(1, Number.parseInt(firstParam(raw.page), 10) || 1);
 
@@ -90,6 +91,7 @@ export default async function ProspectsPage({ searchParams }) {
           {chip('open', t('admin.marketProspects.filterOpen'), openCount)}
           {PROSPECT_STATUSES.map((s) => chip(s, t(`admin.marketProspects.status.${s}`), c[s] || 0))}
           {chip('all', t('admin.marketProspects.filterAll'), allCount)}
+          {chip('agents', t('admin.marketProspects.filterAgents'), c.agents || 0)}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <form action="/admin/market-data/prospects" className="flex min-w-0 flex-1 gap-2">

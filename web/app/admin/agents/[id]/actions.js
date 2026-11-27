@@ -17,6 +17,7 @@ import { adminVerifyAgent } from '@/lib/adminApi';
 import { adminAgentRefusal } from '@/lib/adminAgentCreate';
 import { recordAgentVouch } from '@/lib/adminAgentVouch';
 import { getT } from '@/lib/i18n/server';
+import { parseMinBudgetInput, setAgentMinBudget } from '@/lib/agentMinBudget';
 
 function revalidateAgent(agentId) {
   revalidatePath('/admin/agents');
@@ -44,6 +45,17 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
     const phoneVerified = formData.get('phone_verified') === 'on';
     const before = await getAgentById(agentId);
     if (!before) return { ok: false, error: t('errors.agentNotFound') };
+
+    // Minimum budgets (lib/agentMinBudget.js): only when the form carries
+    // them; a value that is not an amount is refused before anything saves.
+    const minRental = formData.has('min_rental_budget')
+      ? parseMinBudgetInput(formData.get('min_rental_budget'), { max: 50000 }) : undefined;
+    const minSale = formData.has('min_sale_budget')
+      ? parseMinBudgetInput(formData.get('min_sale_budget')) : undefined;
+    if ((formData.has('min_rental_budget') && minRental === undefined)
+      || (formData.has('min_sale_budget') && minSale === undefined)) {
+      return { ok: false, error: t('agent.minBudget.invalid') };
+    }
 
     // Ticking "Numéro vérifié" is the same vouch as "Vérifier le numéro"
     // (../createAgentActions.js), so it goes through the same engine path
@@ -73,6 +85,15 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
 
     if (!ok) return { ok: false, error: t('errors.agentNotFound') };
 
+    let minBudget = null;
+    if (minRental !== undefined || minSale !== undefined) {
+      const changed = {};
+      if (minRental !== undefined) changed.rental = minRental;
+      if (minSale !== undefined) changed.sale = minSale;
+      await setAgentMinBudget(agentId, { ...changed, source: 'admin' });
+      minBudget = changed;
+    }
+
     if (vouch) {
       await recordAgentVouch(session, agentId, {
         created: false,
@@ -98,7 +119,7 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
       action: 'agent.update',
       entityType: 'agent',
       entityId: agentId,
-      details: { status: [0, 1].includes(status) ? status : null, phoneVerified, primary, serviced, nameChanged },
+      details: { status: [0, 1].includes(status) ? status : null, phoneVerified, primary, serviced, nameChanged, minBudget },
     });
     revalidateAgent(agentId);
     return { ok: true };

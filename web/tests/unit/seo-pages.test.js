@@ -101,15 +101,16 @@ test('the sitemap lists only landing pages that have listings, plus the two root
   assert.deepEqual(paths, [
     '/location',
     '/location/appartements',
-    '/location/appartements/gombe',
     '/location/gombe',
     '/location/kintambo',
     '/location/maisons',
     '/vente',
     '/vente/lemba',
     '/vente/terrains',
-    '/vente/terrains/lemba',
   ]);
+  // A type in one commune needs MIN_NARROW_LANDING_LISTINGS (3) — 2 and 1 are thin (2026-11-21).
+  const enough = landingPathsFromFacets([{ commune: 'Gombe', purpose: 'rent', propertyType: 'appartement', count: 3 }]);
+  assert.ok(enough.includes('/location/appartements/gombe'));
 });
 
 test('every other city has a landing page whose slug collides with nothing', () => {
@@ -155,11 +156,13 @@ test('the sitemap lists another city once it has a listing, and keeps it off Kin
   ]).sort();
   assert.deepEqual(paths, [
     '/location',
-    '/location/appartements/lubumbashi',
     '/location/lubumbashi',
     '/vente',
     '/vente/goma',
   ]);
+  // Appartements in Lubumbashi is a type in one city: listed from 3 (2026-11-21).
+  const enough = landingPathsFromFacets([{ commune: 'Kampemba', purpose: 'rent', propertyType: 'appartement', count: 3 }]);
+  assert.ok(enough.includes('/location/appartements/lubumbashi'));
 });
 
 test('JSON-LD cannot close its own script tag', () => {

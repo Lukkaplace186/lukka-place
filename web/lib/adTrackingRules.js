@@ -4,7 +4,7 @@
  *
  * EVENTS: PageView (browser only — every page), ViewContent (a listing page),
  * Search, Contact (a WhatsApp or call tap), CompleteRegistration (a customer
- * whose number was just verified), Schedule (a visit request), Lead (a request
+ * or agent account completed — REGISTRATION_KINDS below), Schedule (a visit request), Lead (a request
  * left without an account, /trouver-pour-moi). Every event
  * but PageView is also sent from our server (Meta Conversions API, TikTok
  * Events API) under the SAME event id, so each platform counts it once.
@@ -42,6 +42,57 @@ export const TIKTOK_EVENT_NAME = {
   // A request left without an account (/trouver-pour-moi); TikTok's standard name.
   Lead: 'SubmitForm',
 };
+
+/**
+ * CompleteRegistration for each kind of account (2026-11-21). Customers sent
+ * it since the ads began; agents sent nothing, so the agent-recruitment ads
+ * had no conversion to optimise on. Same event name for both — Meta's
+ * standard event — told apart by content_name / content_category, and by the
+ * event id prefix: `reg-c-<customer id>`, `reg-a-<agent id>`. The id is the
+ * account's, so a repeat (a second tab, a retried verification) is the same
+ * event and each platform counts it once.
+ *
+ * When: a customer account the moment it is created (or activated, or
+ * verified on the older flows); an agent account when its number is proven
+ * for the first time — the step that completes an agent sign-up (code, or a
+ * WhatsApp message from that number), never the form submit before it.
+ */
+export const REGISTRATION_KINDS = Object.freeze({
+  customer: Object.freeze({ prefix: 'reg-c', contentName: 'Compte client', contentCategory: 'customer' }),
+  agent: Object.freeze({ prefix: 'reg-a', contentName: 'Compte agent', contentCategory: 'agent' }),
+});
+
+const REGISTRATION_CONTENT_NAMES = Object.values(REGISTRATION_KINDS).map((k) => k.contentName);
+const REGISTRATION_CATEGORIES = Object.values(REGISTRATION_KINDS).map((k) => k.contentCategory);
+
+/**
+ * The CompleteRegistration event for an account, or null for an unknown kind
+ * or id. Spread into recordAdEventFromAction with the account's phone.
+ */
+export function registrationAdEvent(kind, accountId) {
+  const spec = REGISTRATION_KINDS[kind];
+  const id = Number(accountId);
+  if (!spec || !Number.isSafeInteger(id) || id <= 0) return null;
+  return {
+    name: 'CompleteRegistration',
+    eventId: `${spec.prefix}-${id}`,
+    params: { contentName: spec.contentName, contentCategory: spec.contentCategory },
+  };
+}
+
+/** Just the params (content name + category) of a kind's CompleteRegistration. */
+export function registrationParams(kind) {
+  const spec = REGISTRATION_KINDS[kind];
+  return spec ? { contentName: spec.contentName, contentCategory: spec.contentCategory } : {};
+}
+
+/** content_name / content_category for Meta, only the two registration values. */
+export function registrationContent(params) {
+  const out = {};
+  if (REGISTRATION_CONTENT_NAMES.includes(params?.contentName)) out.content_name = params.contentName;
+  if (REGISTRATION_CATEGORIES.includes(params?.contentCategory)) out.content_category = params.contentCategory;
+  return out;
+}
 
 const EUROPEAN_ATLANTIC = new Set(['Atlantic/Canary', 'Atlantic/Madeira', 'Atlantic/Azores', 'Atlantic/Faroe', 'Atlantic/Reykjavik']);
 

@@ -12,7 +12,9 @@ import { compactPrice, priceZIndex } from '@/lib/mapIcons';
 import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
-import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
+import { groupListingsByBuilding } from '@/lib/buildingGroups';
+import { scatterCommuneListings } from '@/lib/communeScatter';
+import { announceMapMoving } from '@/lib/mapMovingEvent';
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
 import { useCountUp } from '@/lib/useCountUp';
@@ -146,7 +148,12 @@ function toBounds(latLngBounds) {
 }
 
 function labelFor(group) {
-  if (group.isBuilding) return buildingPinLabel(group, (value) => compactPrice(value, 'sale'));
+  if (group.isBuilding) {
+    // "dès $650" beside the building badge (navy, glyph + unit count:
+    // mapPinLayer `units`), owner's pick B 2026-11-18. It replaced the text
+    // "3 unités · dès $650" (2026-11-17). No price: the badge alone.
+    return group.priceMin === null ? '' : `dès ${compactPrice(group.priceMin, 'sale')}`;
+  }
   const listing = group.representative;
   return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
 }
@@ -412,10 +419,13 @@ export default function ListingsMap({
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
 
-    // Same three passes PropertyMap uses: group units of one building, fan
-    // listings sharing a base point onto a ring (privacy jitter included),
-    // then the screen-space de-overlap net.
-    const groups = groupListingsByBuilding(markers);
+    // Listings that only know their commune are scattered over it, each with
+    // its own price (lib/communeScatter.js, owner 2026-11-18: no "N biens ·
+    // commune" bubble, no ring). Then the same three passes PropertyMap
+    // uses: group units of one building, fan listings sharing a base point
+    // onto a ring (privacy jitter included), then the screen-space
+    // de-overlap net.
+    const groups = groupListingsByBuilding(scatterCommuneListings(markers));
     const bases = groups.map((group) => {
       const r = group.representative;
       return {
@@ -426,8 +436,9 @@ export default function ListingsMap({
           lng: r.lng,
           source: r.approximate ? 'commune_fallback' : 'existing',
           precise: !r.approximate,
-          // Every unit of a developer's building shares its exact pin.
-          exact: group.listings.every((l) => l.exact),
+          // Every unit of a developer's building shares its exact pin; a
+          // scattered commune listing is already spread, so no ring either.
+          exact: group.listings.every((l) => l.exact || l.scattered),
         },
       };
     });
@@ -452,6 +463,7 @@ export default function ListingsMap({
         label: labelFor(group),
         title: group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
+        units: group.isBuilding ? group.unitCount : 0,
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,
@@ -648,6 +660,14 @@ export default function ListingsMap({
         listeners.push(map.addListener('idle', () => {
           scheduleFetch();
           reportArea();
+          announceMapMoving(false);
+        }));
+        // The phone's liquid-glass search panel steps aside while the visitor
+        // drags or pinches the map, and comes back when it settles
+        // (ListingsSplitView). Our own positioning is not the visitor moving.
+        listeners.push(map.addListener('dragstart', () => announceMapMoving(true)));
+        listeners.push(map.addListener('zoom_changed', () => {
+          if (!requestRef.current.positioning) announceMapMoving(true);
         }));
 
         setStatus('ready');
@@ -892,7 +912,8 @@ export default function ListingsMap({
         // A text-only counter pill, top-centre. Only the pill takes pointer
         // events, so the map stays draggable right up to it.
         // Below the floating search bar on a phone.
-        <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
+        // Below the phone's liquid-glass search panel (ListingsSplitView).
+        <div className="pointer-events-none absolute inset-x-0 top-[8rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
           <p
             aria-live="polite"
             className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${

@@ -1,10 +1,11 @@
 'use client';
 
-import { SlidersHorizontal } from 'lucide-react';
+import { Menu, SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import MapQuickFilters from './MapQuickFilters';
 import { openFiltersDrawer } from '@/lib/mapFilterDrawer';
-import { searchedPlaceLabel } from '@/lib/searchParser';
+import { openSiteMenu } from '@/lib/siteMenu';
+import { searchedPlaceLabel } from '@/lib/searchPlaceLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -33,10 +34,22 @@ import { useT } from '@/lib/i18n/client';
 export default function MobileMapChrome({ params, propertyTypes = [] }) {
   const t = useT();
   return (
-    // Floats over the phone map (ListingsSplitView gives it a pointer-events-
-    // none layer, so the map stays draggable around the two controls).
+    // The phone map's whole header since 2026-11-17: ☰, search, filters and
+    // the chips on one liquid-glass panel (ListingsSplitView); the site's logo
+    // bar steps aside while the map is open. Fields are lighter glass panes.
     <div className="lg:hidden">
     <div className="flex items-center gap-2">
+      {/* The site's logo bar steps aside while the phone map is open
+          (app/globals.css, [data-site-header]); its menu lives here. */}
+      <button
+        type="button"
+        data-site-menu-button
+        onClick={() => openSiteMenu()}
+        aria-label={t('nav.openMenu')}
+        className="u-press u-liquid-glass-field pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink"
+      >
+        <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+      </button>
       <LocationAutocomplete
         preserveParams
         initialValue={params.q || params.near || searchedPlaceLabel(params)}
@@ -46,14 +59,14 @@ export default function MobileMapChrome({ params, propertyTypes = [] }) {
         showClear
         rowClassName="flex min-w-0 flex-1 items-center gap-2"
         inputClassName="min-w-0 flex-1 bg-transparent text-[0.875rem] text-ink placeholder:text-ink-25 focus:outline-none"
-        className="u-lift pointer-events-auto min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5"
+        className="u-liquid-glass-field pointer-events-auto min-w-0 flex-1 rounded-full px-4 py-2.5"
       />
 
       <button
         type="button"
         onClick={() => openFiltersDrawer()}
         aria-label={t('listings.filters.moreFilters')}
-        className="u-press u-lift pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink-70"
+        className="u-press u-liquid-glass-field pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-70"
       >
         <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       </button>

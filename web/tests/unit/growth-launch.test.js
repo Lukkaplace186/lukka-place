@@ -80,9 +80,9 @@ test('flags are facts: a burst from one connection, a low activation rate once s
   assert.deepEqual(sumByCurrency([{ amount: 1, currency: 'USD' }, { amount: 2.5, currency: 'USD' }, { amount: 1000, currency: 'CDF' }]), { USD: 3.5, CDF: 1000 });
 });
 
-test('the credit run only reads agent partners\' customer conversions not yet credited', () => {
+test('the credit run only reads agent (and partner-agency) customer conversions not yet credited', () => {
   const sql = squash(CREDIT_CANDIDATES_SQL);
-  assert.match(sql, /JOIN partners p ON p\.id = c\.partner_id AND p\.kind = 'agent'/);
+  assert.match(sql, /JOIN partners p ON p\.id = c\.partner_id AND p\.kind IN \('agent', 'agency'\)/);
   assert.match(sql, /NOT EXISTS \(SELECT 1 FROM partner_credits pc WHERE pc\.conversion_id = c\.id\)/);
   assert.match(sql, /AS is_agent_number/);
   const ledger = read('lib/referralCredits.js');
@@ -229,6 +229,13 @@ test('the owners\' summary names the channels, the best agent and creator', () =
 
 // --- 23–25 -------------------------------------------------------------------------------
 
+test('no "Créer mon compte via WhatsApp" button on the customer signup or invite pages (owner, 2026-11-16)', () => {
+  for (const file of ['app/(site)/compte/inscription/page.js', 'app/(site)/i/[code]/page.js']) {
+    const page = read(file);
+    assert.doesNotMatch(page, /whatsappSignupLink|auth\.whatsappSignup\.cta/, file);
+  }
+});
+
 test('the WhatsApp signup message starts with the wording the engine matches, never "parrainage"', () => {
   assert.equal(whatsappSignupText(), 'Inscription Lukka Place');
   assert.equal(whatsappSignupText('nadia01'), 'Inscription Lukka Place — Code : NADIA01');
@@ -273,7 +280,7 @@ test('every browse feature reads public listings only', () => {
   // Postgres does not evaluate AND left to right: a separate "is it an array"
   // test did not stop jsonb_array_length running on a scalar and failing the
   // whole feed (production, 2026-10-27). The length must sit inside the CASE.
-  assert.match(squash(VIDEO_LISTINGS_SQL), /CASE WHEN jsonb_typeof\(to_jsonb\(p\) -> 'videos'\) = 'array' THEN jsonb_array_length/);
+  assert.match(squash(VIDEO_LISTINGS_SQL), /CASE WHEN jsonb_typeof\(p\.videos\) = 'array' THEN jsonb_array_length/);
   assert.doesNotMatch(squash(VIDEO_LISTINGS_SQL), /AND jsonb_array_length/);
   // The minimum sample, on the real count (not the recency-weighted rows).
   assert.match(squash(PRICE_GUIDES_SQL), /HAVING SUM\(n\) >= \$1/);

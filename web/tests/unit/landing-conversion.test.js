@@ -125,10 +125,10 @@ test('the weekly count is public listings published in the last N days', async (
   assert.match(hero, /weeklyNew > 0 \?/, 'nothing shown at 0');
 });
 
-test('the phone search folds Ville, Type and Budget, never on sm and up', () => {
+test('the phone search folds Ville, Type, Chambres and Budget, never on sm and up', () => {
   const bar = read('../../components/SearchBar.js');
   assert.match(bar, /const folded = moreOpen \? '' : 'max-sm:hidden'/);
-  assert.equal((bar.match(/\$\{folded\}/g) || []).length, 3);
+  assert.equal((bar.match(/\$\{folded\}/g) || []).length, 4);
   assert.match(bar, /aria-expanded=\{moreOpen\}/);
 });
 

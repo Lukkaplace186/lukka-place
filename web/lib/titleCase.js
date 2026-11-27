@@ -42,9 +42,14 @@ function hasDeliberateCasing(word) {
   return /[A-Z]/.test(word.slice(1));
 }
 
-/** `{count}`, `{place}` — a value substituted at render, never re-cased. */
+/**
+ * `{count}`, `{place}` — a value substituted at render, never re-cased. With
+ * punctuation stuck to it too ("Welcome {name}!", 2026-11-24): `{name}!` was
+ * re-cased to `{Name}!`, which no longer matches the French placeholder.
+ */
 function isInterpolation(token) {
-  return token.startsWith('{') && token.endsWith('}');
+  // Placeholders (`{beds}{kind}` too) and punctuation only: no letter outside the braces.
+  return token.startsWith('{') && !/[\p{L}\p{N}]/u.test(token.replace(/\{[^{}]*\}/g, ''));
 }
 
 function capitalizeFirstLetter(word) {

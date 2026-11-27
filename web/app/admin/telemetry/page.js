@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CheckCircle2, CircleSlash } from 'lucide-react';
-import { getLeadAnalytics, listViewingFeed } from '@/lib/adminApi';
+import { getContactTapAlerts, getLeadAnalytics, listViewingFeed } from '@/lib/adminApi';
+import { matchTapAlerts, tapAlertQuery } from '@/lib/contactTapMatch';
 import { REPEAT_TAP_MINUTES, getLeadClickTotals, getLeadClicksByCommune, getLeadClicksPage } from '@/lib/adminLeadRouting';
 import { LEAD_CLICK_PLACEMENTS } from '@/lib/leadClicks';
 import { ROUTING_TYPE_LABEL_KEYS } from '@/lib/adminLabels';
@@ -34,6 +35,24 @@ const CHECKIN_ANSWER_KEYS = {
 function pct(part, whole) {
   if (!whole) return null;
   return Math.round((part / whole) * 1000) / 10;
+}
+
+const TAP_ALERT_TONE = { replied: 'success', visitSet: 'success', nothing: 'danger', waiting: 'blue', failed: 'warning', earlier: 'neutral' };
+
+/**
+ * "Agent prévenu" for one tap. Only a customer's tap on an agent's own
+ * WhatsApp can alert anyone; every other row shows a dash.
+ */
+function TapAlertCell({ t, alert, direct, failed }) {
+  if (!direct) return <span className="text-ink-35">—</span>;
+  if (failed) return <span className="text-ink-45">{t('admin.telemetry.agentAlert.unavailable')}</span>;
+  if (!alert) return <span className="text-ink-45">{t('admin.telemetry.agentAlert.none')}</span>;
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <Chip tone={TAP_ALERT_TONE[alert.state]}>{t(`admin.telemetry.agentAlert.${alert.state}`)}</Chip>
+      {alert.answeredAt ? <span className="text-ink-45">{formatKinshasa(alert.answeredAt)}</span> : null}
+    </div>
+  );
 }
 
 function settled(result) {
@@ -88,6 +107,21 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
   const clicks = settled(clicksR);
   const awaiting = settled(awaitingR);
   const followUps = settled(checkinsR);
+
+  // Per tap on an agent's own WhatsApp: was the agent told, and what did they
+  // answer (engine contact_tap_alerts, lib/contactTapMatch.js). The engine
+  // being down leaves the column "non disponible", never "not told".
+  const alertQuery = tapAlertQuery(clicks.value?.rows);
+  let tapAlerts = new Map();
+  let tapAlertsFailed = false;
+  if (alertQuery) {
+    try {
+      tapAlerts = matchTapAlerts(clicks.value.rows, await getContactTapAlerts(alertQuery));
+    } catch (err) {
+      tapAlertsFailed = true;
+      console.error(`[admin/telemetry] contact-tap alerts: ${err.message}`);
+    }
+  }
 
   const a = analytics.value;
   const enquiries = a?.leadsBySource?.['listing-whatsapp-enquiry'] || 0;
@@ -250,7 +284,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
           </div>
         </div>
         <TableFrame
-          minWidth="68rem"
+          minWidth="76rem"
           footer={clicks.value ? (
             <Pagination pathname={PATH} params={params} total={clicks.value.total} page={taps.page} pageSize={taps.pageSize} pageParam="tp" sizeParam="ts" />
           ) : null}
@@ -261,6 +295,12 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
               <th className={TH_STICKY}>{t('admin.telemetry.colListing')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colAgent')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colRouting')}</th>
+              <th className={TH_STICKY}>
+                <span className="inline-flex items-center gap-1">
+                  {t('admin.telemetry.colAgentAlert')}
+                  <InfoTip label={t('admin.telemetry.colAgentAlert')}>{t('admin.telemetry.agentAlertHelp')}</InfoTip>
+                </span>
+              </th>
               <th className={TH_STICKY}>{t('admin.telemetry.colWho')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colPlacement')}</th>
               <th className={TH_STICKY}>{t('admin.telemetry.colCommune')}</th>
@@ -270,7 +310,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
           </thead>
           <tbody>
             {(clicks.value?.rows || []).length === 0 ? (
-              <EmptyRow colSpan={9}>{t('admin.telemetry.clicksEmpty')}</EmptyRow>
+              <EmptyRow colSpan={10}>{t('admin.telemetry.clicksEmpty')}</EmptyRow>
             ) : (
               clicks.value.rows.map((click) => (
                 <tr key={click.id} className={`${TR_DENSE} ${click.repeat_tap ? 'opacity-60' : ''}`}>
@@ -307,6 +347,14 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
                     ) : (
                       <span className="text-ink-35">{t('admin.telemetry.unknown')}</span>
                     )}
+                  </td>
+                  <td className={TD_DENSE}>
+                    <TapAlertCell
+                      t={t}
+                      alert={tapAlerts.get(String(click.id))}
+                      direct={click.routing_type === 'DIRECT_WA' && (click.viewer_kind || 'visitor') === 'visitor'}
+                      failed={tapAlertsFailed}
+                    />
                   </td>
                   <td className={TD_DENSE}>
                     {(click.viewer_kind || 'visitor') === 'visitor'

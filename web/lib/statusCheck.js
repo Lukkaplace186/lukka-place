@@ -49,7 +49,7 @@ const DAY_MS = 86_400_000;
 export const STATUS_ANSWERS = ['available', 'still_under_offer', 'under_offer', 'closed', 'withdrawn', 'price'];
 
 /** Hidden by the auto-pause, not by the agent: status 0 + auto_paused_at, not archived. */
-const PAUSED_SQL = "p.status = 0 AND (to_jsonb(p) ->> 'auto_paused_at') IS NOT NULL AND p.archived_at IS NULL";
+const PAUSED_SQL = "p.status = 0 AND p.auto_paused_at IS NOT NULL AND p.archived_at IS NULL";
 
 /** What each answer is called in listing_availability_checks.answer. */
 export const CHECK_ANSWER = {
@@ -123,8 +123,8 @@ export const STATUS_LISTINGS_SQL = `
   SELECT p.id, pc.title, p.purpose, p.price, p.price_period, p.price_original, p.currency,
          p.featured_image, p.quartier, p.reference, p.created_at,
          COALESCE(p.listing_status, 'active') AS listing_status, p.status,
-         (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
-         (to_jsonb(p) ->> 'auto_paused_at') AS auto_paused_at,
+         (to_jsonb(p.availability_confirmed_at) #>> '{}') AS availability_confirmed_at,
+         (to_jsonb(p.auto_paused_at) #>> '{}') AS auto_paused_at,
          (SELECT ac.name FROM property_amenities pa
             JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
            WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
@@ -134,9 +134,9 @@ export const STATUS_LISTINGS_SQL = `
   WHERE p.agent_id = $1
     AND (p.status = 1 OR (${PAUSED_SQL})) AND p.approve_status = 1
     AND COALESCE(p.listing_status, 'active') IN ('active', 'under_offer')
-    AND (to_jsonb(p) ->> 'development_id') IS NULL
+    AND p.development_id IS NULL
   ORDER BY (p.status = 0) DESC,
-           COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz,
+           COALESCE(p.availability_confirmed_at,
                     GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at))) ASC,
            p.id ASC
   LIMIT 200
@@ -280,7 +280,7 @@ export async function answerListingStatus({ agentId, request = null, propertyId,
   const pool = getPool();
   const { rows: current } = await pool.query(
     `SELECT COALESCE(p.listing_status, 'active') AS listing_status, p.status, p.approve_status, p.created_at, p.price,
-            p.archived_at, (to_jsonb(p) ->> 'auto_paused_at') AS auto_paused_at
+            p.archived_at, (to_jsonb(p.auto_paused_at) #>> '{}') AS auto_paused_at
        FROM properties p WHERE p.id = $1 AND p.agent_id = $2`,
     [pid, aid],
   );

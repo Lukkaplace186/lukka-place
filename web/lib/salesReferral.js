@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { normaliseReferralCode } from './launchCommission';
+import { clientIpFromHeaders } from './clientIp';
 
 /**
  * Referral links, the cookie that carries a referral to the signup form, and
@@ -36,10 +37,9 @@ export function hashReferralIp(ip, secret = process.env.ADMIN_SESSION_SECRET) {
   return createHmac('sha256', secret).update(`sales-referral-ip:${value}`).digest('hex').slice(0, 32);
 }
 
-/** First address of X-Forwarded-For, else X-Real-IP — same reading as lib/adminAudit.js. */
+/** The visitor's address behind Traefik and Cloudflare — lib/clientIp.js, like every other reader. */
 export function clientIpFrom(headers) {
-  const forwarded = headers?.get?.('x-forwarded-for');
-  return (forwarded ? forwarded.split(',')[0] : headers?.get?.('x-real-ip') || '').trim() || null;
+  return clientIpFromHeaders(headers);
 }
 
 export function referralLink(code, { qr = false, siteUrl = SITE_URL } = {}) {

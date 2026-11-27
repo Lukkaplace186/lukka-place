@@ -28,6 +28,8 @@ import {
   createListing,
   attachListingPhotos,
   updateListing,
+  getListingLocationText,
+  locationTextChanged,
   updateListingPrice,
   setListingGallery,
   deleteListing,
@@ -54,15 +56,17 @@ import {
   parseAgentListingText,
   alertPendingListing,
   answerLeadMatch,
+  geocodeListing,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { SITE_URL } from '@/lib/constants';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { parseMinBudgetInput, setAgentMinBudget } from '@/lib/agentMinBudget';
 import { revokeDevice } from '@/lib/pushNotifications';
 import { PUSH_TOKEN_COOKIE } from '@/lib/pushRules';
-import { normaliseArea } from '@/lib/listingView';
+import { MAX_ENTRY_MONTHS, normaliseArea } from '@/lib/listingView';
 import { getListingQuota } from '@/lib/listingQuota';
 import { findOwnedLead } from '@/lib/agentLeadOwnership';
 import { quotaRefusal } from '@/lib/listingQuotaRules';
@@ -508,6 +512,10 @@ export async function createListingAction(validCommunes, validCategories, formDa
     agent_name: agentDisplayName(agent),
   });
 
+  // Place it on the map with the same name-checked lookup a WhatsApp listing
+  // gets at publish (engine services/geocoding.js). Not awaited.
+  void geocodeListing(propertyId);
+
   return { ok: true, propertyId, photoWarning: uploadedCount < photos.length };
 }
 
@@ -851,6 +859,20 @@ export async function updateOwnCommunesAction(validCommunes, formData) {
   redirect('/compte/agent/parametres?saved=communes');
 }
 
+/**
+ * The smallest budget the agency takes (lib/agentMinBudget.js): the engine
+ * stops sending it requests whose budget is under it. Empty = every budget.
+ */
+export async function updateMinBudgetAction(formData) {
+  const agentId = await assertAgentSession();
+  const rental = parseMinBudgetInput(formData.get('min_rental_budget'), { max: 50000 });
+  const sale = parseMinBudgetInput(formData.get('min_sale_budget'));
+  if (rental === undefined || sale === undefined) redirect('/compte/agent/parametres?section=requests&error=min_budget');
+  await setAgentMinBudget(agentId, { rental, sale, source: 'agent' });
+  revalidatePath('/compte/agent/parametres');
+  redirect('/compte/agent/parametres?saved=requests');
+}
+
 export async function updateWorkingHoursAction(formData) {
   const agentId = await assertAgentSession();
   const workingHours = String(formData.get('working_hours') || '').trim().slice(0, 200);
@@ -1051,6 +1073,17 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
       return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
     }
   }
+  // A number of months, never the amount: agents typed "9000" (3 months of a
+  // 3 000 $ rent) into "Loyer d'avance (mois)" and tenants were shown 9 000 mois.
+  for (const [value, fieldKey] of [
+    [depositMonths, 'errors.fieldDepositMonths'],
+    [advanceMonths ?? null, 'errors.fieldAdvanceMonths'],
+    [commissionMonths ?? null, 'errors.fieldCommissionMonths'],
+  ]) {
+    if (value !== null && value > MAX_ENTRY_MONTHS) {
+      return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
+    }
+  }
   if (areaNumber !== null && (!Number.isFinite(areaNumber) || areaNumber < 0)) {
     return { ok: false, error: t('errors.invalidArea') };
   }
@@ -1113,6 +1146,9 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     if (photoProblem) return photoProblem;
   }
 
+  // What the listing is placed from, before the edit (null if not theirs).
+  const locationBefore = await getListingLocationText(agentId, propertyId).catch(() => null);
+
   let owned;
   try {
     owned = await updateListing(agentId, propertyId, {
@@ -1125,6 +1161,12 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     throw err;
   }
   if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
+
+  // A new quartier / reference / commune is a new place: look it up again.
+  // Otherwise only a listing with no point yet is looked up. Not awaited.
+  void geocodeListing(propertyId, {
+    replace: locationTextChanged(locationBefore, { quartier, reference, commune }),
+  });
 
   // Kinshasa utility codes — only when the agent touched them; unknown codes
   // are dropped (lib/utilityTags.js), and a missing column never fails the edit.

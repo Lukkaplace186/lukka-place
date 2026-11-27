@@ -97,12 +97,20 @@ export async function getIncompleteListings(agentId, { limit = 10 } = {}) {
  */
 export async function getAgentProfileGaps(agent) {
   if (!agent) return [];
-  let serviced = agent.serviced_communes;
-  if (serviced === undefined) {
-    const { rows } = await getPool().query('SELECT serviced_communes FROM agents WHERE id = $1', [agent.id]);
-    serviced = rows[0]?.serviced_communes ?? null;
-  }
-  return profileGaps({ ...agent, serviced_communes: serviced });
+  // serviced_communes, and whether the minimum-rent question was answered
+  // (min_budget_updated_at, read through to_jsonb so the query parses before
+  // migrations/20261125_agent_min_budget.sql: absent column = not asked).
+  const { rows } = await getPool().query(
+    `SELECT serviced_communes,
+            (to_jsonb(a) ? 'min_budget_updated_at') AS min_budget_asked,
+            (to_jsonb(a) ->> 'min_budget_updated_at') IS NOT NULL AS min_budget_answered
+       FROM agents a WHERE id = $1`,
+    [agent.id],
+  );
+  const row = rows[0] || {};
+  const serviced = agent.serviced_communes !== undefined ? agent.serviced_communes : (row.serviced_communes ?? null);
+  const minBudgetAnswered = row.min_budget_asked ? Boolean(row.min_budget_answered) : undefined;
+  return profileGaps({ ...agent, serviced_communes: serviced, min_budget_answered: minBudgetAnswered });
 }
 
 /**

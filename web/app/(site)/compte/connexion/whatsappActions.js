@@ -11,7 +11,11 @@ import {
   getCustomerAuthById,
   getCustomerByPhone,
   mergeAnonymousData,
+  setCustomerOtp,
 } from '@/lib/customers';
+import { verifyOtp } from '@/lib/authCrypto';
+import { sendSignInCode } from '@/lib/signInCode';
+import { clearCodeTries, noteWrongCode } from '@/lib/signInCodeLimits';
 import { establishCustomerSession, rememberCustomerPhone } from '@/lib/customerSession';
 import { clearVerifyAttemptCookie, getVerifyAttempt, setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { consumeVerifiedChallenge } from '@/lib/whatsappVerify';
@@ -20,18 +24,26 @@ import { recordSignupOutcome } from '@/lib/signupFunnel';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { safeSignInNext, cleanFullName, isNewAccount } from '@/lib/whatsappSignInRules';
 import { claimRecentContactTaps } from '@/lib/contactTapClaim';
+import { localSavesFromForm, signInNewCustomer } from '@/lib/newCustomerSession';
 
 /**
  * "Continuer avec WhatsApp" (UX pass 2026-11-12): sign in — or open an
- * account — by sending a code FROM the person's own WhatsApp, with no
- * password. It reuses the reverse proof the verify page already uses
- * (lib/whatsappVerify.js; the engine matches the code on the SENDER's number,
- * services/phoneChallenges.js), so typing someone else's number gets nowhere:
- * only a message from that number opens the session.
+ * account — with a number and no password.
  *
- * An account is created for a number we do not know, with the name the
- * person typed and no password (customers.password_hash NULL, as for an
- * account opened on WhatsApp); they can set one later from Mon profil.
+ * - A number we do not know + a name: the account is created and signed in
+ *   at once (owner decision 2026-11-24, lib/newCustomerSession.js). The number
+ *   is not marked confirmed.
+ * - A number that already has an account: we send a 6-digit code to that
+ *   WhatsApp and they type it on the code screen (2026-11-24, lib/signInCode.js).
+ *   The older reverse proof stays under it as "Code pas reçu ?": they send
+ *   us a code FROM that WhatsApp (lib/whatsappVerify.js; the engine matches it
+ *   on the SENDER's number, services/phoneChallenges.js). Either way typing
+ *   someone else's number gets nowhere.
+ *
+ * An account opened here has no password: createCustomer stores the engine's
+ * '!whatsapp' marker, as for an account opened on WhatsApp — never NULL,
+ * password_hash is NOT NULL (the NULL failed every new account with 23502,
+ * 2026-11-16 → 21). A password reset gives them one later.
  */
 
 const STARTS_PER_10_MIN = 10;
@@ -43,6 +55,7 @@ function refuse(error, formData, extra = {}) {
       phone: String(formData.get('phone') || '').slice(0, 30),
       phoneCountry: String(formData.get('phoneCountry') || '').slice(0, 2),
       name: String(formData.get('name') || '').slice(0, 80),
+      partnerCode: String(formData.get('partner_code') || '').slice(0, 20),
     },
     attempt: Date.now(),
     ...extra,
@@ -73,15 +86,105 @@ export async function startWhatsAppSignInAction(_prevState, formData) {
       customer = await getCustomerByPhone(phone);
       if (!customer) throw err;
     }
-    await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: null });
-    await recordSignupOutcome({ step: 'created', entry, customerId: Number(customer.id) });
-    console.log(`[wa-signin] customer #${customer.id} created, waiting for the WhatsApp proof`);
+    if (created) {
+      // A partner's code typed on the sign-up page (lib/accountAcquisition.js
+      // checks it; unknown = ignored), else the one a /i/CODE link left.
+      const typedCode = String(formData.get('partner_code') || '').trim().slice(0, 20) || null;
+      await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode });
+      await recordSignupOutcome({ step: 'created', entry, customerId: Number(customer.id) });
+      // A number that had no account: signed in now, no WhatsApp step (owner
+      // decision 2026-11-24 — sending a code from WhatsApp lost one person in
+      // three). Back to where they were, the alert or the ♥ saved there.
+      await signInNewCustomer(customer, { phone, localData: localSavesFromForm(formData), source: `wa-signin:${entry}` });
+      redirect(next);
+    }
   }
 
+  // A number that already has an account is someone's: a code sent to that
+  // WhatsApp and typed here (2026-11-24) — or the password — opens it.
   await setVerifyAttemptCookie({ role: 'customer', id: Number(customer.id), phone });
+  redirect(codeScreenHref(next, await sendSignInCode(customer)));
+}
+
+/** The code screen, saying how the send went. */
+function codeScreenHref(next, sendResult) {
   const query = new URLSearchParams({ next });
-  if (created) query.set('nouveau', '1');
-  redirect(`/compte/connexion/whatsapp?${query.toString()}`);
+  if (sendResult === 'sent') query.set('sent', '1');
+  else if (sendResult === 'busy') query.set('error', 'send_busy');
+  else if (sendResult === 'failed') query.set('error', 'send_failed');
+  return `/compte/connexion/whatsapp?${query.toString()}`;
+}
+
+/**
+ * "Recevoir mon code" / "Renvoyer le code" on the code screen. Which account
+ * comes from the signed attempt cookie, never from the form.
+ */
+export async function sendSignInCodeAction(formData) {
+  const next = safeSignInNext(formData.get('next'));
+  const attempt = await getVerifyAttempt();
+  if (!attempt || attempt.role !== 'customer') redirect(`/compte/connexion?next=${encodeURIComponent(next)}`);
+  const customer = await getCustomerAuthById(attempt.id);
+  if (!customer) redirect(`/compte/connexion?next=${encodeURIComponent(next)}`);
+  const result = await sendSignInCode(customer);
+  // A fresh window, so a slow code does not send them back to the start.
+  await setVerifyAttemptCookie(attempt);
+  redirect(codeScreenHref(next, result));
+}
+
+/**
+ * The code typed on the screen. Five wrong tries wipe it
+ * (lib/signInCodeLimits.js); the right one proves the number
+ * (`phone_verified_at`) and signs them in, this phone's saved homes merged.
+ *
+ * @returns {Promise<{error: string, attempt: number}>} only on a refusal; success redirects
+ */
+export async function verifySignInCodeAction(_prevState, formData) {
+  const next = safeSignInNext(formData.get('next'));
+  const attempt = await getVerifyAttempt();
+  if (!attempt || attempt.role !== 'customer') return { error: 'expired_attempt', attempt: Date.now() };
+  const customer = await getCustomerAuthById(attempt.id);
+  if (!customer || !customer.otp_code_hash) return { error: 'no_code', attempt: Date.now() };
+  if (!customer.otp_expires_at || new Date(customer.otp_expires_at) <= new Date()) {
+    return { error: 'expired', attempt: Date.now() };
+  }
+  const code = String(formData.get('code') || '').replace(/\D/g, '');
+  if (!verifyOtp(code, customer.otp_code_hash)) {
+    if (noteWrongCode(customer.id)) {
+      await setCustomerOtp(customer.id, { codeHash: null, expiresAt: null });
+      console.warn(`[signin-code] customer #${customer.id}: too many wrong codes, code wiped`);
+      return { error: 'too_many', attempt: Date.now() };
+    }
+    return { error: 'invalid', attempt: Date.now() };
+  }
+  clearCodeTries(customer.id);
+  await consumeCustomerOtp(customer.id);
+  await finishSignIn(customer, attempt.phone, localSavesFromForm(formData), 'code');
+  redirect(next);
+}
+
+/** What every proven sign-in does: session, number remembered, taps claimed, saves merged. */
+async function finishSignIn(customer, phone, localData, how) {
+  const id = Number(customer.id);
+  await clearFailedLoginsAndTouchLogin(id);
+  await clearVerifyAttemptCookie();
+  await establishCustomerSession({ id, tokenVersion: customer.token_version });
+  await rememberCustomerPhone(phone);
+  // This browser's WhatsApp taps of the last day are theirs (lib/contactTapClaim.js). Never throws.
+  await claimRecentContactTaps(id);
+  const favoriteIds = Array.isArray(localData?.favoriteIds) ? localData.favoriteIds.map(String).filter(Boolean).slice(0, 200) : [];
+  const savedSearches = Array.isArray(localData?.savedSearches) ? localData.savedSearches.slice(0, 20) : [];
+  if (favoriteIds.length || savedSearches.length) {
+    try {
+      await mergeAnonymousData(id, { favoriteIds, savedSearches });
+    } catch (err) {
+      console.error(`[wa-signin] merging this device's saved homes into #${id} failed: ${err.message}`);
+    }
+  }
+  if (isNewAccount(customer.created_at)) {
+    // A new account proven by its own number is the ad platforms' CompleteRegistration.
+    await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${id}`, phone: customer.phone || null });
+  }
+  console.log(`[wa-signin] customer #${id} signed in (${how})`);
 }
 
 /**
@@ -103,27 +206,6 @@ export async function checkWhatsAppSignInAction(nextParam, localData = {}) {
     return { status: 'expired' };
   }
   if (!customer.phone_verified_at) await consumeCustomerOtp(attempt.id);
-  await clearFailedLoginsAndTouchLogin(attempt.id);
-  await clearVerifyAttemptCookie();
-  await establishCustomerSession({ id: attempt.id, tokenVersion: customer.token_version });
-  await rememberCustomerPhone(attempt.phone);
-  // This browser's WhatsApp taps of the last day are theirs (lib/contactTapClaim.js). Never throws.
-  await claimRecentContactTaps(attempt.id);
-
-  const favoriteIds = Array.isArray(localData?.favoriteIds) ? localData.favoriteIds.map(String).filter(Boolean).slice(0, 200) : [];
-  const savedSearches = Array.isArray(localData?.savedSearches) ? localData.savedSearches.slice(0, 20) : [];
-  if (favoriteIds.length || savedSearches.length) {
-    try {
-      await mergeAnonymousData(attempt.id, { favoriteIds, savedSearches });
-    } catch (err) {
-      console.error(`[wa-signin] merging this device's saved homes into #${attempt.id} failed: ${err.message}`);
-    }
-  }
-
-  if (isNewAccount(customer.created_at)) {
-    // A new account proven by its own number is the ad platforms' CompleteRegistration.
-    await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${attempt.id}`, phone: customer.phone || null });
-  }
-  console.log(`[wa-signin] customer #${attempt.id} signed in with WhatsApp`);
+  await finishSignIn(customer, attempt.phone, localData, 'message from WhatsApp');
   return { status: 'verified', href: safeSignInNext(nextParam) };
 }

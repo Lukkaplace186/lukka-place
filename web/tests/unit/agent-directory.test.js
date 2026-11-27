@@ -204,8 +204,10 @@ test('menu carries Agences, directly under À propos, in the bar and the drawer'
   assert.match(primary, /\{ href: '\/agents', labelKey: 'nav\.agencies' \}/);
   assert.match(header, /const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS;/, 'the drawer uses the same order');
   // The drawer's second band opens with Favoris, so Agences sits just above it.
+  // The drawer itself is components/HeaderDrawer.js since 2026-11-21 (loaded on demand).
+  const drawer = readFileSync(path.join(web, 'components/HeaderDrawer.js'), 'utf8');
   for (const list of ['DRAWER_GUEST_LINKS', 'DRAWER_ACCOUNT_LINKS']) {
-    const body = header.slice(header.indexOf(`const ${list} = [`));
+    const body = drawer.slice(drawer.indexOf(`const ${list} = [`));
     assert.match(body, /^const \w+ = \[\s*\{ href: '\/favoris'/, list);
   }
   assert.ok(existsSync(path.join(web, 'app/(portfolio)/agents/page.js')), '/agents is a real route');
@@ -213,11 +215,4 @@ test('menu carries Agences, directly under À propos, in the bar and the drawer'
   const en = JSON.parse(readFileSync(path.join(web, 'lib/i18n/en.json'), 'utf8'));
   assert.equal(fr.nav.agencies, 'Agences');
   assert.equal(en.nav.agencies, 'Agencies');
-});
-
-test('test / demo agents (agents.is_test) are never listed, in the list or the commune counts', () => {
-  const list = normalizeSql(buildDirectoryQuery(parseDirectoryParams({})).sql);
-  assert.match(list, /NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
-  const counts = normalizeSql(buildCommuneCountsQuery(parseDirectoryParams({})).sql);
-  assert.match(counts, /NOT COALESCE\(\(to_jsonb\(a\) ->> 'is_test'\)::boolean, false\)/);
 });

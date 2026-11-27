@@ -9,6 +9,7 @@ import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './const
 import { keywordTokens } from './searchKeywords';
 import { UTILITY_FILTERS } from './utilityTags';
 import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
+import { bedroomBounds } from './bedroomRange';
 import { VIDEOS_SQL } from './listingVideos';
 import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
 import { DETAILS_SQL, PLOT_M2_SQL, plotBounds } from './listingDetails';
@@ -177,7 +178,7 @@ export const PUBLIC_ADDRESS_EXPR = `(CASE WHEN btrim(pc.address) ~* '^(n/?a|na|n
  * decision (same rule as getRecentListingIds below — a listing approved two
  * days after it was written is new to every visitor on the day it went up).
  */
-const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
+const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))`;
 
 /** Days a listing carries the "Nouveau" badge after it went public. */
 export const FRESH_LISTING_DAYS = 3;
@@ -186,13 +187,12 @@ export const FRESH_LISTING_DAYS = 3;
  * "À jour" (web/CLAUDE.md, "Incentives for keeping listings up to date"):
  * the listing's own agent confirmed it within CONFIRM_AFTER_DAYS, or — never
  * confirmed — it went public within that window, so a brand-new listing is up
- * to date. The stamp is read through to_jsonb(p) so a database without
- * migrations/20260922_listing_availability.sql reads it as NULL (never a
- * 42703). A row with no created_at at all is NULL here: callers treat NULL as
+ * to date. Plain columns, never to_jsonb(p) (web/CLAUDE.md, "Listing queries read columns, not to_jsonb(p)"):
+ * the whole-row read serialised the embedding vector on every row. A row with no created_at at all is NULL here: callers treat NULL as
  * stale. The same rule is in the engine's services/agentRanking.js
  * (UP_TO_DATE_SQL) for lead routing — change one, change the other.
  */
-export const UP_TO_DATE_SQL = `(COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, ${PUBLISHED_AT_EXPR}) >= NOW() - interval '${CONFIRM_AFTER_DAYS} days')`;
+export const UP_TO_DATE_SQL = `(COALESCE(p.availability_confirmed_at, ${PUBLISHED_AT_EXPR}) >= NOW() - interval '${CONFIRM_AFTER_DAYS} days')`;
 /** Days a real price reduction stays flagged on the card. */
 export const PRICE_DROP_DAYS = 14;
 
@@ -292,8 +292,8 @@ const SELECT_FIELDS = `
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
   -- The agent's last "still available" (lib/listingAvailability.js): the
   -- detail page's badge and the cards' "Confirmée le …" (availabilityBadge
-  -- below). Through to_jsonb so a database without the column reads NULL.
-  (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
+  -- below). Kept as text (to_jsonb of the one column), as it always was.
+  (to_jsonb(p.availability_confirmed_at) #>> '{}') AS availability_confirmed_at,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
   -- The listing's city (lib/cities.js): its commune normally says; this
@@ -315,16 +315,14 @@ const SELECT_FIELDS = `
   pc.title, pc.slug, ${PUBLIC_ADDRESS_EXPR} AS address,
   catc.name AS category_name, p.category_id,
   -- Commercial-space specs (lib/commercialSpaces.js) as one jsonb, read
-  -- through to_jsonb so a database without the columns yields nulls rather
-  -- than a 42703; cat.type says whether the category is commercial at all.
-  (SELECT jsonb_build_object(
-     'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
-     'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
-   FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+  -- from the plain columns; cat.type says whether the category is commercial at all.
+  jsonb_build_object(
+     'office_count', p.office_count, 'floor_level', p.floor_level,
+     'road_frontage', p.road_frontage, 'truck_access', p.truck_access) AS commercial_specs,
   cat.type AS category_type,
   -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
   -- array, [] before the migration or when none were stated.
-  COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+  COALESCE(to_jsonb(p.utilities), '[]'::jsonb) AS utilities,
   -- Practical details (lib/listingDetails.js): furnished, households, landlord,
   -- toilet / shower, meter, plot size, instalments — one jsonb, nulls before
   -- the engine migration.
@@ -409,11 +407,9 @@ function escapeRegex(value) {
 const VALID_AMENITY_KEYS = new Set(AMENITY_GROUPS.flatMap((group) => group.options.map((o) => o.key)));
 
 /**
- * `properties.utilities` read through to_jsonb, so a query never fails with
- * 42703 before migrations/20260929_listing_utilities.sql runs (the same
- * pattern as verification_level). NULL → an empty jsonb array.
+ * `properties.utilities` as jsonb; NULL → an empty jsonb array.
  */
-const UTILITIES_JSONB = `COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb)`;
+const UTILITIES_JSONB = `COALESCE(to_jsonb(p.utilities), '[]'::jsonb)`;
 
 /**
  * An amenity / utility keyword against the listing's own words: title,
@@ -546,7 +542,7 @@ function categoryAliasClause(key, params) {
   return `(${clause})`;
 }
 
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bedsMax, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -587,10 +583,27 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     where.push(`p.price <= $${params.length}`);
   }
 
-  const minBeds = Number.parseInt(bedsMin, 10);
-  if (Number.isFinite(minBeds) && minBeds > 0) {
-    params.push(minBeds);
-    where.push(`p.beds >= $${params.length}`);
+  // "2 à 3 chambres" (the phone map's range, 2026-11-17; the homepage's Min /
+  // Max, 2026-11-25). A maximum below the minimum is ignored rather than
+  // returning nothing. A bound of 0 is STUDIO: the Studio type, whose rows
+  // mostly carry no bedroom count — lib/bedroomRange.js.
+  const beds = bedroomBounds(bedsMin, bedsMax);
+  const bedsWhere = [];
+  if (beds.min !== null) {
+    params.push(beds.min);
+    bedsWhere.push(`p.beds >= $${params.length}`);
+  }
+  if (beds.max !== null) {
+    params.push(beds.max);
+    bedsWhere.push(`p.beds <= $${params.length}`);
+  }
+  if (beds.studio === 'only') {
+    where.push(categoryAliasClause('studio', params));
+  } else if (beds.studio === 'include') {
+    const studio = categoryAliasClause('studio', params);
+    where.push(`(${studio} OR (${bedsWhere.join(' AND ')}))`);
+  } else {
+    where.push(...bedsWhere);
   }
 
   const minBath = Number.parseInt(bathMin, 10);
@@ -699,13 +712,13 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
       // words, for the many listings that predate the column. A listing the
       // agent marked unfurnished is left out even if its text says "meublé".
       if (key === 'furnished') {
-        where.push(`(to_jsonb(p) ->> 'furnished' = 'true' OR (COALESCE(to_jsonb(p) ->> 'furnished', '') <> 'false' AND (${group.join(' OR ')})))`);
+        where.push(`(p.furnished IS TRUE OR (p.furnished IS NOT FALSE AND (${group.join(' OR ')})))`);
         continue;
       }
       // Generator, solar, pool, gym: the agent's ticked box OR the words.
       const column = AMENITY_DETAIL_COLUMNS[key];
       if (column) {
-        where.push(`(to_jsonb(p) ->> '${column}' = 'true' OR ${group.join(' OR ')})`);
+        where.push(`(p.${column} IS TRUE OR ${group.join(' OR ')})`);
         continue;
       }
       where.push(`(${group.join(' OR ')})`);
@@ -897,12 +910,47 @@ const COMPLETENESS_SCORE = `(
  */
 export const UP_TO_DATE_TIER_SQL = `(CASE WHEN ${UP_TO_DATE_SQL} THEN 0 ELSE 1 END)`;
 
+/**
+ * The listing's last sign of life: when it went public, or the agent's last
+ * availability confirmation if that is later. Not `updated_at`, which moves
+ * on any write to the row and would float a listing nobody looked at.
+ */
+export const LAST_ACTIVITY_SQL = `GREATEST(${PUBLISHED_AT_EXPR}, COALESCE(p.availability_confirmed_at, ${PUBLISHED_AT_EXPR}))`;
+
+const HAS_REAL_PHOTO_SQL = `(CASE WHEN COALESCE(p.featured_image, '') <> '' AND p.featured_image NOT ILIKE '%noimage%' THEN 0 ELSE 1 END)`;
+
+/**
+ * The default order ("pertinence", owner decision 2026-11-14, for the endless
+ * /listings feed): what was asked for, then what is current.
+ *
+ *   1. the exact bedroom count before more rooms (a "2 chambres" search is
+ *      "2 or more" in SQL, but a 2-bedroom flat answers it best);
+ *   2. up to date (confirmed or published within CONFIRM_AFTER_DAYS) before
+ *      stale;
+ *   3. a real photo before none (a photo-less card reads as a scam);
+ *   4. most recent activity first (LAST_ACTIVITY_SQL);
+ *   5. completeness, then id — a total order, so OFFSET pages never repeat
+ *      or skip a listing between two loads of the feed.
+ *
+ * The place is not in the order: it is a filter. Listings beyond it come
+ * after the exact ones, nearest commune first — see getNearbyContinuation.
+ */
 const SORT_COLUMNS = {
-  complete: `${UP_TO_DATE_TIER_SQL} ASC, ${COMPLETENESS_SCORE} DESC, p.created_at DESC`,
-  newest: 'p.created_at DESC',
-  price_asc: 'p.price ASC',
-  price_desc: 'p.price DESC',
+  complete: `${UP_TO_DATE_TIER_SQL} ASC, ${HAS_REAL_PHOTO_SQL} ASC, ${LAST_ACTIVITY_SQL} DESC, ${COMPLETENESS_SCORE} DESC, p.id DESC`,
+  newest: 'p.created_at DESC, p.id DESC',
+  price_asc: 'p.price ASC, p.id DESC',
+  price_desc: 'p.price DESC, p.id DESC',
 };
+
+/** ORDER BY for a search: the chosen sort, led by the exact bedroom count on the default one. */
+export function orderByFor(options = {}) {
+  const sort = SORT_COLUMNS[options.sort] ? options.sort : 'complete';
+  const beds = Number.parseInt(options.bedsMin, 10);
+  const bedsFirst = sort === 'complete' && Number.isFinite(beds) && beds > 0
+    ? `(CASE WHEN p.beds = ${beds} THEN 0 ELSE 1 END) ASC, `
+    : '';
+  return `${bedsFirst}${SORT_COLUMNS[sort]}`;
+}
 
 /**
  * Paginated, filtered public listings.
@@ -962,7 +1010,7 @@ export async function getListings(options = {}) {
   const parsedOffset = Number.parseInt(options.offset, 10);
   const offset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
 
-  const orderBy = SORT_COLUMNS[options.sort] || SORT_COLUMNS.complete;
+  const orderBy = orderByFor(options);
 
   const pool = getPool();
 
@@ -1185,6 +1233,112 @@ export async function getNearbyExtras(options, excludeIds = []) {
   return { listings: rows, places: near.places };
 }
 
+/** How many nearby listings can follow an exhausted place search. */
+const CONTINUATION_MAX = 240;
+
+/**
+ * Whether a search's exact results may be followed by nearby ones in the
+ * endless feed: a commune was searched, and the results are the exact answer
+ * to it (not a map area, a fallback, a widened radius, a landmark distance,
+ * an id list, a reference or one agent's portfolio).
+ */
+export function canContinueNearby(options = {}, result = {}) {
+  return (
+    communeListOf(options).length > 0 &&
+    !result.mapArea &&
+    !result.relaxation &&
+    !result.locationRelaxed &&
+    !result.radiusExpanded &&
+    !options.radius &&
+    !options.near &&
+    !options.bounds &&
+    !Array.isArray(options.ids) &&
+    !options.reference &&
+    !Number.isFinite(Number.parseInt(options.agentId, 10))
+  );
+}
+
+/**
+ * The listings within NEARBY_MAX_KM of the searched commune(s) that the exact
+ * search did NOT return, for every other filter asked (type, rooms, budget,
+ * purpose…), grouped commune by commune, nearest commune first. A searched
+ * quartier's own commune is the nearest group (0 km). Positions are the map's
+ * (stored point, else the commune centroid); a listing with no position is
+ * left out, never guessed. A listing with no commune tag is its own group at
+ * its own distance.
+ *
+ * @returns {Promise<{ids: number[], ranks: number[], places: Array<{commune: string, km: number}>}|null>}
+ */
+async function nearbyContinuationIds(options) {
+  const origins = communeListOf(options)
+    .map((commune) => ({ commune, ...COMMUNE_CENTROIDS[commune] }))
+    .filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lng));
+  if (origins.length === 0) return null;
+
+  const exact = buildFilters(options);
+  const [{ markers }, { rows: exactRows }] = await Promise.all([
+    getMapMarkers(withoutLocationFilters(options), null),
+    getPool().query(`SELECT p.id ${FROM_JOINS} WHERE ${exact.whereClause}`, exact.params),
+  ]);
+  const exactIds = new Set(exactRows.map((r) => Number(r.id)));
+  const fromOrigins = (point) => Math.min(...origins.map((o) => distanceKm(o, point)));
+
+  const groups = new Map(); // key -> { km, commune }
+  const scored = [];
+  for (const marker of markers) {
+    const id = Number(marker.id);
+    if (exactIds.has(id)) continue;
+    const km = fromOrigins(marker);
+    if (!Number.isFinite(km) || km > NEARBY_MAX_KM) continue;
+    const centroid = marker.commune ? COMMUNE_CENTROIDS[marker.commune] : null;
+    const key = centroid ? `c:${marker.commune}` : `l:${id}`;
+    if (!groups.has(key)) groups.set(key, { km: centroid ? fromOrigins(centroid) : km, commune: centroid ? marker.commune : null });
+    scored.push({ id, key });
+  }
+  if (scored.length === 0) return null;
+
+  const order = [...groups.entries()].sort((a, b) => a[1].km - b[1].km || a[0].localeCompare(b[0]));
+  const rankOf = new Map(order.map(([key], i) => [key, i]));
+  scored.sort((a, b) => rankOf.get(a.key) - rankOf.get(b.key) || b.id - a.id);
+  const kept = scored.slice(0, CONTINUATION_MAX);
+
+  // The communes the continuation is in, nearest first, for its heading
+  // ("Bandalungwa (2 km), Kintambo (3 km)"): centroid to centroid, whole km.
+  const originNames = new Set(origins.map((o) => o.commune));
+  const places = [];
+  for (const [, group] of order) {
+    if (!group.commune || originNames.has(group.commune)) continue;
+    places.push({ commune: group.commune, km: Math.max(1, Math.round(group.km)) });
+    if (places.length === 3) break;
+  }
+
+  return { ids: kept.map((s) => s.id), ranks: kept.map((s) => rankOf.get(s.key)), places };
+}
+
+/**
+ * One page of the endless feed's second part: listings near the searched
+ * place that the exact search did not return, nearest commune first and, in
+ * each commune, the search's own order (orderByFor). Same public gate as
+ * every read (buildFilters puts APPROVED_FILTER first).
+ *
+ * @returns {Promise<{data: Object[], total: number, places: Array<{commune: string, km: number}>}>}
+ */
+export async function getNearbyContinuation(options, { offset = 0, limit = LISTINGS_LIMIT_DEFAULT } = {}) {
+  const near = await nearbyContinuationIds(options);
+  if (!near) return { data: [], total: 0, places: [] };
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || LISTINGS_LIMIT_DEFAULT, 1), LISTINGS_LIMIT_MAX);
+  const safeOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+  const f = buildFilters({ ...withoutLocationFilters(options), ids: near.ids });
+  const n = f.params.length;
+  const { rows } = await getPool().query(
+    `SELECT ${SELECT_FIELDS} ${FROM_JOINS} WHERE ${f.whereClause}
+     ORDER BY ($${n + 1}::int[])[array_position($${n + 2}::int[], p.id)] ASC, ${orderByFor(options)}
+     LIMIT $${n + 3} OFFSET $${n + 4}`,
+    [...f.params, near.ranks, near.ids, safeLimit, safeOffset],
+  );
+  return { data: withAvailabilityBadges(rows), total: near.ids.length, places: near.places };
+}
+
 /**
  * When a search finds nothing, the closest honest alternative instead of an
  * empty page. Steps, each kept only if the previous ones still found nothing,
@@ -1356,7 +1510,7 @@ export async function getRecentListingIds({ since = new Date(Date.now() - 8 * 24
   const sinceDate = new Date(since);
   const parsedLimit = Number.parseInt(limit, 10);
   const boundedLimit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 500, 1), 2000);
-  const publishedAt = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
+  const publishedAt = `GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))`;
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT p.id, ${publishedAt} AS published_at
@@ -1661,13 +1815,11 @@ export async function getListingById(id) {
 
   const pool = getPool();
   // availability_confirmed_at (the "Disponibilité confirmée le …" badge,
-  // lib/listingAvailability.js) is in SELECT_FIELDS since 2026-11-09, read
-  // through to_jsonb(p) so this page keeps working before
-  // migrations/20260922_listing_availability.sql runs.
+  // lib/listingAvailability.js) is in SELECT_FIELDS since 2026-11-09.
   const { rows } = await pool.query(
     `SELECT ${SELECT_FIELDS},
-       (to_jsonb(p) ->> 'development_id') AS development_id,
-       (to_jsonb(p) ->> 'unit_label') AS unit_label,
+       (to_jsonb(p.development_id) #>> '{}') AS development_id,
+       (to_jsonb(p.unit_label) #>> '{}') AS unit_label,
        ${VIDEOS_SQL} AS videos
      ${FROM_JOINS}
      WHERE p.id = $1 AND ${APPROVED_FILTER}`,
@@ -1721,10 +1873,9 @@ const MODERATION_SELECT_FIELDS = `
   -- Commercial-space specs (lib/commercialSpaces.js) as one jsonb, read
   -- through to_jsonb so a database without the columns yields nulls rather
   -- than a 42703; cat.type says whether the category is commercial at all.
-  (SELECT jsonb_build_object(
-     'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
-     'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
-   FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+  jsonb_build_object(
+     'office_count', p.office_count, 'floor_level', p.floor_level,
+     'road_frontage', p.road_frontage, 'truck_access', p.truck_access) AS commercial_specs,
   cat.type AS category_type,
   ${DETAILS_SQL} AS listing_details,
   (pc.id IS NULL) AS missing_content,

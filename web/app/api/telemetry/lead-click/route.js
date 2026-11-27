@@ -1,10 +1,15 @@
 import { after } from 'next/server';
 import { getPool } from '@/lib/db';
 import { alertAgentOfContactTap, contactTapKind } from '@/lib/contactTapAlert';
+import { visitContactFromBody } from '@/lib/visitContact';
 import { analyticsDimensions } from '@/lib/requestContext';
-import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
+import { CONTACT_MAX_EVENTS, contactKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
-import { attributionFromBody, eventSource, signedInAgentIdFrom, viewerKindFor, visitorIdFrom } from '@/lib/trackIngest';
+import { cleanWhatsAppIntent } from '@/lib/whatsappIntent';
+import { userAgentKind } from '@/lib/waSheetRules';
+import {
+  attributionFromBody, eventSource, signedInAgentIdFrom, signedInCustomerIdFrom, viewerKindFor, visitorIdFrom,
+} from '@/lib/trackIngest';
 
 /**
  * POST /api/telemetry/lead-click — one tap on a listing's WhatsApp button,
@@ -20,7 +25,9 @@ import { attributionFromBody, eventSource, signedInAgentIdFrom, viewerKindFor, v
  * needs that a plain `whatsapp_click` never recorded.
  */
 export async function POST(request) {
-  if (rateLimited(clientKey(request))) {
+  // Its own budget (lib/eventIngest.js CONTACT_MAX_EVENTS): page views from
+  // the same carrier IP must never crowd out a customer reaching an agent.
+  if (rateLimited(contactKey(request), CONTACT_MAX_EVENTS)) {
     return Response.json({ success: false, error: 'Too many events' }, { status: 429 });
   }
 
@@ -50,6 +57,7 @@ export async function POST(request) {
   const viewerKind = viewerKindFor(request, device, { automated: body?.automated === true, agentId });
 
   const visitorId = visitorIdFrom(request, body?.visitorId);
+  const intent = cleanWhatsAppIntent(body?.intent);
   let recorded;
   try {
     recorded = await recordLeadClick(getPool(), {
@@ -64,6 +72,10 @@ export async function POST(request) {
       agentId,
       // Optional; an unknown value is stored as none, never a 400.
       placement: leadClickPlacement(body?.placement),
+      // Who tapped, when signed in (/admin/contacts). An anonymous visitor stays anonymous.
+      customerId: signedInCustomerIdFrom(request),
+      // Visit / disponible / question, from the WhatsApp sheet; unknown → none.
+      intent,
     });
   } catch (err) {
     console.error(`[api/telemetry/lead-click] insert failed: ${err.message}`);
@@ -73,7 +85,16 @@ export async function POST(request) {
   // Tell the agent a customer is about to write to them, once the response
   // has left (lib/contactTapAlert.js): the tap is the only moment we know.
   const tapKind = contactTapKind({ event: 'whatsapp_cta_clicked', routingType, viewerKind, recorded });
-  if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId }));
+  // A visit's optional name + number (lib/visitContact.js, 2026-11-20) goes to
+  // the engine with the alert only — never into whatsapp_clicks.
+  const contact = visitContactFromBody(body, intent);
+  if (tapKind) after(() => alertAgentOfContactTap({ listingId: id, kind: tapKind, visitorId, intent, contact }));
 
+  // One line per tap answered (lib/waSheetRules.js): beside the [wa-sheet]
+  // open / choose lines it shows whether a chosen tap reached the server.
+  console.log(`[lead-click] ${JSON.stringify({
+    listingId: id, placement: leadClickPlacement(body?.placement), intent, viewerKind, recorded: Boolean(recorded),
+    ua: userAgentKind(request.headers.get('user-agent')),
+  })}`);
   return Response.json({ success: true, recorded });
 }

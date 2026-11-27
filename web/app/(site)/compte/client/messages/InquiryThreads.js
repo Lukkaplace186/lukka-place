@@ -18,6 +18,7 @@ import {
 import SafeImage from '@/components/SafeImage';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
 import { contactWhatsAppHref } from '@/lib/leadRouting';
+import { contactTapProps } from '@/lib/contactTapAttrs';
 import { telHref } from '@/lib/phone';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -709,6 +710,7 @@ export default function InquiryThreads({
                                 href={whatsappHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                {...contactTapProps({ surface: 'client_inquiry', channel: 'whatsapp', listingId: property.id })}
                                 className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
                               >
                                 <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
@@ -718,6 +720,7 @@ export default function InquiryThreads({
                             {callHref && (
                               <a
                                 href={callHref}
+                                {...contactTapProps({ surface: 'client_inquiry', channel: 'call', listingId: property.id })}
                                 className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold text-ink-70 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas-alt"
                               >
                                 <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />

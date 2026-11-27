@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createProjectEnquiry } from '@/lib/adminApi';
 import { getPublicProjectById } from '@/lib/developments';
 
@@ -16,7 +17,9 @@ export async function submitProjectEnquiryAction(projectId, formData) {
   if (!project) redirect('/projets');
   const back = `/projets/${project.slug}`;
 
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   if (!phone) redirect(`${back}?enquiry_error=phone#contact`);
   const name = String(formData.get('name') || '').trim().slice(0, 120);
   const message = String(formData.get('message') || '').trim().slice(0, 800);

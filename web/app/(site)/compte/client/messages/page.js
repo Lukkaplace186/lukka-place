@@ -81,6 +81,8 @@ function serialiseViewing(viewing, { now, translate, locale, dates }) {
     status: viewing.status,
     statusLabel: VIEWING_STATUS_LABEL_KEYS[viewing.status] ? translate(VIEWING_STATUS_LABEL_KEYS[viewing.status]) : viewing.status,
     requestedTime: viewing.requested_time || null,
+    // "Visite par appel vidéo" (lib/visitMode.js): the agent calls them.
+    video: viewing.visit_mode === 'video',
     scheduledAtLabel: formatSlot(viewing.scheduled_at, locale),
     createdAtLabel: formatWith(dates.long, viewing.created_at),
     timeline: viewingTimeline(viewing, now),

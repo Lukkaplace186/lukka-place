@@ -6,6 +6,9 @@ import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { consumeCustomerActivationToken } from '@/lib/customers';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { registrationParams } from '@/lib/adTrackingRules';
+import { queuePlausibleGoal } from '@/lib/plausibleGoalServer';
+import { PLAUSIBLE_GOALS } from '@/lib/plausibleGoals';
 import { passwordLongEnough } from '@/lib/passwordRules';
 
 /**
@@ -30,6 +33,8 @@ export async function activateCustomerAction(formData) {
   if (!customer) redirect(`${back}&error=invalid`);
 
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
-  await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone });
+  await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone, params: registrationParams('customer') });
+  // Plausible goal, fired on the next page (lib/plausibleGoals.js). Never throws.
+  await queuePlausibleGoal(PLAUSIBLE_GOALS.ACCOUNT_CREATED, { phone, props: { method: 'whatsapp_activation' } });
   redirect('/compte/client?bienvenue=1');
 }

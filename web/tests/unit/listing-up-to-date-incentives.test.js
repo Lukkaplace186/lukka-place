@@ -25,14 +25,14 @@ function dataQuery() {
   return calls.find((c) => /ORDER BY/.test(c.sql) && /LIMIT \$\d+ OFFSET/.test(c.sql));
 }
 
-test('"up to date" = the stamp, else the publication moment, within CONFIRM_AFTER_DAYS — read through to_jsonb', () => {
+test('"up to date" = the stamp, else the publication moment, within CONFIRM_AFTER_DAYS — plain columns', () => {
   const sql = listings.UP_TO_DATE_SQL;
-  assert.ok(sql.includes("NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz"));
-  assert.ok(sql.includes("GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))"),
+  assert.ok(sql.includes("COALESCE(p.availability_confirmed_at,"));
+  assert.ok(sql.includes("GREATEST(p.created_at, COALESCE(p.moderated_at, p.created_at))"),
     'the fallback is the "Nouveau" badge\'s publication moment');
   assert.ok(sql.includes(`NOW() - interval '${CONFIRM_AFTER_DAYS} days'`));
   assert.equal(CONFIRM_AFTER_DAYS, 14);
-  assert.ok(!/p\.availability_confirmed_at/.test(sql), 'a plain column reference 500s before the migration');
+  assert.ok(!sql.includes('to_jsonb(p)'), 'one column, never the whole row (the embedding vector)');
 });
 
 test('the default order ranks up-to-date listings first, then the completeness order, and keeps the public gate', async () => {
@@ -62,9 +62,9 @@ for (const sort of ['newest', 'price_asc', 'price_desc']) {
   });
 }
 
-test('the card SELECT carries the stamp through to_jsonb (feeds the card badge)', async () => {
+test('the card SELECT carries the stamp as text (feeds the card badge)', async () => {
   await listings.getListings({});
-  assert.ok(dataQuery().sql.includes("(to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at"));
+  assert.ok(dataQuery().sql.includes("(to_jsonb(p.availability_confirmed_at) #>> '{}') AS availability_confirmed_at"));
 });
 
 test('the map endpoint keeps its own set and order', async () => {

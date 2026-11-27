@@ -1,4 +1,5 @@
 import { formatRelative } from '@/lib/format';
+import { replyRateCell, replyRateSummary } from '@/lib/agentReplyRate';
 
 /**
  * Shapes `listAgentsForAdmin` rows into the plain, pre-formatted props the
@@ -42,7 +43,7 @@ export function loginCell(summary, locale = 'fr') {
   };
 }
 
-export function toAgentTableRows(rows = [], loginSummaries = null, locale = 'fr') {
+export function toAgentTableRows(rows = [], loginSummaries = null, locale = 'fr', replyRates = null) {
   return rows.map((agent) => ({
     id: Number(agent.id),
     name: agent.display_name,
@@ -65,5 +66,8 @@ export function toAgentTableRows(rows = [], loginSummaries = null, locale = 'fr'
     // undefined = this page did not load sign-in history (the column is not
     // drawn); null = loaded, nothing on record.
     login: loginSummaries ? loginCell(loginSummaries.get(Number(agent.id)), locale) : undefined,
+    // « Réponses aux alertes » (30 days, lib/agentReplyRate.js): undefined = not
+    // loaded (no column); null = no alert in the window.
+    replies: replyRates ? replyRateCell(replyRateSummary(replyRates.get(Number(agent.id)))) : undefined,
   }));
 }

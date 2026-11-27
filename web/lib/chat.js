@@ -1,6 +1,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { getPool } from './db';
+import { isDemoPhone } from './demoPhone';
 import { getCurrentCustomerId } from './customers';
 import { AGENT_SESSION_COOKIE, verifyAgentSessionToken } from './agentAuth';
 import { AGENT_INFOS_JOIN, getListingsByIds } from './listings';
@@ -620,6 +621,20 @@ export async function startThread(customerId, { propertyId, agentId, body, clien
     ]);
     if (!rows[0]) return { status: 'agent-unavailable' };
     agent = rows[0];
+  }
+  // Demo accounts (lib/demoAccounts.js) never cross over: a demo customer
+  // writes to the paired demo agent whatever page they wrote from, and a real
+  // customer can never reach a demo agent.
+  if (isDemoPhone(customer.phone)) {
+    const { rows } = await pool.query(
+      `SELECT a.id, a.phone FROM demo_accounts d JOIN agents a ON a.id = d.agent_id
+        WHERE d.customer_id = $1 AND d.deleted_at IS NULL AND a.deleted_at IS NULL`,
+      [viewer.id],
+    );
+    if (!rows[0]) return { status: 'agent-unavailable' };
+    agent = rows[0];
+  } else if (isDemoPhone(agent.phone)) {
+    return { status: 'agent-unavailable' };
   }
   const digits = (value) => String(value || '').replace(/\D/g, '');
   if (digits(agent.phone) && digits(agent.phone) === digits(customer.phone)) return { status: 'self' };

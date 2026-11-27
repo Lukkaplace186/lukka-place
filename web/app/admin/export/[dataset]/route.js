@@ -11,6 +11,8 @@ import { listMembershipsForAdmin } from '@/lib/adminBilling';
 import { listConversations, listLeadMatches, listViewingFeed } from '@/lib/adminApi';
 import { getInvestorMonthlyRows } from '@/lib/investorMetrics';
 import { listProspects } from '@/lib/marketProspects';
+import { contactWindow, filterContactRows, journeySummary, UNANSWERED_PARAM } from '@/lib/contactLog';
+import { getContactLabels, loadContactLog } from '@/lib/contactLogLoader';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,13 +95,14 @@ const DATASETS = {
   listings: {
     permission: 'data.export',
     fetch: (p) => collect(({ limit, offset, cursor }) => listModerationQueue({
-      status: p.get('status') || 'pending', q: p.get('q'), commune: p.get('commune'), purpose: p.get('purpose'), flag: p.get('flag'), sort: p.get('sort'), limit, offset, cursor,
+      status: p.get('status') || 'pending', q: p.get('q'), commune: p.get('commune'), purpose: p.get('purpose'), flag: p.get('flag'), partner: p.get('partner'), sort: p.get('sort'), limit, offset, cursor,
     })),
     columns: [
       ['id', (r) => r.id], ['title', (r) => r.title], ['reference', (r) => r.reference], ['price', (r) => r.price], ['purpose', (r) => r.purpose],
       ['commune', (r) => r.commune], ['agent_id', (r) => r.agentId], ['agent', (r) => r.agentName], ['agent_verified', (r) => r.agentVerified],
       ['photos', (r) => r.photoCount], ['flags', (r) => r.flags.join('|')], ['created_at', (r) => r.createdAt],
       ['moderated_at', (r) => r.moderatedAt], ['moderated_by', (r) => r.moderatedByName], ['reason', (r) => r.moderationReasonCode],
+      ['partner_agency', (r) => r.agentPartner],
     ],
   },
   agencies: {
@@ -151,6 +154,44 @@ const DATASETS = {
       ['customer', (r) => r.lead_name], ['customer_phone', (r) => r.lead_wa_id], ['status', (r) => r.status], ['routing', (r) => r.routing_type],
       ['agent_id', (r) => r.agent_id], ['scheduled_at', (r) => r.scheduled_at], ['requested_time', (r) => r.requested_time],
       ['sla_alerted_at', (r) => r.sla_alerted_at], ['decline_reason', (r) => r.decline_reason_code],
+    ],
+  },
+  // /admin/contacts: every customer → agent contact with the page's filters.
+  contacts: {
+    permission: 'data.export',
+    fetch: async (p) => {
+      const { rows } = await loadContactLog({ days: contactWindow(p.get('days')) });
+      const filtered = filterContactRows(rows, {
+        channel: p.get('channel'), agentId: p.get('agent'), known: p.get('known') === '1', q: p.get('q') || '',
+        wants: p.get('wants'), unanswered: p.get('reponse') === UNANSWERED_PARAM,
+      }).slice(0, EXPORT_CAP);
+      const { names, listings, projects } = await getContactLabels(filtered);
+      return filtered.map((row) => {
+        const project = row.projectSlug
+          ? projects.get(`slug:${row.projectSlug.toLowerCase()}`)
+          : row.developmentId ? projects.get(`id:${row.developmentId}`) : null;
+        return {
+          ...row,
+          agentName: names.get(row.agentId)?.name || null,
+          listingReference: listings.get(row.listingId)?.reference || null,
+          listingTitle: listings.get(row.listingId)?.title || null,
+          projectName: project?.name || row.projectSlug || null,
+        };
+      });
+    },
+    columns: [
+      ['date', (r) => r.at], ['channel', (r) => r.channel], ['page', (r) => r.surface || ''],
+      // visit | enquiry | unknown, and the exact choice (visit | availability | question).
+      ['customer_asks_for', (r) => r.wants || 'unknown'], ['intent', (r) => r.intent || ''],
+      ['customer_name', (r) => r.customer?.name || ''], ['customer_phone', (r) => (r.customer?.phone ? `+${r.customer.phone}` : '')],
+      ['customer_account_id', (r) => r.customer?.customerId || ''], ['agent_id', (r) => r.agentId || ''], ['agent', (r) => r.agentName || ''],
+      ['listing_id', (r) => r.listingId || ''], ['listing_reference', (r) => r.listingReference || ''], ['listing_title', (r) => r.listingTitle || ''],
+      ['project', (r) => r.projectName || ''], ['status', (r) => r.status], ['status_at', (r) => r.statusAt || ''], ['repeat_tap', (r) => Boolean(r.repeat)],
+      // 2026-11-20: what came of it, the visit made from it, and the device's journey.
+      ['outcome', (r) => r.outcome || ''], ['viewing_id', (r) => r.viewingId || ''],
+      ['customer_from_device_account', (r) => Boolean(r.customer?.fromDevice)],
+      ['arrived_by', (r) => r.journey?.channel || ''], ['journey', (r) => journeySummary(r.journey)],
+      ['other_listings_contacted', (r) => r.journey?.otherListings ?? ''], ['saves', (r) => r.journey?.saves ?? ''],
     ],
   },
   conversations: {

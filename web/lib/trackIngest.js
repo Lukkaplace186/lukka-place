@@ -1,7 +1,9 @@
 import 'server-only';
 import { AGENT_SESSION_COOKIE, verifyAgentSessionToken } from './agentAuth';
+import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
 import { cleanAttribution, isTagged, sourceOf } from './attribution';
 import { PARTNER_COOKIE, parsePartnerCookie } from './partnerRules';
+import { cleanLandingQuery } from './landingQuery';
 
 /**
  * The write side of every storefront engagement event: page views, the
@@ -54,6 +56,10 @@ export const LISTING_EVENT_TYPES = [
   'gallery_open',
   'gallery_complete',
   'share_click',
+  // « Votre message est parti ? » after a WhatsApp tap (2026-11-20): the
+  // customer's own answer, Oui / Je n'ai pas réussi.
+  'whatsapp_sent',
+  'whatsapp_not_sent',
 ];
 
 /** `listing_events.routing_type` — only ever set on a call_click. */
@@ -62,6 +68,8 @@ export const CALL_ROUTING_TYPES = ['DIRECT', 'CENTRAL'];
 const MISSING_COLUMN = '42703';
 const MISSING_TABLE = '42P01';
 const IMPERSONATION_COOKIE = 'lukka_impersonation';
+// lib/demoPhone.js DEMO_COOKIE, named here like IMPERSONATION_COOKIE above.
+const DEMO_COOKIE = 'lukka_demo';
 
 /** A well-formed visitor id, or null. */
 export function cleanVisitorId(value) {
@@ -100,6 +108,20 @@ export function signedInAgentIdFrom(request) {
 }
 
 /**
+ * The signed-in customer's id from the request's cookie, or null (2026-11-15,
+ * /admin/contacts: a tap by a signed-in customer says who they are). The
+ * signature and expiry are checked; a revoked session is not looked up — the
+ * id is only ever shown to the team, never acted on.
+ */
+export function signedInCustomerIdFrom(request) {
+  try {
+    return verifyCustomerSessionToken(cookieValue(request, CUSTOMER_SESSION_COOKIE))?.customerId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Who sent this request, before the listing is known (`owner` is decided in
  * the INSERT, from `agent`). Checked in this order: team, automation,
  * speculation, signed-in agent, visitor.
@@ -110,7 +132,8 @@ export function signedInAgentIdFrom(request) {
  */
 export function viewerKindFor(request, device, { automated = false, agentId = null } = {}) {
   const headers = request.headers;
-  if (cookieValue(request, STAFF_COOKIE) === '1' || cookieValue(request, IMPERSONATION_COOKIE)) return 'staff';
+  // A demo account (lib/demoSession.js) is the team trying the product.
+  if (cookieValue(request, STAFF_COOKIE) === '1' || cookieValue(request, IMPERSONATION_COOKIE) || cookieValue(request, DEMO_COOKIE)) return 'staff';
   if (device === 'bot' || automated === true) return 'bot';
   const purpose = `${headers?.get?.('sec-purpose') || ''} ${headers?.get?.('purpose') || ''} ${headers?.get?.('x-moz') || ''}`;
   if (/prefetch|prerender/i.test(purpose) || headers?.get?.('next-router-prefetch')) return 'prefetch';
@@ -141,6 +164,18 @@ export const RECORD_PAGE_VIEW_CAMPAIGN_SQL = `
           $9::text, $10::text, $11::text, $12::text, $13::text, $14::text, $15::text)
 `;
 
+/**
+ * The same with the landing query string (2026-11-21,
+ * migrations/20261121_page_views_query.sql): `$16` is lib/landingQuery.js's
+ * whitelisted `key=value&…`, never the raw query.
+ */
+export const RECORD_PAGE_VIEW_QUERY_SQL = `
+  INSERT INTO page_views (path, commune, device, source, listing_id, visitor_id, viewer_kind,
+                          utm_medium, utm_campaign, utm_content, utm_term, click_id_type, referrer_host, ref_code, query)
+  VALUES ($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, ${viewerKindSql('$7', '$5', '$8')},
+          $9::text, $10::text, $11::text, $12::text, $13::text, $14::text, $15::text, $16::text)
+`;
+
 export const RECORD_PAGE_VIEW_SQL = `
   INSERT INTO page_views (path, commune, device, source, listing_id, visitor_id, viewer_kind)
   VALUES ($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, ${viewerKindSql('$7', '$5', '$8')})
@@ -155,6 +190,13 @@ export const RECORD_PAGE_VIEW_LEGACY_SQL = `
 export const RECORD_LISTING_EVENT_SQL = `
   INSERT INTO listing_events (event, listing_id, commune, price, device, source, visitor_id, routing_type, viewer_kind)
   VALUES ($1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text, $7::text, $8::text, ${viewerKindSql('$9', '$2', '$10')})
+`;
+
+// A call tap by a signed-in customer (migrations/20261115_contact_log.sql);
+// before that migration it falls back to the statement above.
+export const RECORD_LISTING_EVENT_CUSTOMER_SQL = `
+  INSERT INTO listing_events (event, listing_id, commune, price, device, source, visitor_id, routing_type, viewer_kind, customer_id)
+  VALUES ($1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text, $7::text, $8::text, ${viewerKindSql('$9', '$2', '$10')}, $11::bigint)
 `;
 
 export const RECORD_LISTING_EVENT_LEGACY_SQL = `
@@ -184,17 +226,39 @@ async function withLegacyFallback(pool, ...attempts) {
 
 const kindOrVisitor = (kind) => (VIEWER_KINDS.includes(kind) ? kind : 'visitor');
 
+// `page_views.query` missing (migration not run yet): skip that tier for a
+// minute instead of failing one INSERT per page view.
+const QUERY_COLUMN_RETRY_MS = 60 * 1000;
+let queryColumnMissingUntil = 0;
+
+/** Test hook: forget a cached "no query column". */
+export function resetPageViewQueryColumnCache() {
+  queryColumnMissingUntil = 0;
+}
+
 /** @returns {Promise<boolean>} whether a row was written. */
 export async function recordPageView(pool, {
-  path, commune, device, source, visitorId, viewerKind, agentId, attribution = null, refCode = null,
+  path, commune, device, source, visitorId, viewerKind, agentId, attribution = null, refCode = null, query = null,
 }) {
   const listingId = listingIdFromPath(path);
   const tracked = [path, commune || null, device, source, listingId, visitorId || null, kindOrVisitor(viewerKind), agentId || null];
   const a = attribution || {};
+  const campaign = [...tracked, a.medium || null, a.campaign || null, a.content || null, a.term || null,
+    a.clickIdType || null, a.referrerHost || null, refCode || null];
+  // The body's query is a claim: cleaned again here with the same whitelist.
+  const landingQuery = typeof query === 'string' ? cleanLandingQuery(query) : null;
+  if (landingQuery && Date.now() >= queryColumnMissingUntil) {
+    try {
+      const result = await pool.query(RECORD_PAGE_VIEW_QUERY_SQL, [...campaign, landingQuery]);
+      return result.rowCount > 0;
+    } catch (err) {
+      if (err?.code !== MISSING_COLUMN) throw err;
+      queryColumnMissingUntil = Date.now() + QUERY_COLUMN_RETRY_MS;
+    }
+  }
   return withLegacyFallback(
     pool,
-    [RECORD_PAGE_VIEW_CAMPAIGN_SQL, [...tracked, a.medium || null, a.campaign || null, a.content || null, a.term || null,
-      a.clickIdType || null, a.referrerHost || null, refCode || null]],
+    [RECORD_PAGE_VIEW_CAMPAIGN_SQL, campaign],
     [RECORD_PAGE_VIEW_SQL, tracked],
     [RECORD_PAGE_VIEW_LEGACY_SQL, [path, commune || null, device, source]],
   );
@@ -308,13 +372,19 @@ export async function recordVisitorTouch(pool, { visitorId, viewerKind, attribut
 
 /** @returns {Promise<boolean>} whether a row was written. */
 export async function recordListingEvent(pool, {
-  event, listingId, commune, price, device, source, visitorId, routingType, viewerKind, agentId,
+  event, listingId, commune, price, device, source, visitorId, routingType, viewerKind, agentId, customerId = null,
 }) {
   if (!LISTING_EVENT_TYPES.includes(event)) throw new Error(`recordListingEvent: unknown event '${event}'`);
   const routing = event === 'call_click' && CALL_ROUTING_TYPES.includes(routingType) ? routingType : null;
+  const tracked = [event, listingId, commune || null, price, device, source, visitorId || null, routing, kindOrVisitor(viewerKind), agentId || null];
+  // Who called is kept for a call tap only: that is what /admin/contacts lists.
+  const withCustomer = event === 'call_click' && customerId
+    ? [[RECORD_LISTING_EVENT_CUSTOMER_SQL, [...tracked, customerId]]]
+    : [];
   return withLegacyFallback(
     pool,
-    [RECORD_LISTING_EVENT_SQL, [event, listingId, commune || null, price, device, source, visitorId || null, routing, kindOrVisitor(viewerKind), agentId || null]],
+    ...withCustomer,
+    [RECORD_LISTING_EVENT_SQL, tracked],
     [RECORD_LISTING_EVENT_LEGACY_SQL, [event, listingId, commune || null, price, device, source]],
   );
 }

@@ -4,6 +4,7 @@ import AgentMonogram from '@/components/AgentMonogram';
 import PhoneField from '@/components/PhoneField';
 import { submitProjectEnquiryAction } from '@/app/(site)/projets/[slug]/actions';
 import { contactWhatsAppHref } from '@/lib/leadRouting';
+import { contactTapProps } from '@/lib/contactTapAttrs';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -67,12 +68,14 @@ export default async function ProjectEnquiryCard({ project, interest, sent, erro
             href={waHref}
             target="_blank"
             rel="noopener noreferrer"
+            {...contactTapProps({ surface: 'project', channel: 'whatsapp', projectSlug: project.slug })}
             className="u-press inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 text-sm font-semibold text-white"
           >
             {t('projects.enquiry.whatsapp')}
           </a>
           <a
             href={`tel:+${phone}`}
+            {...contactTapProps({ surface: 'project', channel: 'call', projectSlug: project.slug })}
             className="u-btn-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold text-ink"
           >
             <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

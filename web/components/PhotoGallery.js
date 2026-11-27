@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, ViewTransition, useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, MoveHorizontal, Play, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import VideoPlayBadge from './VideoPlayBadge';
@@ -121,6 +121,19 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
     [noteSeen],
   );
 
+  // Phone thumbnail strip (2026-11-17, owner's reference: a row of small
+  // photos under the main one). A tap jumps the carousel there; the strip
+  // keeps the current photo in view as the visitor swipes.
+  const carouselControl = useRef(null);
+  const thumbStripRef = useRef(null);
+  useEffect(() => {
+    const strip = thumbStripRef.current;
+    const thumb = strip?.querySelector(`[data-thumb="${mobileIndex}"]`);
+    if (!strip || !thumb) return;
+    const left = thumb.offsetLeft - (strip.clientWidth - thumb.clientWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [mobileIndex]);
+
   useEffect(() => {
     if (lightboxIndex !== null) noteSeen(lightboxIndex, true);
   }, [lightboxIndex, noteSeen]);
@@ -221,7 +234,14 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               desktop this hidden carousel's priority photo then asks for the
               desktop hero's exact file instead of a second, 1920w copy of the
               same cover (measured 2026-11-06: both were downloaded). */}
-          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority onIndexChange={onMobileIndexChange} />
+          {/* preloadAhead: photos 2–3 are fetched once the cover has painted,
+              so the first swipe lands on a photo instead of a grey frame
+              (owner's iPhone, 2026-11-17: ~1.5 s per photo from Kinshasa).
+              loadingShimmer: a slow photo reads as loading, not as missing. */}
+          {/* No arrows and no "1/N photos" on the phone photo (owner,
+              2026-11-18): the swipe hint below says it moves, and the
+              thumbnail strip shows where you are and replaces the dots. */}
+          <CardImageCarousel images={shots} alt={alt} sizes={DETAIL_HERO_SIZES} fullWidth priority fetchPriority="high" preloadAhead={2} loadingShimmer showDots={false} controlRef={carouselControl} onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (
@@ -230,31 +250,62 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
           </span>
         ) : null}
 
-        {/* Live count, not a static "1/N" — CardImageCarousel already
-            reports the on-screen index via onIndexChange, so this can track
-            an actual swipe instead of freezing at photo 1. The dot row
-            beneath it is CardImageCarousel's own; this badge is additive,
-            same composition PropertyCard.js already uses. */}
-        <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
-          {mobileIndex + 1}/{total}{hasVideo ? '' : ` photo${total !== 1 ? 's' : ''}`}
-        </span>
+        {/* "Glissez pour voir" where the counter was, until the first swipe. */}
+        {total > 1 && mobileIndex === 0 ? (
+          <span className="u-glass-royal pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.8125rem] font-semibold">
+            <MoveHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+            {t('listings.gallery.swipeHint')}
+          </span>
+        ) : null}
 
         {mobileActions ? (
           <span className="absolute right-3.5 top-3.5 z-10 flex gap-2">{mobileActions}</span>
         ) : null}
 
-        {total > 2 ? (
-          <button
-            type="button"
-            onClick={() => setGridOpen(true)}
-            className="u-press absolute bottom-3.5 left-3.5 z-10 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/95 px-3.5 text-[0.8125rem] font-bold text-ink shadow-sm"
-          >
-            <LayoutGrid strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            {t('listings.gallery.seeAllCount', { count: total })}
-          </button>
-        ) : null}
+        {/* No "Voir les N photos" button on the photo any more (2026-11-18,
+            owner): the swipe, the arrows and the thumbnail strip below already
+            reach every photo, and the button covered part of it. */}
       </div>
       </Morph>
+
+      {/* Thumbnails, phone only. Small files (sizes 80px, low fetch
+          priority, never ahead of the main photo), so a visitor sees at once
+          what the other photos are and can jump to one. `relative` makes
+          each thumb's offsetLeft count from the strip (the effect above). */}
+      {total > 1 ? (
+        <div
+          ref={thumbStripRef}
+          aria-label={t('listings.gallery.allPhotos')}
+          className="no-scrollbar relative -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 pt-2 sm:hidden"
+        >
+          {shots.map((src, index) => (
+            <button
+              key={`${src}-${index}`}
+              type="button"
+              data-thumb={index}
+              onClick={() => carouselControl.current?.goTo(index)}
+              aria-label={`Photo ${index + 1}`}
+              aria-current={index === mobileIndex ? 'true' : undefined}
+              className={`relative h-14 w-20 flex-none overflow-hidden rounded-md bg-canvas-deep transition-shadow ${
+                index === mobileIndex ? 'ring-2 ring-blue ring-offset-1 ring-offset-canvas' : ''
+              }`}
+            >
+              {/* The first six (what a phone shows) load at once: lazy
+                  loading inside this horizontal strip did not start on
+                  lukkaplace.com until the strip was scrolled (grey tiles,
+                  measured 2026-11-17). The rest stay lazy and load on scroll. */}
+              <SafeImage src={src} alt="" fill sizes="80px" fetchPriority="low" loading={index < 6 ? 'eager' : 'lazy'} draggable={false} className="object-cover" />
+              {items[index]?.video ? (
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink/60 text-white">
+                    <Play strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 translate-x-[1px] fill-white" />
+                  </span>
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <Dialog open={gridOpen} onOpenChange={setGridOpen}>
         <DialogContent showCloseButton className="max-h-[78dvh] max-w-[min(96vw,40rem)] gap-0 overflow-y-auto p-3 sm:hidden">
@@ -301,6 +352,7 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
               alt={alt}
               fill
               priority
+              fetchPriority="high"
               sizes={DETAIL_HERO_SIZES}
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
@@ -312,10 +364,9 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                 <Badge tone="white">{t('listings.gallery.verified')}</Badge>
               </span>
             ) : null}
-
-            <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
-              1/{total}{hasVideo ? '' : ` photo${total !== 1 ? 's' : ''}`}
-            </span>
+            {/* No "1/N photos" badge here either (owner, 2026-11-18): the
+                mosaic shows the next photos, and "Toutes les photos" opens
+                them all. */}
           </button>
 
           {hasGrid ? (

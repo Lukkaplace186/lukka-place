@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createLead, createViewingRequest } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
 import { dayClosed, validatePickedSlot } from '@/lib/visitSlots';
@@ -10,6 +11,9 @@ import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { requestedTimeWithMode, visitModeOf } from '@/lib/visitModeRules';
+import { openGuestAccount } from '@/lib/guestAccount';
+import { OPEN_ACCOUNT_FIELD, accountRequested } from '@/lib/guestAccountRules';
+import { localSavesFromForm } from '@/lib/newCustomerSession';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -36,7 +40,9 @@ import { requestedTimeWithMode, visitModeOf } from '@/lib/visitModeRules';
  */
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   // The picker (components/VisitSlotPicker.js) posts the exact instant; the
   // French phrase is derived from it here, never trusted from the form. A page
   // cached before the picker shipped still posts free text, which is kept.
@@ -69,6 +75,12 @@ export async function submitVisitRequestAction(propertyId, formData) {
   if (picked?.iso && dayClosed(kinshasaDayKey(picked.iso), await getListingAvailability(listing.id))) {
     redirect(`${base}?visit_error=closed`);
   }
+  // An agent who switched video visits off is not asked for one: the website's
+  // dialog and the WhatsApp chooser stop offering it, and a form posted around
+  // them is refused the same way (2026-11-16).
+  if (visitMode === 'video' && !(await getListingAvailability(listing.id)).videoVisits) {
+    redirect(`${base}?visit_error=video`);
+  }
 
   try {
     const { lead } = await createLead({
@@ -98,5 +110,17 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // agent. Without one the request goes to Lukka Place's desk, and the page
   // must not tell the customer an agent has it (request #8, 2026-10-10: the
   // listing had no agent and the confirmation still said "sent to the agent").
-  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&mode=video' : ''}`);
+  // The same name and number open the guest's free account (2026-11-24,
+  // lib/guestAccount.js; the "Créer mon compte" box, ticked by default). After
+  // the visit is recorded, never instead of it; the confirmation offers the
+  // one tap that makes it theirs (`compte`, read by the listing page).
+  const account = await openGuestAccount({
+    phone,
+    name,
+    entry: 'visit',
+    requested: accountRequested(formData.getAll(OPEN_ACCOUNT_FIELD)),
+    localData: localSavesFromForm(formData),
+  });
+  const accountParam = account.status === 'skipped' ? (account.reason === 'no_name' ? 'offer' : null) : account.status;
+  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}${visitMode === 'video' ? '&mode=video' : ''}${accountParam ? `&compte=${accountParam}` : ''}`);
 }

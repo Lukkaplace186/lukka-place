@@ -34,7 +34,7 @@ test('the guide is the blended query, and Lukka listings still pass the public g
   assert.match(lukka, /p\.status = 1 AND p\.approve_status = 1/);
   assert.match(lukka, /test_agent/);
   assert.match(lukka, /NOT IN \('jour', 'semaine'\)/);
-  assert.match(lukka, /'furnished'\)::boolean, false\) = false/, 'furnished homes are a different market');
+  assert.match(lukka, /COALESCE\(p\.furnished, false\) = false/, 'furnished homes are a different market');
 });
 
 test('an observation counts only when clean, a home, recent, still online and not already a Lukka listing', () => {

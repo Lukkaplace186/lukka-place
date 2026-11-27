@@ -8,6 +8,8 @@ import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import HomeDiscovery from '@/components/HomeDiscovery';
 import HomeAlertBand from '@/components/HomeAlertBand';
 import HomeMarketBand from '@/components/HomeMarketBand';
+import HomeGuidesRail from '@/components/HomeGuidesRail';
+import PopularSearches from '@/components/PopularSearches';
 import { cachedFeaturedListings, cachedListingsTotal, cachedLiveListingsCount, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -16,7 +18,7 @@ import { organizationSchema, socialProfiles, websiteSchema } from '@/lib/seoSche
 import { getSeoSettings, getSocialLinks } from '@/lib/siteSettings';
 import { getT, localizedAlternates } from '@/lib/i18n/server';
 import { mergeSocialLinks, seoMetadata } from '@/lib/siteSettingsRules';
-import AppHomeTop from '@/components/AppHomeTop';
+import { AppHomeTop } from '@/components/app/AppHomeTopLazy';
 import { getPriceGuides } from '@/lib/browseFeatures';
 import { marketCommunes } from '@/lib/homeMarket';
 import { listPublicArticles } from '@/lib/blog';
@@ -230,11 +232,15 @@ export default async function HomePage() {
       {/* Why an account is worth having (an alert) and the no-account request: one royal band. */}
       <HomeAlertBand />
       <NewProjectsStrip />
-      {/* Explorer: collections as photo tiles, then one row of type chips (same facets as the hero dropdown). */}
-      <HomeDiscovery propertyTypes={propertyTypes} />
+      {/* Explorer: collections as photo tiles, and the video chip (the type chips left: the hero's select has them). */}
+      <HomeDiscovery />
       {/* The price guides as figures. */}
       <HomeMarketBand />
+      {/* The newest guides and news as a swipe row (owner, 2026-11-18). */}
+      <HomeGuidesRail />
       <ValueProposition />
+      {/* Links to the search landing pages that have listings ("Appartements à louer à Gombe"), for Google (owner, 2026-11-19). */}
+      <PopularSearches />
     </>
   );
 }

@@ -27,6 +27,8 @@ const TYPES = [
   { key: 'createurs', kind: 'creator', labelKey: 'admin.partners.types.creator' },
   { key: 'campagnes', kind: 'campaign', labelKey: 'admin.partners.types.campaign' },
   { key: 'agents', kind: 'agent', labelKey: 'admin.partners.types.agent' },
+  // A partner agency's one code (2026-11-16): its owner and agents together.
+  { key: 'agences', kind: 'agency', labelKey: 'admin.partners.types.agency' },
 ];
 
 const TH_NUM = `${TH_STICKY} text-right`;

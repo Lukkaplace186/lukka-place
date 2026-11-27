@@ -1,14 +1,14 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { CalendarOff, ChevronDown } from 'lucide-react';
+import { CalendarOff, ChevronDown, Video } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { actionFailureToast } from '@/lib/actionFailure';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { visitDays, weekdayOf } from '@/lib/visitSlots';
-import { saveVisitAvailabilityAction } from '@/app/compte/agent/visitAvailabilityActions';
+import { saveVideoVisitsAction, saveVisitAvailabilityAction } from '@/app/compte/agent/visitAvailabilityActions';
 
 // Monday first, as JavaScript weekdays (0 = Sunday).
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
@@ -23,6 +23,11 @@ const WEEK = [1, 2, 3, 4, 5, 6, 0];
  * everybody, and each request is still confirmed by the agent.
  *
  * `today` comes from the server so the first render matches what it sent.
+ *
+ * "J'accepte les visites par appel vidéo" (2026-11-16, lib/visitMode.js) is
+ * the switch at the bottom, saved on its own the moment it is flipped: on,
+ * a customer can ask to see the property on a WhatsApp video call; off, the
+ * listing's visit dialog and WhatsApp chooser stop offering it.
  */
 export default function AgentVisitAvailability({ initial, today }) {
   const t = useT();
@@ -33,6 +38,29 @@ export default function AgentVisitAvailability({ initial, today }) {
   const [weekdays, setWeekdays] = useState(() => new Set(initial.closedWeekdays));
   const [dates, setDates] = useState(() => new Set(initial.blockedDates));
   const [saved, setSaved] = useState({ weekdays: initial.closedWeekdays, dates: initial.blockedDates });
+  const [videoVisits, setVideoVisits] = useState(initial.videoVisits !== false);
+  const [videoPending, startVideoTransition] = useTransition();
+
+  function toggleVideo() {
+    const next = !videoVisits;
+    setVideoVisits(next);
+    startVideoTransition(async () => {
+      let result;
+      try {
+        result = await saveVideoVisitsAction(next);
+      } catch (error) {
+        setVideoVisits(!next);
+        showToast(actionFailureToast(t, error, toggleVideo));
+        return;
+      }
+      if (!result?.ok) {
+        setVideoVisits(!next);
+        showToast({ type: 'error', message: result?.error || t('agent.agenda.availability.failed') });
+        return;
+      }
+      showToast({ message: t(next ? 'agent.agenda.video.savedOn' : 'agent.agenda.video.savedOff') });
+    });
+  }
 
   const tag = locale === 'en' ? 'en-GB' : 'fr-FR';
   const days = useMemo(() => visitDays(new Date(`${today}T12:00:00+01:00`)), [today]);
@@ -169,6 +197,34 @@ export default function AgentVisitAvailability({ initial, today }) {
           </div>
         </div>
       ) : null}
+
+      <div className="flex items-center gap-3 border-t border-line px-4 py-3.5">
+        <Video strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 flex-none text-blue" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span id="video-visits-title" className="u-title-sub block text-ink">{t('agent.agenda.video.title')}</span>
+          <span className="u-micro block text-ink-45">{t('agent.agenda.video.lead')}</span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={videoVisits}
+          aria-labelledby="video-visits-title"
+          disabled={videoPending}
+          onClick={toggleVideo}
+          className={cn(
+            'u-focus-ring relative inline-flex h-7 w-12 flex-none items-center rounded-full transition-colors disabled:opacity-60',
+            videoVisits ? 'bg-blue' : 'bg-line',
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              'inline-block h-5 w-5 rounded-full bg-white shadow transition-[translate]',
+              videoVisits ? 'translate-x-6' : 'translate-x-1',
+            )}
+          />
+        </button>
+      </div>
     </section>
   );
 }

@@ -3,6 +3,7 @@
 import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createViewingBatch } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
 import { VISIT_CART_MAX, validatePickedSlot, dayClosed } from '@/lib/visitSlots';
@@ -26,7 +27,9 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
 export async function submitVisitBatchAction(formData) {
   const t = await getT();
   const name = String(formData.get('name') || '').trim().slice(0, 120);
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   if (!phone) return { ok: false, error: t('enquiry.cart.errors.phone') };
 
   let items;

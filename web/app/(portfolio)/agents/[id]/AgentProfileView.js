@@ -28,6 +28,7 @@ import SpecItem from '@/components/SpecItem';
 import { Badge } from '@/components/ListingBadges';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { contactTapProps } from '@/lib/contactTapAttrs';
 
 /**
  * The public agent profile — Claude Design canvas "Agent Profile Redesign"
@@ -200,6 +201,7 @@ function WhatsAppButton({ agent, labels, short = false, className = '' }) {
       href={agent.whatsappHref}
       target="_blank"
       rel="noopener noreferrer"
+      {...contactTapProps({ surface: 'profile', channel: 'whatsapp', agentId: agent.contactAgentId })}
       className={`u-press flex items-center justify-center gap-2.5 rounded-lg bg-blue font-bold text-white transition-[background-color,translate] duration-150 hover:-translate-y-0.5 hover:bg-blue-deep ${className}`}
     >
       <WhatsAppIcon className="h-5 w-5 flex-none" />
@@ -227,6 +229,7 @@ function CallButton({ agent, labels, className = '' }) {
   return (
     <a
       href={agent.telHref}
+      {...contactTapProps({ surface: 'profile', channel: 'call', agentId: agent.contactAgentId })}
       className={`u-press flex items-center justify-center gap-2 rounded-lg font-semibold text-ink ring-[1.5px] ring-inset ring-ink transition-colors hover:bg-ink hover:text-white ${className}`}
     >
       <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none" aria-hidden="true" />
@@ -535,6 +538,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                     href={current.alertHref}
                     target="_blank"
                     rel="noopener noreferrer"
+                    {...contactTapProps({ surface: 'profile', channel: 'whatsapp', agentId: agent.contactAgentId })}
                     className="u-press mt-2 inline-flex h-11 items-center gap-2 rounded-lg px-[1.125rem] text-sm font-semibold text-ink ring-[1.5px] ring-inset ring-ink transition-colors hover:bg-ink hover:text-white"
                   >
                     <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
@@ -617,6 +621,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               href={agent.alertHref}
               target="_blank"
               rel="noopener noreferrer"
+              {...contactTapProps({ surface: 'profile', channel: 'whatsapp', agentId: agent.contactAgentId })}
               className="u-press flex h-[3.25rem] flex-none items-center justify-center gap-2.5 rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue-deep transition-colors hover:bg-blue-tint"
             >
               <WhatsAppIcon className="h-5 w-5" />

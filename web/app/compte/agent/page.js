@@ -26,6 +26,7 @@ import { AgentSectionSkeleton } from '@/components/RouteSkeletons';
 import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
 import AgentReferralCard from '@/components/AgentReferralCard';
 import AgentPriorityCard from '@/components/AgentPriorityCard';
+import AgentReplyRateCard from '@/components/AgentReplyRateCard';
 import AgentMilestoneCelebration from '@/components/AgentMilestoneCelebration';
 import { getAgentMilestones } from '@/lib/agentMilestones';
 import { getAgentFounderInfo } from '@/lib/founder';
@@ -122,6 +123,11 @@ export default async function AgentOverviewPage({ searchParams }) {
         </Suspense>
 
         <AgentTodayPanel todo={todo} listingById={listingById} />
+
+        {/* « Vous nous avez confirmé avoir répondu à 4 clients sur 10 » — own figure, from 3 alerts. */}
+        <Suspense fallback={null}>
+          <AgentReplyRateCard agentId={agentId} />
+        </Suspense>
 
         {/* Or / Argent / Bronze: who is asked first about customer requests. */}
         <Suspense fallback={null}>

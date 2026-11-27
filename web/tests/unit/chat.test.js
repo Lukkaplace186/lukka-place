@@ -505,7 +505,10 @@ test('the header, the agent menu and the conversation are wired to the live coun
   const header = read('components/Header.js');
   assert.ok(header.includes("useChatUnread('customer', { enabled: loggedIn })"), 'nothing is asked when signed out');
   assert.ok(header.includes('useUnreadTitle(unread)'));
-  assert.equal((header.match(/href === '\/messages' \? <UnreadBadge/g) || []).length, 2, 'both menus show it beside Messages');
+  // The drawer and the account menu are their own chunks since 2026-11-21; Header passes the count.
+  const menus = read('components/HeaderDrawer.js') + read('components/HeaderAccountMenu.js');
+  assert.equal((menus.match(/href === '\/messages' \? <UnreadBadge/g) || []).length, 2, 'both menus show it beside Messages');
+  assert.match(header, /unread=\{unread\}/);
   const sidebar = read('components/AgentSidebar.js');
   assert.ok(sidebar.includes("useChatUnread('agent', { initial: unreadMessages })"));
   assert.ok(sidebar.includes('messages: liveUnread'));

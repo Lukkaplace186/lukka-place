@@ -1,6 +1,6 @@
 'use client';
 
-import { CONSENT_COOKIE, TIKTOK_EVENT_NAME, consentAllowsAds, newEventId } from './adTrackingRules';
+import { CONSENT_COOKIE, TIKTOK_EVENT_NAME, consentAllowsAds, newEventId, registrationContent } from './adTrackingRules';
 
 /**
  * The browser half of an ad event (growth plan items 5–6): the Meta and
@@ -37,6 +37,8 @@ export function dispatchAdEvent(name, params = {}, eventId = newEventId(), { ser
   // listings catalogue (lib/metaHomeListingsFeed.js, home_listing_id = listing id).
   if (params.value != null && params.currency) { metaParams.value = params.value; metaParams.currency = params.currency; }
   if (params.searchString) metaParams.search_string = params.searchString;
+  // Customer or agent account, same values as the server copy (lib/adTrackingRules.js).
+  Object.assign(metaParams, registrationContent(params));
   try {
     if (ads.meta && typeof window.fbq === 'function') window.fbq('track', name, metaParams, { eventID: eventId });
   } catch { /* a pixel error is not the visitor's problem */ }

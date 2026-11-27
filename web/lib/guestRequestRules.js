@@ -29,6 +29,24 @@ const TYPE_SUMMARY_FR = {
   bureau: 'Bureau / local commercial',
 };
 
+/**
+ * "Toute la ville" (2026-11-25). Kinshasa is both the city and one of its 24
+ * communes, and the form listed only communes: 4 of the 7 guest requests in
+ * the 30 days to 2026-11-25 picked "Kinshasa", meaning the city, and were
+ * pushed to the agencies of the small Commune de Kinshasa only. This value
+ * makes a city-wide request instead (no commune, `city` set), which the
+ * engine offers to the city's agencies (services/leadDispatch.js cityWideOf),
+ * as "Mon projet" already does. The commune keeps its own entry, labelled
+ * "Kinshasa (commune)" by guestCommuneLabel.
+ */
+export const GUEST_CITY_WIDE = 'toute-la-ville';
+export const GUEST_CITY = 'Kinshasa';
+
+/** The commune named like the city reads "Kinshasa (commune)" in the list. */
+export function guestCommuneLabel(commune) {
+  return String(commune).toLowerCase() === GUEST_CITY.toLowerCase() ? `${commune} (commune)` : commune;
+}
+
 export const GUEST_REQUEST_TRANSACTIONS = ['location', 'vente'];
 export const MAX_GUEST_BUDGET = 10_000_000;
 export const MAX_GUEST_BEDROOMS = 10;
@@ -46,8 +64,10 @@ export function parseGuestRequest(fields, communes = []) {
   if (!transactionType) return { ok: false, error: 'transaction' };
 
   const wanted = String(fields.commune || '').trim();
-  const commune = communes.find((c) => c.toLowerCase() === wanted.toLowerCase()) || null;
-  if (!commune) return { ok: false, error: 'commune' };
+  const cityWide = wanted === GUEST_CITY_WIDE;
+  const commune = cityWide ? null : communes.find((c) => c.toLowerCase() === wanted.toLowerCase()) || null;
+  if (!commune && !cityWide) return { ok: false, error: 'commune' };
+  const city = cityWide ? GUEST_CITY : null;
 
   const propertyType = GUEST_REQUEST_TYPES.includes(fields.propertyType) ? fields.propertyType : null;
 
@@ -60,7 +80,7 @@ export function parseGuestRequest(fields, communes = []) {
 
   const name = String(fields.name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_GUEST_NAME) || null;
 
-  return { ok: true, request: { transactionType, commune, propertyType, budgetMax, bedrooms, name } };
+  return { ok: true, request: { transactionType, commune, city, propertyType, budgetMax, bedrooms, name } };
 }
 
 /** The type line put in front of the lead's summary, or null. */
@@ -85,6 +105,43 @@ export function guestRequestPrefill(params = {}, communes = []) {
     budgetMax: Number.isFinite(budget) && budget > 0 ? String(Math.round(budget)) : '',
     bedrooms: Number.isInteger(beds) && beds >= 1 && beds <= MAX_GUEST_BEDROOMS ? String(beds) : '',
   };
+}
+
+/**
+ * The /trouver-pour-moi link for the "Pas encore trouvé ?" card in the
+ * /listings feed (2026-11-21, marketing plan: paid visitors see 1.25 pages
+ * and the sign-up nudge never reaches them). It carries only the parts of the
+ * visitor's search the request form can hold, under the same names
+ * (guestRequestPrefill above re-checks every one), so the form opens on what
+ * they were already looking for. Nothing is deduced: a search without a
+ * commune leaves the commune for the visitor to choose.
+ */
+export function feedRequestHref(params = {}) {
+  const pick = (key) => {
+    const value = Array.isArray(params[key]) ? params[key][0] : params[key];
+    return typeof value === 'string' ? value.trim() : '';
+  };
+  const qs = new URLSearchParams();
+  const transaction = pick('transaction_type');
+  if (GUEST_REQUEST_TRANSACTIONS.includes(transaction)) qs.set('transaction_type', transaction);
+  const commune = pick('commune');
+  if (commune) qs.set('commune', commune);
+  const type = pick('property_type').toLowerCase();
+  if (GUEST_REQUEST_TYPES.includes(type)) qs.set('property_type', type);
+  const budget = Number.parseFloat(pick('price_max'));
+  if (Number.isFinite(budget) && budget > 0 && budget <= MAX_GUEST_BUDGET) qs.set('price_max', String(Math.round(budget)));
+  const beds = Number.parseInt(pick('beds_min'), 10);
+  if (Number.isInteger(beds) && beds >= 1 && beds <= MAX_GUEST_BEDROOMS) qs.set('beds_min', String(beds));
+  const query = qs.toString();
+  return query ? `/trouver-pour-moi?${query}` : '/trouver-pour-moi';
+}
+
+/** The feed card follows the 6th result, or the last one of a shorter first page. */
+export const FEED_REQUEST_AFTER = 6;
+export function feedRequestIndex(firstPageCount) {
+  const n = Number(firstPageCount) || 0;
+  if (n <= 0) return -1;
+  return Math.min(FEED_REQUEST_AFTER, n) - 1;
 }
 
 /**

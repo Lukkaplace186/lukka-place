@@ -187,16 +187,19 @@ export const DETAIL_COLUMNS = [
   ...EQUIPMENT_FIELDS, 'plot_dimensions', 'plot_area_m2', 'installments_available', 'installment_terms',
 ];
 
-/** One jsonb of every detail, read through to_jsonb (nulls before the migration). */
-export const DETAILS_SQL = `(SELECT jsonb_build_object(${DETAIL_COLUMNS.map((c) => `'${c}', j -> '${c}'`).join(', ')})
-   FROM (SELECT to_jsonb(p) AS j) d)`;
+/**
+ * One jsonb of every detail, from the plain columns. Not through to_jsonb(p):
+ * that serialised the whole row, embedding vector included (web/CLAUDE.md,
+ * "Listing queries read columns, not to_jsonb(p)").
+ */
+export const DETAILS_SQL = `jsonb_build_object(${DETAIL_COLUMNS.map((c) => `'${c}', p.${c}`).join(', ')})`;
 
 /**
  * The land's size in m² for filtering: the stated plot, else — for a listing
  * whose category IS land — its plain-number `area`. Needs `p`, `catc`.
  */
 export const PLOT_M2_SQL = `COALESCE(
-  NULLIF(to_jsonb(p) ->> 'plot_area_m2', '')::numeric,
+  p.plot_area_m2,
   CASE WHEN LOWER(catc.name) IN (${LAND_CATEGORY_NAMES.map((n) => `'${n}'`).join(', ')}) OR p.parcelle_subtype = 'terrain_nu'
     THEN (CASE WHEN p.area::text ~ '^[[:space:]]*[0-9]+([.,][0-9]+)?[[:space:]]*(m|m2|m²)?[[:space:]]*$'
       THEN NULLIF(replace(regexp_replace(p.area::text, '[^0-9.,]', '', 'g'), ',', '.'), '')::numeric END) END)`;

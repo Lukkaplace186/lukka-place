@@ -1,7 +1,9 @@
+import { getAgentMinBudget } from '@/lib/agentMinBudget';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import AgentPriorityCard from '@/components/AgentPriorityCard';
+import AgentReplyRateCard from '@/components/AgentReplyRateCard';
 import { ArrowLeft, ExternalLink, Pencil } from 'lucide-react';
 import { getAgentForAdmin } from '@/lib/agents';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
@@ -22,6 +24,7 @@ import { agentInScope, getSalesScope } from '@/lib/salesScope';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
+import AgentAgencyControl from './AgentAgencyControl';
 import AgentDeleteButton from './AgentDeleteButton';
 import VerificationReminderButton from './VerificationReminderButton';
 import AdminVerifyAgentButton from './AdminVerifyAgentButton';
@@ -105,17 +108,22 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   let content = null;
 
   if (tab === 'overview') {
-    const [{ communes }, billing] = await Promise.all([
+    const [{ communes }, billing, minBudget] = await Promise.all([
       getLocationHierarchyWithFallback({ city: 'all' }),
       getAgentBillingHistory(agent.vendor_id),
+      getAgentMinBudget(agent.id),
     ]);
     content = (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
-        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session?.role, 'agents.manage')} />
+        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session?.role, 'agents.manage')} minBudget={minBudget} />
         <div className="flex flex-col gap-6">
         {/* The same Or / Argent / Bronze card the agency sees on its dashboard. */}
         <Suspense fallback={null}>
           <AgentPriorityCard agentId={agent.id} audience="admin" />
+        </Suspense>
+        {/* Did the agent answer the "Un client vous contacte" alerts (their own word, 30 days)? */}
+        <Suspense fallback={null}>
+          <AgentReplyRateCard agentId={agent.id} audience="admin" />
         </Suspense>
         <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
           <h2 className="u-title-card text-ink">{t('admin.agentPanel.subscriptionHistory')}</h2>
@@ -348,6 +356,14 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
               {t('admin.agentPanel.editProfile')}
             </Link>
+          ) : null}
+          {can(session?.role, 'agents.manage') && !agent.deleted_at ? (
+            <AgentAgencyControl
+              agentId={agent.id}
+              agentName={displayName}
+              currentVendorId={Number(agent.vendor_id) > 0 ? Number(agent.vendor_id) : null}
+              currentVendorName={agent.vendor_name || null}
+            />
           ) : null}
           {can(session?.role, 'agents.manage') ? <VerificationReminderButton agentId={agent.id} /> : null}
           {can(session?.role, 'agents.manage') && !agent.phone_verified_at && !agent.deleted_at ? (

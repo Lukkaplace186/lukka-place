@@ -1,23 +1,51 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Link from '@/components/LocaleLink';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, MapPinned } from 'lucide-react';
+import { ChevronLeft, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
-import AppListingCard from './app/AppListingCard';
+import dynamic from 'next/dynamic';
+import ListingsFeed from './ListingsFeed';
+import FeedRequestCard from './FeedRequestCard';
+import FeedAlertCard from './FeedAlertCard';
+import { feedAlertIndex } from '@/lib/feedAlertRules';
+import { feedRequestHref, feedRequestIndex } from '@/lib/guestRequestRules';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
 import MobileMapBar from './MobileMapBar';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { boundsToQuery } from '@/lib/mapViewport';
+import { MAP_MOVING_EVENT } from '@/lib/mapMovingEvent';
 import { useT } from '@/lib/i18n/client';
+
+// The app's card (Motion) only in app mode: on the website it would put Motion
+// in the first load of /listings (components/app/AppChrome.js, 2026-11-22).
+const AppListingCard = dynamic(() => import('./app/AppListingCard'));
 
 function buildPageHref(searchParams, page) {
   const params = new URLSearchParams(searchParams);
-  params.set('page', String(page));
-  return `/listings?${params.toString()}`;
+  if (page > 1) params.set('page', String(page));
+  else params.delete('page');
+  const qs = params.toString();
+  return qs ? `/listings?${qs}` : '/listings';
+}
+
+/**
+ * The search the feed extends, as a query string: every filter, without the
+ * page (the feed's cursor replaces it) or the map/list view (switching views
+ * is the same search, so it must not restart the feed).
+ */
+function feedQueryString(searchParams) {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams || {})) {
+    if (key === 'page' || key === 'view' || key === 'cursor') continue;
+    for (const v of Array.isArray(value) ? value : [value]) {
+      if (typeof v === 'string' && v !== '') qs.append(key, v);
+    }
+  }
+  return qs.toString();
 }
 
 /**
@@ -41,11 +69,16 @@ function buildPageHref(searchParams, page) {
  * stopped 1.5rem short of the bottom.
  */
 export default function ListingsSplitView({
-  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null, propertyTypes = [],
+  listings, isMapView, page, params, popularCommunes, communes, clearAreaHref = null, similar = null, nextCursor = null, propertyTypes = [],
   // Inside the store app (lib/appModeRules.js): the app's own card, as on its home screen.
   appMode = false,
 }) {
   const t = useT();
+  const queryString = feedQueryString(params);
+  const feedKey = `${queryString}#${page}`;
+  const requestHref = feedRequestHref(params);
+  const requestIndex = feedRequestIndex(listings.length);
+  const alertIndex = feedAlertIndex(listings.length);
   const router = useRouter();
   // How many listings the map counts in view — the mobile Liste button says it.
   const [inView, setInView] = useState(null);
@@ -74,6 +107,31 @@ export default function ListingsSplitView({
   // A pin's preview card sits over the bottom of the map, exactly where the
   // mobile "Liste" button floats — so the button steps aside while it is open.
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // The phone's liquid-glass search panel slides away while the visitor drags
+  // or pinches the map, for a clear view, and comes back once the map has
+  // settled (owner, 2026-11-17; lib/mapMovingEvent.js). It stays while they
+  // are typing in it, and the short wait stops it flickering between gestures.
+  const [glassAway, setGlassAway] = useState(false);
+  useEffect(() => {
+    if (!isMapView) return undefined;
+    let timer = null;
+    const onMoving = (event) => {
+      clearTimeout(timer);
+      if (event.detail?.moving) {
+        const typing = document.activeElement?.closest?.('[data-map-glass]');
+        if (!typing) setGlassAway(true);
+      } else {
+        timer = setTimeout(() => setGlassAway(false), 250);
+      }
+    };
+    window.addEventListener(MAP_MOVING_EVENT, onMoving);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener(MAP_MOVING_EVENT, onMoving);
+      setGlassAway(false);
+    };
+  }, [isMapView]);
 
   // Mobile map mode is a `fixed` fullscreen layer (see the map wrapper
   // below), painted over whatever the document would otherwise show at
@@ -138,75 +196,55 @@ export default function ListingsSplitView({
             ) : null}
           </div>
         ) : null}
-        {/* The app's cards settle in by themselves (AppListingCard), on every phone. */}
-        <div className={`${appMode ? '' : 'u-stagger-in-view '}flex flex-col gap-5`}>
-          {/* Single column, so only the first couple of rows are ever
-              actually above the fold — priority for those skips next/image's
-              lazy-loading for the real LCP candidate on this page. */}
-          {listings.map((listing, i) => appMode ? (
-            <AppListingCard key={listing.id} listing={listing} priority={i < 2} />
+        {/* Endless feed (components/ListingsFeed.js, lib/listingsFeed.js):
+            the exact results, then — for a place search — the nearby ones
+            under their own heading. Keyed on the search, so a new search
+            starts over while the map beside it stays mounted. */}
+        {page > 1 ? (
+          // Reached from a "Voir plus" link without JavaScript, or an old
+          // shared ?page= link: a way back to the start of the list.
+          <Link href={buildPageHref(params, 1)} className={`${pagerLink} mb-4`}>
+            <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            {t('common.actions.previous')}
+          </Link>
+        ) : null}
+        <ListingsFeed
+          key={feedKey}
+          feedKey={feedKey}
+          queryString={queryString}
+          initialListings={listings}
+          initialSimilar={similar}
+          initialNext={nextCursor}
+          // The app's cards settle in by themselves (AppListingCard), on every phone.
+          stagger={!appMode}
+          place={params.commune || null}
+          renderCard={(listing, i) => appMode ? (
+            <AppListingCard key={listing.id} listing={listing} priority={page === 1 && i < 2} fetchPriority={page === 1 && i === 0 ? 'high' : undefined} />
           ) : (
+            <Fragment key={listing.id}>
             <PropertyCard
-              key={listing.id}
               listing={listing}
               layout="horizontal"
-              priority={i < 2}
+              // Single column, so only the first couple of rows are ever
+              // above the fold — priority for those skips next/image's
+              // lazy-loading for the real LCP candidate on this page.
+              priority={page === 1 && i < 2}
+              fetchPriority={page === 1 && i === 0 ? 'high' : undefined}
               isHovered={hoveredId === listing.id}
               onHoverStart={() => setHoveredId(listing.id)}
               onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
             />
-          ))}
-        </div>
-
-        {/* Only one or two exact results: the nearest others, below and
-            labelled, never mixed into the exact list (app/(site)/listings/
-            page.js, lib/listings.js getNearbyExtras). */}
-        {nearby?.listings?.length ? (
-          <section className="mt-8" aria-labelledby="nearby-extras-title">
-            <p id="nearby-extras-title" className="u-eyebrow mb-1">
-              {t('listings.results.nearbyExtrasTitle', { place: nearby.place })}
-            </p>
-            {nearby.places?.length ? (
-              <p className="mb-3 text-[0.8125rem] text-ink-45">
-                {nearby.places.map(({ commune, km }) => `${commune} (${km} km)`).join(', ')}
-              </p>
-            ) : null}
-            <div className="flex flex-col gap-5">
-              {nearby.listings.map((listing) => appMode ? (
-                <AppListingCard key={listing.id} listing={listing} />
-              ) : (
-                <PropertyCard
-                  key={listing.id}
-                  listing={listing}
-                  layout="horizontal"
-                  isHovered={hoveredId === listing.id}
-                  onHoverStart={() => setHoveredId(listing.id)}
-                  onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {totalPages > 1 ? (
-          <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Pagination">
-            {page > 1 ? (
-              <Link href={buildPageHref(params, page - 1)} className={pagerLink}>
-                <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                {t('common.actions.previous')}
-              </Link>
-            ) : null}
-            <span className="u-tabular px-2 text-[0.8125rem] text-ink-45">
-              Page {page} / {totalPages}
-            </span>
-            {page < totalPages ? (
-              <Link href={buildPageHref(params, page + 1)} className={pagerLink}>
-                {t('common.actions.next')}
-                <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              </Link>
-            ) : null}
-          </nav>
-        ) : null}
+            {/* "Pas encore trouvé ?" once, after the 6th card (or the last of a
+                shorter first page): the visitor not ready to write to an agent
+                leaves what they want instead of leaving. Not in the store app. */}
+            {/* "Recevez les nouveaux biens sur WhatsApp" after the 3rd card
+                (2026-11-24): most paid visitors see one page and were never
+                offered an account. */}
+            {page === 1 && i === alertIndex ? <FeedAlertCard params={params} communes={communes} /> : null}
+            {page === 1 && i === requestIndex ? <FeedRequestCard href={requestHref} /> : null}
+            </Fragment>
+          )}
+        />
 
         <div className="mt-12">
           <SidebarInsights popularCommunes={popularCommunes} allCommunes={communes} />
@@ -236,9 +274,12 @@ export default function ListingsSplitView({
           (`absolute bottom-6` *within* this box) already follows this
           box's real bottom edge automatically. */}
       <div
+        data-map-layer
         className={`flex flex-col ${
           isMapView
-            ? 'fixed inset-x-0 top-16 bottom-0 z-30 bg-canvas'
+            // top-0: the logo bar steps aside on the phone map (2026-11-17,
+            // app/globals.css [data-site-header]); its ☰ is in the glass header.
+            ? 'fixed inset-x-0 top-0 bottom-0 z-30 bg-canvas'
             : 'hidden'
         } lg:inset-auto lg:z-auto lg:flex lg:overflow-hidden lg:rounded-2xl lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]`}
       >
@@ -274,10 +315,21 @@ export default function ListingsSplitView({
               className="h-full w-full"
             />
           </div>
-          {/* Phone map: the search floats over the full-height map. */}
+          {/* Phone map: search + Prix / Chambres / Type on a liquid-glass
+              panel floating over the map (2026-11-17, owner), so the pins
+              under it still show through. It was a solid row above the map
+              earlier the same day, and before that an opaque float that hid
+              the busiest pins. z-30: the search's suggestions open over the
+              map. */}
           {isMapView ? (
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-2.5 lg:hidden">
-              <MobileMapChrome params={params} propertyTypes={propertyTypes} />
+            <div
+              data-map-glass
+              data-away={glassAway ? 'true' : 'false'}
+              className="lkp-glass-wrap pointer-events-none absolute inset-x-0 top-0 z-30 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:hidden"
+            >
+              <div className="u-liquid-glass pointer-events-auto rounded-[22px] px-2.5 pb-2 pt-2.5">
+                <MobileMapChrome params={params} propertyTypes={propertyTypes} />
+              </div>
             </div>
           ) : null}
           {/* The app shows the homes in its own sheet (AppMapSheet, in the map pane). */}

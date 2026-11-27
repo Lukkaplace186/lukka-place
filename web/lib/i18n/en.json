@@ -103,6 +103,16 @@
         "body": "The property may have been let, sold or withdrawn by the agent. Here are other properties available."
       },
       "browse": "See available properties"
+    },
+    "demo": {
+      "active": "Demo mode — {label} · {side}",
+      "sealed": "Nothing is published or sent to real customers or agents.",
+      "customerSide": "customer",
+      "agentSide": "agent",
+      "bothSides": "customer and agent",
+      "openAgent": "Switch to agent",
+      "openCustomer": "Switch to customer",
+      "exit": "Leave the demo"
     }
   },
   "nav": {
@@ -159,7 +169,8 @@
       "projects": "New Developments & Land",
       "developers": "For Developers",
       "privacy": "Privacy",
-      "terms": "Terms of Use"
+      "terms": "Terms of Use",
+      "rentPrices": "Rent prices"
     },
     "partnerBand": {
       "title": "Are You an Estate Agent or Agency?",
@@ -169,6 +180,7 @@
     "tagline": "Apartments, villas and plots, to rent or to buy, across the DRC.",
     "disclaimer": "Lukka Place is a property listings platform in the DRC. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
     "copyright": "© {year} Lukka Place.",
+    "supportGreeting": "Hello Lukka Place 👋\nI need help with:\n- Finding a property (rent / buy)\n- A listing I saw\n- A viewing\n- Something else\n\nMy request: ",
     "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com.",
     "consent": {
       "title": "Ad Measurement",
@@ -180,14 +192,14 @@
   },
   "home": {
     "hero": {
-      "kicker": "Houses and Apartments for Rent and Sale in Kinshasa and the DRC",
       "title": "Apartments. Villas. Plots. Agencies.",
-      "subtitle": "Across the DRC: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and more. Reviewed listings, stated prices and direct contact on WhatsApp.",
+      "subtitle": "Across the DRC: Kinshasa, Lubumbashi, Bukavu, Kisangani and more. Reviewed listings, transparent pricing, and direct WhatsApp contact.",
       "photoCredit": "Photo by kaysha on Unsplash",
       "weeklyNew": {
         "one": "{count} new property in 7 days",
         "other": "{count} new properties in 7 days"
-      }
+      },
+      "kicker": "Houses and Apartments for Rent and Sale in Kinshasa and the DRC"
     },
     "search": {
       "rent": "Rent",
@@ -235,7 +247,16 @@
       "seeShortStays": "See available stays",
       "shortHint": "Homes let by the night or by the week.",
       "moreCriteria": "More filters",
-      "fewerCriteria": "Fewer filters"
+      "fewerCriteria": "Fewer filters",
+      "alertMe": "Alert me to new homes here",
+      "bedrooms": "Bedrooms",
+      "studio": "Studio",
+      "bedsCount": {
+        "one": "{count} bed",
+        "other": "{count} beds"
+      },
+      "bedsMinAria": "Minimum bedrooms",
+      "bedsMaxAria": "Maximum bedrooms"
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -316,7 +337,7 @@
       "indexHint": "The month's rents, commune by commune"
     },
     "prices": {
-      "indexTitle": "How Much Does a Home Cost?",
+      "indexTitle": "Rent Prices in Kinshasa in {year}",
       "indexLead": "Median monthly asking rents in 2026: Lukka Place listings and those seen elsewhere (property sites, WhatsApp groups, Facebook). Furnished homes left out, and only where at least {n} comparable listings exist.",
       "none": "Not enough listings yet to publish a median rent.",
       "question": "How Much Is a {beds}-Bedroom Rental in {commune}?",
@@ -338,7 +359,27 @@
         "one": "See the listing on Lukka Place",
         "other": "See the {count} listings on Lukka Place"
       },
-      "questionOne": "How Much Is a 1-Bedroom Rental in {commune}?"
+      "questionOne": "How Much Is a 1-Bedroom Rental in {commune}?",
+      "updated": "Updated {date}",
+      "updatedNote": "Date of the newest data counted: a listing published on Lukka Place, or seen online elsewhere, that day.",
+      "alertTitle": "New Rentals in {commune}",
+      "alertLead": {
+        "one": "Get new rentals with at least {count} bedroom in {commune} on WhatsApp, as soon as they are published on Lukka Place.",
+        "other": "Get new rentals with at least {count} bedrooms in {commune} on WhatsApp, as soon as they are published on Lukka Place."
+      },
+      "alertButton": "Get new rentals in {commune}",
+      "alertNote": "You receive the listings as they arrive, not a price report. You can stop the alert at any time.",
+      "indexMetaTitle": "Rent Prices in Kinshasa in {year} — Median Rent by Commune",
+      "indexMetaDescription": "Median asking rent for a 2-bedroom: {examples}. {pages} prices by commune and number of bedrooms, worked out from listings online.",
+      "indexMetaDescriptionPlain": "Median asking rent by commune and number of bedrooms, worked out from listings online.",
+      "communeHeading": "Rents in {commune}",
+      "indexIndexLink": "Lukka Index: How Rents Move, Month by Month",
+      "detailMetaTitle": "{beds}-Bedroom Rent in {commune} in {year} — {median} USD a Month",
+      "detailMetaTitleOne": "1-Bedroom Rent in {commune} in {year} — {median} USD a Month",
+      "sameCommune": "Other Rents in {commune}",
+      "sameBeds": "A {beds}-Bedroom in Another Commune",
+      "sameBedsOne": "A 1-Bedroom in Another Commune",
+      "listingsInCommune": "Listings in {commune}"
     },
     "videos": {
       "title": "Video Tours",
@@ -425,22 +466,27 @@
         "projects": "New Projects",
         "agencies": "Agencies"
       }
+    },
+    "popularSearches": {
+      "title": "Popular Searches",
+      "showAll": "Show all {count} searches",
+      "showLess": "Show fewer"
     }
   },
   "about": {
     "metaTitle": "About — Lukka Place",
-    "metaDescription": "Lukka Place makes house hunting in the DRC simpler: reviewed listings, clear prices, viewings booked online and agents you can reach directly, in Kinshasa, Lubumbashi, Goma and beyond.",
+    "metaDescription": "Lukka Place makes house hunting in the DRC simpler: reviewed listings, clear prices, viewings booked online and agents you can reach directly, in Kinshasa, Lubumbashi and beyond.",
     "eyebrow": "About",
     "heroKicker": "About Lukka Place",
     "heroTitle": "Find Your Next Home, Without the Runaround.",
     "heroAccent": "Without the Runaround",
     "heroPhotoAlt": "A young couple moving in, holding a box",
     "photoCredit": "Photo: {name} / Pexels",
-    "heroLead": "Reviewed listings, clear prices and the agent one tap away — in Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and the DRC's major cities.",
+    "heroLead": "Reviewed listings, clear prices and the agent one tap away — in Kinshasa, Lubumbashi, Bukavu, Kisangani and the DRC's major cities.",
     "ctaBrowse": "Browse listings",
     "ctaAgent": "I'm an agent",
     "visionEyebrow": "Our Ambition",
-    "visionTitle": "Kinshasa, Lubumbashi, Goma… the Whole DRC.",
+    "visionTitle": "Kinshasa, Lubumbashi… the Whole DRC.",
     "visionAccent": "the Whole DRC",
     "visionBody": "Finding a home takes too long: calls nobody answers, vague listings, trips for nothing.",
     "visionPhotoBukavuAlt": "Aerial view of a city in the Democratic Republic of the Congo (Bukavu)",
@@ -466,7 +512,7 @@
     "title": "A Platform Built for the DRC",
     "body3": "Prices are set in US dollars. The Congolese franc display is an indicative estimate, converted at a dated reference rate, and is never presented as the contractual price.",
     "body4": "Lukka Place does not provide direct financial brokerage services; the platform facilitates introductions between advertisers and interested parties via listing reference.",
-    "visionBody2": "We are changing that, city by city: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani, Mbuji-Mayi, Kananga and more, commune by commune and neighbourhood by neighbourhood.",
+    "visionBody2": "We are changing that, city by city: Kinshasa, Lubumbashi, Bukavu, Kisangani, Mbuji-Mayi, Kananga and more, commune by commune and neighbourhood by neighbourhood.",
     "visionBody3": "Whether you are on the ground or abroad, you search the same way: simply, and with confidence.",
     "change3aTitle": "Everything Stated Before You Set Off",
     "change3aBody": "Photos, neighbourhood, price, deposit, advance and commission: you know what to expect before you move.",
@@ -479,12 +525,11 @@
   },
   "contact": {
     "metaTitle": "Contact — Lukka Place",
-    "metaDescription": "Get in touch with Lukka Place on WhatsApp.",
+    "metaDescription": "Contact the Lukka Place team on WhatsApp at +243 846 962 654 or by email.",
     "eyebrow": "Contact",
-    "title": "Let's Talk About Your Project",
-    "lead": "WhatsApp is the fastest way to reach us — a question about a listing, a property to submit, or any other enquiry.",
-    "whatsappCta": "Message us on WhatsApp",
-    "unavailable": "The contact WhatsApp number has not been configured on this installation yet.",
+    "title": "Contact Lukka Place",
+    "lead": "A question about Lukka Place, a partnership or a complaint? Customers, businesses and agents can reach our team here. To list a property, use “List a property”.",
+    "phoneLabel": "On WhatsApp",
     "emailCta": "Email us",
     "emailLine": "Our address: {email}",
     "accountTitle": "Account and Data",
@@ -609,7 +654,10 @@
       "clearArea": "Clear map area",
       "emptyAreaTitle": "No Properties in This Area",
       "emptyAreaHint": "Zoom out or move the map to see more properties.",
-      "distanceFrom": "{distance} from {place}"
+      "distanceFrom": "{distance} from {place}",
+      "feedRequestTitle": "Not Found It Yet?",
+      "feedRequestBody": "Tell us what you are looking for: partner agencies send you homes on WhatsApp. Free.",
+      "feedRequestCta": "Describe what I need"
     },
     "empty": {
       "title": "No Properties Match",
@@ -794,6 +842,17 @@
       "recentViewers": {
         "one": "{count} person viewed this property in the last 7 days",
         "other": "{count} people viewed this property in the last 7 days"
+      },
+      "agentTrust": {
+        "phoneVerified": "Verified number",
+        "live": {
+          "one": "{count} listing online",
+          "other": "{count} listings online"
+        },
+        "closed": {
+          "one": "{count} let or sold",
+          "other": "{count} let or sold"
+        }
       }
     },
     "sidebar": {
@@ -815,7 +874,8 @@
       "seeAllCount": {
         "one": "See the Photo",
         "other": "See All {count} Photos"
-      }
+      },
+      "swipeHint": "Swipe to see more"
     },
     "metrics": {
       "price": "Price",
@@ -898,8 +958,10 @@
       "reasons": {
         "save": "With an account, your search follows you on every device.",
         "alert": "With an account, we tell you as soon as a new home matches.",
-        "favorite": "With an account, your saved homes follow you everywhere, and we tell you if their price drops."
-      }
+        "favorite": "With an account, your saved homes follow you everywhere, and we tell you if their price drops.",
+        "nudge": "With a free account, your saved homes follow you everywhere and new homes arrive on WhatsApp."
+      },
+      "nudge": "Be the First to Hear About New Homes"
     },
     "related": {
       "similar": "Similar Properties",
@@ -937,7 +999,8 @@
       "type": "Median asking {label} in {commune} ({type}): {median} — {count} comparable live listings",
       "rent": "rent",
       "sale": "price",
-      "more": "See the market in {commune}"
+      "more": "See the market in {commune}",
+      "guide": "Rent guide:"
     },
     "utilityFilters": {
       "label": "Services",
@@ -1093,7 +1156,7 @@
       "phone": "Your WhatsApp number",
       "submit": "Send my request",
       "sending": "Sending…",
-      "privacy": "Your number goes to the agencies that receive your request and to the Lukka Place team, and to nobody else.",
+      "privacy": "Your number only goes to the agencies that take your request (3 at most) and to the Lukka Place team.",
       "sentTitle": "Request Sent",
       "sentBody": "Our partner agencies covering {commune} receive it. If one of them has a matching property, they will message you on WhatsApp at the number ending {last4}.",
       "sentBodyShort": "Your request has been received.",
@@ -1107,7 +1170,10 @@
         "send": "The request could not be sent. Please try again in a moment."
       },
       "jump": "Or tell us what you need: we pass it on to agencies ↓",
-      "situation": "Your situation (optional)"
+      "situation": "Your situation (optional)",
+      "openAccount": "Create my free account",
+      "openAccountHint": "With your name and this number: follow your request and get new homes. No password.",
+      "cityWide": "All of {city}"
     },
     "similarAlert": {
       "title": "Not Quite Right?",
@@ -1151,12 +1217,119 @@
       "draw": "Draw a zone",
       "redraw": "Redraw the zone"
     },
+    "waIntent": {
+      "title": "What Would You like to Ask?",
+      "lead": "WhatsApp opens with your message already written for {who}.",
+      "theAgent": "the agent",
+      "options": {
+        "visit": {
+          "label": "I want to visit it",
+          "hint": "Ask for a viewing time"
+        },
+        "availability": {
+          "label": "Is it still available?",
+          "hint": "The most asked question"
+        },
+        "question": {
+          "label": "Another question",
+          "hint": "You type it in WhatsApp"
+        },
+        "video_visit": {
+          "label": "By video call",
+          "hint": "Ideal if you are abroad"
+        }
+      },
+      "footer": "You write straight to the agent, from your own WhatsApp.",
+      "visitMode": {
+        "title": "How Would You like to Visit?",
+        "lead": "In person, or the agent shows you the property on a WhatsApp video call.",
+        "back": "Back",
+        "warning": "Never pay any money on the strength of a video alone.",
+        "inPerson": {
+          "label": "In person",
+          "hint": "You go to the property with the agent"
+        }
+      },
+      "contact": {
+        "title": "Get the Visit Confirmation?",
+        "lead": "Optional. Leave your name and WhatsApp number: {who} will know who you are, and Lukka Place will send you the confirmation and the viewing record.",
+        "name": "Your name (optional)",
+        "phone": "Your WhatsApp number (optional)",
+        "privacy": "Your number goes to {who} to follow this visit. Every message lets you stop receiving them.",
+        "continue": "Continue on WhatsApp",
+        "skip": "Skip — write without leaving my number",
+        "invalidPhone": "This number is not recognised. Check the country code and the number, or skip this step.",
+        "openAccount": "Create my free account",
+        "openAccountHint": "Follow this visit and get homes like this one on WhatsApp. No password."
+      },
+      "returnPrompt": {
+        "title": "Did Your Message Go Through?",
+        "failedTitle": "Other Ways to Reach the Agent",
+        "yes": "Yes, it’s sent",
+        "no": "It didn’t work",
+        "retry": "Try WhatsApp again",
+        "call": "Call the agent",
+        "visit": "Request a visit here",
+        "close": "Close"
+      }
+    },
     "contactSignup": {
       "title": "Find This Property and the Agent Later",
-      "lead": "Your number, then a code from your WhatsApp. No password.",
+      "lead": "Your number and your name, that is all. No password.",
       "perkSaved": "This property kept in your favourites, on all your devices",
       "perkAlerts": "Alerts when a property that suits you is listed",
-      "noThanks": "No thanks"
+      "noThanks": "No thanks",
+      "titleSimilar": "Get Homes Like This One",
+      "perkSimilar": "New homes like this one on WhatsApp, as soon as they are listed",
+      "leadKnown": "Your number is already here: one tap and you are done."
+    },
+    "feedAlert": {
+      "title": "Get New Homes on WhatsApp",
+      "body": "Pick a commune: we write to you as soon as a home is listed there. Free.",
+      "bodyFor": "{search}: we write to you as soon as a new home matches. Free.",
+      "commune": "Commune",
+      "communePlaceholder": "Choose a commune",
+      "button": "Alert me on WhatsApp",
+      "footnote": "No password: your number and your name are enough."
+    },
+    "accountOffer": {
+      "created": {
+        "title": "Your Free Account Is Open",
+        "body": "You are signed in on this phone: follow the reply and get new homes on WhatsApp.",
+        "cta": "See my space"
+      },
+      "existing": {
+        "title": "You Already Have an Account with This Number",
+        "body": "Get a code on your WhatsApp to sign in and follow the reply.",
+        "cta": "Sign in"
+      },
+      "offer": {
+        "title": "Follow the Reply in Your Free Account",
+        "body": "Your number and your name, that is all. No password.",
+        "cta": "Create my free account"
+      }
+    },
+    "alertLanding": {
+      "metaTitle": "WhatsApp Alerts — Lukka Place",
+      "title": "Get New Homes on WhatsApp",
+      "lead": "A commune, a budget: we write to you as soon as a matching home is listed.",
+      "perkFree": "Free",
+      "perkNoPassword": "No password: your number and your name are enough",
+      "perkStop": "Every message has the link to stop them"
+    },
+    "listingAlert": {
+      "title": "Get Homes like This One",
+      "body": "We write to you on WhatsApp as soon as a home like this one is listed. Free.",
+      "button": "Alert me on WhatsApp"
+    },
+    "budgetChips": {
+      "label": "Monthly budget",
+      "under200": "Under $200",
+      "from200to400": "$200 – 400",
+      "from400to750": "$400 – 750"
+    },
+    "explore": {
+      "title": "Explore {commune}"
     }
   },
   "enquiry": {
@@ -1178,7 +1351,8 @@
       "phone": "Invalid number — check it and try again.",
       "time": "Tell us the time that suits you.",
       "failed": "Sending failed, please try again.",
-      "closed": "The agent takes no viewings that day. Pick another day."
+      "closed": "The agent takes no viewings that day. Pick another day.",
+      "video": "This agent does not offer video call visits. Please choose an in-person visit."
     },
     "trackVisit": "Follow their answer in My viewings →",
     "visitShort": "Visit",
@@ -1233,7 +1407,22 @@
         "failed": "Sending failed. Try again in a moment."
       }
     },
-    "sentTeam": "Your viewing request has been received. The Lukka Place team is passing it to the agent and will get back to you."
+    "sentTeam": "Your viewing request has been received. The Lukka Place team is passing it to the agent and will get back to you.",
+    "visitMode": {
+      "label": "How Would You Like to Visit?",
+      "inPerson": "In person",
+      "inPersonHint": "You go to the property with the agent",
+      "video": "By video call",
+      "videoHint": "The agent shows you the property on a WhatsApp video call",
+      "videoNote": "The agent will video call you on WhatsApp, on the number below, at the time you choose.",
+      "warning": "Never pay any money on the strength of a video alone.",
+      "bothClocks": "{listingTime} in {listingCity} · {visitorTime} in {visitorCity}",
+      "optionVisitor": "{time} ({visitorTime} in {visitorCity})",
+      "nextDay": "the next day",
+      "prevDay": "the day before",
+      "sentVideo": "Video call visit: the agent will call you on WhatsApp at the agreed time."
+    },
+    "openAccountHint": "With your name and this number: follow the agency’s reply. No password."
   },
   "search": {
     "label": {
@@ -1267,7 +1456,9 @@
       "query": "“{query}”",
       "depositRange": "Upfront {value}",
       "leaseLong": "Long term",
-      "leaseShort": "Short term (by the day)"
+      "leaseShort": "Short term (by the day)",
+      "studio": "Studio",
+      "bedsUnit": "bed"
     }
   },
   "agent": {
@@ -1515,6 +1706,10 @@
       "alreadyDone": "No change: the viewing was already in this state.",
       "closed": "No further action is possible on this viewing.",
       "clientNotifiedBadge": "Client notified",
+      "noSlot": "No time given",
+      "slotAgreed": "Confirmed · Kinshasa time",
+      "slotPicked": "Time picked by the customer · Kinshasa time",
+      "slotInWords": "Asked for by the customer, in their words",
       "directContact": "I've already contacted the client",
       "directContactHint": "How?",
       "directContactWhatsapp": "On WhatsApp",
@@ -1522,10 +1717,6 @@
       "directContactInPerson": "In person",
       "directContactSaved": "Noted: the request is no longer flagged as unanswered.",
       "directContactBadge": "Client contacted directly",
-      "noSlot": "No time given",
-      "slotAgreed": "Confirmed · Kinshasa time",
-      "slotPicked": "Time picked by the customer · Kinshasa time",
-      "slotInWords": "Asked for by the customer, in their words",
       "videoCall": "WhatsApp video call requested"
     },
     "settings": {
@@ -1706,7 +1897,7 @@
       "directoryTitle": "Estate Agents in the DRC",
       "directoryEmpty": "No active agents at the moment.",
       "directoryMetaTitle": "Agents — Lukka Place",
-      "directoryMetaDescription": "Estate agents active across the DRC — Kinshasa, Lubumbashi, Goma and more — with real listings published on Lukka Place.",
+      "directoryMetaDescription": "Estate agents active across the DRC — Kinshasa, Lubumbashi and more — with real listings published on Lukka Place.",
       "hostedBy": "Portfolio hosted by Lukka Place",
       "reportListing": "Report a listing",
       "whatsappPublish": "Hello, I'd like to list a property on Lukka Place.",
@@ -1770,12 +1961,6 @@
         "one": "commune covered",
         "other": "communes covered"
       },
-      "statClosed": {
-        "one": "property let or sold",
-        "other": "properties let or sold"
-      },
-      "upToDate": "Listings up to date",
-      "upToDateHint": "Every listing online was confirmed available by the agency in the last {days} days, or published in that time.",
       "backToAgencies": "Agencies",
       "aboutEyebrow": "About the Agency",
       "listingsHeading": "Listings from {name}",
@@ -1792,7 +1977,27 @@
       "writeToAgency": "Write to the agency",
       "zonesLabel": "Areas covered",
       "alertTitle": "Get New Listings from {name}",
-      "alertBody": "Tell the agency what you are looking for and they will let you know on WhatsApp as soon as a property matches."
+      "alertBody": "Tell the agency what you are looking for and they will let you know on WhatsApp as soon as a property matches.",
+      "statClosed": {
+        "one": "property let or sold",
+        "other": "properties let or sold"
+      },
+      "upToDate": "Listings up to date",
+      "upToDateHint": "Every listing online was confirmed available by the agency in the last {days} days, or published in that time.",
+      "metaDescription": {
+        "one": "{name} on Lukka Place: {count} property listed for rent or sale. Works in {place}.",
+        "other": "{name} on Lukka Place: {count} properties listed for rent or sale. Works in {place}."
+      },
+      "metaDescriptionNoPlace": {
+        "one": "{name} on Lukka Place: {count} property listed for rent or sale.",
+        "other": "{name} on Lukka Place: {count} properties listed for rent or sale."
+      },
+      "metaDescriptionEmpty": "{name} on Lukka Place: a property agency, its homes for rent and for sale.",
+      "metaMoreCommunes": {
+        "one": "{count} other commune",
+        "other": "{count} other communes"
+      },
+      "metaUnnamed": "An agency"
     },
     "completion": {
       "nameLabel": "Name provided",
@@ -2124,6 +2329,12 @@
         "failed": "Could not save. Try again.",
         "unavailable": "This setting is not available yet.",
         "note": "Applies at once to all your listings."
+      },
+      "video": {
+        "title": "I Accept Video Call Visits",
+        "lead": "A customer abroad asks you to show them the property on a WhatsApp video call.",
+        "savedOn": "Video call visits switched on.",
+        "savedOff": "Video call visits switched off."
       }
     },
     "availability": {
@@ -2200,7 +2411,8 @@
         "thin_photos": "Fewer than 3 photos",
         "missing_description": "Description missing",
         "missing_deposit": "Deposit not stated",
-        "no_map_pin": "Quartier missing (map)"
+        "no_map_pin": "Quartier missing (map)",
+        "no_min_rental_budget": "Minimum rent you accept"
       },
       "hints": {
         "no_communes": "Without a commune you receive no automatically matched customer requests.",
@@ -2213,7 +2425,8 @@
         "thin_photos": "At least 3 photos for good visibility.",
         "missing_description": "Describe the property in a few lines.",
         "missing_deposit": "State the deposit required (in months).",
-        "no_map_pin": "The quartier is used to place the property on the map."
+        "no_map_pin": "The quartier is used to place the property on the map.",
+        "no_min_rental_budget": "Tell us the rent you start from: requests below it will no longer be sent to you."
       },
       "bannerTitle": "Profile Incomplete:",
       "bannerCount": {
@@ -2900,7 +3113,10 @@
       "paid": "Paid:",
       "recent": "Latest customers",
       "someone": "Customer",
-      "rule": "{amount} per activated customer: number verified and one real action (listing saved, alert or visit) within {days} days. Paid every two weeks by mobile money, after checks."
+      "rule": "{amount} per activated customer: number verified and one real action (listing saved, alert or visit) within {days} days. Paid every two weeks by mobile money, after checks.",
+      "agencyCode": "Agency code:",
+      "agencyShared": "{agency}'s code: your customers and your colleagues' count together, for the agency.",
+      "yourAgency": "your agency"
     },
     "directory": {
       "lead": "Find an agent by name, city or commune, and contact them directly on WhatsApp.",
@@ -3164,6 +3380,15 @@
         "generic": "Something went wrong. Try again."
       }
     },
+    "minBudget": {
+      "title": "Minimum Request Budget",
+      "hint": "We will not send you requests whose maximum budget is below this. If you take every budget, leave it empty and save. Amounts in dollars.",
+      "rental": "From what monthly rent do you take a rental request? ($)",
+      "sale": "And for a purchase, from what price? ($, optional)",
+      "none": "Every budget",
+      "invalid": "Enter an amount in dollars (digits only), or leave it empty.",
+      "unanswered": "Not answered yet"
+    },
     "appAdd": {
       "title": "Add a Property",
       "body": "Send the photos and the description on WhatsApp to {number}. We read your listing and check it before it goes live.",
@@ -3307,7 +3532,9 @@
         "slot": "Time: {time}",
         "noInstant": "The exact time is still to be agreed with the agent.",
         "declined": "The agent can't arrange this viewing. Similar properties have been sent to you on WhatsApp.",
-        "agentAbsent": "Thank you for letting us know: our team will get back to you."
+        "agentAbsent": "Thank you for letting us know: our team will get back to you.",
+        "video": "by video call",
+        "videoConfirmed": "the agent will video call you on WhatsApp. Never pay any money on the strength of a video alone."
       },
       "status": {
         "PENDING": "Viewing requested",
@@ -3977,7 +4204,7 @@
       },
       "account": {
         "title": "Create Your Space",
-        "lead": "Your move will be saved, and we’ll send you new homes that match it.",
+        "lead": "Your move will be saved and sent to the best-placed agencies: the ones that take it (3 at most) get your number and write to you. We’ll also send you new homes that match it.",
         "noAnswers": "You can tell us about your move later, from your space.",
         "summary": {
           "one": "{count} answer saved",
@@ -3987,7 +4214,7 @@
       },
       "edit": {
         "title": "Your Move Is Ready",
-        "lead": "Save it: we’ll prepare the homes and the alert that match it.",
+        "lead": "Save it: we’ll prepare the homes and the alert that match it, and send it to agencies if it hasn’t gone yet.",
         "save": "Save My Move",
         "saving": "Saving…",
         "error": "Your move could not be saved. Please try again in a moment.",
@@ -4026,16 +4253,16 @@
         "alertOn": "Alert on: we’ll tell you about new homes that match your move.",
         "request": {
           "title": "Let Agencies Suggest Homes",
-          "lead": "We send your move to the agencies in the communes you chose. They’ll write to you on WhatsApp.",
+          "lead": "Your move goes to the agencies best placed to answer it, those in your communes first. The ones that take it write to you on WhatsApp.",
           "cta": "Send my request to agencies",
           "sending": "Sending…",
           "sent": "Request sent on {date}. Agencies’ suggestions arrive in your messages.",
           "sentNow": "Request sent. Agencies’ suggestions will arrive in your messages.",
           "seeMessages": "See my messages",
-          "privacy": "Your number goes to the agencies that receive your request and to the Lukka Place team, and nobody else.",
+          "privacy": "Your number only goes to the agencies that take your request (3 at most) and to the Lukka Place team.",
           "missing": {
             "transaction": "To send your request, tell us whether you want to rent or buy.",
-            "communes": "To send your request, pick at least one commune."
+            "communes": "To send your request, pick your city or at least one commune."
           },
           "errors": {
             "send": "Your request could not be sent. Please try again in a moment.",
@@ -4226,7 +4453,8 @@
         "invalid": "Wrong code. Check it and try again.",
         "expired": "This code has expired. Ask for a new one.",
         "too_many": "Too many tries. Ask for a new code.",
-        "none": "No change in progress. Enter your new number."
+        "none": "No change in progress. Enter your new number.",
+        "demo": "Demo account: its number cannot be changed."
       }
     },
     "notifications": {
@@ -4316,7 +4544,6 @@
       "subscriptions": "Subscriptions",
       "cms": "CMS",
       "todayRate": "Today's rate",
-      "search": "Search",
       "editRate": "Edit rate",
       "customers": "Customers",
       "viewings": "Viewings",
@@ -4350,7 +4577,11 @@
       "campaign": "Campaign",
       "interactions": "Interactions",
       "seo": "SEO & Google",
-      "moveProjects": "Move Projects"
+      "search": "Search",
+      "moveProjects": "Move Projects",
+      "demo": "Demo Accounts",
+      "contacts": "Contacts",
+      "codes": "Codes Sent"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -4389,7 +4620,10 @@
       "direct": "Direct",
       "period": "Period",
       "periods": {
+        "1": "24 h",
+        "3": "3 days",
         "7": "7 days",
+        "14": "14 days",
         "30": "30 days",
         "90": "90 days",
         "tout": "All time"
@@ -4399,6 +4633,7 @@
       "hintDelta": "{delta} vs previous period",
       "hintExcluded": "{count} excluded (team, agents, bots)",
       "conversionPeople": "People only, on listing pages",
+      "conversionPerPerson": "{clickers} of {visitors} people ({rate}) tapped WhatsApp",
       "clicks": {
         "sectionTitle": "WhatsApp Clicks — Breakdown",
         "note": "Every table counts people only. The team, agents on their own listings and bots appear only under “Audience”.",
@@ -4570,7 +4805,8 @@
         "interestTitle": "Where Interest Goes",
         "seeMarketData": "Market data",
         "viewsTable": "Views by Commune"
-      }
+      },
+      "pageViewsHint": "See where visitors come from →"
     },
     "investors": {
       "title": "Investor Metrics",
@@ -4929,7 +5165,9 @@
         "code_verified": "Signed in with a code",
         "whatsapp_verified": "Signed in via WhatsApp",
         "activated": "Account activated"
-      }
+      },
+      "replies": "Alert Replies",
+      "repliesHint": "\"Un client vous contacte\" alerts in the last 30 days that the agent answered (their word, not their WhatsApp chat) out of the alerts sent. Rate from 3 alerts."
     },
     "actions": {
       "approve": "Approve",
@@ -5091,6 +5329,7 @@
         "cleanUp": "Clean up"
       },
       "row": {
+        "nameLooksLikeSentence": "Name looks like a sentence",
         "agentFallback": "Agent #{id}",
         "verifiedNumber": "Verified number",
         "unverifiedNumber": "Unverified number",
@@ -5103,7 +5342,7 @@
         },
         "vsMedian": "{ratio}× the median",
         "duplicateLabel": "Possible duplicate · {whose}",
-        "nameLooksLikeSentence": "Name looks like a sentence"
+        "partnerAgency": "Partner agency"
       },
       "decidedBy": "Decided by {name}",
       "decidedByUnknown": "Decided with the shared password",
@@ -5192,7 +5431,43 @@
           "one": "Review the skipped one",
           "other": "Review the {count} skipped"
         },
-        "backToQueue": "Back to listings"
+        "backToQueue": "Back to listings",
+        "fixHere": "Fix here",
+        "quickEdit": {
+          "heading": "Correct the Listing",
+          "allFields": "All fields",
+          "title": "Title",
+          "description": "Description",
+          "subtype": "Sub-type",
+          "none": "None",
+          "priceUsd": "Displayed price ($)",
+          "currency": "Currency",
+          "priceOriginal": "Entered price (FC)",
+          "period": "Period",
+          "periodNone": "Not stated",
+          "periodOption": {
+            "mois": "Per month",
+            "an": "Per year",
+            "jour": "Per day (short stay)",
+            "semaine": "Per week (short stay)",
+            "total": "Total price (sale)"
+          },
+          "commune": "Commune",
+          "quartier": "Quartier",
+          "areaM2": "Area (m²)",
+          "save": "Save",
+          "cancel": "Cancel",
+          "saveAndApprove": "Save and approve",
+          "approveHint": "The green button saves, then approves (Ctrl+Enter). Esc cancels.",
+          "savedToast": "Listing #{id} corrected.",
+          "noChange": "Nothing to save."
+        }
+      },
+      "partners": {
+        "label": "Partner agencies:",
+        "all": "All listings",
+        "only": "Partners · {names}",
+        "none": "Not partners"
       }
     },
     "subscriptions": {
@@ -5350,10 +5625,23 @@
       "transfer": "Transfer",
       "subscriptionHistory": "Subscription History",
       "testAccount": "Test account",
-      "testAccountHint": "Demo account: not in the agents directory or search engines, receives no real customer requests, its listings are never auto-published and are excluded from market statistics, exports and reports. A listing already approved stays online: archive it to take it off the site.",
+      "testAccountHint": "Its listings are excluded from market statistics, exports and reports. To take them off the site, archive them.",
       "markedTest": "Account marked as a test account.",
       "unmarkedTest": "The account counts in market data again.",
-      "testAccountUnavailable": "Unavailable until the market-data migration has been applied."
+      "testAccountUnavailable": "Unavailable until the market-data migration has been applied.",
+      "minBudget": {
+        "title": "Minimum Request Budget",
+        "rental": "Rental ($ per month)",
+        "sale": "Purchase ($)",
+        "none": "Every budget",
+        "adminHint": "Requests whose maximum budget is below this are not sent to this agency. Empty = every budget.",
+        "lastSetBy": "Last change: {source}.",
+        "source": {
+          "admin": "Lukka Place team",
+          "agent": "the agency, from its dashboard",
+          "whatsapp": "the agency, on WhatsApp"
+        }
+      }
     },
     "cms": {
       "exchangeRate": "Exchange Rate (USD → CDF)",
@@ -5558,19 +5846,6 @@
       "actionFailed": "The action did not go through.",
       "cancelled": "Viewing cancelled.",
       "escalated": "Escalated (15 min)",
-      "recordContact": "Direct contact confirmed",
-      "recordContactTitle": "The Agent Contacted the Customer",
-      "recordContactBody": "Use this when the agent tells you they wrote to or called the customer from their own phone: we cannot see those chats. The request is no longer escalated. Nobody is messaged.",
-      "channelWhatsapp": "WhatsApp",
-      "channelPhone": "Phone call",
-      "channelInPerson": "In person",
-      "channelOther": "Other",
-      "contactRecorded": "Direct contact recorded.",
-      "contactAlreadyRecorded": "A direct contact was already recorded for this request.",
-      "directContactChip": "Direct contact · {channel}",
-      "contactByAgentWhatsapp": "said by the agent (WhatsApp)",
-      "contactByAgentDashboard": "said by the agent (dashboard)",
-      "contactByDesk": "recorded by the team",
       "searchPlaceholder": "Agency, customer name or phone",
       "colCommune": "Commune",
       "cancel": "Cancel viewing",
@@ -5596,6 +5871,19 @@
       "alertListingAgent": "Alert the agent",
       "alertListingAgentHint": "Send {name} the viewing request on WhatsApp and assign it to them",
       "assign": "Assign",
+      "recordContact": "Direct contact confirmed",
+      "recordContactTitle": "The Agent Contacted the Customer",
+      "recordContactBody": "Use this when the agent tells you they wrote to or called the customer from their own phone: we cannot see those chats. The request is no longer escalated. Nobody is messaged.",
+      "channelWhatsapp": "WhatsApp",
+      "channelPhone": "Phone call",
+      "channelInPerson": "In person",
+      "channelOther": "Other",
+      "contactRecorded": "Direct contact recorded.",
+      "contactAlreadyRecorded": "A direct contact was already recorded for this request.",
+      "directContactChip": "Direct contact · {channel}",
+      "contactByAgentWhatsapp": "said by the agent (WhatsApp)",
+      "contactByAgentDashboard": "said by the agent (dashboard)",
+      "contactByDesk": "recorded by the team",
       "confirmVisit": "Confirm Visit",
       "confirmVisitTitle": "Confirm the Visit",
       "confirmVisitBody": "Use this when the agent has given you the time agreed with the customer. Kinshasa time. The customer gets the confirmation on WhatsApp and the agent a message from the team.",
@@ -5607,7 +5895,16 @@
       "confirmClosed": "This request can no longer be confirmed (declined, cancelled or finished).",
       "awaitingCustomer": "Awaiting customer",
       "proposalReminded": "Customer reminded",
-      "proposalRefused": "Time refused — agent asked again"
+      "proposalRefused": "Time refused — agent asked again",
+      "duplicateOf": "Copy of #{id} · Closed",
+      "possibleDuplicateOf": "Same Customer and Listing as #{id}",
+      "sameRequestAs": "Same request: {ids}",
+      "listingTakenDown": "Listing taken off the site (let / sold)",
+      "mode": {
+        "label": "Visit type",
+        "inPerson": "In person",
+        "video": "Video call"
+      }
     },
     "marketData": {
       "title": "Market Data",
@@ -5796,7 +6093,19 @@
         "listing_mobile_bar": "Listing page (phone)",
         "map_card": "Map card"
       },
-      "viaLukka": "Via Lukka Place (verified agent listing)"
+      "viaLukka": "Via Lukka Place (verified agent listing)",
+      "colAgentAlert": "Agent alerted",
+      "agentAlertHelp": "For a tap to the agent's own WhatsApp: the \"Un client vous contacte\" alert sent to the agent, and what they answered. A tap is not a message: the customer may close WhatsApp without writing. The agent is alerted once per customer per listing over 24 h, and at most once every 30 minutes per listing.",
+      "agentAlert": {
+        "replied": "Replied to the customer",
+        "nothing": "Says nothing arrived",
+        "waiting": "Alerted · no answer",
+        "failed": "Alert not sent",
+        "earlier": "Already alerted (earlier tap)",
+        "none": "No alert",
+        "unavailable": "Unavailable",
+        "visitSet": "Visit set"
+      }
     },
     "table": {
       "all": "All",
@@ -5871,7 +6180,18 @@
       "renameSave": "Save",
       "renameInvalid": "Enter a real agency name (at least 2 characters, not a number).",
       "renamed": "Name saved for {count} agent(s) of the agency.",
-      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”."
+      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”.",
+      "partner": {
+        "chip": "Partner agency",
+        "mark": "Mark as partner",
+        "remove": "Remove from partners",
+        "hint": "Its listings are grouped and badged “Partner agency” in approvals, and the agency gets one referral code for all its agents: the customers they bring count for the agency.",
+        "marked": "Agency marked as a partner.",
+        "unmarked": "Agency removed from partners.",
+        "unavailable": "Partner agencies are not switched on yet (migration not run).",
+        "code": "Agency referral code (all its agents):",
+        "codeStats": "Agency customers and credits"
+      }
     },
     "agentProfile": {
       "tabs": "Agent sections",
@@ -5901,7 +6221,27 @@
       "listingsQuota": "Listings (total / quota)",
       "priorityTitle": "Priority for Customer Requests",
       "priorityLead": "The level that decides which agencies receive a request first. The agency sees the same card on its dashboard.",
-      "priorityFoot": "Not public: only the agency and the team see it."
+      "priorityFoot": "Not public: only the agency and the team see it.",
+      "agency": {
+        "current": "Current agency: {name}",
+        "none": "No agency yet",
+        "searchLabel": "Attach to agency",
+        "searchPlaceholder": "Agency name, or the name or number of one of its agents",
+        "searchHint": "Type at least 2 characters.",
+        "searching": "Searching…",
+        "noResult": "No agency found.",
+        "agents": {
+          "one": "{count} agent",
+          "other": "{count} agents"
+        },
+        "contact": "contact: {name}",
+        "isCurrent": "current agency",
+        "quotaNote": "Their listings will count towards this agency’s plan.",
+        "confirm": "Attach to {name}",
+        "moved": "Agency updated: {name}.",
+        "oldEmpty": "The previous agency “{name}” has no agents left. You can delete it from its page.",
+        "openOld": "Open the previous agency"
+      }
     },
     "audit": {
       "title": "Audit Log",
@@ -5948,11 +6288,6 @@
       "receipt": "Receipt"
     },
     "customerProfile": {
-      "testAccount": "Test account",
-      "testAccountHint": "Demo or test account: left out of sign-up counts and the sign-up funnel.",
-      "markedTest": "Account marked as a test account.",
-      "unmarkedTest": "The account counts in sign-ups again.",
-      "testAccountUnavailable": "Unavailable until migration 20261112_customer_test_flag.sql has been applied.",
       "back": "← All customers",
       "joined": "Joined {date}",
       "lastLogin": "Last login {date}",
@@ -7590,7 +7925,9 @@
         "agent": "Agents",
         "creatorOne": "Creator",
         "campaignOne": "Campaign",
-        "agentOne": "Agent"
+        "agentOne": "Agent",
+        "agency": "Partner Agencies",
+        "agencyOne": "Partner Agency"
       },
       "period": "Period",
       "days": "{n} days",
@@ -7955,7 +8292,13 @@
           "whatsapp": "WhatsApp sign-in",
           "visit": "After a visit request",
           "onboarding": "App welcome questions",
-          "after_whatsapp": "After a WhatsApp to an agent"
+          "after_whatsapp": "After a WhatsApp to an agent",
+          "feed_alert": "Alert Card in Results",
+          "request": "\"Find for Me\" Request",
+          "home_hero": "Bell in the Home Search",
+          "alert_landing": "/alertes-whatsapp Page",
+          "listing_alert": "Homes like this one (listing)",
+          "wa_sheet": "Before WhatsApp (visit)"
         },
         "refusals": {
           "name": "Missing name",
@@ -8046,7 +8389,6 @@
         "summaryTooLong": "The summary is over 400 characters.",
         "bodyTooLong": "The article is too long.",
         "bodyRequired": "A published article needs a text.",
-        "badBlock": "A block in the text cannot be read",
         "englishTooLong": "The English version is over the allowed length.",
         "englishIncomplete": "The English version needs a title and a text, or must stay empty.",
         "badSlug": "The link may only contain lowercase letters, digits and hyphens.",
@@ -8060,7 +8402,8 @@
         "badType": "Unknown property type.",
         "coverType": "The image must be JPEG, PNG or WebP.",
         "coverSize": "The image is over {max} MB.",
-        "gone": "This article no longer exists."
+        "gone": "This article no longer exists.",
+        "badBlock": "A block in the text cannot be read"
       }
     },
     "campaign": {
@@ -8103,9 +8446,6 @@
       "totalHelp": "Sum of the channels beside it. A tap proves the customer opened WhatsApp or the call to the agent, not that a conversation followed. Taps to Lukka Place’s central number are not counted: when the customer sends the message, it is already counted under “Messages to Lukka Place”. Only visitors count (never the agent themselves, the team or a bot).",
       "agentsReached": "{count} agents contacted",
       "answered": "{contacted} of {total} requests marked handled by the agent or the team",
-      "tapAlerts": "Agents alerted live about {alerted} taps: {replied} confirmed they replied, {nothing} received nothing.",
-      "tapReplied": "Reply confirmed",
-      "tapRepliedHelp": "WhatsApp/call taps the agent was alerted about at the time, and how many the agent confirmed answering (\"J’ai répondu\").",
       "central": "Also: {whatsapp} WhatsApp taps and {call} calls to Lukka Place’s central number.",
       "channels": {
         "whatsappDirect": "Direct WhatsApp",
@@ -8176,7 +8516,10 @@
           "listingMissing": "No listing no. {id}.",
           "engine": "Could not save: {error}"
         }
-      }
+      },
+      "tapAlerts": "Agents alerted live about {alerted} taps: {replied} confirmed they replied, {nothing} received nothing.",
+      "tapReplied": "Reply confirmed",
+      "tapRepliedHelp": "WhatsApp/call taps the agent was alerted about at the time, and how many the agent confirmed answering (\"J’ai répondu\")."
     },
     "marketPaste": {
       "title": "Paste Adverts",
@@ -8232,6 +8575,7 @@
       "statSigned": "Signed up",
       "filterOpen": "In progress",
       "filterAll": "All",
+      "filterAgents": "Already Lukka Place agents",
       "searchPlaceholder": "Name, agency, number, note…",
       "search": "Search",
       "export": "Export (CSV)",
@@ -8360,7 +8704,23 @@
       "oneCustomer": "Projects of customer #{id}.",
       "allCustomers": "See all customers",
       "whatsapp": "Message on WhatsApp",
-      "call": "Call"
+      "call": "Call",
+      "wholeCity": "{city} (whole city)",
+      "send": "Send to agencies",
+      "sendTitle": "Send This Project to Agencies?",
+      "sendIntro": "{name}'s project goes to the best-placed agencies: 2 first, then 3, then 2, every 30 minutes. An agency only gets the customer's number if it takes the request (3 at most). If nobody takes it, the desk is told.",
+      "sendConfirm": "Yes, send",
+      "sending": "Sending…",
+      "sentShort": "Sent",
+      "sentNow": "Project sent to agencies: request #{id}.",
+      "sendBlocked": {
+        "transaction": "Cannot go: rent or buy is not stated.",
+        "communes": "Cannot go: no city and no commune.",
+        "recent": "Already sent less than 20 h ago.",
+        "inactive": "Project found or paused: nothing is sent.",
+        "phone": "This customer has no number.",
+        "send": "Sending failed. Try again in a moment."
+      }
     },
     "whatsappHistory": {
       "title": "WhatsApp History",
@@ -8371,6 +8731,265 @@
       "sent": "Sent",
       "buttonTap": "Button",
       "media": "{count} media"
+    },
+    "demo": {
+      "title": "Demo Accounts",
+      "subtitle": "A demo customer and a demo agent, paired together, to use Lukka Place exactly as a customer or an agent would — without touching a real customer, a real agent or the public site.",
+      "rulesTitle": "What Protects the Real Data",
+      "ruleNumbers": "Each demo account has a reserved number (+243 0000 …) that belongs to nobody.",
+      "ruleMessages": "No WhatsApp message is sent to demo accounts: it is recorded here (and copied to your phone if you give one). During a demo action nothing goes to a real number — not the desk, not an agency.",
+      "ruleRouting": "The demo customer’s requests (visits, requests, messages, projects) go only to their demo agent. The demo agent never receives a real customer’s request.",
+      "ruleListings": "A demo agent’s listing stays pending: it can never be approved or appear on the site, even from the Laravel back-office.",
+      "ruleStats": "Demo accounts’ visits and saves count neither in agents’ statistics nor in advertising.",
+      "ruleBrowse": "The demo customer browses the real live listings; only what follows (visit, request, message) is redirected to the demo agent.",
+      "createTitle": "New Demo Pair",
+      "label": "Pair name",
+      "labelPlaceholder": "E.g. Visit journey test",
+      "customerName": "Demo customer name",
+      "agentName": "Demo agent name",
+      "agencyName": "Demo agent’s agency",
+      "agencyPlaceholder": "Demo agency — (pair name)",
+      "deliverTo": "Copy messages to this number (optional)",
+      "deliverToHint": "Your WhatsApp: you will receive a copy of every message sent to the demo accounts. WhatsApp rules apply (a plain message only arrives if this number wrote to us in the last 24 h).",
+      "deliverToClear": "Leave empty to stop receiving copies.",
+      "create": "Create Pair",
+      "creating": "Creating…",
+      "created": "Demo pair created.",
+      "empty": "No demo pair yet.",
+      "notReady": "The demo accounts migration (migrations/20261114_demo_accounts.sql) has not been applied yet.",
+      "loadError": "Could not load demo accounts: {error}",
+      "notFound": "Demo pair not found.",
+      "errorLabel": "Give the pair a name.",
+      "errorPhone": "Invalid copy number.",
+      "errorTaken": "These demo numbers are already in use. Try again.",
+      "errorFull": "Maximum number of demo pairs reached.",
+      "createdBy": "Created by {who}",
+      "resetOn": "reset on {date}",
+      "customerSide": "Customer Side",
+      "agentSide": "Agent Side",
+      "favorites": "{count} saved listing(s)",
+      "listings": "{count} listing(s), never published",
+      "openCustomer": "Open the Customer Space",
+      "openAgent": "Open the Agent Space",
+      "copiesTo": "Message copies sent to {phone}.",
+      "copiesNone": "Messages recorded here only, no copy.",
+      "copiesEdit": "Edit",
+      "copiesSaved": "Copy number saved.",
+      "messages": "Messages",
+      "reset": "Reset",
+      "resetDone": "Pair reset: everything it created is deleted.",
+      "confirmReset": "Reset “{label}”? Everything these two accounts created (listings, requests, visits, saves, messages) will be deleted, then the accounts recreated.",
+      "delete": "Delete",
+      "deleted": "Demo pair deleted.",
+      "confirmDelete": "Delete “{label}” and everything these two accounts created? This cannot be undone.",
+      "engineLeft": "Done, but the engine-side history could not be deleted: {error}",
+      "back": "← Demo accounts",
+      "messagesTitle": "Messages — {label}",
+      "messagesHint": "Everything the demo accounts would have received on WhatsApp. A “[Démo — non envoyé à +…]” line is a message that would have gone to a real number (desk, agency) during a demo action."
+    },
+    "contacts": {
+      "title": "Contacts",
+      "subtitle": "Every time a customer reached an agent, one row each: who, which agent, about what, through which channel, and what happened next. A direct WhatsApp or Call tap only gives us the customer's number when they are signed in to their account.",
+      "engineError": "Engine data unavailable (messages, visits, alerts): {error}",
+      "databaseError": "Taps and site messages unavailable: {error}",
+      "capped": "This period holds more than 5,000 rows for at least one source: the oldest are not shown. Choose a shorter period.",
+      "total": "Contacts ({days} Days)",
+      "totalHelp": "One row per customer → agent contact. The same visitor tapping again within 10 minutes is shown greyed out and not counted. A tap to our central number is not listed: the message it led to is.",
+      "known": "Customer identified: {known} of {total}",
+      "repeats": "{count} repeat taps not counted",
+      "searchPlaceholder": "Customer's number or name",
+      "channel": "Channel",
+      "allChannels": "All channels",
+      "customer": "Customer",
+      "customerAll": "All",
+      "customerKnownOnly": "Identified only",
+      "export": "Export CSV",
+      "agentFilter": "Agent: {name}",
+      "clearAgent": "Remove the agent filter",
+      "filterAgent": "See their contacts",
+      "colDate": "Date",
+      "colCustomer": "Customer",
+      "colAgent": "Agent",
+      "colWhat": "Listing or page",
+      "colChannel": "Channel",
+      "colStatus": "Next",
+      "statusHelp": "Taps: the \"Un client vous contacte\" alert sent to the agent and their answer. Messages and requests: handled by the agent or not, and the customer's answer to our follow-up. Visits: the visit's status.",
+      "empty": "No contact in the last {days} days with these filters.",
+      "repeat": "Repeat tap",
+      "anonymous": "Anonymous",
+      "anonymousHelp": "Visitor not signed in: WhatsApp opened straight at the agent, so we do not have their number.",
+      "accountGone": "Customer account #{id} (deleted)",
+      "account": "Customer account",
+      "noAgent": "No agent",
+      "project": "Project: {name}",
+      "surface": {
+        "listing": "Listing",
+        "profile": "Agent's profile",
+        "directory": "Agent directory",
+        "project": "Project page",
+        "client_visit": "Customer space · visit",
+        "client_inquiry": "Customer space · proposal",
+        "video": "Video visit",
+        "directVisit": "Visit set after a direct contact"
+      },
+      "status": {
+        "replied": "Agent replied",
+        "nothing": "Agent says nothing arrived",
+        "waiting": "No answer from the agent",
+        "failed": "Alert not sent",
+        "earlier": "Agent already alerted",
+        "noAlert": "No alert",
+        "tapOnly": "Tap recorded",
+        "notContacted": "Not handled yet",
+        "contacted": "Handled by the agent",
+        "customerWaiting": "Customer: not contacted yet",
+        "customerConfirmed": "Customer: contacted",
+        "visitPending": "Visit pending",
+        "visitConfirmed": "Visit confirmed",
+        "visitRescheduled": "Another slot proposed",
+        "visitDeclined": "Visit declined",
+        "visitCancelled": "Visit cancelled",
+        "visitDone": "Visit done",
+        "visitOther": "Visit",
+        "visitSet": "Agent: visit set"
+      },
+      "wants": {
+        "title": "What the Customer Asks For",
+        "help": "Before WhatsApp opens, the customer picks: visit, \"still available?\" or another question. \"Demander une visite\" counts as a visit. Unknown: a call, a message, or a tap from before 16 November 2026.",
+        "col": "Asks for",
+        "filter": "Customer asks for",
+        "all": "All",
+        "visit": "A visit",
+        "enquiry": "Information",
+        "unknown": "Unknown",
+        "intent": {
+          "visit": "Visit",
+          "availability": "Available?",
+          "question": "Question",
+          "video_visit": "Video visit"
+        }
+      },
+      "journey": {
+        "col": "Journey",
+        "help": "What the same device did on the site: how it arrived, its latest search, the other listings it contacted and its saves. Nothing is guessed.",
+        "channelUnknown": "Arrival not recorded",
+        "searched": "Looking for: {what}",
+        "beds": "{n}+ bd",
+        "budget": "≤ ${amount}",
+        "otherListings": "+{n} other listing(s) contacted",
+        "saves": "{n} saved",
+        "purpose": {
+          "rent": "rent",
+          "sale": "buy"
+        }
+      },
+      "outcome": {
+        "VISIT_PLANNED": "Agent: visit planned",
+        "VISITED": "Agent: visit done",
+        "TALKING": "Agent: talking",
+        "NOT_INTERESTED": "Agent: customer not interested",
+        "CLOSED": "Agent: let / sold"
+      },
+      "viewingLink": "Visit no. {id}",
+      "fromDevice": "Account created on the same device",
+      "fromDeviceHelp": "The customer left no number at the time, but a customer account was created from the same device.",
+      "unanswered": {
+        "filter": "Agent reply",
+        "all": "All",
+        "only": "No reply",
+        "count": "{count} with no agent reply"
+      }
+    },
+    "trafficSources": {
+      "back": "Dashboard",
+      "title": "Where Visitors Come From",
+      "intro": "Each visit is sorted by the link that brought it: an advert, a social network, ChatGPT, Google, an agent’s link, or a typed address. Compare with the previous period to see a campaign’s effect.",
+      "failed": "The figures could not be loaded. Try again in a moment.",
+      "visitors": "Visitors · {period}",
+      "views": "Page views · {period}",
+      "taps": "WhatsApp clicks · {period}",
+      "vsBefore": "vs {n} the previous period",
+      "new": "New",
+      "adShare": "{ads} visitors came through a paid advert ({pct} % of the total).",
+      "paidChip": "Ad",
+      "channelsTitle": "By Channel",
+      "channelsNote": "A visitor who came back through two channels counts in each. Contact rate = WhatsApp clicks ÷ the channel’s visitors.",
+      "channel": "Channel",
+      "visitorsCol": "Visitors",
+      "viewsCol": "Page views",
+      "tapsCol": "WhatsApp clicks",
+      "change": "Change",
+      "contactRate": "Contact rate",
+      "chartTitle": {
+        "hour": "Visitors per Hour",
+        "day": "Visitors per Day",
+        "week": "Visitors per Week"
+      },
+      "chartNote": "Kinshasa time. Hover a bar for the detail. A spike that starts with an advert is its effect.",
+      "rest": "Other channels",
+      "campaignsTitle": "Campaigns and Agents’ Links",
+      "campaignsNote": "Tagged links: each Meta advert sends its campaign number (find it in Ads Manager), each partner agent their code.",
+      "noCampaigns": "No campaign or agent link in this period.",
+      "campaign": "Campaign or link",
+      "agentCode": "Agent’s link",
+      "metaCampaign": "Meta campaign no.",
+      "seen": "Visits from … to …",
+      "rawTitle": "Source Detail",
+      "rawNote": "What the browser passed on: the tagged source (utm_source) or the referring site, and the channel we sorted it into.",
+      "source": "Source",
+      "referrer": "Referring site",
+      "howPeople": "People only: the team, signed-in agents, crawlers and our tests are left out. That is why the total is smaller than the dashboard’s “Page views”.",
+      "howAds": "Advert = a link tagged as paid (utm_medium=paid) or carrying a Meta campaign number. Facebook adds fbclid to all its links, free ones included: an fbclid alone counts as Facebook (free).",
+      "howAi": "ChatGPT adds utm_source=chatgpt.com to the links it gives; Perplexity, Gemini, Copilot and Claude are recognised by their site.",
+      "howTaps": "A WhatsApp click is credited to the channel that visitor came through (their last page view before the click).",
+      "howDirect": "Direct = a typed address, a bookmark, or an app that does not say where the visitor came from (WhatsApp is one): part of word of mouth is here.",
+      "channels": {
+        "meta_ads_facebook": "Facebook ads",
+        "meta_ads_instagram": "Instagram ads",
+        "meta_ads_other": "Meta ads (other placements)",
+        "tiktok_ads": "TikTok ads",
+        "google_ads": "Google ads",
+        "ai": "ChatGPT and AI assistants",
+        "facebook": "Facebook (free)",
+        "instagram": "Instagram (free)",
+        "tiktok": "TikTok (free)",
+        "search": "Google and search engines",
+        "other_social": "Other social networks",
+        "agents": "Agents’ links",
+        "whatsapp": "Our WhatsApp messages",
+        "direct": "Direct",
+        "other": "Other sites"
+      }
+    },
+    "codes": {
+      "title": "Codes Sent",
+      "subtitle": "Verification codes sent on WhatsApp in the last {minutes} minutes: customer sign-in, agent confirmation, password, number change. When a code does not arrive, read it to the person.",
+      "refresh": "Refresh",
+      "warning": "Only give a code to the person calling from that number, or once you know who they are: the code opens their account. Every opening of this page is recorded in the audit log.",
+      "loadError": "Could not read the codes: {error}",
+      "notReady": "The codes table does not exist yet (migration 20261124_verification_codes_sent.sql).",
+      "empty": "No code sent in the last {minutes} minutes.",
+      "noName": "No account",
+      "expired": "expired",
+      "replaced": "replaced",
+      "sentTemplate": "Sent (template)",
+      "sentSession": "Sent (message)",
+      "failed": "Send failed",
+      "cols": {
+        "time": "Time",
+        "number": "Number",
+        "who": "Who",
+        "purpose": "For",
+        "code": "Code",
+        "status": "Sending"
+      },
+      "purposes": {
+        "customer": "Customer sign-in",
+        "agent": "Agent confirmation",
+        "reset": "Forgotten password",
+        "phoneChange": "Number change",
+        "other": "Other"
+      }
     }
   },
   "errors": {
@@ -8504,13 +9123,13 @@
       "codeNotReceived": "Code not received? Try again via WhatsApp"
     },
     "signup": {
-      "phoneHint": "Agencies reply to you on this WhatsApp number.",
       "codeWillBeSent": "You will receive a 6-digit confirmation code on your WhatsApp.",
       "receiveCode": "Get my code",
       "noCodeNeeded": "Right after this, you’ll confirm this number by sending us a code from its WhatsApp.",
       "agencyName": "Agency / trading name",
       "contactName": "Agent / main contact name",
       "fullName": "Full name",
+      "phoneHint": "Agencies reply to you on this WhatsApp number.",
       "signInWithNumber": "Sign in with this number",
       "existsKeepsAnswers": "Your answers are kept: they become your move once you are signed in."
     },
@@ -8526,7 +9145,6 @@
     "noCountryFound": "No country found",
     "codeSentTo": "Enter the 6-digit code sent on WhatsApp to {phone}.",
     "wrongNumber": "That’s not my number — start over",
-    "verifyLater": "Later — continue to my account",
     "resend": {
       "sending": "Sending…",
       "retryIn": "Resend the code in {seconds}s",
@@ -8555,7 +9173,7 @@
       "title": "Create Your Free Account",
       "lead": "Find a home to rent or a property to buy in the DRC, and get new listings before anyone else.",
       "cta": "Create My Free Account",
-      "free": "Free, in under a minute. Your number is confirmed on WhatsApp.",
+      "free": "Free, in under a minute. No code to wait for.",
       "benefitAlertsTitle": "WhatsApp Alerts",
       "benefitAlertsText": "New listings that match your search, as soon as they are published.",
       "benefitFavoritesTitle": "Your Favourites",
@@ -8567,11 +9185,13 @@
     },
     "nudge": {
       "favorites": "Don't lose your favourites",
-      "listing_viewed": "Hear about new listings first",
-      "no_results": "Nothing yet? Get told when there is",
-      "text": "Create a free account: your favourites on all your devices, and new listings on WhatsApp.",
-      "cta": "Create my account",
-      "close": "Close"
+      "listing_viewed": "Get new homes on WhatsApp",
+      "no_results": "Nothing yet? We will tell you",
+      "text": "Free, no password: your favourites on all your devices, and new homes on WhatsApp.",
+      "cta": "Create my free account",
+      "close": "Close",
+      "textAlert": "Free, no password: as soon as a home for this search is listed, it arrives on WhatsApp.",
+      "ctaAlert": "Alert me on WhatsApp"
     },
     "whatsappSignup": {
       "cta": "Create my account on WhatsApp",
@@ -8607,6 +9227,7 @@
       "favorites": "Your saved properties on every device",
       "priceDrops": "A message when a saved property's price drops"
     },
+    "verifyLater": "Later — continue to my account",
     "creatingAccount": "Creating your account…",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
@@ -8624,8 +9245,8 @@
     "minSixChars": "6 characters minimum.",
     "whatsappSignIn": {
       "title": "Continue with WhatsApp",
-      "button": "Continue with WhatsApp",
-      "lead": "No password: you send a code from your WhatsApp, and that’s it.",
+      "button": "Continue",
+      "lead": "No password, no code: your number and your name, that is all.",
       "nameLabel": "Full name",
       "nameHint": "First time here: your name opens your account.",
       "orPassword": "or with your password",
@@ -8636,8 +9257,28 @@
       "preferPassword": "Prefer your password?",
       "errors": {
         "name": "Enter your full name.",
-        "busy": "Too many attempts. Try again in a few minutes."
-      }
+        "busy": "Too many attempts. Try again in a few minutes.",
+        "tooMany": "Too many tries: ask for a new code.",
+        "noCode": "Ask for your code first.",
+        "restart": "This sign-in has expired. Start again.",
+        "sendBusy": "Several codes were just sent: use the latest one, or try again in a few minutes."
+      },
+      "existingAccount": "This number already has an account. Send this code from WhatsApp to sign in.",
+      "signInTitle": "Sign in to Your Account",
+      "codeLead": "We send a 6-digit code on WhatsApp to {phone}.",
+      "sendCode": "Get my code on WhatsApp",
+      "signIn": "Sign in",
+      "noCodeFallback": "No code? Confirm from WhatsApp instead",
+      "existingAccountCode": "This number already has an account: enter the code sent to your WhatsApp.",
+      "nameOptionalLabel": "Your name",
+      "nameOptionalHint": "First time here? Your name opens your account. Already have one: leave it empty.",
+      "partnerCode": "Referral code (optional)",
+      "codeLate": "Still no code?",
+      "welcomeTitle": "Welcome {name}! Your Account Is Created",
+      "welcomeTitleNoName": "Your free account is created",
+      "welcomeBody": "You are signed in on this phone, no password. New homes that match you arrive on WhatsApp.",
+      "welcomeCta": "See my space",
+      "welcomeClose": "Close"
     }
   },
   "updates": {
@@ -8657,7 +9298,7 @@
   },
   "site": {
     "metaTitle": "Lukka Place — Property Across the DRC",
-    "metaDescription": "Find an apartment, house or plot to rent or buy in Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and across the DRC.",
+    "metaDescription": "Find an apartment, house or plot to rent or buy in Kinshasa, Lubumbashi, Bukavu, Kisangani and across the DRC.",
     "cityMetaTitle": "Property in {city} | Lukka Place",
     "cityMetaDescription": "Apartments, houses and plots to rent or buy in {city} on Lukka Place: reviewed listings, stated prices and direct contact on WhatsApp."
   },
@@ -8735,15 +9376,31 @@
       "other": "{count} bathrooms"
     },
     "factArea": "{n} m²",
-    "factDeposit": "{n} months deposit"
+    "factDeposit": "{n} months deposit",
+    "priceGuidesLead": "Median asking rent in {place}, by number of bedrooms:",
+    "priceGuideLink": {
+      "one": "{count} bedroom: {median}",
+      "other": "{count} bedrooms: {median}"
+    },
+    "priceGuideIndex": "Median rents by commune and number of bedrooms",
+    "typesPair": "{first} and {second}",
+    "titleInKinshasa": "{heading}, Kinshasa",
+    "metaTitleListed": {
+      "one": "{heading} · {count} Listing",
+      "other": "{heading} · {count} Listings"
+    },
+    "metaTitlePage": "{title} — Page {page}",
+    "pageOf": "Page {page} of {pages}.",
+    "pagerLabel": "Result pages",
+    "pagerPrev": "Previous",
+    "pagerNext": "Next",
+    "pagerPage": "Page {page}"
   },
   "guides": {
     "title": "Property Guides for Kinshasa",
     "lead": "Renting, buying, reading a listing: the essentials, without jargon.",
     "breadcrumb": "Guides",
     "readMore": "Read the guide",
-    "readFull": "Read the full article",
-    "close": "Close",
     "updated": "Updated {date}",
     "related": "Further Reading",
     "searchCta": "See listings",
@@ -8816,7 +9473,9 @@
       "tagNotRefundable": "Not refundable",
       "tagOverLaw": "Beyond the law",
       "footnote": "The legal ceiling assumes a residential lease: a deposit of 3 months at most (art. 18), the first month’s rent paid on entry and no advance beyond it (art. 22), a commission of one month at most (art. 10). An estimate, not legal advice."
-    }
+    },
+    "readFull": "Read the full article",
+    "close": "Close"
   },
   "projects": {
     "meta": {

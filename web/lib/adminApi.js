@@ -12,6 +12,8 @@ import 'server-only';
  * cookie (a single shared team password) — see web/CLAUDE.md.
  */
 
+import { demoEngineHeader } from './demoSession';
+
 function base() {
   const value = process.env.ENGINE_API_BASE;
   if (!value) throw new Error('ENGINE_API_BASE is not set — see .env.local');
@@ -25,9 +27,17 @@ function authHeaders() {
 }
 
 async function engineFetch(path, options = {}) {
+  // A demo session acting (lib/demoSession.js): the engine then sends nothing
+  // to a real number for this request. Only ever restricts.
+  const demo = await demoEngineHeader();
   const res = await fetch(`${base()}${path}`, {
     ...options,
-    headers: { ...authHeaders(), ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+    headers: {
+      ...authHeaders(),
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(demo ? { 'x-lukka-demo': demo } : {}),
+      ...options.headers,
+    },
     cache: 'no-store',
   });
 
@@ -376,7 +386,7 @@ export async function moderateAgentReview(id, commentStatus) {
  */
 export async function createLead({
   waId, name, source, propertyId, assignedAgent, requirementsSummary,
-  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId, moveStory,
+  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId, moveStory, city,
 }) {
   return engineFetch('/admin/leads', {
     method: 'POST',
@@ -400,6 +410,8 @@ export async function createLead({
       bedrooms,
       // "Mon déménagement" story, French (lib/moveProjectRules.js moveStoryFr).
       move_story: moveStory,
+      // A request with no commune: the agencies of this city are asked.
+      city,
     }),
   });
 }
@@ -471,7 +483,11 @@ export async function sendWhatsAppMessage(phone, message) {
  *   code in their copy-code button as well as the body.
  * @returns {Promise<{success: true}>}
  */
-export async function sendWhatsAppTemplate(phone, { template, languageCode, bodyParams, otpCode } = {}) {
+export async function sendWhatsAppTemplate(phone, {
+  template, languageCode, bodyParams, otpCode, urlButton, onlyOutsideWindow,
+} = {}) {
+  // `onlyOutsideWindow`: the engine sends nothing (sent: false) when the
+  // recipient wrote to us in the last 24 h — the caller then sends its text.
   return engineFetch('/admin/send-whatsapp-template', {
     method: 'POST',
     body: JSON.stringify({
@@ -480,6 +496,8 @@ export async function sendWhatsAppTemplate(phone, { template, languageCode, body
       language_code: languageCode,
       body_params: bodyParams,
       otp_code: otpCode,
+      ...(urlButton != null ? { url_button: String(urlButton) } : {}),
+      ...(onlyOutsideWindow ? { only_outside_window: true } : {}),
     }),
   });
 }
@@ -703,6 +721,18 @@ export async function getInteractionCounts({ days = 30 } = {}) {
 }
 
 /**
+ * The engine half of /admin/contacts (engine db.listContactLog): enquiries,
+ * desk introductions, visit requests and tap alerts in the window, one row
+ * each, with the customer's number.
+ *
+ * @returns {Promise<{leads: Object[], viewings: Object[], tapAlerts: Object[]}>}
+ */
+export async function getContactLog({ days = 30 } = {}) {
+  const { leads, viewings, tapAlerts } = await engineFetch(`/admin/contact-log?days=${encodeURIComponent(days)}`);
+  return { leads: leads || [], viewings: viewings || [], tapAlerts: tapAlerts || [] };
+}
+
+/**
  * A visitor just tapped a verified agent's WhatsApp / Appeler button: the
  * engine tells the agent straight away (services/contactTapAlert.js), after
  * its own dedupe and agent gates.
@@ -710,11 +740,72 @@ export async function getInteractionCounts({ days = 30 } = {}) {
  * @param {{listingId: number, kind: 'whatsapp'|'call', visitorKey?: string|null}} input
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function notifyAgentOfContactTap({ listingId, kind, visitorKey = null }) {
+export async function notifyAgentOfContactTap({
+  listingId, kind, visitorKey = null, intent = null, customerName = null, customerPhone = null,
+}) {
   return engineFetch('/admin/contact-taps', {
     method: 'POST',
-    body: JSON.stringify({ listing_id: listingId, kind, visitor_key: visitorKey }),
+    // intent: visit | availability | question (lib/whatsappIntent.js) — the alert leads with it.
+    // customer_*: a visit's optional name + number (lib/visitContact.js, 2026-11-20).
+    body: JSON.stringify({
+      listing_id: listingId,
+      kind,
+      visitor_key: visitorKey,
+      intent: intent || undefined,
+      customer_name: customerPhone ? customerName || undefined : undefined,
+      customer_phone: customerPhone || undefined,
+    }),
   });
+}
+
+/**
+ * One agent's "Un client vous contacte" alerts since `since` (engine
+ * GET /admin/contact-taps/agent/:id) — "Faites le point", vos contacts de la semaine.
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getAgentContactTapAlerts({ agentId, since }) {
+  const params = new URLSearchParams({ since });
+  const { alerts } = await engineFetch(`/admin/contact-taps/agent/${Number(agentId)}?${params}`);
+  return alerts || [];
+}
+
+/**
+ * Per agent since `since`: "Un client vous contacte" alerts that left, how
+ * many the agent said they answered, how many "Rien reçu" (engine
+ * GET /admin/contact-taps/reply-rates; lib/agentReplyRate.js reads them).
+ * @returns {Promise<Map<number, {alerted: number, replied: number, nothing: number}>>}
+ */
+export async function getContactTapReplyRates({ since, agentIds = null }) {
+  const params = new URLSearchParams({ since });
+  if (Array.isArray(agentIds)) {
+    const ids = [...new Set(agentIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    if (ids.length === 0) return new Map();
+    params.set('agent_ids', ids.join(','));
+  }
+  const { rates } = await engineFetch(`/admin/contact-taps/reply-rates?${params}`);
+  return new Map((rates || []).map((row) => [Number(row.agent_id), row]));
+}
+
+/** What came of one contact, from its agent (engine POST /admin/contact-taps/:id/outcome). */
+export async function recordContactTapOutcome({ alertId, agentId, outcome }) {
+  return engineFetch(`/admin/contact-taps/${Number(alertId)}/outcome`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: Number(agentId), outcome }),
+  });
+}
+
+/**
+ * The "Un client vous contacte" alerts on the listings of one page of the tap
+ * log, from `since` on (engine GET /admin/contact-taps); lib/contactTapMatch.js
+ * pairs them with the taps.
+ *
+ * @param {{propertyIds: number[], since: string}} query
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getContactTapAlerts({ propertyIds, since }) {
+  const params = new URLSearchParams({ property_ids: propertyIds.join(','), since });
+  const { alerts } = await engineFetch(`/admin/contact-taps?${params}`);
+  return alerts || [];
 }
 
 /**
@@ -818,10 +909,12 @@ export async function redispatchLead(leadId) {
  * fall-through counts. NOT the owner-scoped listViewingRequests above.
  */
 export async function listViewingFeed({
-  status, routingType, view, q, agentIds, commune, from, to, limit, offset,
+  status, routingType, view, q, agentIds, commune, from, to, limit, offset, visitMode,
 } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
+  // The visit-type filter: 'video' | 'in_person' (engine db.listAllViewingRequests).
+  if (visitMode) params.set('visit_mode', visitMode);
   if (routingType) params.set('routing_type', routingType);
   if (view) params.set('view', view);
   if (q) params.set('q', q);
@@ -912,6 +1005,25 @@ export async function alertPendingListing(listing) {
   } catch (err) {
     console.error(`[adminApi] moderation-alert failed: ${err.message}`);
     return 0;
+  }
+}
+
+/**
+ * Ask the engine to place a listing typed on the web on the map (engine
+ * POST /admin/properties/:id/geocode — the same name-checked lookup WhatsApp
+ * listings get at publish). `replace` when its quartier, reference or commune
+ * changed; otherwise only a missing point is filled. Not awaited by callers
+ * and never throws: a listing with no point stays on its commune, as before.
+ */
+export async function geocodeListing(propertyId, { replace = false } = {}) {
+  try {
+    return await engineFetch(`/admin/properties/${Number(propertyId)}/geocode`, {
+      method: 'POST',
+      body: JSON.stringify({ replace: replace === true }),
+    });
+  } catch (err) {
+    console.error(`[adminApi] geocode #${propertyId} failed: ${err.message}`);
+    return null;
   }
 }
 
@@ -1012,4 +1124,13 @@ export async function answerRequestFollowup(leadId, { answer, waIds }) {
     method: 'POST',
     body: JSON.stringify({ answer, wa_ids: waIds }),
   });
+}
+
+/**
+ * The SQLite half of a demo pair's reset/deletion (engine
+ * services/demoPurge.js). The engine refuses any number or agent that is not
+ * a demo one.
+ */
+export async function purgeDemoEngineData({ phones, agentIds = [] }) {
+  return engineFetch('/admin/demo-accounts/purge', { method: 'POST', body: JSON.stringify({ phones, agentIds }) });
 }

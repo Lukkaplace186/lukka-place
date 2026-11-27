@@ -8,7 +8,8 @@ import { OPEN_VISIT_EVENT } from './EnquiryCard';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import { telHref } from '@/lib/phone';
 import { canMessageListing, chatStartHref } from '@/lib/chatRules';
-import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
+import { trackCallClick } from '@/lib/analyticsClient';
+import WhatsAppIntentButton from './WhatsAppIntentSheet';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -48,7 +49,7 @@ import { useT } from '@/lib/i18n/client';
  */
 export default function MobileListingBar({ listing }) {
   const t = useT();
-  const { href, routingType } = resolveWhatsAppRouting(listing);
+  const { href } = resolveWhatsAppRouting(listing);
   // Messagerie: an icon beside the call one, for the same verified agents.
   // With both icons the visit button keeps its icon only on the narrowest
   // phones (< 400px), so the price keeps a readable column.
@@ -112,16 +113,16 @@ export default function MobileListingBar({ listing }) {
         ) : null}
 
         {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackLeadClick(listing, routingType, 'listing_mobile_bar')}
+          // Asks visit / disponible / question first (WhatsAppIntentSheet.js).
+          <WhatsAppIntentButton
+            listing={listing}
+            placement="listing_mobile_bar"
+            standalone
             className="u-press u-focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-green px-3.5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <WhatsAppIcon className="h-4 w-4" />
             {t('common.shared.whatsapp')}
-          </a>
+          </WhatsAppIntentButton>
         ) : null}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { memo } from './memo';
 import { getListings, getListingsByIds } from './listings';
 import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 import { VIDEO_COUNT_SQL } from './listingVideos';
@@ -114,22 +115,46 @@ export function priceQuestion(t, { beds, commune }) {
     : t('home.prices.question', { beds, commune });
 }
 
+async function loadPriceGuides() {
+  const rows = await queryPriceGuides(MIN_PRICE_SAMPLE);
+  return rows.map((row) => ({
+    commune: row.commune,
+    beds: row.beds,
+    listings: row.listings,
+    // Of `listings`, how many are Lukka Place's own (the "see the
+    // listings" link shows only those); the rest were seen elsewhere.
+    lukkaListings: row.lukka_listings ?? row.listings,
+    sources: row.sources || {},
+    median: Math.round(row.median),
+    p25: Math.round(row.p25),
+    p75: Math.round(row.p75),
+    // 'YYYY-MM-DD', the newest data behind the figure (lib/marketGuide.js
+    // UPDATED_ON_SQL) — the page's "Mis à jour le"; null when unknown.
+    updatedOn: typeof row.updated_on === 'string' ? row.updated_on : null,
+    slug: priceGuideSlug(row),
+  }));
+}
+
 export async function getPriceGuides() {
   try {
-    const rows = await queryPriceGuides(MIN_PRICE_SAMPLE);
-    return rows.map((row) => ({
-      commune: row.commune,
-      beds: row.beds,
-      listings: row.listings,
-      // Of `listings`, how many are Lukka Place's own (the "see the
-      // listings" link shows only those); the rest were seen elsewhere.
-      lukkaListings: row.lukka_listings ?? row.listings,
-      sources: row.sources || {},
-      median: Math.round(row.median),
-      p25: Math.round(row.p25),
-      p75: Math.round(row.p75),
-      slug: priceGuideSlug(row),
-    }));
+    return await loadPriceGuides();
+  } catch (err) {
+    console.error(`[price-guides] ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * The guides, five minutes old at most (lib/memo.js), for the pages that
+ * only LINK to them on every view: the listing page, the landing pages and
+ * the guide pages themselves. The blended query is not free, and the data
+ * behind it moves nightly and on approvals. A failed read is not kept.
+ */
+export const PRICE_GUIDES_TTL_MS = 5 * 60_000;
+
+export async function cachedPriceGuides() {
+  try {
+    return await memo('price-guides', PRICE_GUIDES_TTL_MS, loadPriceGuides);
   } catch (err) {
     console.error(`[price-guides] ${err.message}`);
     return [];
@@ -137,7 +162,7 @@ export async function getPriceGuides() {
 }
 
 export async function getPriceGuide(slug) {
-  const guides = await getPriceGuides();
+  const guides = await cachedPriceGuides();
   return guides.find((guide) => guide.slug === slug) || null;
 }
 
@@ -194,7 +219,7 @@ export async function getCollectionTiles() {
 export const MIN_VIDEO_LISTINGS = 3;
 
 export const VIDEO_LISTINGS_SQL = `
-  SELECT p.id, to_jsonb(p) -> 'videos' AS videos
+  SELECT p.id, p.videos AS videos
     FROM properties p
    WHERE p.status = 1 AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') = 'active'

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  BarChart3, Building2, ChevronDown, Handshake, CalendarClock, ClipboardPaste, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, Newspaper, Presentation, User, Users,
+  BarChart3, Building2, ChevronDown, Handshake, CalendarClock, ClipboardPaste, HandCoins, ChartNoAxesCombined, CreditCard, FileText, FlaskConical, Gauge, HeartPulse, KeyRound, Mail, Newspaper, Presentation, User, Users,
   Building, Landmark, Link2, Megaphone, MessageCircle, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, Truck, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -36,7 +36,7 @@ import { ADMIN_SEARCH_EVENT } from './GlobalSearch';
  */
 // Keys, not text — see components/navItems.js. The list itself lives in
 // lib/adminNav.js (shared with /admin/settings).
-const ICONS = { BarChart3, Building, Building2, CalendarClock, ClipboardPaste, ChartNoAxesCombined, CreditCard, FileText, Gauge, HandCoins, Handshake, HeartPulse, Landmark, Link2, Mail, Megaphone, MessageCircle, Newspaper, Presentation, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, Truck, User, Users, UsersRound };
+const ICONS = { BarChart3, Building, Building2, CalendarClock, ClipboardPaste, ChartNoAxesCombined, CreditCard, FileText, FlaskConical, Gauge, HandCoins, Handshake, HeartPulse, KeyRound, Landmark, Link2, Mail, Megaphone, MessageCircle, Newspaper, Presentation, Radar, ScrollText, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, Truck, User, Users, UsersRound };
 const NAV_GROUPS = ADMIN_NAV_GROUPS.map((group) => ({
   ...group,
   items: group.items.map((item) => ({ ...item, icon: ICONS[item.icon] })),
@@ -146,7 +146,7 @@ export default function AdminSidebar({ mobile = false, role, hiddenTabs = [] }) 
       <div className="flex flex-col gap-1 px-1">
         {/* eslint-disable-next-line @next/next/no-img-element -- static local
             brand asset, same reasoning as components/Brand.js */}
-        <img src="/brand/logo-dark.png?v=2" alt={t('footer.columns.brand')} className="h-6 w-auto self-start" />
+        <img src="/brand/logo-dark-sm.png" alt={t('footer.columns.brand')} width={404} height={128} className="h-6 w-auto self-start" />
         <span className={RAIL_LABEL}>{t('admin.chrome.eyebrow')}</span>
       </div>
 

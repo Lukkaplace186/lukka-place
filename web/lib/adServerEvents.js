@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { getGrowthSettings } from './siteSettings';
-import { TIKTOK_EVENT_NAME } from './adTrackingRules';
+import { TIKTOK_EVENT_NAME, registrationContent } from './adTrackingRules';
 
 /**
  * The server copy of an ad event (growth plan item 6): Meta Conversions API
@@ -37,6 +37,8 @@ export function metaPayload({ name, eventId, eventTime, url, user, params }) {
   // Same as the browser copy: the home listings catalogue's item type.
   if (params?.value != null && params?.currency) { custom.value = params.value; custom.currency = params.currency; }
   if (params?.searchString) custom.search_string = params.searchString;
+  // Which account a CompleteRegistration is: 'customer' or 'agent' (adTrackingRules REGISTRATION_KINDS).
+  Object.assign(custom, registrationContent(params));
   return {
     data: [{
       event_name: name,

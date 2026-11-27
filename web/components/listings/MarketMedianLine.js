@@ -7,6 +7,9 @@ import { typeLabel } from '@/lib/listingView';
 import { communeHref } from '@/lib/listingSeo';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cachedLiveListingsCount } from '@/lib/listingsCached';
+import { cachedPriceGuides, priceQuestion } from '@/lib/browseFeatures';
+import { guideForListing } from '@/lib/priceGuideSeo';
+import { communeLabel } from '@/lib/cities';
 
 /**
  * Hidden until the whole site has this many live listings (owner decision,
@@ -28,13 +31,42 @@ export const MARKET_MEDIAN_MIN_LIVE_LISTINGS = 1000;
  *  - no "+8 %" against this listing: that is the agent's pricing conversation
  *    with their landlord, not a judgement to publish on their own page.
  * Nothing renders otherwise, and a failed read renders nothing.
+ *
+ * Since 2026-11-21 the line also links the price guide page for the listing's
+ * commune × bedrooms when one is published (lib/priceGuideSeo.js
+ * guideForListing: long-term rentals only). Below the threshold that link is
+ * the whole line — the guide's question, no figure.
  */
 export default async function MarketMedianLine({ listing }) {
-  const live = await cachedLiveListingsCount().catch(() => 0);
-  if (live < MARKET_MEDIAN_MIN_LIVE_LISTINGS) return null;
-  const position = await getMarketPosition(listing).catch(() => null);
-  if (!position || position.median == null || !['beds', 'type'].includes(position.scope)) return null;
+  const [live, guides] = await Promise.all([
+    cachedLiveListingsCount().catch(() => 0),
+    cachedPriceGuides(),
+  ]);
+  // The price guide for this commune × bedrooms (2026-11-21, marketing plan),
+  // when one is published: a link only, no figure, so it does not bring back
+  // the median the owner hid below MARKET_MEDIAN_MIN_LIVE_LISTINGS.
+  const guide = guideForListing(guides, listing);
+  const position = live >= MARKET_MEDIAN_MIN_LIVE_LISTINGS ? await getMarketPosition(listing).catch(() => null) : null;
+  const showMedian = Boolean(position) && position.median != null && ['beds', 'type'].includes(position.scope);
+  if (!showMedian && !guide) return null;
   const t = await getT();
+  const guideLink = guide ? (
+    <Link href={`/combien-coute/${guide.slug}`} className="font-semibold text-blue-deep underline-offset-2 hover:underline">
+      {priceQuestion(t, { beds: guide.beds, commune: communeLabel(guide.commune) })}
+    </Link>
+  ) : null;
+  if (!showMedian) {
+    return (
+      <p className="u-micro flex items-start gap-2 text-ink-70">
+        <BarChart3 size={16} strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 flex-none text-ink-45" aria-hidden="true" />
+        <span>
+          {t('listings.marketMedian.guide')}
+          {' '}
+          {guideLink}
+        </span>
+      </p>
+    );
+  }
   const kind = typeLabel(listing, t);
   const vars = {
     label: t(`listings.marketMedian.${listing.purpose === 'sale' ? 'sale' : 'rent'}`),
@@ -56,6 +88,12 @@ export default async function MarketMedianLine({ listing }) {
             <Link href={href} className="font-semibold text-blue-deep underline-offset-2 hover:underline">
               {t('listings.marketMedian.more', { commune: listing.commune })}
             </Link>
+          </>
+        ) : null}
+        {guideLink ? (
+          <>
+            {' · '}
+            {guideLink}
           </>
         ) : null}
       </span>

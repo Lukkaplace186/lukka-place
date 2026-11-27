@@ -4,8 +4,12 @@ import { useActionState, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import PhoneField from './PhoneField';
 import SignupFunnelTracker from './SignupFunnelTracker';
+import AccountOfferCard from './AccountOfferCard';
+import LocalSavesFields from './LocalSavesFields';
+import { OPEN_ACCOUNT_FIELD } from '@/lib/guestAccountRules';
+import { useIsLoggedIn } from '@/lib/customerClient';
 import { submitGuestRequestAction } from '@/app/(site)/trouver-pour-moi/actions';
-import { GUEST_REQUEST_TYPES, MAX_GUEST_BEDROOMS } from '@/lib/guestRequestRules';
+import { GUEST_CITY, GUEST_CITY_WIDE, GUEST_REQUEST_TYPES, MAX_GUEST_BEDROOMS, guestCommuneLabel } from '@/lib/guestRequestRules';
 import { MOVE_REASONS } from '@/lib/moveProjectRules';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -21,11 +25,17 @@ const LABEL = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-ink
  * commune's agencies. Shown on an empty search (prefilled from it) and on
  * /trouver-pour-moi.
  *
+ * "Créer mon compte gratuit" (2026-11-24, ticked by default, hidden when
+ * signed in): the same name and number open the account (lib/guestAccount.js),
+ * and the confirmation offers the one tap that makes it theirs
+ * (AccountOfferCard: send the code from WhatsApp).
+ *
  * @param {{communes: string[], prefill?: object, formId?: string}} props
  */
 export default function GuestRequestForm({ communes = [], prefill = {}, formId = 'guest-request-form' }) {
   const t = useT();
   const locale = useLocale();
+  const loggedIn = useIsLoggedIn();
   const [state, action, pending] = useActionState(submitGuestRequestAction, null);
   const [transactionType, setTransactionType] = useState(prefill.transactionType || 'location');
   const [reasons, setReasons] = useState([]);
@@ -46,6 +56,7 @@ export default function GuestRequestForm({ communes = [], prefill = {}, formId =
             ? t('listings.guestRequest.sentBody', { commune: state.commune, last4: state.last4 })
             : t('listings.guestRequest.sentBodyShort')}
         </p>
+        <AccountOfferCard status={state.account} entry="request" next="/compte/client" />
         <button
           type="button"
           onClick={() => {
@@ -120,8 +131,9 @@ export default function GuestRequestForm({ communes = [], prefill = {}, formId =
         <label htmlFor={`${formId}-commune`} className={LABEL}>{t('listings.guestRequest.commune')}</label>
         <select id={`${formId}-commune`} name="commune" required defaultValue={prefill.commune || ''} className={INPUT}>
           <option value="" disabled>{t('listings.guestRequest.communePlaceholder')}</option>
+          <option value={GUEST_CITY_WIDE}>{t('listings.guestRequest.cityWide', { city: GUEST_CITY })}</option>
           {communes.map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c}>{guestCommuneLabel(c)}</option>
           ))}
         </select>
       </div>
@@ -174,6 +186,20 @@ export default function GuestRequestForm({ communes = [], prefill = {}, formId =
         labels={{ ...phoneFieldLabels(t), label: t('listings.guestRequest.phone') }}
         required
       />
+
+      {loggedIn ? null : (
+        <label className="flex items-start gap-2.5 rounded-md bg-blue-tint px-3 py-2.5 text-[0.8125rem] text-ink">
+          {/* A ticked box posts "1"; unticked posts nothing, so a hidden "0"
+              before it carries the "no" (lib/guestAccountRules.js accountRequested). */}
+          <input type="hidden" name={OPEN_ACCOUNT_FIELD} value="0" />
+          <input type="checkbox" name={OPEN_ACCOUNT_FIELD} value="1" defaultChecked className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--blue)]" />
+          <LocalSavesFields />
+          <span>
+            <span className="font-semibold">{t('listings.guestRequest.openAccount')}</span>
+            <span className="block text-ink-70">{t('listings.guestRequest.openAccountHint')}</span>
+          </span>
+        </label>
+      )}
 
       {error ? (
         <p className="text-sm text-red-600" role="alert">{t(`listings.guestRequest.errors.${error}`)}</p>

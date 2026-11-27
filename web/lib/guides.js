@@ -120,6 +120,7 @@ export const GUIDES = [
       { h2: 'Sur Lukka Place' },
       { p: 'Quand l’agent les indique, nos annonces affichent la garantie, l’avance et la commission séparément, avec le total à prévoir à l’entrée. Le filtre « Max Garantie » de la recherche écarte les logements qui demandent plus que ce que vous pouvez avancer.' },
       { p: 'Ce guide explique la loi ; il ne remplace pas l’avis d’un juriste pour un litige.' },
+      { p: 'HM' },
     ],
     en: {
       coverAlt: 'Five envelopes in a row: three blue, one gold and one purple, with a house key.',
@@ -204,6 +205,7 @@ export const GUIDES = [
         { h2: 'On Lukka Place' },
         { p: 'When the agent provides them, our listings show the deposit, advance and commission separately, with the total to budget on entry. The “Max Garantie” search filter hides homes that ask for more than you can put down.' },
         { p: 'This guide explains the law; it does not replace a lawyer’s advice in a dispute.' },
+        { p: 'HM' },
       ],
     },
   },

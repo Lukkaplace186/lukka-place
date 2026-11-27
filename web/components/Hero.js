@@ -22,9 +22,13 @@ import { useT } from '@/lib/i18n/client';
  *
  * Headline is Plus Jakarta Sans at 800 (the family's heaviest real cut), set
  * as a Zillow-style stacked-noun grid — "Appartements. Villas. Terrains.
- * Agences." Sizes step 36 -> 48 -> 60px, so the headline carries the hero
- * alone. The band's own height is unchanged, and the search panel still
- * straddles its bottom edge — verified above the fold at 320/375/1280.
+ * Agences." Sizes are 24px on a phone, 40px from sm, 48px from 2xl (were
+ * 32 -> 48 -> 60 until 2026-11-24, when the owner found phone and laptop "too
+ * zoomed in"). Laptops get their own tier: a 1920x1080 screen at 125-150 %
+ * Windows scaling is ~1220-1536 CSS px wide and ~600-700 tall, so from lg to
+ * 2xl the band is 23rem with the type anchored at the top (pt-8) rather than
+ * centred, which keeps the chip clear of the panel's 5rem overlap; 2xl
+ * (>=1536px) gets the 28rem centred band back. Phone band 21rem, sm 26rem.
  *
  * ---------------------------------------------------------------------------
  * Photo: Hero/hero-sunlit.jpg — a bright, sunlit clear-sky frame supplied
@@ -84,7 +88,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
 
   return (
     <>
-      <section className="relative flex h-[22.25rem] w-full items-start overflow-hidden bg-ink pt-7 sm:h-[30rem] sm:items-center sm:pt-0 lg:h-[33.75rem]">
+      <section className="relative flex h-[21rem] w-full items-start overflow-hidden bg-ink pt-5 sm:h-[26rem] sm:items-center sm:pt-0 lg:h-[23rem] lg:items-start lg:pt-8 2xl:h-[28rem] 2xl:items-center 2xl:pt-0">
         {/* Nothing sits between the photo and the type: no scrim, no
             gradient, no frosted panel. The sunlit sky is the hero. */}
         {/* `image` is the picture set from /admin/cms (lib/cmsSettings.js), on an
@@ -130,14 +134,14 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
                 appartements à louer… à Kinshasa") inside the h1, so the one
                 heading Google weighs most says what the page offers; the
                 stacked nouns stay the visual headline (2026-11-10, SEO). */}
-            <h1 className="u-lift-in text-[2rem] font-extrabold leading-[1.02] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
+            <h1 className="u-lift-in text-[1.5rem] font-extrabold leading-[1.05] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-[2.5rem] 2xl:text-5xl">
               <span className="mb-2 block max-w-md text-[0.8125rem] font-bold leading-snug tracking-normal [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-sm md:max-w-lg">
                 {t('home.hero.kicker')}
               </span>
               {t('home.hero.title')}
             </h1>
 
-            <p style={{ '--u-delay': '90ms' }} className="u-lift-in mt-3 max-w-md text-sm font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-base md:max-w-lg">
+            <p style={{ '--u-delay': '90ms' }} className="u-lift-in mt-3 max-w-md text-sm font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-base md:max-w-lg lg:max-w-[40rem] lg:text-[0.9375rem] 2xl:text-base">
               {t('home.hero.subtitle')}
             </p>
 
@@ -163,11 +167,11 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
 
       {/* The panel straddles the hero's bottom edge, per the design. This is
           where the real call-to-action lives (the "Voir N biens" submit inside
-          SearchBar). On a phone the band is shorter (22.25rem: 19.5rem until
-          the h1 gained its keyword line on 2026-11-10; was 26rem) and
+          SearchBar). On a phone the band is shorter (21rem since 2026-11-24;
+          22.25rem from 2026-11-10, 19.5rem before; was 26rem) and
           the overlap deeper, so the search card starts in the top half of the
           screen instead of at the fold (2026-10-06 storefront upgrade). */}
-      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1600px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
+      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1600px] px-4 sm:px-6 lg:-mt-20 lg:px-8 2xl:-mt-24">
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
       </div>
     </>

@@ -11,6 +11,7 @@ import { TRANSLATION_DOM_GUARD_SCRIPT } from '@/lib/translationDomGuard';
 import OfflineBanner from '@/components/OfflineBanner';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import WebVitals from '@/components/WebVitals';
+import PlausibleGoals from '@/components/PlausibleGoals';
 
 /*
  * One family. Plus Jakarta Sans carries every title, label, price and line
@@ -216,6 +217,8 @@ plausible.init()`}
           <OfflineBanner />
           <ServiceWorkerRegister />
           <WebVitals />
+          {/* Plausible goals a Server Action queued (lib/plausibleGoals.js). */}
+          <PlausibleGoals />
           {children}
         </I18nProvider>
       </body>

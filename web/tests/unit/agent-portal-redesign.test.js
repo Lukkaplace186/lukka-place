@@ -158,11 +158,16 @@ test('Réglages and the overview banner read one profile checklist', async () =>
   };
   const full = profileChecklist(completion, []);
   assert.equal(full.percent, 100);
-  assert.equal(full.items.length, 5, 'agency name and opening hours are always listed');
+  assert.equal(full.items.length, 6, 'the minimum rent, agency name and opening hours are always listed');
 
   const missingName = profileChecklist(completion, ['no_agency_name']);
   assert.ok(missingName.percent < 100, 'a gap the overview reports can never read as 100 %');
-  assert.equal(missingName.items.length, 5, 'the list length does not move with the gaps');
+  assert.equal(missingName.items.length, 6, 'the list length does not move with the gaps');
+
+  const noMinimum = profileChecklist(completion, ['no_min_rental_budget']);
+  const minimum = noMinimum.items.find((i) => i.key === 'no_min_rental_budget');
+  assert.equal(minimum.done, false, 'the minimum-rent question is asked until answered');
+  assert.match(minimum.href, /section=requests/);
 
   const noLogo = profileChecklist(completion, ['no_logo']);
   const photo = noLogo.items.find((i) => i.labelKey === 'agent.completion.photoLabel');

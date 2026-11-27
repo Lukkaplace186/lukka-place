@@ -132,13 +132,14 @@ const nextConfig = {
     // same photo, measured on production) for no difference visible on a
     // phone, and made the detail page fetch a card's cover photo twice.
     qualities: [75],
-    // AVIF first (speed pass, 2026-11-06): measured on live listing photos
-    // with Next's own AVIF quality mapping, 35-45% fewer bytes than WebP at
-    // the same widths (640w: 48 → 29 KB, 1080w: 87 → 59 KB), for ~0.1-0.2 s
-    // more encoding once per variant — then it sits in the 30-day cache.
-    // Browsers without AVIF still get WebP. After deploying, warm the cache
-    // (scripts/warm-image-cache.js already asks for image/avif).
-    formats: ['image/avif', 'image/webp'],
+    // WebP only. AVIF was served 2026-11-06 → 11-14 (35-45% fewer bytes) and
+    // left iPhone cards grey: Next encodes AVIF through sharp's default 4:4:4
+    // chroma, i.e. AV1 *High* profile (checked in the file's av1C box), which
+    // Chrome decodes and iOS Safari does not — and the SafeImage fallback is
+    // itself a /_next/image URL, so it came back as the same AVIF. Next 16
+    // exposes no chroma option. Don't add AVIF back without checking a real
+    // iPhone. public/sw.js drops AVIF copies phones cached in that window.
+    formats: ['image/webp'],
     // Listing photos are content-addressed in Supabase Storage (the object
     // name carries an md5 of the bytes — lib/listingStorage.js and the
     // engine's services/supabaseStorage.js), so an optimised variant never

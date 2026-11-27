@@ -62,7 +62,7 @@ test('every landing page in the sitemap round-trips', () => {
   const facets = [];
   for (const purpose of ['rent', 'sale']) {
     for (const propertyType of Object.values(SEO_PROPERTY_TYPES).map((t) => t.propertyType)) {
-      for (const commune of [...SEO_COMMUNES, 'Kampemba']) facets.push({ purpose, propertyType, commune, count: 1 });
+      for (const commune of [...SEO_COMMUNES, 'Kampemba']) facets.push({ purpose, propertyType, commune, count: 3 });
     }
   }
   const paths = landingPathsFromFacets(facets);

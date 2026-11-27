@@ -5,6 +5,7 @@ import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
 import { localizeHref } from './localePaths';
 import { listingPath } from './listingSlug';
+import { displayableAgencyName } from './agentIdentity';
 import { DEFAULT_CITY, cityOfCommune, cityOfListing, communeLabel, provinceOfCity } from './cities';
 
 // UN/CEFACT codes for the rent's unit; a short-term rent is per day / week.
@@ -170,10 +171,18 @@ export function listingJsonLd(listing, t) {
     ...(Number(listing.bath) > 0 ? { numberOfBathroomsTotal: Number(listing.bath) } : {}),
     ...(hasArea(listing.area) ? { floorSize: { '@type': 'QuantitativeValue', value: Number(listing.area), unitCode: 'MTK' } } : {}),
   };
+  // The agent who offers the home, by the name the page shows
+  // (displayableAgencyName: never a phone number); Lukka Place stays the
+  // `provider` — the platform, not the agency (2026-11-21).
+  const agentName = displayableAgencyName(listing.agency_name);
+  const offeredBy = agentName
+    ? { '@type': 'RealEstateAgent', name: agentName, ...(listing.agent_id ? { url: `${base()}/agents/${listing.agent_id}` } : {}) }
+    : null;
   const offer = price
     ? {
         '@type': 'Offer',
         price,
+        ...(offeredBy ? { offeredBy } : {}),
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
         businessFunction: listing.purpose === 'rent' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell',

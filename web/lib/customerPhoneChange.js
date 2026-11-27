@@ -4,6 +4,7 @@ import { getPool } from './db';
 import { generateOtpCode, hashOtp, verifyOtp, otpExpiresAt } from './authCrypto';
 import { sendOtpViaWhatsApp } from './otpDelivery';
 import { normalizeStoredPhone } from './phone';
+import { isDemoPhone } from './demoPhone';
 import {
   PHONE_CHANGE_MAX_ATTEMPTS,
   PHONE_CHANGE_MAX_SENDS_PER_HOUR,
@@ -41,6 +42,8 @@ export async function requestPhoneChange(customerId, newPhone) {
   try {
     const { rows: own } = await pool.query('SELECT phone FROM customers WHERE id = $1', [customerId]);
     if (!own[0]) return { ok: false, error: 'gone' };
+    // A demo account keeps its reserved number, and nobody takes one (lib/demoPhone.js).
+    if (isDemoPhone(own[0].phone) || isDemoPhone(phone)) return { ok: false, error: 'demo' };
     if (own[0].phone === phone) return { ok: false, error: 'same' };
     const { rows: taken } = await pool.query('SELECT 1 FROM customers WHERE phone = $1 AND id <> $2', [phone, customerId]);
     if (taken.length > 0) return { ok: false, error: 'taken' };

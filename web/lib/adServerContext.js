@@ -6,6 +6,7 @@ import { AD_QUEUE_COOKIE, CONSENT_COOKIE, consentAllowsAds, parseAdQueue } from 
 import { sendAdServerEvent } from './adServerEvents';
 import { VISITOR_COOKIE, cleanVisitorId } from './trackIngest';
 import { clientIpFrom } from './salesReferral';
+import { DEMO_COOKIE, isDemoPhone } from './demoPhone';
 
 /**
  * Who the visitor is, for an ad event's matching: IP, user agent, visitor id,
@@ -52,7 +53,10 @@ export async function adUserFromRequest({ phone = null } = {}) {
  * consent. Never throws.
  */
 export async function recordAdEventFromAction({ name, eventId, phone = null, params = {}, url = null }) {
+  // A demo account's request is not a conversion (lib/demoAccounts.js).
+  if (isDemoPhone(phone)) return;
   try {
+    if ((await cookies()).get(DEMO_COOKIE)) return;
     const user = await adUserFromRequest({ phone });
     if (!user) return;
     const cookieStore = await cookies();

@@ -42,7 +42,8 @@ export async function POST(request) {
   if (status === 'limit') {
     return NextResponse.json({ error: 'limit', max: MAX_SAVED_SEARCHES }, { status: 409 });
   }
-  return NextResponse.json({ ok: true });
+  // `added` or `exists`: the browser counts only a new alert (Plausible "Alert created").
+  return NextResponse.json({ ok: true, status });
 }
 
 export async function DELETE(request) {

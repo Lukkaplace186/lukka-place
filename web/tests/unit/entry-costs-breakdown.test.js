@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { entryCostBreakdown } from '@/lib/listingView';
+import { entryCostBreakdown, entryTerms } from '@/lib/listingView';
 import { formatPriceParts, frNumber } from '@/lib/format';
 
 /**
@@ -148,4 +148,17 @@ test('entry-cost amounts are formatted WITHOUT a "/ mois" suffix', () => {
   assert.equal(formatPriceParts(1500, 'rent', 'total').period, '/ mois');
   assert.equal(formatPriceParts(1500, 'oneOff').period, null);
   assert.equal(formatPriceParts(1500, 'oneOff').amount, `${frNumber(1500)} $`);
+});
+
+test('an amount typed into a months field is never shown as months (2026-11-19)', () => {
+  // "9000" in "Loyer d'avance (mois)" on a 3 000 $ rent was printed as
+  // "9 000 mois" with a 27 000 000 $ line. Above 12 it is "not stated".
+  // The avance becomes unstated, so the page shows "Garantie 3 mois" alone
+  // (a commission is only itemised after a stated avance, as before).
+  assert.equal(entryCostBreakdown(rental({ price: 3000, advance_months: 9000 })), null);
+  assert.deepEqual(entryTerms(rental({ price: 3000, advance_months: 9000 })).parts, [3]);
+  assert.equal(entryCostBreakdown(rental({ deposit_months: 500, advance_months: 4, commission_months: null })), null,
+    'with the garantie unreadable there are no terms to itemise');
+  assert.equal(entryCostBreakdown(rental({ commission_months: 20 })).lines.length, 2);
+  assert.equal(entryCostBreakdown(rental({ deposit_months: 12, advance_months: 1, commission_months: 1 })).totalMonths, 14);
 });

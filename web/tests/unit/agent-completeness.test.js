@@ -73,7 +73,7 @@ test('the description floor is the 15 characters the save path enforces', () => 
 test('profile gaps: serviced communes count as coverage', () => {
   const base = {
     primary_communes: [], serviced_communes: [], image: null, working_hours: '', agency_name: null,
-    vendor_name: null, phone_verified_at: null,
+    vendor_name: null, phone_verified_at: null, min_budget_answered: false,
   };
   assert.deepEqual(profileGaps(base), PROFILE_GAP_CODES);
   assert.ok(!profileGaps({ ...base, serviced_communes: ['Gombe'] }).includes('no_communes'));
@@ -88,18 +88,26 @@ test('profile gaps: a phone-shaped or placeholder agency name is not a name', ()
   assert.deepEqual(profileGaps({ ...base, agency_name: 'Espace Kin' }), []);
 });
 
+test('the minimum-rent question: asked until answered, an empty answer counts, unknown asks nothing', () => {
+  const base = { primary_communes: ['Gombe'], image: 'x', working_hours: '8h-18h', phone_verified_at: '2026-01-01', agency_name: 'Espace Kin' };
+  assert.deepEqual(profileGaps({ ...base, min_budget_answered: false }), ['no_min_rental_budget']);
+  assert.deepEqual(profileGaps({ ...base, min_budget_answered: true }), []);
+  assert.deepEqual(profileGaps(base), [], 'not read (before the migration): no question');
+});
+
 test('every gap links to the exact field that fixes it', () => {
   // `?section=` opens the right card on a phone, where Réglages shows one at a time.
   assert.equal(profileGapHref('no_communes'), '/compte/agent/parametres?section=communes#communes');
   assert.equal(profileGapHref('no_agency_name'), '/compte/agent/parametres?section=identity#agency_name');
   assert.equal(profileGapHref('no_working_hours'), '/compte/agent/parametres?section=hours#hours');
   assert.equal(profileGapHref('no_logo'), '/compte/agent/parametres?section=identity#identity');
+  assert.equal(profileGapHref('no_min_rental_budget'), '/compte/agent/parametres?section=requests#requests');
   assert.equal(listingGapHref(42, 'thin_photos'), '/compte/agent/biens/42/edit#photos');
   assert.equal(listingGapHref(42, 'missing_deposit'), '/compte/agent/biens/42/edit#deposit_months');
 
   // The anchors must exist where they point.
   const settings = read('app/compte/agent/parametres/page.js');
-  for (const id of ['identity', 'communes', 'hours', 'agency_name', 'quick-replies']) {
+  for (const id of ['identity', 'communes', 'hours', 'requests', 'agency_name', 'quick-replies']) {
     assert.ok(settings.includes(`id="${id}"`), `settings anchor #${id}`);
   }
   const editor = read('components/AgentListingEditor.js');
@@ -140,11 +148,16 @@ test('getIncompleteListings never throws and refuses a bogus agent id without a 
   assert.equal(calls.length, 0);
 });
 
-test('profile gaps read serviced_communes only when the agent row lacks it', async () => {
-  enqueue([{ serviced_communes: ['Gombe'] }]);
-  const gaps = await getAgentProfileGaps({ id: 3, primary_communes: [], phone_verified_at: 'x', image: 'y', working_hours: 'z', agency_name: 'Kin' });
-  assert.deepEqual(gaps, []);
-  assert.match(calls[0].sql, /SELECT serviced_communes FROM agents WHERE id = \$1/);
+test('profile gaps read serviced_communes and whether the minimum-rent question was answered', async () => {
+  const agent = { id: 3, primary_communes: [], phone_verified_at: 'x', image: 'y', working_hours: 'z', agency_name: 'Kin' };
+  enqueue([{ serviced_communes: ['Gombe'], min_budget_asked: true, min_budget_answered: false }]);
+  assert.deepEqual(await getAgentProfileGaps(agent), ['no_min_rental_budget']);
+  assert.match(calls[0].sql, /SELECT serviced_communes,/);
+  assert.match(calls[0].sql, /to_jsonb\(a\) \? 'min_budget_updated_at'/, 'parses before the migration');
+  enqueue([{ serviced_communes: ['Gombe'], min_budget_asked: true, min_budget_answered: true }]);
+  assert.deepEqual(await getAgentProfileGaps(agent), [], 'answered (an empty answer counts)');
+  enqueue([{ serviced_communes: ['Gombe'], min_budget_asked: false, min_budget_answered: false }]);
+  assert.deepEqual(await getAgentProfileGaps(agent), [], 'column absent: nothing asked');
 });
 
 test('the photography offer is read live from packages, never hardcoded', async () => {

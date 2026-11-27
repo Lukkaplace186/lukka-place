@@ -57,6 +57,8 @@ export default function AgentsTable({
   const [history, setHistory] = useState(null);
   // Drawn only when the page loaded sign-in history (row.login !== undefined).
   const showLogin = rows.some((row) => row.login !== undefined);
+  // « Réponses aux alertes » (lib/agentReplyRate.js), drawn when the page loaded them.
+  const showReplies = rows.some((row) => row.replies !== undefined);
 
   async function openHistory(agent) {
     setHistory({ agent, loading: true, rows: [] });
@@ -163,7 +165,7 @@ export default function AgentsTable({
         </div>
       ) : null}
 
-      <TableFrame minWidth={showLogin ? "86rem" : "76rem"} footer={footer} busy={pending}>
+      <TableFrame minWidth={`${76 + (showLogin ? 10 : 0) + (showReplies ? 8 : 0)}rem`} footer={footer} busy={pending}>
         <thead>
           <tr>
             {selectable ? (
@@ -184,13 +186,14 @@ export default function AgentsTable({
             <th className={TH_STICKY_RIGHT}>{t('admin.agents.listings')}</th>
             <th className={TH_STICKY}>{t('admin.agents.package')}</th>
             {showLogin ? <th className={TH_STICKY}>{t('admin.agents.lastLogin')}</th> : null}
+            {showReplies ? <th className={TH_STICKY} title={t('admin.agents.repliesHint')}>{t('admin.agents.replies')}</th> : null}
             <th className={TH_STICKY}>{t('admin.agents.status')}</th>
             <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={8 + (selectable ? 1 : 0) + (showLogin ? 1 : 0)}>{t('admin.agents.empty')}</EmptyRow>
+            <EmptyRow colSpan={8 + (selectable ? 1 : 0) + (showLogin ? 1 : 0) + (showReplies ? 1 : 0)}>{t('admin.agents.empty')}</EmptyRow>
           ) : (
             rows.map((agent) => (
               <tr key={agent.id} className={`${TR_DENSE} ${selected.has(agent.id) ? 'bg-blue-tint/40' : ''}`}>
@@ -253,6 +256,15 @@ export default function AgentsTable({
                 {showLogin ? (
                   <td className={TD_DENSE}>
                     <LoginCell login={agent.login} t={t} onOpen={canManage ? () => openHistory(agent) : null} />
+                  </td>
+                ) : null}
+                {showReplies ? (
+                  <td className={TD_DENSE}>
+                    {agent.replies ? (
+                      <span className={`u-tabular ${agent.replies.low ? 'font-semibold text-warning-ink' : 'text-ink'}`}>{agent.replies.text}</span>
+                    ) : (
+                      <span className="text-ink-35">—</span>
+                    )}
                   </td>
                 ) : null}
                 <td className={TD_DENSE}>

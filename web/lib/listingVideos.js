@@ -5,16 +5,16 @@
  * migrations/20261021_listing_videos.sql). A listing needs one photo OR one
  * video; with no photo, the first video's cover frame is its featured_image.
  *
- * Read through `to_jsonb(p) -> 'videos'` (VIDEOS_SQL), so nothing 42703s before
- * the migration runs. Pure and client-safe.
+ * Read as the plain column (VIDEOS_SQL); the migration has run everywhere
+ * (web/CLAUDE.md, "Listing queries read columns, not to_jsonb(p)"). Pure and client-safe.
  */
 
 /** The jsonb, or NULL. */
-export const VIDEOS_SQL = `(to_jsonb(p) -> 'videos')`;
+export const VIDEOS_SQL = `(p.videos)`;
 
 /** How many videos, 0 for NULL / not an array. */
-export const VIDEO_COUNT_SQL = `(CASE WHEN jsonb_typeof(to_jsonb(p) -> 'videos') = 'array'
-  THEN jsonb_array_length(to_jsonb(p) -> 'videos') ELSE 0 END)`;
+export const VIDEO_COUNT_SQL = `(CASE WHEN jsonb_typeof(p.videos) = 'array'
+  THEN jsonb_array_length(p.videos) ELSE 0 END)`;
 
 function httpsUrl(value) {
   if (typeof value !== 'string') return null;

@@ -16,6 +16,10 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: 'FileText' },
       { href: '/admin/projets', labelKey: 'admin.nav.projects', icon: 'Building' },
       { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: 'CalendarClock' },
+      // Every customer -> agent contact, one row each: who, which agent, how (2026-11-15).
+      { href: '/admin/contacts', labelKey: 'admin.nav.contacts', icon: 'UsersRound' },
+      // The codes sent to customers and agents, readable when one does not arrive (2026-11-24).
+      { href: '/admin/codes', labelKey: 'admin.nav.codes', icon: 'KeyRound' },
       { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: 'Mail' },
       // Every customer -> agent interaction, counted, plus the desk's "mise en relation" log.
       { href: '/admin/interactions', labelKey: 'admin.nav.interactions', icon: 'Handshake' },
@@ -72,6 +76,7 @@ export const ADMIN_NAV_GROUPS = [
     items: [
       { href: '/admin/health', labelKey: 'admin.nav.health', icon: 'HeartPulse' },
       { href: '/admin/team', labelKey: 'admin.nav.team', icon: 'UsersRound' },
+      { href: '/admin/demo', labelKey: 'admin.nav.demo', icon: 'FlaskConical' },
       { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: 'ScrollText' },
       { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: 'Settings' },
       { href: '/admin/blog', labelKey: 'admin.nav.blog', icon: 'Newspaper' },

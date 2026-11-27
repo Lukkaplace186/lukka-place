@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from '@/components/LocaleLink';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { Bell, X } from 'lucide-react';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH } from '@/lib/iconStyle';
 import { useT } from '@/lib/i18n/client';
 import { getFavoriteIds, subscribeFavorites } from '@/lib/localFavorites';
 import { getRecentIds } from '@/lib/recentlyViewed';
-import { NUDGE_EVENT, NUDGE_SESSION_KEY, nudgeAllowedOn, shouldNudge } from '@/lib/signupNudgeRules';
+import { NUDGE_EVENT, NUDGE_SESSION_KEY, nudgeAllowedOn, nudgeNext, shouldNudge } from '@/lib/signupNudgeRules';
 import { trackCustomerSignup } from '@/lib/analyticsClient';
-import { withSignupEntry } from '@/lib/signupFunnelRules';
+
+// The WhatsApp form opens only on a tap, so its code is fetched only then.
+const AuthPromptModal = dynamic(() => import('./AuthPromptModal'), { ssr: false });
 
 function signedIn() {
   try {
@@ -37,14 +39,24 @@ function alreadyShown() {
  * never show it. Once per tab session; nothing for a signed-in visitor. The
  * link carries `next` back to the page.
  *
- * The listing page itself is quiet (its contact bar), so "a third listing
+ * The listing page itself is quiet (its contact bar), so "a second listing
  * opened" shows on the next page that allows it.
+ *
+ * Since 2026-11-24 the button opens "Continuer avec WhatsApp" in place
+ * (AuthPromptModal, trigger `nudge`) instead of the sign-up page: a page
+ * change on a Kinshasa 3G link lost people (9 opened, 5 accounts, out of 324
+ * shown in 14 days). Signing in brings them back to this page.
+ *
+ * Same day, later: after a FIRST listing opened (96 % ignored the generic
+ * "Créer mon compte"); on a results page that names a commune it offers the
+ * alert itself ("M'alerter sur WhatsApp") and signing in saves it there.
  */
 export default function SignupNudge() {
   const t = useT();
   const pathname = usePathname();
   const [reason, setReason] = useState(null);
   const [pending, setPending] = useState(null);
+  const [prompt, setPrompt] = useState(false);
 
   useEffect(() => {
     const consider = (next) => {
@@ -76,7 +88,12 @@ export default function SignupNudge() {
   }, [pending, pathname, reason]);
 
   if (!reason) return null;
-  const next = encodeURIComponent(pathname || '/');
+  // Back to this very page once signed in (its search included) — with this
+  // search saved as an alert when it names a commune (lib/signupNudgeRules.js
+  // nudgeNext, 2026-11-24): the card promises the new homes on WhatsApp.
+  const { next, alert } = typeof window === 'undefined'
+    ? { next: pathname || '/', alert: false }
+    : nudgeNext(pathname, window.location.search);
   // On /listings the top of the screen IS the search box and filters, which
   // this card covered on an empty search (2026-11-04). There it docks at the
   // bottom instead: above the phone's Carte | Trier | Alerte pill
@@ -94,15 +111,27 @@ export default function SignupNudge() {
       </span>
       <div className="min-w-0 flex-1">
         <p className="u-micro-strong text-ink">{t(`auth.nudge.${reason}`)}</p>
-        <p className="u-micro text-ink-70">{t('auth.nudge.text')}</p>
-        <Link
-          href={withSignupEntry(`/compte/inscription?next=${next}`, 'nudge')}
-          onClick={() => trackCustomerSignup('prompt_open', 'nudge')}
-          className="u-micro-strong mt-1.5 inline-block text-blue-deep underline"
+        <p className="u-micro text-ink-70">{t(alert ? 'auth.nudge.textAlert' : 'auth.nudge.text')}</p>
+        <button
+          type="button"
+          onClick={() => {
+            trackCustomerSignup('prompt_open', 'nudge');
+            setPrompt(true);
+          }}
+          className="u-micro-strong u-hit relative mt-1.5 inline-block text-blue-deep underline"
         >
-          {t('auth.nudge.cta')}
-        </Link>
+          {t(alert ? 'auth.nudge.ctaAlert' : 'auth.nudge.cta')}
+        </button>
       </div>
+      {prompt ? (
+        <AuthPromptModal
+          open={prompt}
+          onClose={() => setPrompt(false)}
+          trigger={alert ? 'alert' : 'nudge'}
+          entry="nudge"
+          next={next}
+        />
+      ) : null}
       <button type="button" onClick={() => { setPending(null); setReason(null); }} aria-label={t('auth.nudge.close')} className="u-hit relative shrink-0 rounded p-1 text-ink-45 hover:text-ink">
         <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       </button>

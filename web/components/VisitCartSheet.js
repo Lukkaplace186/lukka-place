@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import Link from '@/components/LocaleLink';
-import { CalendarClock, CheckCircle2, ListChecks, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -34,6 +34,9 @@ export default function VisitCartSheet() {
   const [error, setError] = useState(null);
   const [sent, setSent] = useState(null);
   const [pending, startTransition] = useTransition();
+  // No floating "Mes visites" pill anywhere (owner, 2026-11-18: "too
+  // confusing, we will look into it later"). The sheet opens from "Ajouter à
+  // mes visites" → "Voir" (OPEN_VISIT_CART_EVENT); the cart itself is kept.
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
@@ -70,17 +73,6 @@ export default function VisitCartSheet() {
 
   return (
     <>
-      {cart.length > 0 ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="u-press fixed right-3 top-[4.5rem] z-40 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-4 text-sm font-bold text-white shadow-lg"
-        >
-          <ListChecks strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          {t('enquiry.cart.pill', { count: cart.length, max: VISIT_CART_MAX })}
-        </button>
-      ) : null}
-
       <Sheet open={open} onOpenChange={(value) => { setOpen(value); if (!value) setSent(null); }}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader>

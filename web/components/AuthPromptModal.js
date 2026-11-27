@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { trackCustomerSignup } from '@/lib/analyticsClient';
-import { entryForPromptTrigger } from '@/lib/signupFunnelRules';
+import { cleanSignupEntry, entryForPromptTrigger } from '@/lib/signupFunnelRules';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import WhatsAppSignInForm from '@/app/(site)/compte/connexion/WhatsAppSignInForm';
 import { useT } from '@/lib/i18n/client';
@@ -18,8 +18,11 @@ import { useT } from '@/lib/i18n/client';
 const TITLE_KEYS = {
   save: 'listings.authPrompt.save',
   alert: 'listings.authPrompt.alert',
+  // The price guide's alert (2026-11-21): the same ask, its own funnel entry.
+  price_guide: 'listings.authPrompt.alert',
   favorite: 'listings.authPrompt.favorite',
   favoriteKeep: 'listings.authPrompt.favoriteKeep',
+  nudge: 'listings.authPrompt.nudge',
 };
 
 /** Why an account is needed for this, said at the moment it is asked (UX pass 2026-11-12). */
@@ -28,6 +31,7 @@ const REASON_KEYS = {
   alert: 'listings.authPrompt.reasons.alert',
   favorite: 'listings.authPrompt.reasons.favorite',
   favoriteKeep: 'listings.authPrompt.reasons.favorite',
+  nudge: 'listings.authPrompt.reasons.nudge',
 };
 
 /**
@@ -43,10 +47,11 @@ const REASON_KEYS = {
  * FAV_RETURN_PARAM); the caller performs the actual save once the visitor
  * lands back with a genuine session. This modal never saves anything itself.
  */
-export default function AuthPromptModal({ open, onClose, trigger, next }) {
+export default function AuthPromptModal({ open, onClose, trigger, next, entry: entryOverride = null }) {
   const t = useT();
   // The sign-up funnel (lib/signupFunnelRules.js): which prompt this is.
-  const entry = entryForPromptTrigger(trigger);
+  // A caller with its own entry (the feed card, the home bell…) keeps it.
+  const entry = entryOverride ? cleanSignupEntry(entryOverride) : entryForPromptTrigger(trigger);
 
   // Shown once per opening: the modal mounts only when a guest taps.
   useEffect(() => {
@@ -61,7 +66,7 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
         </DialogTitle>
         <p className="text-[0.9375rem] text-ink-70">{t(REASON_KEYS[trigger] || REASON_KEYS.save)}</p>
 
-        <WhatsAppSignInForm next={next} entry={entry} onSubmit={() => trackCustomerSignup('prompt_open', entry)} />
+        <WhatsAppSignInForm next={next} entry={entry} autoFocus onSubmit={() => trackCustomerSignup('prompt_open', entry)} />
 
         <p className="text-center text-sm text-ink-45">
           {t('auth.whatsappSignIn.preferPassword')}{' '}

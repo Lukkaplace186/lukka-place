@@ -66,16 +66,25 @@ test('the pages the stores are given: the policy with its anchors, the support p
   assert.match(privacy, /alternates: \{ canonical: '\/confidentialite' \}/);
 
   const contact = read('app/(site)/contact/page.js');
-  assert.match(contact, /getCentralWhatsAppHref/);
+  // 2026-11-14 (owner): the team's number as plain text, no WhatsApp link —
+  // the old button opened the agents' intake number.
+  assert.match(contact, /\{SUPPORT_WHATSAPP_DISPLAY\}/);
+  assert.doesNotMatch(contact, /getCentralWhatsAppHref|wa\.me|tone="green"/);
+  assert.equal(SUPPORT_WHATSAPP_DISPLAY, '+243 846 962 654');
   assert.match(contact, /href=\{`mailto:\$\{SUPPORT_EMAIL\}`\}/, 'an e-mail address, for a reviewer without WhatsApp');
   assert.match(contact, /\/confidentialite#suppression/);
   for (const dict of [fr, en]) {
     assert.doesNotMatch(Object.values(dict.contact).join('\n'), /heures|hours|24 ?h/i, 'no opening hours or answer time: none was decided');
-    for (const key of ['emailCta', 'emailLine', 'accountTitle', 'accountText', 'linkDelete', 'linkPrivacy', 'linkTerms']) {
+    for (const key of ['phoneLabel', 'emailCta', 'emailLine', 'accountTitle', 'accountText', 'linkDelete', 'linkPrivacy', 'linkTerms']) {
       assert.ok(dict.contact[key], key);
     }
     assert.match(dict.contact.emailLine, /\{email\}/);
   }
+});
+
+test('the footer has no WhatsApp icon (2026-11-14, owner)', () => {
+  const footer = read('components/Footer.js');
+  assert.doesNotMatch(footer, /getCentralWhatsAppHref|WhatsAppIcon|whatsappHref/);
 });
 
 test('in the app: help, privacy and terms sit at the bottom of both Compte screens', () => {

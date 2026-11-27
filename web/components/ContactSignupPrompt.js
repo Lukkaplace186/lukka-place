@@ -2,22 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Check } from 'lucide-react';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { isAgentSignedInClient, isLoggedInClient } from '@/lib/customerClient';
 import { trackCustomerSignup } from '@/lib/analyticsClient';
 import {
-  WHATSAPP_TAP_EVENT, contactSignupAllowed, keepListingNext, readContactSignupState, snoozeContactSignup, tappedListingId,
+  WHATSAPP_TAP_EVENT, contactSignupAllowed, keepListingNext, readContactSignupState, similarAlertNext, snoozeContactSignup, tappedListingId,
 } from '@/lib/contactSignupPrompt';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { useT } from '@/lib/i18n/client';
 
-// The form is fetched only when it can be needed: this component is mounted
-// on every public page, and most visitors never tap WhatsApp.
+// The sheet (Radix) and its form are fetched only when they can be needed:
+// this component is mounted on every public page, and most visitors never tap
+// WhatsApp (2026-11-22: the sheet used to be in every first load).
 const loadForm = () => import('@/app/(site)/compte/connexion/WhatsAppSignInForm');
-const WhatsAppSignInForm = dynamic(loadForm, { ssr: false });
-
-const PERKS = ['listings.contactSignup.perkSaved', 'listings.contactSignup.perkAlerts'];
+const loadSheet = () => import('./ContactSignupSheet');
+const ContactSignupSheet = dynamic(loadSheet, { ssr: false });
 const ENTRY = 'after_whatsapp';
 
 /**
@@ -31,11 +27,20 @@ const ENTRY = 'after_whatsapp';
  *
  * Mounted once in app/(site)/layout.js; every listing WhatsApp button
  * reaches it through the event trackLeadClick fires.
+ *
+ * Made specific on 2026-11-24 (1 opened out of 36 shown in 14 days): when the
+ * listing has a "homes like this one" search, the sheet offers exactly that
+ * ("Recevez les biens comme celui-ci") and signing in lands on those results
+ * with the alert saved (lib/contactSignupPrompt.js similarAlertNext); the
+ * name and number typed in the visit sheet, if any, are already in the form,
+ * so a known face is one tap from the code screen.
  */
 export default function ContactSignupPrompt() {
-  const t = useT();
   const [open, setOpen] = useState(false);
+  // Mounted on the first return, then kept so its closing animation plays.
+  const [mounted, setMounted] = useState(false);
   const [next, setNext] = useState('/');
+  const [offer, setOffer] = useState({ similar: false, name: '', phone: null });
   // The tap waiting for the visitor to come back, or null.
   const pending = useRef(null);
   const wentAway = useRef(false);
@@ -44,10 +49,16 @@ export default function ContactSignupPrompt() {
     function onTap(event) {
       if (isLoggedInClient() || isAgentSignedInClient()) return;
       if (!contactSignupAllowed(readContactSignupState())) return;
-      pending.current = tappedListingId(event.detail) ?? 0;
+      pending.current = {
+        id: tappedListingId(event.detail) ?? 0,
+        similarQuery: event.detail?.similarQuery || null,
+        name: event.detail?.name || '',
+        phone: event.detail?.phone || null,
+      };
       wentAway.current = document.visibilityState === 'hidden';
       // Fetch the form while they are in WhatsApp, so the sheet is complete
       // the moment they come back, even on a slow connection.
+      loadSheet().catch(() => {});
       loadForm().catch(() => {});
     }
 
@@ -60,11 +71,14 @@ export default function ContactSignupPrompt() {
     // Back on the page after WhatsApp.
     function back() {
       if (!wentAway.current || pending.current == null) return;
-      const id = pending.current;
+      const tap = pending.current;
       pending.current = null;
       wentAway.current = false;
       if (isLoggedInClient()) return;
-      setNext(keepListingNext(window.location, id));
+      const similarNext = similarAlertNext(tap.similarQuery, tap.id);
+      setNext(similarNext || keepListingNext(window.location, tap.id));
+      setOffer({ similar: Boolean(similarNext), name: tap.name || '', phone: tap.phone || null });
+      setMounted(true);
       setOpen(true);
       trackCustomerSignup('prompt_shown', ENTRY);
     }
@@ -92,43 +106,6 @@ export default function ContactSignupPrompt() {
     if (!nextOpen) snoozeContactSignup();
   }
 
-  return (
-    // The sheet portals to <body>; this wrapper keeps its clicks from
-    // bubbling into whatever React tree mounted it.
-    <span className="contents" onClick={(event) => event.stopPropagation()}>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          side="bottom"
-          className="mx-auto max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md"
-        >
-          <SheetHeader className="p-0 text-left">
-            <SheetTitle className="text-lg font-semibold text-ink">{t('listings.contactSignup.title')}</SheetTitle>
-            <SheetDescription className="text-sm text-ink-70">{t('listings.contactSignup.lead')}</SheetDescription>
-          </SheetHeader>
-          <ul className="flex flex-col gap-1.5">
-            {PERKS.map((key) => (
-              <li key={key} className="flex items-start gap-2 text-sm text-ink-70">
-                <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-green-deep" aria-hidden="true" />
-                <span>{t(key)}</span>
-              </li>
-            ))}
-          </ul>
-          {open ? (
-            <WhatsAppSignInForm
-              next={next}
-              entry={ENTRY}
-              onSubmit={() => trackCustomerSignup('prompt_open', ENTRY)}
-            />
-          ) : null}
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="u-focus-ring inline-flex min-h-11 items-center justify-center self-center text-sm font-semibold text-ink-70 hover:text-ink"
-          >
-            {t('listings.contactSignup.noThanks')}
-          </button>
-        </SheetContent>
-      </Sheet>
-    </span>
-  );
+  if (!mounted) return null;
+  return <ContactSignupSheet open={open} onOpenChange={onOpenChange} next={next} entry={ENTRY} offer={offer} />;
 }

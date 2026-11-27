@@ -16,18 +16,25 @@ import { normaliseAvailability } from './visitSlots';
  *
  * Nothing here is an opening-hours claim. The picker's four slots are the
  * same for every agent; this only removes days.
+ *
+ * `videoVisits` (2026-11-16, migrations/20261116_video_visits.sql): whether
+ * the agent takes "Visite par appel vidéo". On unless the agent switched it
+ * off — no row, a row from before the column, or the column not there yet
+ * all read as true (owner: on by default). Read through to_jsonb so the
+ * public calendar never 42703s before the migration.
  */
 
-export const EMPTY_AVAILABILITY = Object.freeze({ closedWeekdays: [], blockedDates: [] });
+export const EMPTY_AVAILABILITY = Object.freeze({ closedWeekdays: [], blockedDates: [], videoVisits: true });
 
 const DATES_AS_TEXT = "ARRAY(SELECT to_char(d, 'YYYY-MM-DD') FROM unnest(v.blocked_dates) AS d ORDER BY d)";
+const VIDEO_VISITS = "to_jsonb(v) ->> 'video_visits'";
 
 /**
  * The availability of the agent behind one PUBLIC listing. The public gate is
  * on the listing asked about, like the busy-slot read beside it.
  */
 export const LISTING_AVAILABILITY_SQL = `
-  SELECT v.closed_weekdays, ${DATES_AS_TEXT} AS blocked_dates
+  SELECT v.closed_weekdays, ${DATES_AS_TEXT} AS blocked_dates, ${VIDEO_VISITS} AS video_visits
     FROM properties p
     JOIN agent_visit_availability v ON v.agent_id = p.agent_id
    WHERE p.id = $1 AND p.status = 1 AND p.approve_status = 1
@@ -36,9 +43,17 @@ export const LISTING_AVAILABILITY_SQL = `
 
 const isMissingTable = (err) => err?.code === '42P01' || err?.code === '42703';
 
+/** Only an explicit false switches video visits off. */
+export function videoVisitsFrom(value) {
+  return !(value === false || value === 'false');
+}
+
 function fromRow(row) {
   if (!row) return { ...EMPTY_AVAILABILITY };
-  return normaliseAvailability({ closedWeekdays: row.closed_weekdays, blockedDates: row.blocked_dates });
+  return {
+    ...normaliseAvailability({ closedWeekdays: row.closed_weekdays, blockedDates: row.blocked_dates }),
+    videoVisits: videoVisitsFrom(row.video_visits),
+  };
 }
 
 /** Never throws: an unreadable setting blocks nothing. */
@@ -54,14 +69,14 @@ export async function getListingAvailability(listingId) {
 
 /**
  * The agent's own settings, for their agenda page.
- * @returns {Promise<{closedWeekdays: number[], blockedDates: string[], available: boolean}>}
+ * @returns {Promise<{closedWeekdays: number[], blockedDates: string[], videoVisits: boolean, available: boolean}>}
  *   `available: false` before the migration — the card says so instead of
  *   offering a save that would fail.
  */
 export async function getAgentAvailability(agentId) {
   try {
     const { rows } = await getPool().query(
-      `SELECT v.closed_weekdays, ${DATES_AS_TEXT} AS blocked_dates
+      `SELECT v.closed_weekdays, ${DATES_AS_TEXT} AS blocked_dates, ${VIDEO_VISITS} AS video_visits
          FROM agent_visit_availability v
         WHERE v.agent_id = $1`,
       [agentId],
@@ -91,6 +106,29 @@ export async function saveAgentAvailability(agentId, input, now = new Date()) {
              blocked_dates = EXCLUDED.blocked_dates,
              updated_at = NOW()`,
       [agentId, closedWeekdays, dates],
+    );
+    return 'saved';
+  } catch (err) {
+    if (isMissingTable(err)) return 'unavailable';
+    throw err;
+  }
+}
+
+/**
+ * The agent's "J'accepte les visites par appel vidéo" switch. Its own
+ * statement, so saving the days off never touches it and the reverse.
+ * 42703 (the column not there yet) or 42P01 → 'unavailable'.
+ * @returns {Promise<'saved'|'unavailable'>}
+ */
+export async function saveAgentVideoVisits(agentId, on) {
+  try {
+    await getPool().query(
+      `INSERT INTO agent_visit_availability (agent_id, video_visits, updated_at)
+       VALUES ($1, $2::boolean, NOW())
+       ON CONFLICT (agent_id) DO UPDATE
+         SET video_visits = EXCLUDED.video_visits,
+             updated_at = NOW()`,
+      [agentId, on === true],
     );
     return 'saved';
   } catch (err) {

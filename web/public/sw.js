@@ -69,11 +69,30 @@ async function trimCache(cache, max) {
   }
 }
 
+// The server sent AVIF from 2026-11-06 to 11-14, which iOS Safari cannot
+// decode (next.config.mjs, images.formats); it sends WebP only now. A phone
+// still holds those AVIF copies under the same URLs for 30 days (max-age), in
+// its HTTP cache and in this worker's cache, so an AVIF answer can only be one
+// of those: drop it and fetch past the HTTP cache.
+function isAvif(response) {
+  return Boolean(response) && /image\/avif/i.test(response.headers.get('content-type') || '');
+}
+
+async function fetchImage(request) {
+  const response = await fetch(request);
+  if (!isAvif(response)) return response;
+  return fetch(new Request(request, { cache: 'reload' }));
+}
+
 async function staleWhileRevalidate(event) {
   const { request } = event;
   const cache = await caches.open(IMAGE_CACHE);
-  const cached = await cache.match(request);
-  const network = fetch(request)
+  let cached = await cache.match(request);
+  if (isAvif(cached)) {
+    await cache.delete(request);
+    cached = undefined;
+  }
+  const network = fetchImage(request)
     .then(async (response) => {
       if (response.status === 200) {
         await cache.put(request, response.clone());

@@ -78,3 +78,24 @@ export function keepListingNext(location, listingId) {
   params.set(FAV_RETURN_PARAM, String(id));
   return `${path}?${params.toString()}`;
 }
+
+/**
+ * Where to land after signing in from the offer when the tapped listing has a
+ * "homes like this one" search (lib/similarSearch.js, 2026-11-24): those
+ * results, with the alert saved there (SaveSearchButton's `lkp_auth_return`
+ * resume) and the contacted listing saved too (FAV_RETURN_PARAM). That is what
+ * the sheet promises: "Recevez les biens comme celui-ci".
+ *
+ * @param {string|null} similarQuery
+ * @param {number|string|null} listingId
+ * @returns {string|null} null when there is no such search
+ */
+export function similarAlertNext(similarQuery, listingId) {
+  const query = typeof similarQuery === 'string' ? similarQuery.trim() : '';
+  if (!query) return null;
+  const params = new URLSearchParams(query);
+  params.set('lkp_auth_return', 'alert');
+  const id = tappedListingId({ listingId });
+  if (id) params.set(FAV_RETURN_PARAM, String(id));
+  return `/listings?${params.toString()}`;
+}

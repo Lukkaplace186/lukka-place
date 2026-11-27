@@ -170,6 +170,7 @@ export function leadClicksPageSql({ visitorsOnly = true, repParam = null } = {})
   return `
   SELECT wc.id, wc.created_at, wc.listing_id, wc.routing_type, wc.device, wc.source,
          wc.commune, wc.agent_id, wc.viewer_kind, to_jsonb(wc) ->> 'placement' AS placement,
+         wc.visitor_id,
          p.reference, pc.title,
          COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), NULLIF(TRIM(a.agency_name), '')) AS agent_name,
          (wc.visitor_id IS NOT NULL AND EXISTS (

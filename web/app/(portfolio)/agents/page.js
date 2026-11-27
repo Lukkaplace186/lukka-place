@@ -18,6 +18,7 @@ import { COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { publicRatingSummary, formatAverage } from '@/lib/agentReviews';
 import { agencyInitials } from '@/lib/agentIdentity';
 import { contactWhatsAppHref } from '@/lib/leadRouting';
+import { contactTapProps } from '@/lib/contactTapAttrs';
 import { telHref } from '@/lib/phone';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -418,6 +419,7 @@ function DirectoryCard({ agent, t, locale }) {
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
+            {...contactTapProps({ surface: 'directory', channel: 'whatsapp', agentId: agent.id })}
             aria-label={t('agent.directory.whatsappAria', { name: displayName })}
             className="u-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-green text-white hover:bg-green-deep"
           >
@@ -427,6 +429,7 @@ function DirectoryCard({ agent, t, locale }) {
         {callHref ? (
           <a
             href={callHref}
+            {...contactTapProps({ surface: 'directory', channel: 'call', agentId: agent.id })}
             aria-label={t('agent.directory.callAria', { name: displayName })}
             className="u-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-ink"
           >

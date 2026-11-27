@@ -5,6 +5,7 @@ import fr from './fr.json';
 import en from './en.json';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, normalizeLocale } from './config';
 import { createTranslator } from './translate';
+import { pickMessages } from './messageSubset';
 import { URL_LOCALE_HEADER } from './urlLocale';
 import { localeAlternates } from '../localePaths';
 
@@ -57,20 +58,15 @@ export function getDictionary(locale) {
 }
 
 /**
- * Picks whole top-level namespaces out of a dictionary.
+ * Picks namespaces — or dot-path subtrees of one, `'account.limits'` — out of
+ * a dictionary (./messageSubset.js).
  *
- * Every layout hands the client only the namespaces its own subtree renders
- * (see ./client.js), so admin copy never ships to a public visitor and the
- * public site's listing vocabulary never ships to /admin.
+ * Every layout hands the client only what its own subtree renders (see
+ * ./client.js), so admin copy never ships to a public visitor and the public
+ * site's listing vocabulary never ships to /admin.
  */
 export function getMessages(locale, namespaces) {
-  const dictionary = getDictionary(locale);
-  if (!namespaces) return dictionary;
-  const picked = {};
-  for (const namespace of namespaces) {
-    if (dictionary[namespace] !== undefined) picked[namespace] = dictionary[namespace];
-  }
-  return picked;
+  return pickMessages(getDictionary(locale), namespaces);
 }
 
 /**

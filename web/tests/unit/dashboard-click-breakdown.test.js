@@ -8,6 +8,7 @@ import {
   getWhatsAppClickBreakdown,
   getWhatsAppClickTotals,
   getWhatsAppConversionRate,
+  getWhatsAppPeopleConversion,
   parseClickPeriod,
   peopleSql,
 } from '@/lib/analytics';
@@ -30,6 +31,10 @@ import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
 
 test('the period picker accepts only its own keys', () => {
   assert.equal(parseClickPeriod('7').days, 7);
+  // 24 h, 3 and 14 days to read an ad campaign's effect (owner, 2026-11-16).
+  assert.equal(parseClickPeriod('1').days, 1);
+  assert.equal(parseClickPeriod('3').days, 3);
+  assert.equal(parseClickPeriod('14').days, 14);
   assert.equal(parseClickPeriod(['90']).days, 90);
   assert.equal(parseClickPeriod('tout').days, null);
   assert.equal(parseClickPeriod('365').key, '30', 'an unknown period falls back to the default');
@@ -109,6 +114,24 @@ test('the conversion rate divides people by people', async () => {
   assert.equal(await getWhatsAppConversionRate(), null, 'no views → no rate, not 0 %');
 });
 
+// 2026-11-25 (owner): 3.5 % per listing page opened was 35 of 443 people.
+// A third of that day's tappers did it from the results (card, map preview)
+// without opening the listing page: they count as having looked at one.
+test('the per-person rate counts each browser once; tapping from the results counts as looking', async () => {
+  reset();
+  enqueue([{ visitors: 455, clickers: 35 }]);
+  assert.deepEqual(await getWhatsAppPeopleConversion({ sinceDays: 1 }), { visitors: 455, clickers: 35, rate: 35 / 455 });
+  const sql = normalizeSql(calls[0].sql);
+  assert.match(sql, /SELECT v\.visitor_id FROM page_views v WHERE v\.path LIKE '\/listings\/%' AND v\.visitor_id IS NOT NULL/);
+  assert.match(sql, /UNION SELECT visitor_id FROM tappers \)/, 'a tapper is always among the people counted');
+  assert.match(sql, /SELECT DISTINCT w\.visitor_id FROM whatsapp_clicks w WHERE w\.visitor_id IS NOT NULL/);
+  assert.ok(sql.includes(normalizeSql(peopleSql('v'))) && sql.includes(normalizeSql(peopleSql('w'))));
+  assert.deepEqual(calls[0].values, [1]);
+  reset();
+  enqueue([{ visitors: 0, clickers: 0 }]);
+  assert.equal(await getWhatsAppPeopleConversion(), null, 'nobody opened a listing → no rate');
+});
+
 test('a tap records which button it came from, and falls back before the migration', async () => {
   assert.deepEqual(LEAD_CLICK_PLACEMENTS, ['card', 'listing_desktop', 'listing_mobile_bar', 'map_card']);
   const migration = readFileSync(new URL('../../../migrations/20261026_whatsapp_click_placement.sql', import.meta.url), 'utf8');
@@ -153,9 +176,14 @@ test('a tap records which button it came from, and falls back before the migrati
 
   const cta = readFileSync(new URL('../../components/WhatsAppCTA.js', import.meta.url), 'utf8');
   assert.match(cta, /placement = 'card'/);
-  assert.match(cta, /trackLeadClick\(listing, routingType, placement\)/);
+  // Since 2026-11-16 the tap is sent by the visit / disponible / question
+  // chooser (components/WhatsAppIntentSheet.js), which carries the placement.
+  assert.match(cta, /<WhatsAppIntentButton\s+listing=\{listing\}\s+placement=\{placement\}/);
+  const sheet = readFileSync(new URL('../../components/WhatsAppIntentSheet.js', import.meta.url), 'utf8');
+  assert.match(sheet, /trackLeadClick\(listing, routingType, placement\)/, 'the chooser switched off still sends the placement');
+  assert.match(sheet, /trackLeadClick\(listing, chosen\.routingType, placement, intent(, contact)?\)/);
   const bar = readFileSync(new URL('../../components/MobileListingBar.js', import.meta.url), 'utf8');
-  assert.match(bar, /trackLeadClick\(listing, routingType, 'listing_mobile_bar'\)/);
+  assert.match(bar, /placement="listing_mobile_bar"/);
   const page = readFileSync(new URL('../../app/(site)/listings/[id]/page.js', import.meta.url), 'utf8');
   assert.match(page, /<aside[\s\S]*<EnquiryCard [^>]*placement="listing_desktop"/, 'the desktop rail names itself');
   assert.equal((page.match(/placement="listing_desktop"/g) || []).length, 1, 'the phone copy does not claim to be desktop');

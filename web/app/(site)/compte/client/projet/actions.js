@@ -2,28 +2,25 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { addSavedSearch, getCurrentCustomerId, getCustomerById, removeSavedSearch } from '@/lib/customers';
-import { createLead, updateLeadStatus } from '@/lib/adminApi';
+import { addSavedSearch, getCurrentCustomerId, removeSavedSearch } from '@/lib/customers';
+import { updateLeadStatus } from '@/lib/adminApi';
 import { buildSearchLabel } from '@/lib/searchLabel';
 import { getT } from '@/lib/i18n/server';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { queuePlausibleGoal } from '@/lib/plausibleGoalServer';
+import { PLAUSIBLE_GOALS } from '@/lib/plausibleGoals';
 import {
-  MOVE_LEAD_SOURCE,
   MOVE_MANUAL_STAGES,
-  MOVE_RESEND_AFTER_MS,
   cleanProjectTitle,
   cleanStory,
-  moveCriteriaFr,
-  moveRequestBlocker,
   moveSearchQuery,
-  moveStoryFr,
   parseMoveProject,
 } from '@/lib/moveProjectRules';
+import { autoSendMoveProject, sendMoveProjectRequest } from '@/lib/moveProjectRequest';
 import {
   deleteMoveProject,
   getMoveProject,
   listMoveProjects,
-  markMoveProjectSent,
   recordSettledCheckin,
   saveProjectAndAlert,
   setMoveProjectManualStage,
@@ -74,6 +71,16 @@ export async function saveMoveProjectAction(formData) {
   if (result.limit) redirect('/compte/client/projet?limite=1');
   if (!result.saved) {
     redirect(projectId != null ? `/compte/client/projet/${projectId}/modifier?error=save` : '/compte/client/projet/nouveau?error=save');
+  }
+  // A new alert from this project (not one it already had): the Plausible goal. Never throws.
+  if (result.alert === 'added') await queuePlausibleGoal(PLAUSIBLE_GOALS.ALERT_CREATED, { props: { from: 'move_project' } });
+  // A project that was never sent goes to agencies now, once it says rent or
+  // buy and where (lib/moveProjectRequest.js). An edit of a project already
+  // sent alerts nobody. Never throws.
+  const sent = await autoSendMoveProject(customerId, result.id);
+  if (sent.status === 'sent' && sent.leadId) {
+    await recordAdEventFromAction({ name: 'Lead', eventId: `lead-m-${sent.leadId}`, phone: sent.phone });
+    revalidatePath('/compte/client/messages');
   }
   revalidateProjects(result.id);
   redirect(`/compte/client/projet/${result.id}${projectId == null ? '?nouveau=1' : ''}`);
@@ -214,59 +221,24 @@ export async function deleteMoveProjectAction(projectId) {
 
 /**
  * "Envoyer ma demande aux agences" for one project: it becomes a real lead
- * (POST /admin/leads), which the engine pushes to the agencies covering the
- * communes (services/leadDispatch.js) — the same path the "Trouver pour moi"
- * form uses. Only on this explicit tap: answering the cards never contacts
- * anyone. Bound to the project id by the page; returns useActionState state.
+ * (POST /admin/leads), which the engine offers to the best-ranked agencies in
+ * waves (services/leadDispatch.js) — lib/moveProjectRequest.js. Since
+ * 2026-11-16 a project is also sent by itself when saved (autoSendMoveProject);
+ * this tap is the resend, at most once per MOVE_RESEND_AFTER_MS. Bound to the
+ * project id by the page; returns useActionState state.
  */
 export async function sendMoveRequestAction(projectId) {
   const customerId = await getCurrentCustomerId();
   if (!customerId) return { status: 'error', code: 'send' };
   const id = projectIdOf(projectId);
-  const [customer, project] = await Promise.all([
-    getCustomerById(customerId),
-    id == null ? null : getMoveProject(customerId, id),
-  ]);
-  if (!customer?.phone || !project) return { status: 'error', code: 'send' };
-  // A found or paused move is not a search agencies should be working on.
-  if (project.status !== 'active') return { status: 'error', code: 'send' };
-
-  const blocker = moveRequestBlocker(project);
-  if (blocker) return { status: 'error', code: blocker };
-  if (project.lastLeadAt && Date.now() - new Date(project.lastLeadAt).getTime() < MOVE_RESEND_AFTER_MS) {
-    return { status: 'error', code: 'recent' };
+  const result = await sendMoveProjectRequest(customerId, id, { origin: 'customer' });
+  if (result.status !== 'sent') {
+    // A found or paused move, or no number: the generic message.
+    const shown = ['transaction', 'communes', 'recent'].includes(result.code) ? result.code : 'send';
+    return { status: 'error', code: shown };
   }
-
-  const story = moveStoryFr(project);
-  const criteria = moveCriteriaFr(project);
-  let leadId = null;
-  try {
-    const { lead } = await createLead({
-      waId: customer.phone,
-      name: customer.full_name || null,
-      source: MOVE_LEAD_SOURCE,
-      // Story first: the agent's card shows three lines (AgentLeadCard).
-      requirementsSummary: [story, criteria].filter(Boolean).join('\n') || null,
-      transactionType: project.transactionType,
-      commune: project.communes[0],
-      communes: project.communes,
-      priceMin: project.budgetMin,
-      priceMax: project.budgetMax,
-      bedrooms: project.bedroomsMin,
-      moveStory: story || undefined,
-    });
-    leadId = lead?.id ?? null;
-  } catch (err) {
-    console.error(`[move-project] lead creation failed for customer #${customerId}: ${err.message}`);
-    return { status: 'error', code: 'send' };
-  }
-
-  console.log(`[move-project] lead #${leadId} from customer #${customerId} project #${project.id} ${project.transactionType} ${project.communes.join(',')}`);
-  if (leadId) {
-    await markMoveProjectSent(customerId, project.id, leadId);
-    await recordAdEventFromAction({ name: 'Lead', eventId: `lead-m-${leadId}`, phone: customer.phone });
-  }
-  revalidateProjects(project.id);
+  if (result.leadId) await recordAdEventFromAction({ name: 'Lead', eventId: `lead-m-${result.leadId}`, phone: result.phone });
+  revalidateProjects(id);
   revalidatePath('/compte/client/messages');
   return { status: 'sent' };
 }

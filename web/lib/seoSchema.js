@@ -57,8 +57,11 @@ export function organizationSchema({ profiles } = {}) {
   const url = base();
   const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
   const sameAs = sameAsProfiles(profiles || socialProfiles());
+  // Organization, not RealEstateAgent (2026-11-21): Lukka Place is the
+  // platform agents publish on, not an agency (owner rule, marketing); each
+  // listing names its own agent.
   return {
-    '@type': 'RealEstateAgent',
+    '@type': 'Organization',
     '@id': `${url}/#organization`,
     name: 'Lukka Place',
     url,

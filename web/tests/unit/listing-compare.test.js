@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COMPARE_FIELDS, compareHref, compareToFirst, photoSet, sameValue } from '@/lib/listingCompare';
+import { COMPARE_FIELDS, compareHref, compareToFirst, photoKey, photoSet, photosSharedFirst, samePlace, sameValue } from '@/lib/listingCompare';
 import { COMPARE_MAX, compareState, parseCompareIds } from '@/lib/adminListings';
 import {
   DUPLICATE_IDS_SQL, DUPLICATE_INDEX_CTES, DUPLICATE_LINK_LIMIT, FILTERABLE_FLAGS as FLAG_SQL_KEYS, PHOTO_FINGERPRINT_PATTERN,
@@ -109,4 +109,36 @@ test('bulk approve asks the database for the same agent’s other copies', async
   assert.match(text, /agent_id IS NOT NULL/);
   assert.deepEqual(values, [737]);
   assert.deepEqual(await findSameAgentResends('nope'), []);
+});
+
+// 2026-11-25 (owner): #1429 and #1408, two agents, shared one byte-identical
+// photo; the compare page matched URLs (which carry the listing id), so the
+// photo was neither outlined nor counted, and it was the 8th of 11, past the
+// six thumbnails. GB and Macampagne (both Ngaliema) were marked "Same".
+const url = (id, fp) => `https://s/Property_images/properties/${id}/whatsapp_${fp}_e5.jpg`;
+
+test('a photo in common is matched by its content fingerprint, not its URL', () => {
+  const a = { ...base, id: 1408, featured_image: url(1408, '5df04c8578b71'), gallery: [url(1408, '66d966a6338da')] };
+  const b = { ...base, id: 1429, featured_image: url(1429, '1855b2244ff5a'), gallery: [url(1429, '00ce7d83ecd25'), url(1429, '66d966a6338da')] };
+  const [, mark] = compareToFirst([a, b]);
+  assert.deepEqual(mark.sharedPhotos, [url(1429, '66d966a6338da')]);
+  assert.equal(photoKey(url(1408, '66d966a6338da')), photoKey(url(1429, '66d966a6338da')));
+  assert.equal(photoKey('https://x/a.jpg'), 'https://x/a.jpg', 'an unfingerprinted photo falls back to its URL');
+});
+
+test('shared photos come first, so the few thumbnails a card shows include them', () => {
+  const photos = ['p1', 'p2', url(1429, '66d966a6338da'), 'p3'];
+  assert.deepEqual(photosSharedFirst(photos, new Set([photoKey(url(1408, '66d966a6338da'))])), [url(1429, '66d966a6338da'), 'p1', 'p2', 'p3']);
+});
+
+test('"Same" place needs the quartier; a commune alone is not the same place', () => {
+  const gb = { ...base, commune: 'Ngaliema', quartier: 'GB' };
+  const macampagne = { ...base, commune: 'Ngaliema', quartier: 'Macampagne' };
+  const [, m1] = compareToFirst([gb, macampagne]);
+  assert.equal(samePlace(m1, gb, macampagne), false);
+  const [, m2] = compareToFirst([gb, { ...gb }]);
+  assert.equal(samePlace(m2, gb, gb), true);
+  const bare = { ...base, commune: 'Ngaliema', quartier: null };
+  const [, m3] = compareToFirst([bare, { ...bare }]);
+  assert.equal(samePlace(m3, bare, bare), true, 'no quartier on either side: the commune decides');
 });

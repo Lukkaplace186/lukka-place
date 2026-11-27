@@ -28,6 +28,32 @@ export function routeTemplate(pathname) {
   return path.split('/').map((segment) => (/^\d+$/.test(segment) ? ':id' : segment)).join('/') || '/';
 }
 
+/*
+ * Where a first byte's wait went (2026-11-19). The home page's TTFB doubled
+ * to ~2.1 s the day ads started landing on it while the server answers in
+ * 50 ms, and one number cannot say whether that is a redirect before our
+ * URL, the DNS lookup, the TCP + TLS handshake or the trip to Paris and back.
+ * From the navigation entry web-vitals already hands us:
+ *   wait  — before the request for this URL starts (redirects, the in-app
+ *           browser opening); a cross-origin redirect is only visible here
+ *   dns   — name lookup
+ *   conn  — TCP + TLS
+ *   req   — request sent → first byte (edge + origin)
+ *   proto — h2 / h3
+ * Null when the browser gives no entry.
+ */
+export function ttfbParts(entry) {
+  if (!entry || typeof entry.responseStart !== 'number') return null;
+  const span = (from, to) => Math.max(0, Math.round((Number(to) || 0) - (Number(from) || 0)));
+  return {
+    wait: span(0, entry.workerStart || entry.fetchStart),
+    dns: span(entry.domainLookupStart, entry.domainLookupEnd),
+    conn: span(entry.connectStart, entry.connectEnd),
+    req: span(entry.requestStart, entry.responseStart),
+    proto: typeof entry.nextHopProtocol === 'string' ? entry.nextHopProtocol : null,
+  };
+}
+
 function flush() {
   if (!queue.length) return;
   const body = JSON.stringify({ metrics: queue });
@@ -53,6 +79,7 @@ function report(metric) {
     route: routeTemplate(window.location.pathname),
     net: connection?.effectiveType || null,
     saveData: Boolean(connection?.saveData),
+    ...(metric.name === 'TTFB' ? { parts: ttfbParts(metric.entries?.[0]) } : {}),
   });
   if (queue.length >= FLUSH_AT) flush();
 }

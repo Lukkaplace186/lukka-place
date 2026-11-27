@@ -42,6 +42,8 @@ import PropertyCard from './PropertyCard';
  * each card reveals on its own, cascading across the grid row. A browser
  * without `animation-timeline` simply shows the cards with no reveal.
  */
+export const RAIL_SIZES = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 310px';
+
 export default function FeaturedListingsCarousel({ listings }) {
   return (
     <div
@@ -52,12 +54,22 @@ export default function FeaturedListingsCarousel({ listings }) {
         'lg:grid-cols-4',
       ].join(' ')}
     >
+      {/* One row at every width (owner, 2026-11-18: several rows of the
+          weekly selection was too much). A phone swipes through all of them;
+          from sm the grid shows exactly one row — 2, then 3 (md), then 4
+          (lg) cards — and "Voir toutes les annonces" leads to the rest. */}
       {listings.map((listing, i) => (
-        <div key={listing.id} className="w-[82vw] max-w-[310px] shrink-0 snap-start sm:contents [&>div]:h-full">
-          {/* The first cards (mobile: the one in view plus the peek; desktop:
-              the first grid row) are above the fold — `priority` skips
-              next/image's lazy-loading so the LCP photo requests immediately. */}
-          <PropertyCard listing={listing} priority={i < 4} />
+        <div key={listing.id} className={`w-[82vw] max-w-[310px] shrink-0 snap-start [&>div]:h-full ${i < 2 ? 'sm:contents' : i < 3 ? 'sm:hidden md:contents' : i < 4 ? 'sm:hidden lg:contents' : 'sm:hidden'}`}>
+          {/* No `priority` (2026-11-19). The rail starts below the first
+              screen (first card at 859px on a 375×812 phone, the hero and
+              its search card are above it), so the four preloads it used to
+              add — ~280 KB of photos nobody had scrolled to — competed with
+              the hero photo and the scripts on the ad traffic's cold 4G
+              connection. Lazy loading still fetches them well before they
+              scroll into view. `sizes` is the card's real width: 82vw capped
+              at 310px on a phone (it was the default 100vw, one step up the
+              srcset for nothing), then the 2 / 3 / 4-column grid. */}
+          <PropertyCard listing={listing} sizes={RAIL_SIZES} />
         </div>
       ))}
     </div>

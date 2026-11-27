@@ -214,11 +214,11 @@ const PREPOSITIONS = '(?:[àa]|au|aux|en|dans|de|du|des|vers|pr[eè]s\\s+de|c[o�
 // Kinshasa's centre-ville is Gombe; this is how people ask for it.
 const DOWNTOWN_PATTERN = /(?:(?:^|\s)(?:[àa]u|in|dans\s+le)\s+)?\b(?:centre[\s-]?ville|kin[\s-]?centre|downtown|city\s+cent(?:er|re))\b/i;
 
-// Exported so LocationAutocomplete's live preview can build the exact same
-// kind of "remove this one matched span" regex.
-export function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+// escapeRegExp and searchedPlaceLabel live in lib/searchPlaceLabel.js, which
+// imports no place data, so the components that need only them keep this
+// parser and the gazetteer out of the page's first download. Re-exported.
+import { escapeRegExp, searchedPlaceLabel } from './searchPlaceLabel';
+export { escapeRegExp, searchedPlaceLabel };
 
 /**
  * @param {string} text
@@ -514,26 +514,4 @@ export function parseSearchQuery(text) {
   result.keywords = cleanKeywords(remaining);
   result.spans = spans;
   return result;
-}
-
-/**
- * The place a /listings URL searches, as text for the search box — so the box
- * still says "Bandalungwa" after a search for "2 chambres bandal moins de
- * 800$" rather than coming back empty while the heading names the place.
- * Written so parseSearchQuery() reads it back to the same place on Enter.
- * '' when no place is set.
- */
-export function searchedPlaceLabel(params) {
-  if (!params) return '';
-  const quartier = String(params.quartier || '').trim();
-  if (quartier) return quartier;
-  const communes = String(params.communes || '')
-    .split(',')
-    .map((c) => c.trim())
-    .filter(Boolean);
-  const label = (c) => (c === 'Kinshasa' ? 'commune de Kinshasa' : c);
-  if (communes.length > 1) return communes.map(label).join(' ou ');
-  const commune = String(params.commune || '').trim();
-  // The parser reads a bare 'Kinshasa' as the city, not the commune.
-  return commune ? label(commune) : '';
 }

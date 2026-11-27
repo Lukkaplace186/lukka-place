@@ -18,6 +18,7 @@
  */
 
 import { ACCOUNT_LIMIT_EVENT } from './accountLimits';
+import { PLAUSIBLE_GOALS, firePlausibleGoal } from './plausibleGoals';
 
 const FAVORITES_EVENT = 'lukka:favorites-changed';
 const SAVED_SEARCHES_EVENT = 'lukka:saved-searches-changed';
@@ -148,12 +149,17 @@ export function saveSearch(search) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: search.query, label: search.label }),
-  }).then((res) => {
+  }).then(async (res) => {
     if (!res.ok) {
       savedSearchesCache = current;
       dispatch(SAVED_SEARCHES_EVENT);
       if (res.status === 409) notifyLimit('savedSearches');
+      return;
     }
+    // A new alert, confirmed by the server (`added`, not `exists`): the
+    // Plausible goal (lib/plausibleGoals.js). Never throws.
+    const body = await res.json().catch(() => null);
+    if (body?.status === 'added') firePlausibleGoal(PLAUSIBLE_GOALS.ALERT_CREATED);
   }).catch(() => {
     savedSearchesCache = current;
     dispatch(SAVED_SEARCHES_EVENT);

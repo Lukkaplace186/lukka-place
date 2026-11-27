@@ -11,7 +11,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * Renders nothing when the listing states too little to search on.
  *
  * `variant="card"` sits beside the contact card; `"inline"` under the
- * "Biens similaires" rail.
+ * "Biens similaires" rail. Both count as the funnel entry `listing_alert`,
+ * like the phone's mid-page card (components/ListingAlertCard.js).
  */
 export default async function SimilarAlertButton({ query, variant = 'card' }) {
   if (!query) return null;
@@ -21,7 +22,7 @@ export default async function SimilarAlertButton({ query, variant = 'card' }) {
     return (
       <div className="mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[0.9375rem] text-ink-70">{t('listings.similarAlert.inlineLead')}</p>
-        <QueryAlertButton query={query} label={t('listings.similarAlert.button')} />
+        <QueryAlertButton query={query} label={t('listings.similarAlert.button')} entry="listing_alert" />
       </div>
     );
   }
@@ -37,7 +38,7 @@ export default async function SimilarAlertButton({ query, variant = 'card' }) {
           <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-70">{t('listings.similarAlert.lead')}</p>
         </div>
       </div>
-      <QueryAlertButton query={query} label={t('listings.similarAlert.button')} fullWidth className="mt-4" />
+      <QueryAlertButton query={query} label={t('listings.similarAlert.button')} entry="listing_alert" fullWidth className="mt-4" />
     </section>
   );
 }

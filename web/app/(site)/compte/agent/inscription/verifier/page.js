@@ -7,7 +7,8 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getT } from '@/lib/i18n/server';
 import WhatsAppVerifyPanel from '@/components/WhatsAppVerifyPanel';
 import { ensureChallenge, whatsappVerifyHref, whatsappVerifyNumber } from '@/lib/whatsappVerify';
-import { otpBypassEnabled } from '@/lib/otpBypass';
+import { agentOtpBypassEnabled } from '@/lib/otpBypass';
+import { CodeFallback } from '@/components/SignInCodeForm';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -26,6 +27,8 @@ const ERROR_MESSAGE_KEYS = {
   1: 'auth.errors.codeInvalid',
   expired: 'auth.errors.codeExpired',
   send_failed: 'auth.errors.sendFailed',
+  send_busy: 'auth.whatsappSignIn.errors.sendBusy',
+  too_many: 'auth.whatsappSignIn.errors.tooMany',
 };
 
 export default async function AgentVerifyOtpPage({ searchParams }) {
@@ -44,11 +47,13 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
     redirect('/compte/agent/inscription');
   }
 
-  // "Vérifier via WhatsApp" is offered first: an inbound message always
-  // reaches us, while a sent code needs a Meta template that may not exist.
-  // With AUTH_OTP_BYPASS=1 it is the only way — no code is sent, and nothing
-  // is verified until the number itself has spoken (lib/whatsappVerify.js).
-  const codeless = otpBypassEnabled();
+  // A code we send, typed here (2026-11-24, owner: 24 of 78 agents asked to
+  // send us a code never did): the box comes first, and "send us a code from
+  // WhatsApp" waits underneath as "Code pas reçu ?" — open at once when the
+  // code could not be sent, a reminder after 30 s (Chakra confirms no
+  // delivery). Without a template (or AGENT_SENT_CODE=off) the reverse proof
+  // is the only way, as before (lib/whatsappVerify.js).
+  const codeless = agentOtpBypassEnabled();
   let challenge = null;
   try {
     challenge = await ensureChallenge(attempt);
@@ -56,29 +61,32 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
     console.error(`[verify] could not open a WhatsApp challenge for ${attempt.role} #${attempt.id}: ${err.message}`);
   }
 
+  const reversePanel = challenge ? (
+    <WhatsAppVerifyPanel
+      code={challenge.code}
+      href={whatsappVerifyHref(challenge.code)}
+      maskedPhone={maskPhone(attempt.phone)}
+      businessNumber={whatsappVerifyNumber()}
+      next={next}
+      restartHref="/compte/agent/inscription"
+    />
+  ) : (
+    <p className="mt-4 text-sm text-red-600" role="alert">{t('auth.whatsappVerify.noNumber')}</p>
+  );
+
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('auth.numberVerification')}</h1>
-        {challenge ? (
-          <WhatsAppVerifyPanel
-            code={challenge.code}
-            href={whatsappVerifyHref(challenge.code)}
-            maskedPhone={maskPhone(attempt.phone)}
-            businessNumber={whatsappVerifyNumber()}
-            next={next}
-            restartHref="/compte/agent/inscription"
-          />
-        ) : codeless ? (
-          <p className="mt-4 text-sm text-red-600" role="alert">{t('auth.whatsappVerify.noNumber')}</p>
-        ) : null}
-
-        {codeless ? null : (
+        {codeless ? reversePanel : (
         <>
-        <p className="mt-6 text-sm text-ink-45">
-          {challenge ? t('auth.whatsappVerify.haveCode') : t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
-          {sent ? ` ${t('auth.newCodeSent')}` : ''}
-        </p>
+        {/* After a failed send nothing claims a code was sent. */}
+        {error === 'send_failed' || error === 'send_busy' ? null : (
+          <p className="mt-6 text-sm text-ink-45">
+            {t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
+            {sent ? ` ${t('auth.newCodeSent')}` : ''}
+          </p>
+        )}
 
         <form action={agentVerifyOtpAction} className="mt-6 flex flex-col gap-3">
           <input type="hidden" name="next" value={next} />
@@ -134,6 +142,13 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
           </a>
         )}
 
+        <CodeFallback
+          label={t('auth.whatsappSignIn.noCodeFallback')}
+          lateLabel={error === 'send_failed' ? null : t('auth.whatsappSignIn.codeLate')}
+          defaultOpen={error === 'send_failed' || error === 'send_busy'}
+        >
+          {reversePanel}
+        </CodeFallback>
         </>
         )}
 

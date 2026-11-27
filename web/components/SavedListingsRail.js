@@ -84,10 +84,11 @@ export default function SavedListingsRail({ listings }) {
       >
         {listings.map((listing, i) => (
           <div key={listing.id} className="w-[85vw] max-w-[19rem] shrink-0 snap-start sm:w-[19rem]">
-            {/* Only the cards that can be on screen before any scrolling
-                skip lazy-loading, matching FeaturedListingsCarousel's own
-                first-row-only `priority` rule. */}
-            <PropertyCard listing={listing} priority={i < 4} />
+            {/* No `priority`, like FeaturedListingsCarousel in the same slot
+                (2026-11-19): the rail sits below the hero and its search
+                card, so preloading four covers only delayed the hero photo.
+                The card is 85vw capped at 19rem (304px) at every width. */}
+            <PropertyCard listing={listing} sizes="304px" />
           </div>
         ))}
       </div>

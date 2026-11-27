@@ -2,11 +2,15 @@
 
 import { redirect } from 'next/navigation';
 import { getPool } from '@/lib/db';
-import { consumeAgentOtp, sendAgentOtp } from '@/lib/agents';
+import { consumeAgentOtp } from '@/lib/agents';
+import { agentCodeKey, sendAgentCode } from '@/lib/agentCode';
+import { clearCodeTries, noteWrongCode } from '@/lib/signInCodeLimits';
 import { verifyOtp } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { getVerifyAttempt, setVerifyAttemptCookie, clearVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
+import { registrationAdEvent } from '@/lib/adTrackingRules';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -35,7 +39,7 @@ export async function agentVerifyOtpAction(formData) {
 
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, phone, token_version, otp_code_hash, otp_expires_at FROM agents WHERE id = $1`,
+    `SELECT id, phone, token_version, otp_code_hash, otp_expires_at, phone_verified_at FROM agents WHERE id = $1`,
     [attempt.id],
   );
   const agent = rows[0];
@@ -49,11 +53,23 @@ export async function agentVerifyOtpAction(formData) {
 
   if (!valid) {
     await recordAgentLoginAttempt(agent.id, expired ? 'expired_code' : 'wrong_code');
+    // Five wrong codes wipe it (lib/signInCodeLimits.js): confirming an agent's
+    // number claims its listings, so a code must not be guessable.
+    if (!expired && noteWrongCode(agentCodeKey(agent.id))) {
+      await pool.query('UPDATE agents SET otp_code_hash = NULL, otp_expires_at = NULL WHERE id = $1', [agent.id]);
+      console.warn(`[agent-auth] agent #${agent.id}: too many wrong codes, code wiped`);
+      redirect(backTo(next, '&error=too_many'));
+    }
     redirect(backTo(next, `&error=${expired ? 'expired' : '1'}`));
   }
+  clearCodeTries(agentCodeKey(agent.id));
 
   await consumeAgentOtp(agent.id);
   await recordAgentLoginAttempt(agent.id, 'code_verified');
+  // The number proven for the first time completes the agent's sign-up: the
+  // agent-recruitment ads' CompleteRegistration (reg-a-<id>, lib/adTrackingRules.js).
+  // A no-op without pixels, consent, or for a demo number. Never throws.
+  if (!agent.phone_verified_at) await recordAdEventFromAction({ ...registrationAdEvent('agent', agent.id), phone: agent.phone || null });
   await clearVerifyAttemptCookie();
   await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });
 
@@ -79,15 +95,12 @@ export async function agentResendOtpAction(formData) {
   const agent = rows[0];
   if (!agent) redirect('/compte/agent/inscription');
 
-  try {
-    await sendAgentOtp(agent.id, agent.phone);
-  } catch (err) {
-    // Surfaced rather than swallowed — this used to redirect with `sent=1`
-    // regardless, which told someone a code was on its way when the send
-    // had just failed (web/CLAUDE.md, "Honest UI State").
-    console.error(`[agent-auth] OTP resend failed for agent #${agent.id}: ${err.message}`);
-    redirect(backTo(next, '&error=send_failed'));
-  }
+  // Surfaced rather than swallowed — this used to redirect with `sent=1`
+  // regardless, which told someone a code was on its way when the send had
+  // just failed (web/CLAUDE.md, "Honest UI State"). At most 3 codes per
+  // 10 minutes (lib/agentCode.js).
+  const result = await sendAgentCode(agent);
+  if (result !== 'sent') redirect(backTo(next, `&error=send_${result}`));
 
   // Refresh the window so a slow resend doesn't strand the attempt.
   await setVerifyAttemptCookie(attempt);

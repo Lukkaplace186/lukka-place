@@ -96,9 +96,28 @@ export async function POST(request) {
         siteUrl,
         deps: {
           getDrops: () => getUnnotifiedFavoritePriceDrops(),
-          send: async (phone, text, { customerId, whatsappOptedOut, push } = {}) => {
+          send: async (phone, text, { customerId, whatsappOptedOut, push, template: priceDrop } = {}) => {
             if (await pushedToApp(phone, customerId, 'price_drop', 'saved_listings', push)) return;
             if (whatsappOptedOut) return;
+            // Outside the customer's 24 h window the text never arrives:
+            // PRICE_DROP_TEMPLATE (baisse_prix_client, approved 2026-11-11)
+            // goes instead. The engine sends nothing inside the window
+            // (sent: false), and then the fuller text goes as before.
+            const priceDropTemplate = process.env.PRICE_DROP_TEMPLATE || null;
+            if (priceDropTemplate && priceDrop) {
+              try {
+                const res = await sendWhatsAppTemplate(phone, {
+                  template: priceDropTemplate,
+                  languageCode: process.env.PRICE_DROP_TEMPLATE_LANG || 'fr',
+                  bodyParams: priceDrop.bodyParams,
+                  urlButton: priceDrop.urlButton,
+                  onlyOutsideWindow: true,
+                });
+                if (res?.sent !== false) return;
+              } catch (err) {
+                console.warn(`[search-alerts] price-drop template '${priceDropTemplate}' failed for ${phone}, sending the text: ${err.message}`);
+              }
+            }
             await sendWhatsAppMessage(phone, text);
           },
           recordNotified: recordFavoritePriceDropsNotified,

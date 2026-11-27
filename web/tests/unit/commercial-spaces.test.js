@@ -62,12 +62,12 @@ test('a checkbox only ever says yes: unticked is "not stated", never a recorded 
   assert.deepEqual(commercialSpecsFromForm(bad), { office_count: null, floor_level: null, road_frontage: null, truck_access: null });
 });
 
-test('a listing row carries the specs as one jsonb read through to_jsonb, and its category type', async () => {
+test('a listing row carries the specs as one jsonb of the plain columns, and its category type', async () => {
   enqueue([{ total: '0' }]);
   enqueue([]);
   await listings.getListings({});
   const { sql } = calls.find((c) => /SELECT\s+p\.id/.test(c.sql));
-  assert.match(sql, /FROM \(SELECT to_jsonb\(p\) AS j\) spec\) AS commercial_specs/);
+  assert.match(sql, /jsonb_build_object\( 'office_count', p\.office_count, 'floor_level', p\.floor_level, 'road_frontage', p\.road_frontage, 'truck_access', p\.truck_access\) AS commercial_specs/);
   assert.match(sql, /cat\.type AS category_type/);
   assert.equal(commercialSpecsOf({ commercial_specs: { office_count: 3, floor_level: null, road_frontage: true, truck_access: null } }).office_count, 3);
 });
@@ -112,7 +112,7 @@ test('landing pages: /location/bureaux and /location/locaux-commerciaux, never c
   assert.equal(parseSeoSegments('vente', ['locaux-commerciaux', 'gombe']).propertyType, COMMERCIAL_FILTER_VALUE);
   assert.equal(seoPath({ transaction: 'location', propertyType: COMMERCIAL_FILTER_VALUE, commune: 'Gombe' }), '/location/locaux-commerciaux/gombe');
   assert.ok(OVERLAY_PROPERTY_TYPES.has(COMMERCIAL_FILTER_VALUE));
-  const paths = landingPathsFromFacets([{ commune: 'Gombe', purpose: 'rent', propertyType: COMMERCIAL_FILTER_VALUE, count: 2 }]);
+  const paths = landingPathsFromFacets([{ commune: 'Gombe', purpose: 'rent', propertyType: COMMERCIAL_FILTER_VALUE, count: 3 }]);
   assert.ok(paths.includes('/location/locaux-commerciaux/gombe'));
   for (const value of ['bureau', COMMERCIAL_FILTER_VALUE, 'entrepôt', 'immeuble', 'bâtiment', 'villa', 'concession']) {
     assert.ok(PROPERTY_TYPE_PLURAL_KEYS[value], `results heading for ${value}`);

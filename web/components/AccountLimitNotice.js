@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { X } from 'lucide-react';
 import { ACCOUNT_LIMIT_EVENT, MAX_FAVORITES, MAX_SAVED_SEARCHES } from '@/lib/accountLimits';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH } from '@/lib/iconStyle';
 import { useT } from '@/lib/i18n/client';
 
 const NOTICES = {

@@ -40,6 +40,19 @@ test('the matcher covers exactly the private realms, plus everything for a "view
     { source: '/listings', has: [{ type: 'query', key: 'location' }] },
     // ?ref=CODE on any page except the API, /go and /r (lib/partnerRules.js).
     { source: '/((?!_next/static|_next/image|favicon\\.ico|api/|go/|r/).*)', has: [{ type: 'query', key: 'ref' }] },
+    // A FILTERED /agents search only (lib/directoryCrawlGuard.js), one entry per filter key.
+    ...['q', 'nom', 'ville', 'communes', 'commune', 'pres', 'offre', 'verifies', 'tri'].map((key) => ({
+      source: '/agents',
+      has: [{ type: 'query', key }],
+    })),
+    // The edge-cacheable public pages (lib/edgeCache.js, 2026-11-21).
+    '/',
+    '/listings',
+    '/listings/:id',
+    '/location/:path*',
+    '/vente/:path*',
+    '/combien-coute/:path*',
+    '/guides/:path*',
   ]);
   assert.equal(config.runtime, 'nodejs', 'node:crypto primitives require the Node runtime, not Edge');
 });

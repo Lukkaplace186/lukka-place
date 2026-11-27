@@ -1,5 +1,4 @@
-import AppListingBar from '@/components/app/AppListingBar';
-import AppListingHeader from '@/components/app/AppListingHeader';
+import { AppListingBar, AppListingHeader } from '@/components/app/AppListingChrome';
 import AppRelatedRail from '@/components/app/AppRelatedRail';
 import AppAvatar from '@/components/app/AppAvatar';
 import AppVerifiedMark from '@/components/app/AppVerifiedMark';
@@ -32,12 +31,15 @@ import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
+import ListingAlertCard from '@/components/ListingAlertCard';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
-import ListingInterestLine from '@/components/listings/ListingInterestLine';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
-import UtilityBadges from '@/components/listings/UtilityBadges';
-import PracticalDetails from '@/components/listings/PracticalDetails';
+import ListingExploreLinks from '@/components/listings/ListingExploreLinks';
+import ListingEquipment from '@/components/listings/ListingEquipment';
 import PracticalFacts from '@/components/listings/PracticalFacts';
+import ListingFactsRow from '@/components/listings/ListingFactsRow';
+import ListingAgentRow from '@/components/listings/ListingAgentRow';
+import AgentTrustLine from '@/components/listings/AgentTrustLine';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
@@ -144,6 +146,9 @@ async function AppAgentRow({ listing }) {
  * profile that doesn't exist). Routes to the real /agents/[id] directory
  * page (app/(portfolio)/agents/[id]/page.js), not a guessed id.
  */
+// A section boundary on the listing page: a hairline, not a card (2026-11-18).
+const RULE = 'border-t border-line pt-6';
+
 async function AgentProfileLink({ agentId }) {
   if (!agentId) return null;
   const t = await getT();
@@ -182,6 +187,11 @@ export default async function ListingDetailPage({ params, searchParams }) {
   const sp = await searchParams;
   const visitSent = sp.visit_sent === '1' ? 'agent' : sp.visit_sent === 'team' ? 'team' : null;
   const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
+  // A video visit's confirmation carries the payment warning (lib/visitMode.js);
+  // `mode=video` is what the visit action adds to the redirect.
+  const visitVideo = Boolean(visitSent) && sp.mode === 'video';
+  // The account the visit request opened (lib/guestAccount.js): AccountOfferCard under the confirmation.
+  const visitAccount = visitSent && ['created', 'existing', 'offer'].includes(sp.compte) ? sp.compte : null;
   const listing = await getListingById(id);
 
   // Covers both "no such id" and "exists but is not approved" —
@@ -224,14 +234,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
     : listing.purpose === 'sale' ? t('listings.transaction.sale') : null;
   // English pages name the type in English ("Apartment to rent"), lib/listingSeo.js.
   const kindLabel = listingKindLabel(listing, t);
-  // "Appartement à louer" — leads the h1 (see there); the kicker above the
-  // price keeps the room counts.
+  // "Appartement à louer" — leads the h1 (see there); the room counts are in
+  // the facts row under it (ListingFactsRow) since 2026-11-18.
   const kindAndPurpose = [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' ');
-  const kicker = specItems(listing, t)
-    .filter((s) => s.key === 'beds' || s.key === 'bath')
-    .map((s) => `${s.value} ${s.label}`)
-    .join(' · ');
-
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
 
@@ -242,10 +247,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
     ? specItems(listing, t).map((s) => ({ ...s, Icon: SPEC_ICONS[s.key] || Ruler }))
     : [];
 
+  // In page order (2026-11-18): the facts are in the opening block above the
+  // strip, so "Aperçu" is gone from it; description and features, then the
+  // costs card just before the map.
   const sectionNav = [
-    { id: 'apercu', label: t('listings.detail.sections.overview') },
-    entryCostBreakdown(listing) ? { id: 'couts', label: t('listings.detail.sections.costs') } : null,
     listing.description ? { id: 'caracteristiques', label: t('listings.detail.sections.features') } : null,
+    entryCostBreakdown(listing) ? { id: 'couts', label: t('listings.detail.sections.costs') } : null,
     { id: 'emplacement', label: t('listings.detail.sections.location') },
   ].filter(Boolean);
 
@@ -324,40 +331,27 @@ export default async function ListingDetailPage({ params, searchParams }) {
             percentages so the 40px gap comes out of the tracks instead of
             overflowing the row (68% + 32% + gap > 100%). */}
         <div className="mt-5 grid gap-8 sm:mt-8 sm:gap-10 lg:mt-10 lg:grid-cols-[minmax(0,68fr)_minmax(0,32fr)] lg:items-start">
-          <div className="flex w-full min-w-0 flex-col gap-7">
-            {/* Price leads the page — the design's single loudest number,
-                above the title rather than tucked into the enquiry panel. */}
-            <div className="flex flex-col gap-2.5">
-              {/* Room counts before the price — "2 ch · 2 sdb". What the
-                  property IS ("Appartement à louer") moved into the h1 below
-                  on 2026-10-24. KeyFacts still carries the full grid. */}
-              {/* The app leads with the price and states the rooms as a row of
-                  icons under the place (below), not as a blue capital label. */}
-              {kicker && !app ? (
-                <p className="text-[0.8125rem] font-semibold uppercase tracking-[0.06em] text-blue">{kicker}</p>
-              ) : null}
-              {/* Explicit classes, not `.u-price` / `.u-h1`. Those globals are
-                  24px/500 and 20px/500 — the "font-medium, washed out"
-                  pairing this page was called out for — but they are shared
-                  utilities (`.u-h1`/`.u-h2` also set every section heading,
-                  `.u-body` three more files), so thickening them in place
-                  would re-weight surfaces nobody asked to change. The
-                  listing page carries its own weights instead, matched to
-                  the feed card's. */}
+          {/* The main column, phone and desktop (2026-11-18, owner: a smoother
+              page after the big portals). One white page: an opening block,
+              then sections separated by a hairline (RULE), not by cards — the
+              entry costs are the one card left, just before the map. */}
+          <div className="flex w-full min-w-0 flex-col gap-6">
+            {/* Opening block: price, its FC equivalent (the rate date stays in
+                the "≈" tooltip, <Price>), the heading, the address detail, the
+                facts row and the reference. */}
+            <div className="flex flex-col gap-2">
+              {/* Explicit classes, not `.u-price` / `.u-h1`: those globals are
+                  shared utilities, and this page carries its own weights,
+                  matched to the feed card's. */}
               <span className="u-tabular text-[1.75rem] font-semibold leading-tight tracking-normal text-ink sm:text-[2rem]">
                 <Price
                   amount={listing.price}
                   purpose={listing.purpose}
                   pricePeriod={listing.price_period}
                   showSubtext
-                  /* The "≈ 2,5 M FC / mois" pill. Below `sm` it drops to
-                     its own line (`mt-1.5`, no left margin) instead of
-                     sitting beside a $1,100 that is already 1.75rem tall:
-                     at 320px the two together overflow the content box,
-                     and an inline-block that wraps still carries its
-                     `ml-2.5` as a stray indent on the new line. From `sm`
-                     up there is room and it sits inline, as designed. */
-                  subtextClassName="mt-1.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-medium leading-normal tracking-normal text-ink sm:ml-2.5 sm:mt-0"
+                  /* "≈ 2,4 M FC / mois" as a quiet line under the price
+                     (a pill until 2026-11-18). */
+                  subtextClassName="mt-1 block text-[0.875rem] font-normal leading-normal tracking-normal text-ink-45"
                 />
               </span>
 
@@ -407,7 +401,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   ) : null}
                 </>
               ) : (
-              <h1 className="text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
+              <h1 className="mt-1 text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
                 {kindAndPurpose && where ? (
                   <>
                     <span className="font-semibold">{kindAndPurpose}</span>
@@ -425,15 +419,17 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 </p>
               ) : null}
 
+              {/* Type, rooms, bathrooms, surface… in one line, then the
+                  reference (components/listings/ListingFactsRow.js). */}
+              {app ? null : (
+                <div className="mt-1.5 empty:hidden">
+                  <ListingFactsRow listing={listing} />
+                </div>
+              )}
+
               {/* The agent's own weekly "still available" answer — only a
                   real one, at most 30 days old; nothing otherwise. */}
               <AvailabilityConfirmedBadge confirmedAt={listing.availability_confirmed_at} listingStatus={listing.listing_status ?? null} />
-
-              {/* Real distinct visitors in the last 7 days, from 1 up;
-                  streamed in so the count never delays the page. */}
-              <Suspense fallback={null}>
-                <ListingInterestLine listingId={listing.id} />
-              </Suspense>
 
               {/* "Pour votre projet": how this home fits the signed-in
                   customer's move project, from real fields only. */}
@@ -442,30 +438,53 @@ export default async function ListingDetailPage({ params, searchParams }) {
               </Suspense>
             </div>
 
-            {/* One card, two halves: the facts grid, then what is due at
-                signing and to whom. The breakdown renders nothing when a
-                listing states only a guarantee — KeyFacts keeps its deposit
-                cell for exactly that case — and drops its own top rule when
-                it is the card's first child. `empty:hidden` covers a listing
-                with neither. */}
             <ListingSectionNav sections={sectionNav} label={t('listings.detail.sections.label')} />
+
+            {/* Phone: who offers it, one row (the desktop rail has the card),
+                then the compact EnquiryCard: only the visit-request feedback,
+                the visit dialog the bottom bar's "Visiter" opens, and "Ajouter
+                à mes visites". WhatsApp, Message, Visit and Call are the bottom
+                bar's (owner, 2026-11-18: no second contact block). */}
+            {app ? null : (
+              <div className={`flex flex-col gap-1 ${RULE} lg:hidden`}>
+                <ListingAgentRow listing={listing} />
+                <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitAccount={visitAccount} visitError={visitError} saveShare={false} compact />
+              </div>
+            )}
+
+            {/* The story: the description, cut to four lines, then the key
+                features (components/listings/PropertyDescription.js). */}
+            <div id="caracteristiques" className={`scroll-mt-32 empty:hidden ${RULE}`}>
+              <PropertyDescription listing={listing} />
+            </div>
 
             {listing.development_id ? <ProjectUnitStrip developmentId={listing.development_id} listingId={listing.id} /> : null}
 
-            <section id="apercu" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
-              <KeyFacts listing={listing} />
-              <EntryCostsBreakdown listing={listing} />
-            </section>
+            {/* The app keeps its facts grid and costs card here; the website
+                states the facts in the opening block (ListingFactsRow) and the
+                costs as the card before the map. */}
+            {app ? (
+              <section id="apercu" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+                <KeyFacts listing={listing} />
+                <EntryCostsBreakdown listing={listing} />
+              </section>
+            ) : null}
 
             {/* Fiche pratique — the agent's one-tap answers on WhatsApp. */}
             <PracticalFacts listing={listing} app={app} />
 
-            {/* Power, water, security, access — as the agent declared them. */}
-            <UtilityBadges utilities={listing.utilities} />
+            {/* "Équipements": utilities and practical details in one list, as
+                the agent declared them, each fact once. */}
+            <div className={`empty:hidden ${RULE}`}>
+              <ListingEquipment listing={listing} />
+            </div>
 
-            {/* Meublé, the parcelle's households, toilet / shower, meter, plot
-                size and price per m², paiement échelonné — as declared. */}
-            <PracticalDetails listing={listing} />
+            {/* "Recevez les biens comme celui-ci" mid-page on a phone
+                (2026-11-24): most visitors see this one page; the desktop
+                rail carries the same offer (SimilarAlertButton). */}
+            <div className="lg:hidden empty:hidden">
+              <ListingAlertCard query={alertQuery} />
+            </div>
 
             {/* Streams in: a like-for-like median of live listings in the
                 commune, only from 5 comparables up — and nothing at all
@@ -474,39 +493,32 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <MarketMedianLine listing={listing} />
             </Suspense>
 
-            {/* Mobile only: the sticky right rail is off-screen below lg.
-                The app (2026-11-12): the bottom bar already carries WhatsApp,
-                the chat and the visit request, and the price is on the page
-                and in the top bar, so only the agent stands here; the alert
-                card follows the location, after the home has been described. */}
+            {/* The app (2026-11-12): the bottom bar already carries WhatsApp,
+                the chat and the visit request, so only the agent stands here;
+                the alert card follows the location. */}
             {app ? (
               <div className="lg:hidden">
                 <AppAgentRow listing={listing} />
               </div>
-            ) : (
-            <div className="flex flex-col gap-4 lg:hidden">
-              <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} saveShare={false} />
-              <AgentProfileLink agentId={listing.agent_id} />
-              <PricePanel listing={listing} />
-              <SimilarAlertButton query={alertQuery} />
-            </div>
+            ) : null}
+
+            {/* The entry costs (the "3 + 1 + 1" breakdown): the one card left
+                on the page, just before the map (owner, 2026-11-18). Nothing
+                for a listing that states none — a guarantee alone is in the
+                facts row instead. */}
+            {app ? null : (
+              <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+                <EntryCostsBreakdown listing={listing} />
+              </section>
             )}
 
-            {/* Key features first, description under it — see
-                components/listings/PropertyDescription.js. This replaces
-                BOTH the bare description block that used to sit here and
-                the separate "Équipements confirmés" chip section that used
-                to follow it; rendering either alongside this would state
-                the same amenities twice on one page. */}
-            <div id="caracteristiques" className="scroll-mt-32">
-              <PropertyDescription listing={listing} />
-            </div>
-
-            <div id="emplacement" className="flex scroll-mt-32 flex-col gap-3">
+            <div id="emplacement" className={`flex scroll-mt-32 flex-col gap-3 ${RULE}`}>
               <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>
               <ListingLocationMap listing={listing} staticMapSrc={staticMapSrc} />
             </div>
 
+            {/* The app keeps its alert card here; the website has no second
+                contact block (owner, 2026-11-18): the bottom bar carries it. */}
             {app ? (
               <div className="lg:hidden">
                 <SimilarAlertButton query={alertQuery} />
@@ -520,7 +532,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
               it the item stretches to the row's full height and has no
               room left to stick within. top-24 clears the fixed header. */}
           <aside className="hidden w-full self-start lg:sticky lg:top-24 lg:flex lg:flex-col lg:space-y-4">
-            <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} placement="listing_desktop" />
+            <EnquiryCard listing={listing} visitSent={visitSent} visitVideo={visitVideo} visitAccount={visitAccount} visitError={visitError} placement="listing_desktop" />
+            {displayableAgencyName(listing.agency_name) ? <AgentTrustLine listing={listing} className="px-1" /> : null}
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
             <SimilarAlertButton query={alertQuery} />
@@ -534,8 +547,16 @@ export default async function ListingDetailPage({ params, searchParams }) {
         <RelatedSection listing={listing} alertQuery={alertQuery} app={app} />
       </Suspense>
 
-      {/* The app ends on its own similar-homes rail; the history follows as the quiet strip. */}
-      <RecentlyViewed excludeId={listing.id} variant={app ? 'strip' : 'cards'} className={app ? 'pb-4' : ''} />
+      {/* Links to the commune × type, commune and price pages (SEO plan
+          2026-11-26) — how Google reaches them from 1,000+ listing pages. */}
+      <Suspense fallback={null}>
+        <ListingExploreLinks listing={listing} />
+      </Suspense>
+
+      {/* No "Récemment consultés" here (2026-11-18, owner): it made every
+          listing page longer, and the home page already shows it. */}
+      {/* The app keeps its quiet history strip at the end. */}
+      {app ? <RecentlyViewed excludeId={listing.id} variant="strip" className="pb-4" /> : null}
 
       {/* Inside the store app: the app design's bar (visit first, opens the booking screen). */}
       {app ? <AppListingBar listing={listing} /> : <MobileListingBar listing={listing} />}
@@ -585,7 +606,7 @@ async function RelatedSection({ listing, alertQuery, app = false }) {
     return <AppRelatedRail title={title} lead={lead} listings={related} />;
   }
   return (
-    <div className="mt-16">
+    <div className="mt-8 lg:mt-16">
       <RelatedListings
         listings={related}
         commune={listing.commune}

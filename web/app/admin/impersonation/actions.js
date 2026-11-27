@@ -6,6 +6,7 @@ import { recordAudit } from '@/lib/adminAudit';
 import { IMPERSONATION_REASON_MIN, landingPathFor, startImpersonation } from '@/lib/impersonation';
 import { setImpersonationCookies } from '@/lib/impersonationCookies';
 import { getT } from '@/lib/i18n/server';
+import { clientIpFromHeaders } from '@/lib/clientIp';
 
 /**
  * Start viewing the site as an agent or a customer. See lib/impersonation.js
@@ -19,8 +20,7 @@ export async function startImpersonationAction(targetType, targetId, reason) {
     if (session.shared || !session.id) return { ok: false, error: t('admin.impersonation.sharedRefused') };
 
     const h = await headers();
-    const forwarded = h.get('x-forwarded-for');
-    const ip = (forwarded ? forwarded.split(',')[0] : h.get('x-real-ip') || '').trim().slice(0, 64) || null;
+    const ip = clientIpFromHeaders(h);
     const result = await startImpersonation({
       adminId: session.id, targetType, targetId, reason, ip, userAgent: h.get('user-agent'),
     });

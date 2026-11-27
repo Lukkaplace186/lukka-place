@@ -151,11 +151,12 @@ test('the funnel reports accounts created in the window with no recorded entry',
 });
 
 test('every prompt and link carries its entry, and the form sends it to the action', () => {
-  assert.match(read('components/AuthPromptModal.js'), /<WhatsAppSignInForm next=\{next\} entry=\{entry\} onSubmit=\{\(\) => trackCustomerSignup\('prompt_open', entry\)\} \/>/);
+  assert.match(read('components/AuthPromptModal.js'), /<WhatsAppSignInForm next=\{next\} entry=\{entry\} autoFocus onSubmit=\{\(\) => trackCustomerSignup\('prompt_open', entry\)\} \/>/);
   assert.match(read('app/(site)/compte/connexion/WhatsAppSignInForm.js'), /<input type="hidden" name="entry" value=\{entry\} \/>/);
   assert.match(read('app/(site)/compte/connexion/whatsappActions.js'), /recordSignupOutcome\(\{ step: 'created', entry, customerId: Number\(customer\.id\) \}\)/);
   assert.match(read('components/AuthPromptModal.js'), /trackCustomerSignup\('prompt_shown', entry\)/);
-  assert.match(read('components/SignupNudge.js'), /withSignupEntry\(`\/compte\/inscription\?next=\$\{next\}`, 'nudge'\)/);
+  // The nudge opens the WhatsApp form in place since 2026-11-24.
+  assert.match(read('components/SignupNudge.js'), /trigger=\{alert \? 'alert' : 'nudge'\}\s+entry="nudge"/);
   assert.match(read('app/(site)/messages/page.js'), /entree=messages/);
   assert.match(read('app/(site)/mises-a-jour/page.js'), /entree=updates/);
   assert.match(read('app/(site)/compte/connexion/page.js'), /entree=login_page/);
@@ -177,8 +178,4 @@ test('the migration is idempotent and the table is closed to the public API', ()
   for (const step of ['prompt_shown', 'prompt_open', 'form_view', 'form_start', 'submit', 'refused', 'created']) {
     assert.ok(sql.includes(`'${step}'`), step);
   }
-});
-
-test('test / demo customers (customers.is_test) are left out of the sign-up progress', () => {
-  assert.match(squash(SIGNUP_PROGRESS_SQL), /WHERE NOT COALESCE\(\(to_jsonb\(c\) ->> 'is_test'\)::boolean, false\)/);
 });

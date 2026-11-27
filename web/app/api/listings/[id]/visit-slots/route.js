@@ -3,7 +3,7 @@ import { getBusySlots } from '@/lib/adminApi';
 import { APPROVED_AGENT_LISTINGS_SQL } from '@/lib/visitSlotsServer';
 import { EMPTY_AVAILABILITY, getListingAvailability } from '@/lib/agentAvailability';
 import { getListingById } from '@/lib/listings';
-import { utcOffsetForListing } from '@/lib/cities';
+import { cityOfListing, utcOffsetForListing } from '@/lib/cities';
 
 /**
  * GET /api/listings/:id/visit-slots — the instants the listing's agent already
@@ -13,7 +13,9 @@ import { utcOffsetForListing } from '@/lib/cities';
  * offers every slot, which is the same as before this existed.
  *
  * Also the days that agent takes no visits (`closedWeekdays`, `blockedDates` —
- * lib/agentAvailability.js), which the calendar greys out whole.
+ * lib/agentAvailability.js), which the calendar greys out whole, whether the
+ * agent takes visits by video call (`videoVisits`), and the listing's city
+ * (`city`) — the clock a video visit's time is shown on beside the visitor's.
  *
  * Fails open: the engine being unreachable is an empty list, never an error the
  * visitor sees, because a picker that refuses to open costs the request.
@@ -28,12 +30,15 @@ export async function GET(_request, { params }) {
   // The listing's clock (+1 Kinshasa, +2 Lubumbashi, Goma… — lib/cities.js):
   // the picker builds its slots on it. Unknown → Kinshasa's.
   let utcOffset = 1;
+  let city = null;
   try {
-    utcOffset = utcOffsetForListing(await getListingById(id));
+    const listing = await getListingById(id);
+    utcOffset = utcOffsetForListing(listing);
+    city = listing ? cityOfListing(listing) : null;
   } catch (err) {
     console.error(`[visit-slots] listing #${id} offset: ${err.message}`);
   }
-  Object.assign(availability, { utcOffset });
+  Object.assign(availability, { utcOffset, city });
   try {
     const { rows } = await getPool().query(APPROVED_AGENT_LISTINGS_SQL, [id]);
     const agentId = rows[0]?.agent_id ?? null;

@@ -8,7 +8,7 @@ import JsonLd from '@/components/seo/JsonLd';
 import { getListings, getListingStats } from '@/lib/listings';
 import { cachedSeoFacets } from '@/lib/listingsCached';
 import { getT, getUrlLocale, localizedAlternates } from '@/lib/i18n/server';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, frNumber } from '@/lib/format';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { distanceKm } from '@/lib/mapViewport';
@@ -16,12 +16,20 @@ import { GUIDES } from '@/lib/guides';
 import { DEFAULT_CITY, provinceOfCity } from '@/lib/cities';
 import { localizeHref } from '@/lib/localePaths';
 import { listingPath } from '@/lib/listingSlug';
+import { listingImages } from '@/lib/listingView';
+import { cachedPriceGuides } from '@/lib/browseFeatures';
+import { guidesForCommune } from '@/lib/priceGuideSeo';
 import {
   SEO_PROPERTY_TYPES,
   OVERLAY_PROPERTY_TYPES,
   SEO_TRANSACTIONS,
   SEO_CITIES,
   facetCity,
+  landingIndexable,
+  landingPageHref,
+  landingPageNumber,
+  landingTitleTypes,
+  LANDING_PAGE_SIZE,
   listingsHrefFor,
   parseSeoSegments,
   seoPath,
@@ -30,12 +38,32 @@ import {
 
 /** A median drawn from fewer listings than this is not shown — same floor as the market benchmarks. */
 const MIN_MEDIAN_SAMPLE = 5;
-const PAGE_LISTINGS = 24;
 
 const base = SITE_URL.replace(/\/+$/, '');
 
-function labels(page, t) {
-  const type = page.typeSlug ? t(SEO_PROPERTY_TYPES[page.typeSlug].pluralKey) : t('seo.allTypes');
+/**
+ * An all-types page is named after the kinds it really lists ("Maisons et
+ * appartements à louer à Limete", lib/seoPages.js landingTitleTypes); a typed
+ * page after its type; the generic "Biens immobiliers" only when no kind has
+ * enough listings to name.
+ */
+function typeLabel(page, t, facets) {
+  if (page.typeSlug) return t(SEO_PROPERTY_TYPES[page.typeSlug].pluralKey);
+  const kinds = landingTitleTypes(page, facets).map((value) => t(SEO_PROPERTY_TYPES[typeSlugFor(value)].pluralKey));
+  if (kinds.length === 0) return t('seo.allTypes');
+  if (kinds.length === 1) return kinds[0];
+  // French sentence case lowers the second noun; English Title Case keeps it.
+  const second = t.locale === 'en' ? kinds[1] : kinds[1].charAt(0).toLowerCase() + kinds[1].slice(1);
+  return t('seo.typesPair', { first: kinds[0], second });
+}
+
+/** A landing page's own heading, for links to it from elsewhere (listing pages). */
+export function landingHeadingFor(page, t, facets = []) {
+  return labels(page, t, facets).heading;
+}
+
+function labels(page, t, facets = []) {
+  const type = typeLabel(page, t, facets);
   const transaction = t(SEO_TRANSACTIONS[page.transaction].labelKey);
   const place = page.commune ? (page.commune === 'Kinshasa' ? t('seo.communeKinshasa') : page.commune) : page.city || t('seo.city');
   const heading = t('seo.heading', { type, transaction, place });
@@ -48,17 +76,22 @@ function labels(page, t) {
  * One set of reads per request: generateMetadata and the page both call this
  * with the same key, and React's per-request cache runs it once.
  */
-const loadPage = cache(async (transaction, slugKey) => {
+const loadPage = cache(async (transaction, slugKey, pageNumber = 1) => {
   const page = parseSeoSegments(transaction, slugKey ? slugKey.split('/') : []);
-  if (!page) return null;
+  if (!page || !pageNumber) return null;
   // ville only on another city's page: without it a feed runs in Kinshasa.
   const filters = { transactionType: page.transactionType, propertyType: page.propertyType, commune: page.commune, ville: page.city };
-  const [stats, results, facets] = await Promise.all([
+  const [stats, results, facets, priceGuides] = await Promise.all([
     getListingStats(filters),
-    getListings({ ...filters, limit: PAGE_LISTINGS, sort: 'complete' }),
+    getListings({ ...filters, limit: LANDING_PAGE_SIZE, offset: (pageNumber - 1) * LANDING_PAGE_SIZE, sort: 'complete' }),
     cachedSeoFacets().catch(() => []),
+    // The commune's price-guide pages (2026-11-21): only slugs that exist.
+    cachedPriceGuides(),
   ]);
-  return { page, filters, stats, listings: results.data, facets };
+  const pages = Math.max(1, Math.ceil((stats.total || 0) / LANDING_PAGE_SIZE));
+  // Page 2+ past the last page is not a page (a 404, never page 1 again).
+  if (pageNumber > pages) return null;
+  return { page, filters, stats, listings: results.data, facets, priceGuides, pageNumber, pages };
 });
 
 async function slugKeyOf(params) {
@@ -66,25 +99,61 @@ async function slugKeyOf(params) {
   return (slug || []).join('/');
 }
 
-export async function seoLandingMetadata(transaction, params) {
-  const data = await loadPage(transaction, await slugKeyOf(params));
+async function pageNumberOf(searchParams) {
+  const sp = (await searchParams) || {};
+  return landingPageNumber(sp.page);
+}
+
+/** Every alternate URL of page N carries ?page=N (each page is its own canonical). */
+function paginateAlternates(alternates, n) {
+  if (n <= 1) return alternates;
+  const withPage = (href) => landingPageHref(href, n);
+  return {
+    ...alternates,
+    canonical: withPage(alternates.canonical),
+    ...(alternates.languages
+      ? { languages: Object.fromEntries(Object.entries(alternates.languages).map(([k, v]) => [k, withPage(v)])) }
+      : {}),
+  };
+}
+
+export async function seoLandingMetadata(transaction, params, searchParams) {
+  const data = await loadPage(transaction, await slugKeyOf(params), await pageNumberOf(searchParams));
   if (!data) return {};
-  const { page } = data;
+  const { page, pageNumber } = data;
   const { total } = data.stats;
   const t = await getT();
-  const { heading } = labels(page, t);
+  const { heading } = labels(page, t, data.facets);
   const path = seoPath(page);
   const description = total > 0
     ? t('seo.metaDescription', { count: total, heading })
     : t('seo.metaDescriptionNone', { heading });
+  // "Maisons et appartements à louer à Limete, Kinshasa · 162 annonces": the
+  // words people type first, then the city the searcher names, then a count
+  // no competitor's title carries. A commune of Kinshasa adds the city.
+  const where = page.commune && page.commune !== 'Kinshasa' ? t('seo.titleInKinshasa', { heading }) : heading;
+  const baseTitle = total > 0 ? t('seo.metaTitleListed', { heading: where, count: total }) : t('seo.metaTitle', { heading });
+  const title = pageNumber > 1 ? t('seo.metaTitlePage', { title: baseTitle, page: pageNumber }) : baseTitle;
+  // A link shared on WhatsApp or Facebook shows a photo: the first listing on
+  // the page that has one (2026-11-21; it showed none before). Nothing when no
+  // listing has a photo — the site's default card applies.
+  const cover = (data.listings || []).map((l) => listingImages(l)[0]).find(Boolean) || null;
   return {
-    title: t('seo.metaTitle', { heading }),
+    title,
     description,
-    alternates: await localizedAlternates(path),
-    // An empty page is thin content: kept out of the index until a listing
-    // lands, still followed so its links count.
-    robots: total > 0 ? undefined : { index: false, follow: true },
-    openGraph: { title: heading, description, url: (await getUrlLocale()) === 'en' ? localizeHref(path, 'en') : path, type: 'website' },
+    alternates: paginateAlternates(await localizedAlternates(path), pageNumber),
+    // An empty page, or a type in one place with fewer than
+    // MIN_NARROW_LANDING_LISTINGS, is thin content: kept out of the index,
+    // still followed so its links count (lib/seoPages.js landingIndexable).
+    robots: landingIndexable(page, total) ? undefined : { index: false, follow: true },
+    openGraph: {
+      title: heading,
+      description,
+      url: landingPageHref((await getUrlLocale()) === 'en' ? localizeHref(path, 'en') : path, pageNumber),
+      type: 'website',
+      ...(cover ? { images: [{ url: cover, alt: heading }] } : {}),
+    },
+    ...(cover ? { twitter: { card: 'summary_large_image', title: heading, description, images: [cover] } } : {}),
   };
 }
 
@@ -126,6 +195,74 @@ function LinkList({ title, links }) {
   );
 }
 
+/**
+ * "Le marché en chiffres" → the price guide (2026-11-21). On a commune page:
+ * one link per published guide of that commune (median per bedroom count,
+ * the guide's own figure). Anywhere else: the guide's index. A commune with
+ * no guide yet shows nothing — never a link to a page that 404s.
+ */
+function PriceGuideLinks({ guides, place, commune, t }) {
+  if (commune) {
+    if (!guides.length) return null;
+    return (
+      <div className="flex flex-col gap-2 pt-1">
+        <p className="text-[0.875rem] text-ink-70">{t('seo.priceGuidesLead', { place })}</p>
+        <ul className="flex flex-wrap gap-2">
+          {guides.map((guide) => (
+            <li key={guide.slug}>
+              <Link
+                href={`/combien-coute/${guide.slug}`}
+                className="inline-flex items-center rounded-full border border-line bg-surface px-3.5 py-1.5 text-[0.8125rem] font-medium text-blue-deep transition-colors hover:border-ink-25"
+              >
+                {t('seo.priceGuideLink', { count: guide.beds, median: `${frNumber(guide.median)} $` })}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  return (
+    <p className="text-[0.875rem]">
+      <Link href="/combien-coute" className="font-semibold text-blue-deep hover:underline">{t('seo.priceGuideIndex')}</Link>
+    </p>
+  );
+}
+
+/**
+ * Plain <a href="?page=N"> links to every page of the results (SEO plan
+ * 2026-11-26): before them a landing page linked its first 24 listings only,
+ * so a commune with 162 left 138 listings reachable through the sitemap
+ * alone — and Google had never seen most of them. Every page number is
+ * printed (≤ 10 pages in practice), so a crawler reaches each in one hop.
+ */
+function LandingPager({ path, pageNumber, pages, t }) {
+  const numbers = Array.from({ length: pages }, (_, i) => i + 1);
+  const cell = 'inline-flex h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-semibold';
+  const idle = `${cell} border-line bg-surface text-ink-70 hover:text-ink`;
+  return (
+    <nav aria-label={t('seo.pagerLabel')} className="mt-8 flex flex-wrap items-center gap-2">
+      {pageNumber > 1 ? (
+        <Link href={landingPageHref(path, pageNumber - 1)} rel="prev" className={idle}>
+          {t('seo.pagerPrev')}
+        </Link>
+      ) : null}
+      {numbers.map((n) => (n === pageNumber ? (
+        <span key={n} aria-current="page" className={`${cell} border-blue bg-blue text-white`}>{n}</span>
+      ) : (
+        <Link key={n} href={landingPageHref(path, n)} aria-label={t('seo.pagerPage', { page: n })} className={idle}>
+          {n}
+        </Link>
+      )))}
+      {pageNumber < pages ? (
+        <Link href={landingPageHref(path, pageNumber + 1)} rel="next" className={idle}>
+          {t('seo.pagerNext')}
+        </Link>
+      ) : null}
+    </nav>
+  );
+}
+
 function Stat({ label, value, note }) {
   return (
     <div className="flex flex-col gap-1 rounded-xl border border-line bg-surface p-4">
@@ -136,13 +273,14 @@ function Stat({ label, value, note }) {
   );
 }
 
-export default async function SeoLandingPage({ transaction, params }) {
-  const data = await loadPage(transaction, await slugKeyOf(params));
+export default async function SeoLandingPage({ transaction, params, searchParams }) {
+  const data = await loadPage(transaction, await slugKeyOf(params), await pageNumberOf(searchParams));
   if (!data) notFound();
 
-  const { page, filters, stats, listings, facets } = data;
+  const { page, filters, stats, listings, facets, priceGuides, pageNumber, pages } = data;
+  const firstPosition = (pageNumber - 1) * LANDING_PAGE_SIZE;
   const t = await getT();
-  const { type, transaction: txLabel, place, heading, headingLower } = labels(page, t);
+  const { type, transaction: txLabel, place, heading, headingLower } = labels(page, t, facets);
   // Links in the reader's language: an English reader stays on /en pages
   // (lib/localePaths.js), so Google crawls the English site as a whole.
   const locale = t.locale === 'en' ? 'en' : 'fr';
@@ -222,6 +360,11 @@ export default async function SeoLandingPage({ transaction, params }) {
         .map((c) => ({ href: seoHref({ transaction, propertyType: page.propertyType, city: c.value }), label: c.value, count: c.count }))
         .filter((l) => l.href);
 
+  // ---- the price guide (2026-11-21, marketing plan) ----
+  // A commune page links to each of its /combien-coute pages (only those that
+  // exist, lib/browseFeatures.js); a page with no commune to the index.
+  const communeGuides = guidesForCommune(priceGuides, page.commune);
+
   // ---- figures ----
   const showMedian = Boolean(page.propertyType) && stats.pricedCount >= MIN_MEDIAN_SAMPLE && stats.priceMedian != null;
   const showRange = stats.pricedCount >= 2 && stats.priceMin != null && stats.priceMin !== stats.priceMax;
@@ -281,7 +424,7 @@ export default async function SeoLandingPage({ transaction, params }) {
       {
         '@type': 'CollectionPage',
         name: heading,
-        url: `${base}${path}`,
+        url: `${base}${landingPageHref(path, pageNumber)}`,
         inLanguage: t.locale === 'en' ? 'en' : 'fr',
         about: page.city
           ? { '@type': 'Place', name: page.city, address: { '@type': 'PostalAddress', addressLocality: page.city, addressRegion: provinceOfCity(page.city) || undefined, addressCountry: 'CD' } }
@@ -290,7 +433,7 @@ export default async function SeoLandingPage({ transaction, params }) {
           ? {
               '@type': 'ItemList',
               numberOfItems: stats.total,
-              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${localizeHref(listingPath(l), locale)}` })),
+              itemListElement: listings.map((l, i) => ({ '@type': 'ListItem', position: firstPosition + i + 1, url: `${base}${localizeHref(listingPath(l), locale)}` })),
             }
           : undefined,
       },
@@ -313,6 +456,7 @@ export default async function SeoLandingPage({ transaction, params }) {
           </h1>
           <p className="max-w-3xl text-[1.0625rem] leading-relaxed text-ink-45">
             {stats.total > 0 ? t('seo.lead', { count: stats.total }) : t('seo.leadNone')}
+            {pageNumber > 1 ? ` ${t('seo.pageOf', { page: pageNumber, pages })}` : ''}
           </p>
           <div className="mt-1 flex flex-wrap gap-3">
             <Link
@@ -329,11 +473,13 @@ export default async function SeoLandingPage({ transaction, params }) {
           <ul className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {listings.map((listing, i) => (
               <li key={listing.id}>
-                <PropertyCard listing={listing} priority={i < 4} />
+                <PropertyCard listing={listing} priority={pageNumber === 1 && i < 4} />
               </li>
             ))}
           </ul>
         ) : null}
+
+        {pages > 1 ? <LandingPager path={path} pageNumber={pageNumber} pages={pages} t={t} /> : null}
 
         {stats.total > listings.length ? (
           <div className="mt-6">
@@ -363,6 +509,7 @@ export default async function SeoLandingPage({ transaction, params }) {
                   ) : null}
                 </dl>
                 <p className="text-xs text-ink-45">{t('seo.statsSource')}</p>
+                <PriceGuideLinks guides={communeGuides} place={place} commune={page.commune} t={t} />
               </section>
             ) : null}
 

@@ -69,7 +69,7 @@ function CommuneGrid({ name, communes, selected, disabled = new Set() }) {
  * card is shown disabled, with no save, password or portfolio-transfer
  * controls. The server actions refuse those roles anyway.
  */
-export default function AgentAdminPanel({ agent, communes, listingCount, readOnly = false }) {
+export default function AgentAdminPanel({ agent, communes, listingCount, readOnly = false, minBudget = null }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -184,6 +184,38 @@ export default function AgentAdminPanel({ agent, communes, listingCount, readOnl
             sont poussées à cette agence ; les spécialités décident de son classement.
           </p>
         </div>
+
+        {minBudget?.available ? (
+          <div>
+            <span className={LABEL}>{t('admin.agentPanel.minBudget.title')}</span>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="u-micro text-ink-70">{t('admin.agentPanel.minBudget.rental')}</span>
+                <input
+                  name="min_rental_budget"
+                  inputMode="decimal"
+                  defaultValue={minBudget.rental ?? ''}
+                  placeholder={t('admin.agentPanel.minBudget.none')}
+                  className={FIELD}
+                />
+              </label>
+              <label className="block">
+                <span className="u-micro text-ink-70">{t('admin.agentPanel.minBudget.sale')}</span>
+                <input
+                  name="min_sale_budget"
+                  inputMode="decimal"
+                  defaultValue={minBudget.sale ?? ''}
+                  placeholder={t('admin.agentPanel.minBudget.none')}
+                  className={FIELD}
+                />
+              </label>
+            </div>
+            <p className="u-micro mt-1.5 text-ink-45">
+              {t('admin.agentPanel.minBudget.adminHint')}
+              {minBudget.source ? ` ${t('admin.agentPanel.minBudget.lastSetBy', { source: t(`admin.agentPanel.minBudget.source.${minBudget.source}`) })}` : ''}
+            </p>
+          </div>
+        ) : null}
 
         </fieldset>
 

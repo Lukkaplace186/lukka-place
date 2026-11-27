@@ -202,6 +202,7 @@ export default function AdminListingEditor({ listing, communes, locations = {}, 
               name="deposit_months"
               type="number"
               min="0"
+              max="12"
               defaultValue={listing.deposit_months ?? ''}
               className={FIELD}
             />
@@ -211,6 +212,7 @@ export default function AdminListingEditor({ listing, communes, locations = {}, 
               name="advance_months"
               type="number"
               min="0"
+              max="12"
               defaultValue={listing.advance_months ?? ''}
               className={FIELD}
             />
@@ -220,6 +222,7 @@ export default function AdminListingEditor({ listing, communes, locations = {}, 
               name="commission_months"
               type="number"
               min="0"
+              max="12"
               defaultValue={listing.commission_months ?? ''}
               className={FIELD}
             />

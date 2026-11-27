@@ -5,8 +5,6 @@ categorie: actualite
 slug: verifier-titre-foncier-kinshasa
 type: parcelle
 transaction: vente
-couverture: images/verifier-titre-foncier-kinshasa.jpg
-couverture_alt: Un ancien registre foncier en papier ouvert à côté d’une tablette affichant un plan cadastral, avec une fleur de flamboyant et une règle en laiton.
 titre_en: Checking a land title in Kinshasa: the digital register is coming
 resume_en: Certificat d'enregistrement, double sales, the digital register: how to check a land title in Kinshasa and what DRC land law 25/062 will change.
 ---

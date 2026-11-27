@@ -20,10 +20,26 @@ import { getLocale, getT } from '@/lib/i18n/server';
  * (the public page passes components/blog/LiveListings.js); without it the
  * block is named with the search it links to.
  */
+/** "… loi [8]." → text with "[8]" drawn as a superscript source reference. */
+function WithRefs({ text }) {
+  const s = String(text ?? '');
+  if (!/\[\d{1,2}\]/.test(s)) return s;
+  return s.split(/(\s?\[\d{1,2}\])/).map((part, i) => {
+    const ref = part.match(/^\s?\[(\d{1,2})\]$/);
+    return ref ? (
+      <sup key={i} className="ml-0.5 text-[0.7em] font-semibold text-blue-deep">
+        [{ref[1]}]
+      </sup>
+    ) : (
+      part
+    );
+  });
+}
+
 function Inline({ value }) {
-  if (!Array.isArray(value)) return value;
+  if (!Array.isArray(value)) return <WithRefs text={value} />;
   return value.map((segment, i) => {
-    if (!segment.href) return <span key={i}>{segment.text}</span>;
+    if (!segment.href) return <span key={i}><WithRefs text={segment.text} /></span>;
     if (segment.href.startsWith('/')) {
       return (
         <Link key={i} href={segment.href} className="font-semibold text-blue-deep underline underline-offset-2">
@@ -154,6 +170,116 @@ function Quote({ quote }) {
   );
 }
 
+const TIMELINE_STYLE = {
+  done: { dot: 'border-green bg-green', chip: 'bg-green-tint text-green-ink' },
+  current: { dot: 'border-green bg-green u-tl-pulse', chip: 'bg-blue-tint text-blue-deep' },
+  failed: { dot: 'border-danger bg-surface', chip: 'bg-danger-tint text-danger' },
+  next: { dot: 'border-dashed border-ink-45 bg-surface', chip: 'bg-blue-tint text-blue-deep' },
+};
+
+/**
+ * What goes between a step's bold title and its text: nothing before "," "."
+ * or ")", a space before ":" ";" "!" "?" in French only (French typography),
+ * a space otherwise. "Congo Check" + ": first…" / " : premier…" / ", le…".
+ */
+function titleJoiner(text, locale) {
+  const first = (Array.isArray(text) ? text[0]?.text : text)?.[0] || '';
+  if (/[,.)]/.test(first)) return '';
+  if (/[:;!?]/.test(first)) return locale === 'fr' ? ' ' : '';
+  return ' ';
+}
+
+/** `:::chronologie` — dated steps on a vertical line; the line draws and the steps arrive one by one. */
+function Timeline({ timeline, t, locale }) {
+  return (
+    <figure className="flex flex-col gap-3">
+      {timeline.title ? <figcaption className="u-title-card text-ink">{timeline.title}</figcaption> : null}
+      <ol className="u-tl relative flex flex-col gap-2.5">
+        <span aria-hidden="true" className="u-tl-line absolute bottom-3 top-3 w-0.5 rounded-full bg-line" />
+        {timeline.items.map((item, i) => {
+          const style = TIMELINE_STYLE[item.tone] || TIMELINE_STYLE.done;
+          return (
+            <li key={i} className="u-tl-item relative grid" style={{ '--i': i }}>
+              <span className="u-tl-date u-tabular text-[0.8125rem] font-bold text-ink">{item.date}</span>
+              <span aria-hidden="true" className={`u-tl-dot absolute size-3 rounded-full border-2 ${style.dot}`} />
+              <div className="u-lift min-w-0 rounded-card bg-surface px-3.5 py-2.5 text-[0.9375rem] leading-relaxed shadow-[var(--hairline)] transition-shadow">
+                {item.title ? <strong className="font-bold text-ink">{item.title}</strong> : null}
+                {item.title && item.text ? titleJoiner(item.text, locale) : null}
+                {item.text ? (
+                  <span className="text-ink-70">
+                    <Inline value={item.text} />
+                  </span>
+                ) : null}
+                {item.label ? (
+                  <span className={`ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 align-[1px] text-[0.6875rem] font-semibold uppercase tracking-[0.06em] ${style.chip}`}>
+                    {item.label}
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <Source source={timeline.source} t={t} />
+    </figure>
+  );
+}
+
+/** `:::engagement` — the dark closing panel: text, side-by-side cards, buttons. */
+function Panel({ panel }) {
+  return (
+    <section className="u-panel flex flex-col gap-4 rounded-[1.25rem] bg-ink p-5 text-white sm:p-7">
+      {panel.eyebrow || panel.title ? (
+        <header className="flex flex-col gap-1.5">
+          {panel.eyebrow ? <span className="u-eyebrow text-white/60">{panel.eyebrow}</span> : null}
+          {panel.title ? <h2 className="text-[1.5rem] font-extrabold leading-tight tracking-[-0.015em] text-white sm:text-[1.625rem]">{panel.title}</h2> : null}
+        </header>
+      ) : null}
+      {panel.parts.map((part, i) => {
+        if (part.p) {
+          return (
+            <p key={i} className="text-white/90 [&_a]:text-white">
+              <Inline value={part.p} />
+            </p>
+          );
+        }
+        if (part.cards) {
+          return (
+            <div key={i} className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {part.cards.map((card, j) => (
+                <div key={j} style={{ '--i': j }} className="u-panel-card flex min-w-0 flex-col gap-1 rounded-xl border border-white/25 px-3.5 py-3 text-[0.9375rem] leading-snug hover:border-white/50">
+                  <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/70">{card.label}</span>
+                  <span className="text-white/90">
+                    <Inline value={card.text} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        }
+        return (
+          <div key={i} className="flex flex-wrap gap-2.5 pt-1">
+            {part.buttons.map((button, j) => {
+              const cls = `u-press inline-flex min-h-11 items-center rounded-full border-[1.5px] border-white px-5 text-[0.9375rem] font-bold transition-colors ${
+                j === 0 ? 'bg-white text-ink hover:bg-white/90' : 'text-white hover:bg-white/10'
+              }`;
+              return button.href.startsWith('/') ? (
+                <Link key={j} href={button.href} className={cls}>
+                  {button.text}
+                </Link>
+              ) : (
+                <a key={j} href={button.href} target="_blank" rel="noopener nofollow" className={cls}>
+                  {button.text}
+                </a>
+              );
+            })}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 function TextBlock({ block }) {
   if (block.h2) return <h2 className="u-h2 mt-4 text-ink">{block.h2}</h2>;
   if (block.p) return <p><Inline value={block.p} /></p>;
@@ -180,6 +306,8 @@ function RichBlock({ block, t, locale, ListingsBlock }) {
   if (block.chart) return <BlogChart chart={block.chart} caption={t('guides.blocks.source', { source: block.chart.source })} />;
   if (block.callout) return <Callout callout={block.callout} t={t} />;
   if (block.quote) return <Quote quote={block.quote} />;
+  if (block.timeline) return <Timeline timeline={block.timeline} t={t} locale={locale} />;
+  if (block.panel) return <Panel panel={block.panel} />;
   if (block.prices) return <LivePrices block={block.prices} t={t} locale={locale} />;
   if (block.calculator) return <LiveDepositCalculator t={t} locale={locale} />;
   if (block.listings) {

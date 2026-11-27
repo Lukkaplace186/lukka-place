@@ -211,8 +211,8 @@ export async function getQuickReplyListings(agentId) {
   if (!id) return [];
   const { rows } = await getPool().query(
     `SELECT p.id, pc.title, p.price, p.purpose, p.price_period, p.quartier, p.deposit_months,
-            to_jsonb(p) ->> 'advance_months' AS advance_months,
-            to_jsonb(p) ->> 'commission_months' AS commission_months,
+            to_jsonb(p.advance_months) #>> '{}' AS advance_months,
+            to_jsonb(p.commission_months) #>> '{}' AS commission_months,
             (p.status = 1 AND p.approve_status = 1) AS is_public,
             (
               SELECT ac.name FROM property_amenities pa

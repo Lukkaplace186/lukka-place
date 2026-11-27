@@ -1,6 +1,7 @@
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { UTILITY_FILTERS } from '@/lib/utilityTags';
 import { normaliseLeaseTerm } from '@/lib/leaseTerm';
+import { bedroomRangeLabel } from '@/lib/bedroomRange';
 
 const PARCELLE_LABEL_KEYS = Object.fromEntries(PARCELLE_SUBTYPES.map(({ value, labelKey }) => [value, labelKey]));
 
@@ -118,8 +119,13 @@ export function searchCriteriaTags(searchParams, t) {
   if (quartier) tags.push(quartier);
   if (commune && get('radius') === 'citywide') tags.push(t('search.tags.citywide'));
 
+  // A range ("2 – 4 ch.", "Studio – 2 ch.", "Studio") reads as one tag; a
+  // bare minimum keeps its sentence. 0 is Studio (lib/bedroomRange.js).
   const bedsMin = get('beds_min');
-  if (bedsMin) tags.push(t('search.tags.bedsMin', { count: Number(bedsMin) }));
+  const bedsMax = get('beds_max');
+  const bedsRange = bedsMin === '0' || bedsMax ? bedroomRangeLabel(bedsMin, bedsMax, t('search.tags.bedsUnit'), t('search.tags.studio')) : '';
+  if (bedsRange) tags.push(bedsRange);
+  else if (bedsMin) tags.push(t('search.tags.bedsMin', { count: Number(bedsMin) }));
   const bathMin = get('bath_min');
   if (bathMin) tags.push(t('search.tags.bathMin', { count: bathMin }));
 

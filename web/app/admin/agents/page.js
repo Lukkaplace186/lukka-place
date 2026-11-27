@@ -14,6 +14,8 @@ import ServerViewTools from '../table/ServerViewTools';
 import AgentsTable from './AgentsTable';
 import { toAgentTableRows } from './agentRows';
 import { getLoginSummaries } from '@/lib/agentLoginLog';
+import { getContactTapReplyRates } from '@/lib/adminApi';
+import { replyRateSince } from '@/lib/agentReplyRate';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +60,15 @@ export default async function AdminAgentsPage({ searchParams }) {
   const vendors = vendorsResult.status === 'fulfilled' ? vendorsResult.value : [];
   const duplicates = duplicatesResult.status === 'fulfilled' ? duplicatesResult.value : [];
   // Sign-in history for the agents on this page only (never throws).
-  const loginSummaries = await getLoginSummaries((list?.rows || []).map((row) => row.id));
+  const pageAgentIds = (list?.rows || []).map((row) => row.id);
+  const [loginSummaries, replyRates] = await Promise.all([
+    getLoginSummaries(pageAgentIds),
+    // « Réponses aux alertes » for this page's agents (engine); down = no column, never a 0.
+    getContactTapReplyRates({ since: replyRateSince(), agentIds: pageAgentIds }).catch((err) => {
+      console.error(`[admin/agents] reply rates unavailable: ${err.message}`);
+      return null;
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -150,7 +160,7 @@ export default async function AdminAgentsPage({ searchParams }) {
       ) : null}
 
       <AgentsTable
-        rows={toAgentTableRows(list?.rows, loginSummaries, t.locale)}
+        rows={toAgentTableRows(list?.rows, loginSummaries, t.locale, replyRates)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.name }))}
         canImpersonate={can(session?.role, 'accounts.impersonate')}
         canDelete={can(session?.role, 'agents.delete')}

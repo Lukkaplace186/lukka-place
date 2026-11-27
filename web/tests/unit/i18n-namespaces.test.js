@@ -7,6 +7,7 @@ import path from 'node:path';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
 import en from '@/lib/i18n/en.json' with { type: 'json' };
 import { createTranslator } from '@/lib/i18n/translate';
+import { mergeMessages, pickMessages } from '@/lib/i18n/messageSubset';
 
 /**
  * Each layout hands the browser only the dictionary namespaces its own subtree
@@ -146,12 +147,80 @@ function reachableFrom(seeds) {
     seen.add(file);
     const src = read(file);
     if (!src) continue;
-    for (const m of src.matchAll(/from\s+'([^']+)'/g)) {
-      const target = resolveImport(m[1], file);
-      if (target && !seen.has(target)) queue.push(target);
-    }
+    for (const target of importsOf(src, file)) if (!seen.has(target)) queue.push(target);
   }
   return seen;
+}
+
+/**
+ * Static `from '…'` edges AND `import('…')` ones (2026-11-21): a sheet loaded
+ * through next/dynamic renders under the same provider, so its keys count.
+ */
+function importsOf(src, file) {
+  const out = [];
+  for (const m of src.matchAll(/(?:from\s+|import\(\s*)'([^']+)'/g)) {
+    const target = resolveImport(m[1], file);
+    if (target) out.push(target);
+  }
+  return out;
+}
+
+/**
+ * Everything that runs in the BROWSER under a layout: each client component
+ * reachable from its route files, plus every module those import — a plain
+ * lib file without a directive (lib/phoneFieldLabels.js) runs client-side
+ * when a client component imports it, and its t() keys resolve against the
+ * shipped subset just the same. Server actions are excluded (they hold the
+ * whole dictionary).
+ */
+function browserGraph(seeds) {
+  const all = reachableFrom(seeds);
+  const inBrowser = new Set();
+  const queue = [...all].filter((f) => {
+    const src = read(f);
+    return src && isClient(src) && !isServerAction(src);
+  });
+  while (queue.length) {
+    const file = queue.pop();
+    if (inBrowser.has(file)) continue;
+    const src = read(file);
+    if (!src || isServerAction(src)) continue;
+    inBrowser.add(file);
+    for (const target of importsOf(src, file)) if (!inBrowser.has(target)) queue.push(target);
+  }
+  return inBrowser;
+}
+
+/**
+ * The key (or the literal prefix of a template key) of every string literal
+ * in `src` that starts with one of `namespaces`: `'account.limits.manage'`,
+ * `` `auth.nudge.${reason}` `` → `auth.nudge.`. Deliberately broad — any
+ * literal, not just t() arguments — because keys travel through label maps,
+ * helpers and props before reaching t().
+ */
+function keyReferencesIn(src, namespaces) {
+  if (!namespaces.length) return [];
+  const re = new RegExp(`['"\`]((?:${namespaces.join('|')})\\.[A-Za-z0-9_.]*)`, 'g');
+  return [...src.matchAll(re)].map((m) => m[1]);
+}
+
+/** Split a layout chain's declarations into whole namespaces and dot-path subtrees. */
+function shippedEntries(chain) {
+  const whole = new Set();
+  const subtrees = [];
+  for (const layout of chain) {
+    for (const entry of declaredNamespaces(read(layout) || '')) {
+      if (entry.includes('.')) subtrees.push(entry);
+      else whole.add(entry);
+    }
+  }
+  return { whole, subtrees };
+}
+
+/** A key (or key prefix) is covered when its namespace ships whole or one subtree holds it. */
+function keyCovered(key, { whole, subtrees }) {
+  if (whole.has(key.split('.')[0])) return true;
+  return subtrees.some((p) => key === p || key.startsWith(`${p}.`));
 }
 
 /** Namespaces a file's own t()/labelKey references touch. */
@@ -191,12 +260,14 @@ for (const layout of LAYOUTS) {
     const chain = ancestorLayouts(layout, LAYOUTS);
 
     // Merged, because I18nProvider merges: a nested layout inherits its
-    // parent's namespaces and only has to declare what it adds.
+    // parent's namespaces and only has to declare what it adds. A dot-path
+    // entry ('account.limits') makes its namespace present here; which keys
+    // it actually holds is the next test's job.
     const available = new Set();
     for (const ancestor of chain) {
       const src = read(ancestor);
       assert.ok(src, `${ancestor} should exist`);
-      for (const ns of declaredNamespaces(src)) available.add(ns);
+      for (const ns of declaredNamespaces(src)) available.add(ns.split('.')[0]);
     }
 
     const missing = new Map();
@@ -211,6 +282,38 @@ for (const layout of LAYOUTS) {
         `  chain:     ${chain.join(' -> ')}\n` +
         `  available: ${[...available].sort().join(', ') || '(none)'}\n` +
         [...missing].map(([ns, files]) => `  '${ns}' <- ${files.slice(0, 4).join(', ')}`).join('\n'),
+    );
+  });
+
+  /*
+   * Key level, for a namespace the chain ships only as dot-path subtrees
+   * (2026-11-21, public JS/HTML diet): every key — or the literal prefix of a
+   * template key — that anything running in the browser under this layout
+   * spells out must sit inside a shipped subtree. A key built from a bare
+   * variable right after the namespace has the prefix 'account.' and fails:
+   * ship the whole namespace there, or a subtree holding every value.
+   */
+  test(`${layout} — every key under a partially shipped namespace is inside a shipped subtree`, () => {
+    const chain = ancestorLayouts(layout, LAYOUTS);
+    const shipped = shippedEntries(chain);
+    const partial = [...new Set(shipped.subtrees.map((p) => p.split('.')[0]))].filter((ns) => !shipped.whole.has(ns));
+    if (!partial.length) return;
+
+    const uncovered = new Map();
+    for (const file of browserGraph(ownRouteFiles(layout, LAYOUTS))) {
+      for (const key of keyReferencesIn(read(file) || '', partial)) {
+        if (keyCovered(key, shipped)) continue;
+        if (!uncovered.has(key)) uncovered.set(key, []);
+        uncovered.get(key).push(file);
+      }
+    }
+    assert.deepEqual(
+      [...uncovered.keys()].sort(),
+      [],
+      `${layout}: keys the browser resolves that no shipped subtree holds.\n` +
+        `  chain:    ${chain.join(' -> ')}\n` +
+        `  subtrees: ${shipped.subtrees.join(', ')}\n` +
+        [...uncovered].map(([k, files]) => `  '${k}' <- ${files.slice(0, 3).join(', ')}`).join('\n'),
     );
   });
 }
@@ -238,8 +341,7 @@ for (const locale of ['fr', 'en']) {
     }
 
     const dictionary = locale === 'fr' ? fr : en;
-    const shipped = {};
-    for (const ns of available) if (dictionary[ns] !== undefined) shipped[ns] = dictionary[ns];
+    const shipped = pickMessages(dictionary, [...available]);
 
     // No fallbackMessages — the browser genuinely has none.
     const t = createTranslator({ locale, messages: shipped });
@@ -253,3 +355,18 @@ for (const locale of ['fr', 'en']) {
     assert.match(layoutSrc, /I18nProvider/, '(portfolio) layout must mount a provider');
   });
 }
+
+test('pickMessages ships a dot-path subtree only; mergeMessages keeps both sides of nested providers', () => {
+  const dict = { account: { limits: { a: 'A' }, portal: { b: 'B' } }, home: { x: 'X' } };
+  assert.deepEqual(pickMessages(dict, ['account.limits']), { account: { limits: { a: 'A' } } });
+  assert.deepEqual(pickMessages(dict, ['account.limits', 'account']), { account: dict.account });
+  assert.deepEqual(pickMessages(dict, ['nope', 'account.nope']), {});
+  // parent partial + child whole, and two partials of one namespace
+  assert.deepEqual(mergeMessages({ account: { limits: { a: 'A' } } }, { account: dict.account }), { account: dict.account });
+  assert.deepEqual(
+    mergeMessages({ account: { limits: { a: 'A' } } }, { account: { portal: { b: 'B' } } }),
+    { account: { limits: { a: 'A' }, portal: { b: 'B' } } },
+  );
+  // a plural entry is a leaf object and survives a merge whole
+  assert.deepEqual(mergeMessages({ n: { one: '1', other: 'n' } }, {}), { n: { one: '1', other: 'n' } });
+});

@@ -65,6 +65,8 @@ export const PERMISSIONS = {
   'sales.delete': ['owner'],
   // "View as" an agent or customer — read-only, reasoned, logged (lib/impersonation.js).
   'accounts.impersonate': ['owner', 'support'],
+  // Demo customer + agent pairs to try the product end to end (lib/demoAccounts.js).
+  'accounts.demo': ['owner', 'support'],
   'routing.manage': ['owner'],
   // Creating a creator or campaign code, editing its fee, switching a code off,
   // announcing the referral programme to every agent.
@@ -119,6 +121,8 @@ export const SECTION_PERMISSIONS = {
   '/admin/leads': 'leads.view',
   // Recording an introduction is leads.manage (app/admin/interactions/actions.js).
   '/admin/interactions': 'leads.view',
+  // Every customer → agent contact, one row each, with customers' numbers.
+  '/admin/contacts': 'leads.view',
   '/admin/matching': 'analytics.view',
   '/admin/viewings': 'leads.view',
   '/admin/market-data': 'market.view',
@@ -129,6 +133,8 @@ export const SECTION_PERMISSIONS = {
   '/admin/agents': 'agents.view',
   '/admin/agencies': 'agents.view',
   '/admin/customers': 'customers.view',
+  // Verification codes in clear, the last hour (2026-11-24): the roles that help customers and agents.
+  '/admin/codes': 'customers.manage',
   '/admin/move-projects': 'customers.view',
   // Pasting Facebook group posts adds agent prospects (lib/facebookProspects.js).
   '/admin/prospects': 'agents.manage',
@@ -137,6 +143,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/sales': 'sales.view',
   '/admin/sales/attribution': 'sales.manage',
   '/admin/impersonation': 'audit.view',
+  '/admin/demo': 'accounts.demo',
   '/admin/cms': 'cms.manage',
   '/admin/blog': 'blog.manage',
   '/admin/settings': 'cms.manage',

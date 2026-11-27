@@ -36,6 +36,7 @@ test('the header knows an agent is signed in: one flag name on both sides, set w
   assert.match(session, /cookieStore\.delete\(\{ name: AGENT_LOGGED_IN_FLAG_COOKIE, path: '\/' \}\)/);
   const header = read('components/Header.js');
   assert.match(header, /agentSignedIn \? '\/compte\/agent' : '\/compte\/agent\/inscription'/);
-  assert.match(header, /agentSignedIn \? '\/compte\/agent\/demandes' : '\/compte\/agent\/connexion'/);
+  // The drawer's quiet agent link lives in components/HeaderDrawer.js since 2026-11-21.
+  assert.match(read('components/HeaderDrawer.js'), /agentSignedIn \? '\/compte\/agent\/demandes' : '\/compte\/agent\/connexion'/);
   assert.match(read('app/(site)/compte/agent/connexion/page.js'), /getCurrentAgentId\(\)[\s\S]*redirect\(/);
 });

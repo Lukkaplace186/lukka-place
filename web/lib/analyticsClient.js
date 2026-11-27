@@ -3,6 +3,8 @@
 import { attributionFromLocation, chooseSessionAttribution, sourceOf } from './attribution';
 import { adEvent } from './adEvents';
 import { WHATSAPP_TAP_EVENT } from './contactSignupPrompt';
+import { PLAUSIBLE_GOALS, firePlausibleGoal } from './plausibleGoals';
+import { similarAlertQuery } from './similarSearch';
 
 /**
  * The one client-side event beacon. `lib/analytics.js` is the READ side and
@@ -250,21 +252,59 @@ export function listingEventPayload(listing) {
  *   which button was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS); the
  *   server stores an unknown value as none.
  */
-export function trackLeadClick(listing, routingType, placement) {
+export function trackLeadClick(listing, routingType, placement, intent = null, contact = null) {
   if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
+  // Plausible goal (lib/plausibleGoals.js); a no-op when Plausible is blocked.
+  firePlausibleGoal(PLAUSIBLE_GOALS.WHATSAPP_TAP, placement ? { placement } : null);
   beacon('/api/telemetry/lead-click', {
     event: 'whatsapp_cta_clicked',
     ...listingEventPayload(listing),
     routingType,
     placement,
+    // What the customer chose before WhatsApp opened (lib/whatsappIntent.js); null = not asked.
+    intent: intent || undefined,
+    // A visit's optional name + number (lib/visitContact.js): forwarded to the
+    // agent's alert, never stored with the tap.
+    contact: contact && contact.phone ? { name: contact.name || null, phone: contact.phone } : undefined,
   });
   // A guest is offered an account when they come back from WhatsApp
   // (components/ContactSignupPrompt.js, lib/contactSignupPrompt.js).
   try {
-    window.dispatchEvent(new CustomEvent(WHATSAPP_TAP_EVENT, { detail: { listingId: listing?.id ?? null } }));
+    window.dispatchEvent(new CustomEvent(WHATSAPP_TAP_EVENT, {
+      // Since 2026-11-24 also the alert for homes like this one
+      // (lib/similarSearch.js) and the visit sheet's optional name and
+      // number, so the offer can be specific and one tap. Not stored.
+      detail: {
+        listingId: listing?.id ?? null,
+        similarQuery: similarAlertQuery(listing),
+        name: contact?.name || null,
+        phone: contact?.phone || null,
+      },
+    }));
   } catch {
     // No window (server) or no CustomEvent: nothing to offer.
   }
+}
+
+/**
+ * A step of the WhatsApp sheet (lib/waSheetRules.js): 'open' when the sheet
+ * opens, 'choose' when an option is picked, just before the tap itself.
+ * A log line on the server, nothing stored.
+ */
+export function trackWhatsAppSheet(step, listing, placement) {
+  beacon('/api/telemetry/wa-sheet', { step, listingId: listing?.id, placement });
+}
+
+/**
+ * « Votre message est parti ? » — the customer's own answer after coming back
+ * from WhatsApp (components/WhatsAppIntentSheet.js): a listing event,
+ * whatsapp_sent or whatsapp_not_sent.
+ */
+export function trackWhatsAppOutcome(listing, sent, intent = null) {
+  trackEvent(sent ? 'whatsapp_sent' : 'whatsapp_not_sent', {
+    ...listingEventPayload(listing),
+    intent: intent || undefined,
+  });
 }
 
 /**

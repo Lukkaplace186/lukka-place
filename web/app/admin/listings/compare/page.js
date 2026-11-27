@@ -7,7 +7,7 @@ import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
 import { getT } from '@/lib/i18n/server';
 import { compareState, getListingsForCompare, parseCompareIds } from '@/lib/adminListings';
-import { compareToFirst, photoSet } from '@/lib/listingCompare';
+import { compareToFirst, photoKey, photoSet, photosSharedFirst, samePlace } from '@/lib/listingCompare';
 import { cn } from '@/lib/utils';
 import { Chip } from '../../LeadRoutingUI';
 import CompareDecision from './CompareDecision';
@@ -40,7 +40,13 @@ export default async function CompareListingsPage({ searchParams }) {
   const canModerate = can(session?.role, 'listings.moderate');
   const marks = compareToFirst(listings);
   const reference = listings[0];
-  const firstPhotos = reference ? new Set(photoSet(reference)) : new Set();
+  // Photos in common are matched by content fingerprint, never by URL (a URL
+  // carries its listing id), outlined on both sides and shown first.
+  const sharedKeysOf = (index) => new Set(
+    index === 0
+      ? marks.slice(1).flatMap((mark) => mark.sharedPhotos.map(photoKey))
+      : marks[index].sharedPhotos.map(photoKey),
+  );
   const sameAgentAsFirst = (listing) => Boolean(reference?.agent_id) && listing.agent_id === reference.agent_id;
   const anySameAgent = listings.slice(1).some(sameAgentAsFirst);
   // Older live copies of the same agent's listing get "Retirer (doublon)",
@@ -84,7 +90,8 @@ export default async function CompareListingsPage({ searchParams }) {
           <div className="grid auto-cols-[minmax(280px,1fr)] grid-flow-col gap-4">
             {listings.map((listing, index) => {
               const state = compareState(listing);
-              const photos = photoSet(listing);
+              const sharedKeys = sharedKeysOf(index);
+              const photos = photosSharedFirst(photoSet(listing), sharedKeys);
               const shared = index === 0 ? null : marks[index].sharedPhotos;
               return (
                 <article
@@ -111,7 +118,7 @@ export default async function CompareListingsPage({ searchParams }) {
                         key={src}
                         className={cn(
                           'relative aspect-square overflow-hidden rounded-md bg-canvas-alt',
-                          index > 0 && firstPhotos.has(src) && 'ring-2 ring-danger ring-offset-1',
+                          sharedKeys.has(photoKey(src)) && 'ring-2 ring-danger ring-offset-1',
                         )}
                       >
                         <SafeImage src={src} alt="" fill sizes="120px" className="object-cover" />
@@ -142,7 +149,7 @@ export default async function CompareListingsPage({ searchParams }) {
                     <div className="flex flex-col gap-0.5">
                       <dt className="text-xs text-ink-45">{k('field.place')}</dt>
                       <dd className="flex flex-wrap items-center gap-1.5 text-ink">
-                        {[listing.quartier, listing.commune].filter(Boolean).join(', ') || '—'} {sameChip(index, 'quartier') || sameChip(index, 'commune')}
+                        {[listing.quartier, listing.commune].filter(Boolean).join(', ') || '—'} {index > 0 && samePlace(marks[index], reference, listing) ? <Chip tone="danger">{k('same')}</Chip> : null}
                       </dd>
                     </div>
                     <div className="flex flex-col gap-0.5">

@@ -4,21 +4,35 @@ import Link from '@/components/LocaleLink';
 import { useEffect, useRef, useState } from 'react';
 import { Phone, CalendarClock, ChevronRight, MessageCircle } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppCTA';
+import WhatsAppIntentButton from './WhatsAppIntentSheet';
 import FavoriteButton from './FavoriteButton';
-import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
+import { trackCallClick } from '@/lib/analyticsClient';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import ShareButton from './ShareButton';
 import AgentMonogram from './AgentMonogram';
 import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import VisitRequestDialog from './VisitRequestDialog';
+import dynamic from 'next/dynamic';
+import { prefersLightData } from '@/lib/useSaveData';
+import AccountOfferCard from './AccountOfferCard';
 import AddToVisitCartButton from './AddToVisitCartButton';
 import { feedLocationLine, listingImages } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { canMessageListing, chatStartHref } from '@/lib/chatRules';
 import { telHref } from '@/lib/phone';
 import { useT } from '@/lib/i18n/client';
+
+/*
+ * The visit dialog (Radix Dialog, the slot calendar, PhoneField, the visit
+ * cart rules) is its own chunk since 2026-11-21: ~14 KB gzip the listing page
+ * parsed before the visitor did anything. It is fetched while the browser is
+ * idle (not under Data Saver) and mounted closed, exactly as before, so the
+ * account prefill is fetched early and the first tap opens it at once; under
+ * Data Saver it loads on hover / focus / tap.
+ */
+const loadVisitDialog = () => import('./VisitRequestDialog');
+const VisitRequestDialog = dynamic(loadVisitDialog, { ssr: false });
 
 /** MobileListingBar's "Visiter" opens the dialog through this event. */
 export const OPEN_VISIT_EVENT = 'lukka:open-visit';
@@ -27,6 +41,7 @@ const VISIT_ERROR_KEYS = {
   phone: 'enquiry.errors.phone',
   time: 'enquiry.errors.time',
   closed: 'enquiry.errors.closed',
+  video: 'enquiry.errors.video',
   1: 'enquiry.errors.failed',
 };
 
@@ -39,10 +54,27 @@ const VISIT_ERROR_KEYS = {
  * parent is CSS-hidden for the current viewport; auto-reopening both on error
  * would show two stacked dialogs at once.
  */
-function VisitRequestButton({ propertyId }) {
+function VisitRequestButton({ propertyId, hiddenTrigger = false }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const triggerRef = useRef(null);
+  const show = (next) => {
+    if (next) setMounted(true);
+    setOpen(next);
+  };
+  const warm = () => { loadVisitDialog().catch(() => {}); };
+
+  useEffect(() => {
+    if (prefersLightData()) return undefined;
+    let live = true;
+    const idle = window.requestIdleCallback || ((fn) => window.setTimeout(fn, 2000));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const handle = idle(() => {
+      loadVisitDialog().then(() => { if (live) setMounted(true); }).catch(() => {});
+    }, { timeout: 5000 });
+    return () => { live = false; cancel(handle); };
+  }, []);
 
   // The page mounts two EnquiryCards (phone column + desktop rail, one of
   // them display:none), so only the copy whose button is actually on
@@ -51,24 +83,41 @@ function VisitRequestButton({ propertyId }) {
     const onOpen = (event) => {
       if (event.detail?.propertyId !== propertyId) return;
       if (!triggerRef.current || triggerRef.current.offsetParent === null) return;
-      setOpen(true);
+      show(true);
     };
     window.addEventListener(OPEN_VISIT_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_VISIT_EVENT, onOpen);
   }, [propertyId]);
+
+  // The compact phone card shows no button of its own (MobileListingBar's
+  // "Visiter" is the trigger there), but keeps this dialog and its listener.
+  // A zero-height block still has an offsetParent while the card is on
+  // screen, and none inside the desktop rail's display:none, so the rule
+  // above keeps exactly one copy answering.
+  if (hiddenTrigger) {
+    return (
+      <>
+        <span ref={triggerRef} aria-hidden="true" className="block h-0" />
+        {mounted ? <VisitRequestDialog propertyId={propertyId} open={open} onOpenChange={show} /> : null}
+      </>
+    );
+  }
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => show(true)}
+        onPointerEnter={warm}
+        onPointerDown={warm}
+        onFocus={warm}
         className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
       >
         <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
         {t('enquiry.requestViewing')}
       </button>
-      <VisitRequestDialog propertyId={propertyId} open={open} onOpenChange={setOpen} />
+      {mounted ? <VisitRequestDialog propertyId={propertyId} open={open} onOpenChange={show} /> : null}
     </>
   );
 }
@@ -130,7 +179,15 @@ function VisitRequestButton({ propertyId }) {
 // `placement` names the copy in the tap log (lib/leadClicks.js): the desktop
 // rail passes 'listing_desktop'; the phone copy passes none (no value in the
 // vocabulary describes it, and calling it the bottom bar would be false).
-export default function EnquiryCard({ listing, visitSent, visitError, saveShare = true, placement = null }) {
+// `compact` (the phone copy, 2026-11-18, owner): the agent, then WhatsApp
+// only, and "Ajouter à mes visites" as a small link. Visit, Message and Call
+// are MobileListingBar's, on screen for the whole scroll under the same
+// conditions; five stacked buttons here repeated them (~250 px). The desktop
+// rail has no bottom bar and keeps every action.
+// Since the second 2026-11-18 pass compact keeps only what the bar cannot
+// carry: the visit-request feedback, the visit dialog (hidden anchor) and
+// "Ajouter à mes visites". It sits under the agent row; no WhatsApp button.
+export default function EnquiryCard({ listing, visitSent, visitVideo = false, visitAccount = null, visitError, saveShare = true, placement = null, compact = false }) {
   const t = useT();
   const {
     id, title,
@@ -148,7 +205,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
   // one rule every WhatsApp CTA shares (lib/leadRouting.js). `agentPhone` is
   // only non-null for a verified, routing-enabled agent (lib/listings.js), so
   // the tel: link below follows the same rule without restating it.
-  const { href: whatsappHref, routingType } = resolveWhatsAppRouting(listing);
+  const { href: whatsappHref } = resolveWhatsAppRouting(listing);
   const displayName = agentName || 'Lukka Place';
   const qualifier = agentName ? 'Agent partenaire' : 'Équipe Lukka Place';
   // The logo and name open the agent's public profile — where people expect
@@ -158,9 +215,12 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
 
   return (
     <div
-      className="u-reveal u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
+      // compact: no card frame and no agent header — on the phone page the
+      // agent is ListingAgentRow near the top, and this is the plain contact
+      // block at the end of the page (2026-11-18).
+      className={compact ? 'flex flex-col' : 'u-reveal u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6'}
     >
-      {(() => {
+      {compact ? null : (() => {
         const header = (
           <>
             <AgentMonogram
@@ -190,7 +250,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
         );
       })()}
 
-      <div className="h-px bg-line" />
+      {compact ? null : <div className="h-px bg-line" />}
 
       <div className="flex flex-col gap-2.5">
         {visitSent && (
@@ -200,18 +260,30 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
           // WhatsApp"), and a web visitor usually has not.
           <div className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] text-success" role="status">
             <p className="font-semibold">{t(visitSent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent')}</p>
+            {visitVideo ? (
+              <>
+                <p className="mt-1">{t('enquiry.visitMode.sentVideo')}</p>
+                <p className="mt-1 font-semibold text-warning-ink">{t('enquiry.visitMode.warning')}</p>
+              </>
+            ) : null}
             <Link href="/compte/client/visites" className="mt-1 inline-block font-semibold underline underline-offset-2">
               {t('enquiry.trackVisit')}
             </Link>
           </div>
         )}
+        {/* The free account the same name and number opened (2026-11-24). */}
+        {visitSent && visitAccount ? (
+          <AccountOfferCard status={visitAccount} entry="visit" next="/compte/client/visites" />
+        ) : null}
         {visitError && (
           <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">
             {t(VISIT_ERROR_KEYS[visitError] || VISIT_ERROR_KEYS[1])}
           </p>
         )}
 
-        {whatsappHref ? (
+        {/* compact (the phone page): no WhatsApp button either — the bottom
+            bar carries it for the whole scroll (2026-11-18, owner). */}
+        {compact ? null : whatsappHref ? (
           /* The detail page's primary conversion action. It reported
              nothing until now, which is precisely the number
              lib/analytics.js's getWhatsAppConversionRate claims to
@@ -225,16 +297,18 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
              (unlike the card variants), so the native target="_blank"
              navigation is correct and the beacon just rides alongside it —
              `keepalive` is what gets it out of the tab. */
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackLeadClick(listing, routingType, placement ?? undefined)}
+          // 2026-11-16: asks visit / disponible / question before WhatsApp
+          // opens, and sends the choice with the same beacon
+          // (WhatsAppIntentSheet.js).
+          <WhatsAppIntentButton
+            listing={listing}
+            placement={placement ?? undefined}
+            standalone
             className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
           >
             <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />
             {t('enquiry.contactWhatsApp')}
-          </a>
+          </WhatsAppIntentButton>
         ) : (
           <span className="inline-flex w-full items-center justify-center rounded-lg border border-line px-5 py-3 text-sm font-semibold text-ink-25">
             {t('enquiry.contactUnavailable')}
@@ -245,7 +319,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
             messages — the same verified, routing-enabled rule as the number
             above, so the server never refuses the first message. A guest is
             sent to sign in and back. */}
-        {canMessageListing(listing) ? (
+        {!compact && canMessageListing(listing) ? (
           <Link
             href={chatStartHref({ propertyId: id })}
             className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue/40 bg-surface px-5 py-3 text-sm font-semibold text-blue-deep transition-colors hover:bg-blue-tint"
@@ -255,9 +329,10 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
           </Link>
         ) : null}
 
-        <VisitRequestButton propertyId={id} />
+        <VisitRequestButton propertyId={id} hiddenTrigger={compact} />
         {/* "Mes visites": several listings, one request (lib/visitCart.js). */}
         <AddToVisitCartButton
+          variant={compact ? 'link' : 'button'}
           listing={{
             id,
             title: listing.title,
@@ -269,7 +344,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
 
         {/* Real per-listing number only — renders nothing at all rather than
             a tel: link to a number we don't have. */}
-        {agentPhone ? (
+        {!compact && agentPhone ? (
           <a
             href={telHref(agentPhone)}
             onClick={() => trackCallClick(listing)}

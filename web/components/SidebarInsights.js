@@ -46,10 +46,10 @@ export default function SidebarInsights({ popularCommunes, allCommunes }) {
       <div className="u-card rounded-lg border border-line bg-surface p-5">
         <h2 className="u-eyebrow mb-4">{t('listings.sidebar.relatedSearches')}</h2>
         <ul className="flex flex-col gap-2">
-          {RELATED_SEARCHES.map(({ label, href }) => (
+          {RELATED_SEARCHES.map(({ labelKey, href }) => (
             <li key={href}>
               <Link href={href} className="text-[0.8125rem] text-ink-70 transition-colors hover:text-blue-deep">
-                {label}
+                {t(labelKey)}
               </Link>
             </li>
           ))}

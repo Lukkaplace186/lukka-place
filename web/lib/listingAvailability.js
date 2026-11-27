@@ -14,7 +14,8 @@ import { LISTING_TIME_ZONE } from '@/lib/listingView';
  *
  * The column may not exist yet (web can deploy before the migration). Every
  * read here catches 42703 and answers "nothing to show", and the public page
- * reads it through to_jsonb(p) in lib/listings.js so it can never 500.
+ * reads the plain column (web/CLAUDE.md, "Listing queries read columns, not
+ * to_jsonb(p)").
  */
 
 /**

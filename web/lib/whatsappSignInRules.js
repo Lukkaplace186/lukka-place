@@ -24,3 +24,22 @@ export function isNewAccount(createdAt, now = Date.now()) {
   const at = createdAt ? new Date(createdAt).getTime() : NaN;
   return Number.isFinite(at) && now - at >= 0 && now - at < 60 * 60 * 1000;
 }
+
+/**
+ * The stored password of an account opened without one (2026-11-21).
+ * `customers.password_hash` is NOT NULL in production, so the NULL this flow
+ * used to insert failed every new account with 23502 (25 times for 17
+ * numbers, 2026-11-16 → 21). '!whatsapp' is the engine's own marker for an
+ * account opened on WhatsApp (services/customerOnboarding.js): it has no
+ * `salt:hash` colon, so lib/authCrypto.js refuses every password against it,
+ * and a password reset replaces it with a real hash.
+ */
+export const NO_PASSWORD_HASH = '!whatsapp';
+
+/** What createCustomer stores: the real hash, or the no-password marker. */
+export function storedPasswordHash(passwordHash) {
+  return typeof passwordHash === 'string' && passwordHash.trim() ? passwordHash : NO_PASSWORD_HASH;
+}
+
+/** SQL (alias `c`): the row holds a real password — not NULL, not empty, not a '!' marker. */
+export const HAS_PASSWORD_SQL = "(c.password_hash IS NOT NULL AND c.password_hash <> '' AND c.password_hash NOT LIKE '!%')";

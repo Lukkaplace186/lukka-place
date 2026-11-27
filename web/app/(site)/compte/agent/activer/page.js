@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { BadgeCheck } from 'lucide-react';
 import { normalizeStoredPhone } from '@/lib/phone';
 import { peekAgentActivation } from '@/lib/agents';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getSupportWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { activateAgentAction } from './actions';
 import { getT } from '@/lib/i18n/server';
@@ -53,7 +53,10 @@ export default async function AgentActivatePage({ searchParams }) {
   const { valid, agentName, agencyName } = await peekAgentActivation({ phone, token });
 
   if (!valid) {
-    const href = getCentralWhatsAppHref(
+    // The service client, not the listings number (2026-11-26): the request
+    // for a new link is for a person, and on the listings number it got the
+    // publishing how-to or nothing (two agents on 2026-11-25 and -26).
+    const href = getSupportWhatsAppHref(
       t('auth.activate.whatsappExpired'),
     );
     return (

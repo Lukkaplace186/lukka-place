@@ -11,6 +11,7 @@ import {
   normalizeLocale,
 } from './config';
 import { createTranslator } from './translate';
+import { mergeMessages } from './messageSubset';
 
 /**
  * Client-side locale access.
@@ -25,18 +26,21 @@ import { createTranslator } from './translate';
 const I18nContext = createContext(null);
 
 /**
- * Nested providers MERGE rather than replace, one level deep, at the
- * namespace boundary. app/layout.js supplies the chrome namespaces to the
- * whole app; app/admin/layout.js then adds `admin` for its own subtree
- * without having to restate them. Replacing would mean the root's chrome
- * strings vanishing the moment a nested provider mounted.
+ * Nested providers MERGE rather than replace. app/layout.js supplies the
+ * chrome namespaces to the whole app; app/admin/layout.js then adds `admin`
+ * for its own subtree without having to restate them. Replacing would mean
+ * the root's chrome strings vanishing the moment a nested provider mounted.
+ *
+ * The merge is deep since 2026-11-21: a layout can ship a dot-path subtree
+ * (account.limits, ./messageSubset.js) and a deeper one the whole
+ * namespace, or another subtree of it, and both must survive.
  */
 export function I18nProvider({ locale, messages, children }) {
   const parent = useContext(I18nContext);
 
   const value = useMemo(() => {
     const activeLocale = normalizeLocale(locale ?? parent?.locale);
-    const merged = { ...(parent?.messages ?? {}), ...(messages ?? {}) };
+    const merged = mergeMessages(parent?.messages ?? {}, messages ?? {});
     return { locale: activeLocale, messages: merged };
   }, [locale, messages, parent]);
 

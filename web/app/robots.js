@@ -46,6 +46,15 @@ const BLOCKED_CRAWLERS = [
   'magpie-crawler',
 ];
 
+/**
+ * NOTHING PUBLIC IS CLOSED TO SEARCH ENGINES OR AI ASSISTANTS (owner,
+ * 2026-11-24): "the goal is to bring us as many people as possible". On that
+ * day `/agents?…` filter pages were disallowed here for a few hours to cut the
+ * database load GPTBot put on them; the owner reverted it — chatbots bring
+ * direct customers. When a crawler is expensive, make the page cheaper; only
+ * scrapers that impersonate a browser are turned away
+ * (lib/directoryCrawlGuard.js), never a crawler that names itself.
+ */
 export default function robots() {
   const base = SITE_URL.replace(/\/+$/, '');
   return {

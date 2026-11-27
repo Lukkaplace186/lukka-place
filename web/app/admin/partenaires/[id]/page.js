@@ -32,6 +32,7 @@ const KIND_KEYS = {
   creator: 'admin.partners.types.creatorOne',
   campaign: 'admin.partners.types.campaignOne',
   agent: 'admin.partners.types.agentOne',
+  agency: 'admin.partners.types.agencyOne',
 };
 
 function pct(part, whole) {
@@ -248,7 +249,7 @@ export default async function AdminPartnerPage({ params, searchParams }) {
         </TableFrame>
       </section>
 
-      {canManage && partner.kind !== 'agent' ? (
+      {canManage && partner.kind !== 'agent' && partner.kind !== 'agency' ? (
         <form action={updatePartnerAction} className="u-card grid gap-3 rounded-card bg-surface p-4 sm:grid-cols-2">
           <h2 className="u-title-card text-ink sm:col-span-2">{t('admin.partners.edit')}</h2>
           <input type="hidden" name="id" value={partner.id} />

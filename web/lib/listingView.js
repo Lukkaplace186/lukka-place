@@ -248,11 +248,19 @@ export function entryTerms(listing) {
   };
 }
 
-/** A month count that is really a number. '' and null both mean "not stated". */
-function monthsValue(value) {
+/**
+ * No entry cost runs past a year (garantie, avance or commission). A larger
+ * figure in a *_months column is a dollar amount typed into a months field
+ * ("avance 9000" on a 3 000 $ rent, 2026-11-19), and showing it would tell a
+ * tenant "9 000 mois". Same limit as the engine's services/openai.js.
+ */
+export const MAX_ENTRY_MONTHS = 12;
+
+/** A month count that is really a number. '' and null both mean "not stated"; so does an impossible count. */
+export function monthsValue(value) {
   if (value === null || value === undefined || value === '') return null;
   const months = Number(value);
-  return Number.isFinite(months) ? months : null;
+  return Number.isFinite(months) && months >= 0 && months <= MAX_ENTRY_MONTHS ? months : null;
 }
 
 /** The parcelle sub-type when there is one, otherwise the real category. */

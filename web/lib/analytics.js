@@ -99,6 +99,42 @@ export async function getWhatsAppConversionRate({ sinceDays = null } = {}) {
   return clicks / views;
 }
 
+/**
+ * The same rate counted per PERSON (2026-11-25, owner): the people (visitor
+ * ids) who looked at a listing in the period, and how many of them tapped a
+ * WhatsApp button. One person opening five listings counts once, so this
+ * answers "do visitors find something they want?". "Looked at a listing" is
+ * opening its page OR tapping it straight from the results (the card or the
+ * map preview on /listings, the /location pages): on 2026-11-25 a third of
+ * the day's tappers never opened a listing page. A person is a browser: two
+ * phones are two people. A tap with no visitor id is not counted.
+ *
+ * @returns {Promise<{ visitors: number, clickers: number, rate: number } | null>}
+ */
+export async function getWhatsAppPeopleConversion({ sinceDays = null } = {}) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `WITH tappers AS (
+       SELECT DISTINCT w.visitor_id FROM whatsapp_clicks w
+        WHERE w.visitor_id IS NOT NULL AND ${peopleSql('w')}
+          AND ($1::int IS NULL OR w.created_at >= NOW() - make_interval(days => $1::int))
+     ),
+     viewers AS (
+       SELECT v.visitor_id FROM page_views v
+        WHERE v.path LIKE '/listings/%' AND v.visitor_id IS NOT NULL AND ${peopleSql('v')}
+          AND ($1::int IS NULL OR v.created_at >= NOW() - make_interval(days => $1::int))
+       UNION
+       SELECT visitor_id FROM tappers
+     )
+     SELECT (SELECT count(*)::int FROM viewers) AS visitors,
+            (SELECT count(*)::int FROM tappers) AS clickers`,
+    [sinceDays],
+  );
+  const { visitors, clickers } = rows[0];
+  if (!visitors) return null;
+  return { visitors, clickers, rate: clickers / visitors };
+}
+
 // ---------------------------------------------------------------------------
 // Agent-scoped (Phase 4D private dashboard) — same tables, filtered to one
 // agent's own profile path / listing ids. All start at zero, same as above.
@@ -153,7 +189,10 @@ export async function getAgentFavoritesCount(propertyIds) {
   if (!propertyIds?.length) return 0;
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT count(*)::int AS total FROM customer_favorites WHERE property_id = ANY($1::bigint[])`,
+    // A demo customer's saves (lib/demoAccounts.js) are not an agent's audience.
+    `SELECT count(*)::int AS total FROM customer_favorites f
+      WHERE f.property_id = ANY($1::bigint[])
+        AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.id = f.customer_id AND c.phone LIKE '2430000%')`,
     [propertyIds],
   );
   return rows[0].total;
@@ -565,8 +604,13 @@ const CLICK_CONTENT_LANGUAGE_ID = 20;
 const CLICK_CATEGORY_LANGUAGE_ID = 26;
 
 /** Periods offered on the dashboard. `null` days = since tracking began. */
+// 1 / 3 / 14 days added 2026-11-16 (owner): to see an ad campaign's effect.
+// Rolling windows (NOW() minus N days), so "24 h" is the last 24 hours.
 export const CLICK_PERIODS = [
+  { key: '1', days: 1 },
+  { key: '3', days: 3 },
   { key: '7', days: 7 },
+  { key: '14', days: 14 },
   { key: '30', days: 30 },
   { key: '90', days: 90 },
   { key: 'tout', days: null },

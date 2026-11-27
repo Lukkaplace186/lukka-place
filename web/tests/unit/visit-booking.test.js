@@ -85,7 +85,7 @@ test('two picks under an hour apart are flagged, not refused', () => {
 
 test('the visit form posts the picked instant; the action derives the phrase and passes the slot', () => {
   const card = read('components/VisitRequestDialog.js');
-  assert.match(card, /<VisitSlotPicker propertyId=\{propertyId\} name="preferred_slot_at"/);
+  assert.match(card, /<VisitSlotPicker\s+propertyId=\{propertyId\}\s+name="preferred_slot_at"/);
   assert.ok(!/name="requested_time"/.test(card), 'no free-text time field left');
   const action = read('app/(site)/listings/[id]/actions.js');
   assert.match(action, /validatePickedSlot\(pickedRaw, new Date\(\), \{ utcOffset: utcOffsetForListing\(listing\) \}\)/);

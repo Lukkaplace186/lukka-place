@@ -2,12 +2,16 @@
 
 import { headers } from 'next/headers';
 import { phoneFromForm } from '@/lib/phone';
+import { demoCustomerPhoneOr } from '@/lib/demoAccounts';
 import { createLead } from '@/lib/adminApi';
 import { buildRequirementsSummary } from '@/lib/customerPortal';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { clientIpFrom } from '@/lib/salesReferral';
 import { recordAdEventFromAction } from '@/lib/adServerContext';
 import { moveStoryFr, parseMoveProject } from '@/lib/moveProjectRules';
+import { openGuestAccount } from '@/lib/guestAccount';
+import { OPEN_ACCOUNT_FIELD, accountRequested } from '@/lib/guestAccountRules';
+import { localSavesFromForm } from '@/lib/newCustomerSession';
 import {
   GUEST_REQUEST_SOURCE,
   createLimiter,
@@ -35,6 +39,11 @@ const phoneLimited = createLimiter({ max: 2, windowMs: 24 * 60 * 60 * 1000 });
  * same number, the request appears in their Espace Client (it is found by
  * phone).
  *
+ * Since 2026-11-24 the same name and number also open the person's free
+ * account (the "Créer mon compte" box, ticked by default; lib/guestAccount.js)
+ * once the lead is sent — no password, no session until they send the code
+ * from that WhatsApp. `account` in the state says what the confirmation offers.
+ *
  * Returns state for useActionState; never redirects, so the form can say
  * what happened in place.
  */
@@ -44,7 +53,9 @@ export async function submitGuestRequestAction(_prev, formData) {
     return { status: 'sent', last4: null };
   }
 
-  const phone = phoneFromForm(formData);
+  // A signed-in demo customer always uses their demo number (lib/demoAccounts.js),
+  // which the engine routes to the paired demo agent only.
+  const phone = await demoCustomerPhoneOr(phoneFromForm(formData));
   if (!phone) return { status: 'error', code: 'phone' };
 
   let communes = [];
@@ -73,9 +84,12 @@ export async function submitGuestRequestAction(_prev, formData) {
   }
 
   const { request } = parsed;
+  // City-wide ("Toute la ville", lib/guestRequestRules.js GUEST_CITY_WIDE):
+  // no commune, the city's agencies are asked; the agency reads the city.
+  const place = request.commune || `${request.city} (toute la ville)`;
   const base = buildRequirementsSummary({
     transactionType: request.transactionType,
-    communes: [request.commune],
+    communes: [place],
     bedrooms: request.bedrooms ? String(request.bedrooms) : '',
     budgetMax: request.budgetMax ? String(request.budgetMax) : '',
   });
@@ -97,8 +111,9 @@ export async function submitGuestRequestAction(_prev, formData) {
       source: GUEST_REQUEST_SOURCE,
       requirementsSummary,
       transactionType: request.transactionType,
-      commune: request.commune,
-      communes: [request.commune],
+      commune: request.commune || undefined,
+      communes: request.commune ? [request.commune] : [],
+      city: request.city || undefined,
       priceMax: request.budgetMax,
       bedrooms: request.bedrooms,
       moveStory: story || undefined,
@@ -113,5 +128,18 @@ export async function submitGuestRequestAction(_prev, formData) {
   if (leadId) {
     await recordAdEventFromAction({ name: 'Lead', eventId: `lead-g-${leadId}`, phone });
   }
-  return { status: 'sent', last4: phone.slice(-4), commune: request.commune };
+  // After the lead: the account step can only add, never cost the request.
+  const account = await openGuestAccount({
+    phone,
+    name: request.name,
+    entry: 'request',
+    requested: accountRequested(formData.getAll(OPEN_ACCOUNT_FIELD)),
+    localData: localSavesFromForm(formData),
+  });
+  return {
+    status: 'sent',
+    last4: phone.slice(-4),
+    commune: request.commune || request.city,
+    account: account.status === 'skipped' ? (account.reason === 'no_name' ? 'offer' : null) : account.status,
+  };
 }

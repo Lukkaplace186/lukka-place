@@ -3,14 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
+import QueryAlertButton from './QueryAlertButton';
+import { feedAlertQuery, feedAlertReady } from '@/lib/feedAlertRules';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
-import { parseSearchQuery } from '@/lib/searchParser';
+// Loaded after first paint (lib/searchEngine.js, phone speed 2026-11-26).
+import { loadSearchEngine, searchEngineNow, useSearchEngine } from '@/lib/searchEngine';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import { budgetOptions, budgetParams } from '@/lib/budgetSteps';
 import { frNumber } from '@/lib/format';
 import { ALL_CITIES, CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
+import { bedsOptions, heroBedsParams, studioOffered, typeHasBedrooms } from '@/lib/heroBedrooms';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -57,6 +61,13 @@ import { ALL_CITIES, CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
  * a fixed set of round figures — a filter-UI convenience, not a claim about
  * the data — feeding the same `price_min` / `price_max` params FilterBar
  * already submits.
+ *
+ * CHAMBRES (2026-11-25, owner request, Rightmove-style): a Min | Max pair
+ * between Type and Budget, built like the budget pair — Studio, 1 … 5, the
+ * other side's contradicting options disabled — so "2 to 4 chambres" is two
+ * taps. Studio is bound 0, which the listings filter reads as the Studio
+ * type; the pair hides for land, commercial space and studios. See
+ * lib/heroBedrooms.js and lib/bedroomRange.js.
  *
  * Placeholder copy says "référence" (never "repère"), per the root
  * CLAUDE.md.
@@ -110,13 +121,13 @@ const COUNT_DEBOUNCE_MS = 350;
  * "Max 1 500 $" — short enough for a half-width box.
  */
 const FIELD_BOX =
-  'relative flex min-h-[3.25rem] min-w-0 items-center gap-2 rounded-xl border border-ink-25 bg-surface px-4 transition-colors ' +
+  'relative flex min-h-[3.25rem] min-w-0 items-center lg:min-h-11 2xl:min-h-[3.25rem] gap-2 rounded-xl border border-ink-25 bg-surface px-4 transition-colors ' +
   'focus-within:border-blue focus-within:shadow-[0_0_0_3px_var(--blue-tint)]';
 
-const FIELD_LABEL = 'mb-2 block text-[0.9375rem] font-bold text-ink';
+const FIELD_LABEL = 'mb-2 block text-[0.9375rem] font-bold text-ink lg:mb-1.5 lg:text-sm 2xl:mb-2 2xl:text-[0.9375rem]';
 
 const FIELD_SELECT =
-  'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.9375rem] ' +
+  'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.9375rem] lg:py-2 2xl:py-3 ' +
   'text-ink focus:outline-none';
 
 /*
@@ -131,6 +142,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [propertyType, setPropertyType] = useState('');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
+  // HERO_BED_STEPS values as strings ('0' = Studio), or '' for no bound.
+  const [bedsMin, setBedsMin] = useState('');
+  const [bedsMax, setBedsMax] = useState('');
   // The city searched (?ville=). A city, or another city's commune, typed in
   // the box wins over it (lib/searchParser.js), and the select follows it.
   const [ville, setVille] = useState(DEFAULT_CITY);
@@ -155,6 +169,28 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const staged = isShortStay ? { price_min: '', price_max: '' } : budgetParams(budgetMin, budgetMax);
   const stagedMin = staged.price_min;
   const stagedMax = staged.price_max;
+  const bedsShown = !isShortStay && typeHasBedrooms(propertyType, propertyTypes);
+  const stagedBeds = bedsShown ? heroBedsParams(bedsMin, bedsMax) : { beds_min: '', beds_max: '' };
+  // Desktop columns. With the bedroom pair there are five fields: one row
+  // from 1280px, and from 1024 to 1279px Ville / Commune / Type on top and the
+  // two Min | Max pairs under them (in one row their selects cut "2 ch." and
+  // "Min 200 $" short). Literal strings so Tailwind generates them.
+  const spanTop = bedsShown ? 'lg:col-span-2 xl:col-span-1' : 'lg:col-span-1';
+  const spanPair = bedsShown ? 'lg:col-span-3 xl:col-span-1' : 'lg:col-span-1';
+  const bedSelects = useMemo(
+    () =>
+      bedsOptions(
+        { min: bedsMin, max: bedsMax },
+        {
+          minAny: t('home.search.budgetMinAny'),
+          maxAny: t('home.search.budgetMaxAny'),
+          studio: t('home.search.studio'),
+          count: (count) => t('home.search.bedsCount', { count }),
+        },
+        { studio: studioOffered(propertyTypes) },
+      ),
+    [t, bedsMin, bedsMax, propertyTypes],
+  );
   // Rebuilt when the language, the scale (rent / sale) or a chosen bound
   // changes: a bound disables the options on the other side that would
   // contradict it.
@@ -168,6 +204,8 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     property_type: stagedType,
     price_min: stagedMin,
     price_max: stagedMax,
+    beds_min: stagedBeds.beds_min,
+    beds_max: stagedBeds.beds_max,
     lease_term: leaseTerm,
     ville,
   };
@@ -182,15 +220,21 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // Kinshasa — the city the search will actually run in.
   function cityOfText(text) {
     if (String(text || '').trim().length < 3) return null;
-    const parsed = parseSearchQuery(text);
+    const engine = searchEngineNow();
+    if (!engine) return null;
+    const parsed = engine.parseSearchQuery(text);
     if (parsed.ville) return parsed.ville;
     return parsed.commune ? cityOfCommune(parsed.commune) || DEFAULT_CITY : null;
   }
 
   function onLocationChange(text) {
     setLocation(text);
-    const city = cityOfText(text);
-    if (city) setVille(city);
+    const apply = () => {
+      const city = cityOfText(text);
+      if (city) setVille(city);
+    };
+    if (searchEngineNow()) apply();
+    else loadSearchEngine().then(apply).catch(() => {});
   }
 
   // Picking another city clears a place of a different city from the box,
@@ -214,6 +258,49 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [suggested, setSuggested] = useState(0);
   const isFirstRun = useRef(true);
 
+  // The search the button opens, as /listings params: the count asks for it,
+  // and the bell beside the button (2026-11-24) saves it as an alert.
+  // `parseSearchQuery` is null until lib/searchEngine.js has loaded the parser:
+  // the typed text then adds nothing yet (the count effect awaits the parser).
+  function stagedQuery(parseSearchQuery) {
+    const qs = new URLSearchParams();
+    if (transactionType) qs.set('transaction_type', transactionType);
+    if (stagedType) qs.set('property_type', stagedType);
+    if (stagedMin) qs.set('price_min', stagedMin);
+    if (stagedMax) qs.set('price_max', stagedMax);
+    if (stagedBeds.beds_min) qs.set('beds_min', stagedBeds.beds_min);
+    if (stagedBeds.beds_max) qs.set('beds_max', stagedBeds.beds_max);
+    if (leaseTerm) qs.set('lease_term', leaseTerm);
+    if (ville) qs.set('ville', ville);
+
+    // Parsed exactly the way submitting parses it (LocationAutocomplete's
+    // submitFreeText -> applyParsedFilters), and in the same precedence:
+    // what was typed wins over the selects, so the count describes the
+    // page the button actually navigates to.
+    const parsed = parseSearchQuery ? parseSearchQuery(location) : {};
+    if (parsed.reference) qs.set('reference', parsed.reference);
+    if (parsed.transaction_type) qs.set('transaction_type', parsed.transaction_type);
+    if (parsed.price_min != null) qs.set('price_min', String(parsed.price_min));
+    if (parsed.price_max != null) qs.set('price_max', String(parsed.price_max));
+    if (parsed.beds_min != null) qs.set('beds_min', String(parsed.beds_min));
+    if (parsed.bath_min != null) qs.set('bath_min', String(parsed.bath_min));
+    if (parsed.lease_term) qs.set('lease_term', parsed.lease_term);
+    if (parsed.plot_min != null) qs.set('plot_min', String(parsed.plot_min));
+    if (parsed.amenities?.length) qs.set('amenities', parsed.amenities.join(','));
+    if (parsed.property_type) {
+      qs.set('property_type', parsed.property_type);
+      if (parsed.parcelle_subtype) qs.set('parcelle_subtype', parsed.parcelle_subtype);
+    }
+    if (parsed.ville) qs.set('ville', parsed.ville);
+    if (parsed.commune) {
+      qs.set('commune', parsed.commune);
+      if (parsed.communes?.length > 1) qs.set('communes', parsed.communes.join(','));
+      if (parsed.quartier) qs.set('quartier', parsed.quartier);
+    }
+    if (parsed.keywords) qs.set('q', parsed.keywords);
+    return qs;
+  }
+
   useEffect(() => {
     if (isFirstRun.current) {
       isFirstRun.current = false;
@@ -221,40 +308,16 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-      const qs = new URLSearchParams();
-      if (transactionType) qs.set('transaction_type', transactionType);
-      if (stagedType) qs.set('property_type', stagedType);
-      if (stagedMin) qs.set('price_min', stagedMin);
-      if (stagedMax) qs.set('price_max', stagedMax);
-      if (leaseTerm) qs.set('lease_term', leaseTerm);
-      if (ville) qs.set('ville', ville);
-
-      // Parsed exactly the way submitting parses it (LocationAutocomplete's
-      // submitFreeText -> applyParsedFilters), and in the same precedence:
-      // what was typed wins over the selects, so the count describes the
-      // page the button actually navigates to.
-      const parsed = parseSearchQuery(location);
-      if (parsed.reference) qs.set('reference', parsed.reference);
-      if (parsed.transaction_type) qs.set('transaction_type', parsed.transaction_type);
-      if (parsed.price_min != null) qs.set('price_min', String(parsed.price_min));
-      if (parsed.price_max != null) qs.set('price_max', String(parsed.price_max));
-      if (parsed.beds_min != null) qs.set('beds_min', String(parsed.beds_min));
-      if (parsed.bath_min != null) qs.set('bath_min', String(parsed.bath_min));
-      if (parsed.lease_term) qs.set('lease_term', parsed.lease_term);
-      if (parsed.plot_min != null) qs.set('plot_min', String(parsed.plot_min));
-      if (parsed.amenities?.length) qs.set('amenities', parsed.amenities.join(','));
-      if (parsed.property_type) {
-        qs.set('property_type', parsed.property_type);
-        if (parsed.parcelle_subtype) qs.set('parcelle_subtype', parsed.parcelle_subtype);
+    const timer = setTimeout(async () => {
+      // The parser arrives after first paint (lib/searchEngine.js).
+      let loaded;
+      try {
+        loaded = await loadSearchEngine();
+      } catch {
+        return; // keep the last real count
       }
-      if (parsed.ville) qs.set('ville', parsed.ville);
-      if (parsed.commune) {
-        qs.set('commune', parsed.commune);
-        if (parsed.communes?.length > 1) qs.set('communes', parsed.communes.join(','));
-        if (parsed.quartier) qs.set('quartier', parsed.quartier);
-      }
-      if (parsed.keywords) qs.set('q', parsed.keywords);
+      if (controller.signal.aborted) return;
+      const qs = stagedQuery(loaded.parseSearchQuery);
 
       fetch(`/api/listings/count?${qs.toString()}`, { signal: controller.signal })
         .then((res) => res.json())
@@ -273,14 +336,18 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [transactionType, stagedType, stagedMin, stagedMax, leaseTerm, ville, location]);
+    // stagedQuery reads exactly these values; listing them keeps the debounce
+    // tied to what the visitor changed rather than to every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactionType, stagedType, stagedMin, stagedMax, stagedBeds.beds_min, stagedBeds.beds_max, leaseTerm, ville, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
   // visitor sees that "Gombe" and "2 chambres" were understood before they
   // search. Never a filter of its own (lib/searchUnderstood.js).
+  const engine = useSearchEngine();
   const understood = useMemo(
-    () => (location.trim().length >= 3 ? understoodChips(parseSearchQuery(location), t) : []),
-    [location, t],
+    () => (engine && location.trim().length >= 3 ? understoodChips(engine.parseSearchQuery(location), t) : []),
+    [location, t, engine],
   );
 
   function applyCommune(name) {
@@ -300,13 +367,13 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // call to action stands in; a zero-result search says it will show
   // suggestions when there are some.
   // Criteria set in the folded fields, so a closed fold never hides a choice.
-  const foldedActive = [ville !== DEFAULT_CITY, Boolean(propertyType), Boolean(budgetMin), Boolean(budgetMax)].filter(Boolean).length;
+  const foldedActive = [ville !== DEFAULT_CITY, Boolean(propertyType), Boolean(stagedBeds.beds_min || stagedBeds.beds_max), Boolean(budgetMin), Boolean(budgetMax)].filter(Boolean).length;
   const folded = moreOpen ? '' : 'max-sm:hidden';
   const criteriaButton = (
     <button
       type="button"
       aria-expanded={moreOpen}
-      aria-controls="hero-city hero-type hero-budget-min hero-budget-max"
+      aria-controls={`hero-city hero-type${bedsShown ? ' hero-beds-min hero-beds-max' : ''} hero-budget-min hero-budget-max`}
       aria-label={moreOpen ? t('home.search.fewerCriteria') : t('home.search.moreCriteria')}
       onClick={() => setMoreOpen((open) => !open)}
       className={`u-press relative flex h-[3.25rem] w-[3.25rem] flex-none items-center justify-center rounded-xl border transition-colors sm:hidden ${
@@ -321,6 +388,12 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       ) : null}
     </button>
   );
+
+  // "M'alerter" beside the results button (2026-11-24): once the search names
+  // a commune or a quartier (every listing of the city is the feed, not an
+  // alert — lib/feedAlertRules.js), the same search saved as a WhatsApp alert.
+  const stagedParams = Object.fromEntries(stagedQuery(engine?.parseSearchQuery));
+  const alertQuery = feedAlertReady(stagedParams) ? feedAlertQuery(stagedParams) : null;
 
   let ctaLabel;
   if (count === 0 && suggested > 0) ctaLabel = t('home.search.seeSuggestions', { count: suggested });
@@ -379,8 +452,16 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       </div>
 
       {/* --- 2. Labelled fields ------------------------------------------ */}
-      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.5fr)]'}`}>
-        <div className={`col-span-2 min-w-0 lg:col-span-1 ${folded}`}>
+      <div
+        className={`grid grid-cols-2 gap-x-3 gap-y-4 ${
+          isShortStay
+            ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
+            : bedsShown
+              ? 'lg:grid-cols-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1.4fr)]'
+              : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.5fr)]'
+        }`}
+      >
+        <div className={`col-span-2 min-w-0 ${spanTop} ${folded}`}>
           <label htmlFor="hero-city" className={FIELD_LABEL}>
             {t('home.search.city')}
           </label>
@@ -401,7 +482,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           </div>
         </div>
 
-        <div className="col-span-2 min-w-0 lg:col-span-1">
+        <div className={`col-span-2 min-w-0 ${spanTop}`}>
           <label htmlFor="hero-location" className={compact ? 'max-sm:sr-only ' + FIELD_LABEL : FIELD_LABEL}>
             {t('home.search.locationLabel')}
           </label>
@@ -436,7 +517,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           <>
             {/* Full width on a phone: the budget below needs both columns
                 for its Min | Max pair. */}
-            <div className={`col-span-2 min-w-0 lg:col-span-1 ${folded}`}>
+            <div className={`col-span-2 min-w-0 ${spanTop} ${folded}`}>
               <label htmlFor="hero-type" className={FIELD_LABEL}>
                 {t('home.search.propertyType')}
               </label>
@@ -473,7 +554,33 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               </div>
             </div>
 
-            <div role="group" aria-labelledby="hero-budget-label" className={`col-span-2 min-w-0 lg:col-span-1 ${folded}`}>
+            {bedsShown ? (
+              <div id="hero-beds" role="group" aria-labelledby="hero-beds-label" className={`col-span-2 min-w-0 ${spanPair} ${folded}`}>
+                <span id="hero-beds-label" className={FIELD_LABEL}>
+                  {t('home.search.bedrooms')}
+                </span>
+                {/* Min | Max, the budget pair's shape: one select each. */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'hero-beds-min', aria: 'home.search.bedsMinAria', value: bedsMin, set: setBedsMin, options: bedSelects.minOptions },
+                    { id: 'hero-beds-max', aria: 'home.search.bedsMaxAria', value: bedsMax, set: setBedsMax, options: bedSelects.maxOptions },
+                  ].map(({ id, aria, value, set, options }) => (
+                    <div key={id} className={FIELD_BOX}>
+                      <select id={id} aria-label={t(aria)} value={value} onChange={(e) => set(e.target.value)} className={FIELD_SELECT}>
+                        {options.map(({ value: optionValue, label, disabled }) => (
+                          <option key={optionValue} value={optionValue} disabled={disabled}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div role="group" aria-labelledby="hero-budget-label" className={`col-span-2 min-w-0 ${spanPair} ${folded}`}>
               <span id="hero-budget-label" className={FIELD_LABEL}>
                 {t('home.search.budgetLabel')}
               </span>
@@ -520,7 +627,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       {compact ? null : <button
         type="button"
         aria-expanded={moreOpen}
-        aria-controls="hero-city hero-type hero-budget-min hero-budget-max"
+        aria-controls={`hero-city hero-type${bedsShown ? ' hero-beds-min hero-beds-max' : ''} hero-budget-min hero-budget-max`}
         onClick={() => setMoreOpen((open) => !open)}
         className="u-press mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-[0.9375rem] font-semibold text-blue-deep sm:hidden"
       >
@@ -548,7 +655,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       <button
         type="button"
         onClick={submit}
-        className="u-press u-btn-primary mt-3 inline-flex h-14 w-full sm:mt-5 items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
+        className="u-press u-btn-primary mt-3 inline-flex h-12 w-full sm:mt-4 sm:h-[3.25rem] lg:h-12 2xl:h-[3.25rem] items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
       >
         {/* Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not
@@ -557,6 +664,16 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           {ctaLabel}
         </span>
       </button>
+      {alertQuery ? (
+        <QueryAlertButton
+          query={alertQuery}
+          label={t('home.search.alertMe')}
+          entry="home_hero"
+          variant="secondary"
+          fullWidth
+          className="mt-2"
+        />
+      ) : null}
 
       {/* --- 4. Quick pills ------------------------------------------------ */}
       {communes.length > 0 && !compact ? (
@@ -580,7 +697,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
                   type="button"
                   aria-pressed={on}
                   onClick={() => applyCommune(commune)}
-                  className={`u-press flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[0.9375rem] transition-colors ${
+                  className={`u-press flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[0.9375rem] transition-colors lg:px-3.5 lg:text-sm lg:pointer-fine:min-h-9 2xl:px-4 2xl:text-[0.9375rem] 2xl:pointer-fine:min-h-11 ${
                     on
                       ? 'border-blue bg-blue-tint font-semibold text-blue-deep'
                       : 'border-ink-25 bg-surface font-medium text-ink hover:border-ink-45'
